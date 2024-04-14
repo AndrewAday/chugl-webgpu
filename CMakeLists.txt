@@ -2,18 +2,22 @@ include(FetchContent)
 
 cmake_minimum_required(VERSION 3.16)
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # force universal binary on osx (must go BEFORE project call)
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-# specify minimum support macOS version
-if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-    # If no deployment target has been set default to the minimum supported
-    # OS version (this has to be set before the first project() call)
-    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0 CACHE STRING "iOS Deployment Target")
-    else()
-        set(CMAKE_OSX_DEPLOYMENT_TARGET 10.10 CACHE STRING "macOS Deployment Target")
-    endif()
-endif()
+# TODO: universal binary not working with webgpu-distribution
+# set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "" FORCE)
+# # specify minimum support macOS version
+# if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+#     # If no deployment target has been set default to the minimum supported
+#     # OS version (this has to be set before the first project() call)
+#     if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+#         set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0 CACHE STRING "iOS Deployment Target")
+#     else()
+#         set(CMAKE_OSX_DEPLOYMENT_TARGET 10.10 CACHE STRING "macOS Deployment Target")
+#     endif()
+# endif()
 
 project(
     ChuGL
@@ -21,8 +25,8 @@ project(
     LANGUAGES CXX C
 )
 
-if(LINUX)
-    add_compile_options(-fPIC)
+if(LINUX OR EMSCRIPTEN)
+    add_compile_options(-fPIC)  # needed for emcripten
     #set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined" )
 endif()
 
@@ -34,16 +38,30 @@ set(
 )
 
 # chugl library
-add_library(
-    ${PROJECT_NAME} SHARED 
-    src/chugl.cpp 
-    src/app.cpp          src/app.h
-    src/sync.cpp         src/sync.h
-    src/shaders.h
-    src/graphics.cpp     src/graphics.h
-    src/implementations.cpp
-    ${CORE}
-)
+if (EMSCRIPTEN)
+    # emcmake can't handle shared libraries. SIDE_LOAD executable is the only option
+    add_executable(
+        ${PROJECT_NAME} 
+        src/chugl.cpp 
+        src/app.cpp          src/app.h
+        src/sync.cpp         src/sync.h
+        src/shaders.h
+        src/graphics.cpp     src/graphics.h
+        src/implementations.cpp
+        ${CORE}
+    )
+else()
+    add_library(
+        ${PROJECT_NAME} SHARED 
+        src/chugl.cpp 
+        src/app.cpp          src/app.h
+        src/sync.cpp         src/sync.h
+        src/shaders.h
+        src/graphics.cpp     src/graphics.h
+        src/implementations.cpp
+        ${CORE}
+    )
+endif()
 
 # Defines
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -71,6 +89,9 @@ if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic)
+
+    # disable warnings
+    target_compile_options(${PROJECT_NAME} PRIVATE -Wno-unused-parameter)
 endif()
 
 # Windows warnings
@@ -132,22 +153,26 @@ target_include_directories(${PROJECT_NAME}
 # emscripten specific options =================================================
 if (EMSCRIPTEN)
     # know to rebuild when assets/ directory changes
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets)
-
-    # Make sure to re-link when the shell file changes
-    # set(SHELL_FILE shell_minimal.html)
-    # set_property(
-    #     TARGET ${PROJECT_NAME}
-    #     PROPERTY LINK_DEPENDS
-    #     "${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}"
-    # )
+    set(SHELL_FILE shell_minimal.html)
+    set_property(
+        TARGET ${PROJECT_NAME}
+        PROPERTY LINK_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}
+    )
+    # set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets)
 
     # Add Emscripten-specific link options
     target_link_options(${PROJECT_NAME} PRIVATE
         -sUSE_GLFW=3 # Use Emscripten-provided GLFW
         -sUSE_WEBGPU # Handle WebGPU symbols
-        -sASYNCIFY # Required for emscripten_sleep in the async wgpu adapter and device request
         -sALLOW_MEMORY_GROWTH # allow memory to grow dynamically
+        -sSIDE_MODULE=1  # needed for chuck to dynamically load the chugin
+
+        # removing because ASYNCIFY not supported in side module
+        # using infinite loop instead
+        # -sASYNCIFY # Required for emscripten_sleep in the async wgpu adapter and device request
+
+        # -sDISABLE_EXCEPTION_CATCHING=0
 
         # uncomment to include local files in the build
         # https://emscripten.org/docs/porting/files/packaging_files.html
@@ -155,13 +180,16 @@ if (EMSCRIPTEN)
         # To include files outside of the current working directory
         # use the `--preload-file srcpath@dstpath` syntax to explicitly 
         # specify the target location
-        --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@./assets
+        # --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@./assets
 
         # Can specify custom html template
         # https://github.com/emscripten-core/emscripten/blob/main/src/shell_minimal.html
-        # --shell-file "${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}"
+        # --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}
     )
-    set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
+    set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".wasm")
+
+    # emscripten only generates .html properly if target is a MAIN_MODULE
+    # set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
 endif (EMSCRIPTEN)
 
 # IDE setup ====================================================================

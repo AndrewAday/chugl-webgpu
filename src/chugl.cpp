@@ -90,11 +90,14 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
 
     // activate hook only on GG.nextFrame();
     if (!hookActivated) {
+        log_trace("event_next_frame_waiting_on: activating hook");
         hook->activate(hook);
         hookActivated = true;
     }
 
     Sync_MarkShredWaited(SHRED);
+
+    log_trace("event_next_frame_waiting_on");
 }
 
 CK_DLL_SFUN(chugl_next_frame)
@@ -162,8 +165,11 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY);
     }
 
+    static u64 foo = 12345;
     { // GG static functions
         QUERY->begin_class(QUERY, "GG", "Object");
+
+        QUERY->add_svar(QUERY, "int", "foo", true, &foo);
 
         QUERY->add_sfun(QUERY, chugl_next_frame, "NextFrameEvent", "nextFrame");
         QUERY->doc_func(

@@ -10,6 +10,10 @@
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu/glfw3webgpu.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 // ============================================================================
 // Globals
 // ============================================================================

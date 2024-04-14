@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "core/log.h"
 #include "core/macros.h"
 
 #include "sync.h"
@@ -39,6 +40,7 @@ void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
 {
     if (events[type] == NULL) Event_Init(api, vm);
     api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
+    log_debug("Event_Broadcast: %s", CHUGL_EventTypeNames[type]);
 }
 
 Chuck_Event* Event_Get(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)

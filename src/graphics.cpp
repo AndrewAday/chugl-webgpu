@@ -81,7 +81,9 @@ static WGPUAdapter request_adapter(WGPUInstance instance,
                                (void*)&userData);
 #ifdef __EMSCRIPTEN__
     // In the Emscripten environment, the WebGPU adapter request is asynchronous
-    while (!userData.requestEnded) emscripten_sleep(10);
+    // while (!userData.requestEnded) emscripten_sleep(10);
+    while (!userData.requestEnded) {
+    }
 #endif
     // In theory we should wait until onAdapterReady has been called, which
     // could take some time (what the 'await' keyword does in the JavaScript
@@ -125,7 +127,9 @@ static WGPUDevice request_device(WGPUAdapter adapter,
                              (void*)&userData);
 
 #ifdef __EMSCRIPTEN__
-    while (!userData.requestEnded) emscripten_sleep(10);
+    // while (!userData.requestEnded) emscripten_sleep(10);
+    while (!userData.requestEnded) {
+    }
 #endif
 
     ASSERT(userData.requestEnded);
