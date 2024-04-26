@@ -2,7 +2,7 @@ include(FetchContent)
 
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 # force universal binary on osx (must go BEFORE project call)
 # TODO: universal binary not working with webgpu-distribution
@@ -30,6 +30,32 @@ if(LINUX OR EMSCRIPTEN)
     #set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined" )
 endif()
 
+# IDE setup
+if(XCODE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        XCODE_GENERATE_SCHEME ON
+        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal")
+endif()
+
+if ( MSVC )
+    # Set the startup project to be the actual project instead of ALL_BUILD 
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
+
+    set(CHUCK_EXECUTABLE_DEBUG "${CMAKE_SOURCE_DIR}/chuck-debug.exe")
+    set(CHUCK_EXECUTABLE_RELEASE "${CMAKE_SOURCE_DIR}/chuck-release.exe")
+    set(CHUGIN_PATH_DEBUG "--chugin-path:${CMAKE_TARGET_DIR}./build/Debug")
+    set(CHUGIN_PATH_RELEASE "--chugin-path:${CMAKE_TARGET_DIR}./build/Release")
+    set_target_properties( ${PROJECT_NAME} PROPERTIES
+        # VS_DEBUGGER_COMMAND $<$<CONFIG:Debug>:${CHUCK_EXECUTABLE_DEBUG}>$<$<CONFIG:Release>:${CHUCK_EXECUTABLE_RELEASE}>
+        VS_DEBUGGER_COMMAND "C:/Program Files/ChucK/chuck.exe"
+
+        VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:${CHUGIN_PATH_DEBUG}>$<$<CONFIG:Release>:${CHUGIN_PATH_RELEASE}> --chugin-probe"
+
+        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()
+
+
 set(
     CORE 
     src/core/macros.h
@@ -37,42 +63,49 @@ set(
     src/core/memory.h   src/core/memory.cpp
 )
 
+set(
+    RENDERER
+    src/app.cpp          src/app.h
+    src/sync.cpp         src/sync.h
+    src/shaders.h
+    src/graphics.cpp     src/graphics.h
+    src/implementations.cpp
+)
+
+if (CHUGL_BUILD_RENDERER_TESTS)
+    message(STATUS "Building Renderer Tester")
+    add_executable(
+        ChuGL-Renderer-Tester
+        src/main.cpp
+        ${RENDERER}
+        ${CORE}
+    )
+    set_target_properties(ChuGL-Renderer-Tester PROPERTIES
+        CXX_STANDARD 11
+        CXX_EXTENSIONS OFF
+        COMPILE_WARNING_AS_ERROR ON
+        VS_DEBUGGER_ENVIRONMENT "DAWN_DEBUG_BREAK_ON_ERROR=1"
+    )
+endif()
+
 # chugl library
 if (EMSCRIPTEN)
     # emcmake can't handle shared libraries. SIDE_LOAD executable is the only option
     add_executable(
         ${PROJECT_NAME} 
         src/chugl.cpp 
-        src/app.cpp          src/app.h
-        src/sync.cpp         src/sync.h
-        src/shaders.h
-        src/graphics.cpp     src/graphics.h
-        src/implementations.cpp
+        ${RENDERER}
         ${CORE}
     )
 else()
     add_library(
         ${PROJECT_NAME} SHARED 
         src/chugl.cpp 
-        src/app.cpp          src/app.h
-        src/sync.cpp         src/sync.h
-        src/shaders.h
-        src/graphics.cpp     src/graphics.h
-        src/implementations.cpp
+        ${RENDERER}
         ${CORE}
     )
 endif()
 
-# Defines
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Debug>:CHUGL_DEBUG>
-    $<$<CONFIG:Release>:CHUGL_RELEASE>
-    GLM_FORCE_DEPTH_ZERO_TO_ONE # glm force depth range to 0-1
-    GLM_ENABLE_EXPERIMENTAL
-    LOG_USE_COLOR
-)
-
-# Recommended extras
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11
     CXX_EXTENSIONS OFF
@@ -84,41 +117,60 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     SUFFIX ".chug"
 )
 
+# =================================================================================
+# interface library for CMake properties
+# =================================================================================
+add_library(chugl_shared_properties INTERFACE)
+
+# Defines
+target_compile_definitions(chugl_shared_properties INTERFACE 
+    $<$<CONFIG:Debug>:CHUGL_DEBUG>
+    $<$<CONFIG:Release>:CHUGL_RELEASE>
+    GLM_FORCE_DEPTH_ZERO_TO_ONE # glm force depth range to 0-1
+    GLM_ENABLE_EXPERIMENTAL
+    LOG_USE_COLOR
+)
+
 # increasing warning levels
 if (MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+    target_compile_options(chugl_shared_properties INTERFACE /W4)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(chugl_shared_properties INTERFACE -Wall -Wextra -pedantic)
 
     # disable warnings
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wno-unused-parameter)
+    target_compile_options(chugl_shared_properties INTERFACE -Wno-unused-parameter)
 endif()
 
-# Windows warnings
+# Ignore Windows warnings
 if (MSVC)
-	# Ignore a warning that GLM requires to bypass
-	# Disable warning C4201: nonstandard extension used: nameless struct/union
-	target_compile_options(${PROJECT_NAME} PUBLIC /wd4201)
-
-    # Required for GLM lookat()
-    # Disable warning C4127: conditional expression is constant
-    target_compile_options(${PROJECT_NAME} PUBLIC /wd4127)
-
-	# Disable warning C4305: truncation from 'int' to 'bool' in 'if' condition
-	target_compile_options(${PROJECT_NAME} PUBLIC /wd4305)
-
-	# Ignore a warning that stb_image requires to bypass
-	# Disable warning C4244: conversion from 'int' to 'short', possible loss of data
-	target_compile_options(${PROJECT_NAME} PUBLIC /wd4244)
-
-    # ignore fopen warning for cgltf
-	target_compile_options(${PROJECT_NAME} PUBLIC /wd4996)
-
-    # allow unused variables for the ChuGin DLL Query
-	target_compile_options(${PROJECT_NAME} PUBLIC /wd4100)
-
+	target_compile_options(
+        chugl_shared_properties INTERFACE
+        # Ignore a warning that GLM requires to bypass
+        # Disable warning C4201: nonstandard extension used: nameless struct/union
+        /wd4201
+        # Required for GLM lookat()
+        # Disable warning C4127: conditional expression is constant
+        /wd4127
+        # Disable warning C4305: truncation from 'int' to 'bool' in 'if' condition
+        /wd4305
+        # Ignore a warning that stb_image requires to bypass
+        # Disable warning C4244: conversion from 'int' to 'short', possible loss of data
+        /wd4244
+        # ignore fopen warning for cgltf
+        /wd4996
+    )
+    target_compile_options(
+        ${PROJECT_NAME} PRIVATE
+        # allow unused variables for the ChuGin DLL Query
+        /wd4100
+    )
 endif (MSVC)
 
+# add include path
+target_include_directories(chugl_shared_properties 
+    INTERFACE src
+    INTERFACE vendor
+)
 
 # vendor dependencies ==========================================================
 
@@ -141,14 +193,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(webgpu)
 
 # linking
-target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
-
-
-# add vendor to include path
-target_include_directories(${PROJECT_NAME} 
-    PRIVATE src
-    PRIVATE vendor
-)
+# target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
+target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu)
+target_link_libraries(${PROJECT_NAME} PRIVATE chugl_shared_properties)
+if (CHUGL_BUILD_RENDERER_TESTS)
+    target_link_libraries(ChuGL-Renderer-Tester PRIVATE chugl_shared_properties)
+endif()
 
 # emscripten specific options =================================================
 if (EMSCRIPTEN)
@@ -167,6 +217,9 @@ if (EMSCRIPTEN)
         -sUSE_WEBGPU # Handle WebGPU symbols
         -sALLOW_MEMORY_GROWTH # allow memory to grow dynamically
         -sSIDE_MODULE=1  # needed for chuck to dynamically load the chugin
+
+        # add thread support
+        # -pthread
 
         # removing because ASYNCIFY not supported in side module
         # using infinite loop instead
@@ -191,28 +244,3 @@ if (EMSCRIPTEN)
     # emscripten only generates .html properly if target is a MAIN_MODULE
     # set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
 endif (EMSCRIPTEN)
-
-# IDE setup ====================================================================
-if(XCODE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        XCODE_GENERATE_SCHEME ON
-        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal")
-endif()
-
-if ( MSVC )
-    # Set the startup project to be the actual project instead of ALL_BUILD 
-    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
-
-    set(CHUCK_EXECUTABLE_DEBUG "${CMAKE_SOURCE_DIR}/chuck-debug.exe")
-    set(CHUCK_EXECUTABLE_RELEASE "${CMAKE_SOURCE_DIR}/chuck-release.exe")
-    set(CHUGIN_PATH_DEBUG "--chugin-path:${CMAKE_TARGET_DIR}./build/Debug")
-    set(CHUGIN_PATH_RELEASE "--chugin-path:${CMAKE_TARGET_DIR}./build/Release")
-    set_target_properties( ${PROJECT_NAME} PROPERTIES
-        # VS_DEBUGGER_COMMAND $<$<CONFIG:Debug>:${CHUCK_EXECUTABLE_DEBUG}>$<$<CONFIG:Release>:${CHUCK_EXECUTABLE_RELEASE}>
-        VS_DEBUGGER_COMMAND "C:/Program Files/ChucK/chuck.exe"
-
-        VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:${CHUGIN_PATH_DEBUG}>$<$<CONFIG:Release>:${CHUGIN_PATH_RELEASE}> --chugin-probe"
-
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-endif()

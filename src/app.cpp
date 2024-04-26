@@ -14,10 +14,21 @@
 #include <emscripten/html5.h>
 #endif
 
+struct App {
+    AppOptions options;
+
+    GLFWwindow* window;
+    GraphicsContext gctx;
+
+    // Chuck Context
+    Chuck_VM* ckvm;
+    CK_DL_API ckapi;
+};
+
 // ============================================================================
 // Globals
 // ============================================================================
-CHUGL_App app = {};
+App app = {};
 
 static void showFPS(GLFWwindow* window)
 {
@@ -33,7 +44,7 @@ static void showFPS(GLFWwindow* window)
     frameCount++;
     if (delta >= 1.0) { // If last cout was more than 1 sec ago
 
-        snprintf(title, WINDOW_TITLE_MAX_LENGTH, "WebGPU-Renderer [FPS: %.2f]",
+        snprintf(title, WINDOW_TITLE_MAX_LENGTH, "ChuGL-WebGPU [FPS: %.2f]",
                  frameCount / delta);
 
         log_trace(title);
@@ -54,6 +65,7 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action,
     UNUSED_VAR(mods);
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+        log_trace("ESC pressed, closing window");
         return;
     }
 }
@@ -87,7 +99,7 @@ static void mainLoop()
     // waiting for audio synchronization (see cgl_update_event_waiting_on)
     // (i.e., when all registered GG.nextFrame() are called on their
     // respective shreds)
-    Sync_WaitOnUpdateDone();
+    if (!app.options.standalone) Sync_WaitOnUpdateDone();
 
     // question: why does putting this AFTER time calculation cause
     // everything to be so choppy at high FPS? hypothesis: puts time
@@ -123,7 +135,8 @@ static void mainLoop()
     // done swapping the double buffer, let chuck know it's good to continue
     // pushing commands this wakes all shreds currently waiting on
     // GG.nextFrame()
-    Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app.ckapi, app.ckvm);
+    if (!app.options.standalone)
+        Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app.ckapi, app.ckvm);
 
     // ====================
     // end critical section
@@ -153,14 +166,18 @@ static void mainLoop()
 // ============================================================================
 // Definitions
 // ============================================================================
-void CHUGL_App::init(Chuck_VM* vm, CK_DL_API api)
+void App_Init(Chuck_VM* vm, CK_DL_API api, AppOptions* options)
 {
     ASSERT(app.ckvm == NULL && app.ckapi == NULL);
     app.ckvm  = vm;
     app.ckapi = api;
+    if (options)
+        app.options = *options;
+    else // default options
+        app.options = {};
 }
 
-void CHUGL_App::start()
+void App_Start()
 {
     ASSERT(app.window == NULL);
 
@@ -216,18 +233,21 @@ void CHUGL_App::start()
     );
 #else
     while (!glfwWindowShouldClose(app.window)) mainLoop();
+    log_trace("Exiting main loop");
 #endif
 }
 
-void CHUGL_App::end()
+void App_End()
 {
     // release graphics context
     GraphicsContext::release(&app.gctx);
 
     // destroy window
     glfwDestroyWindow(app.window);
-    app.window = NULL;
 
     // terminate GLFW
     glfwTerminate();
+
+    // zero all fields
+    app = {};
 }

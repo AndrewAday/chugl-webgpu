@@ -22,8 +22,8 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
     log_trace("chugl_main_loop_hook");
 
     ASSERT(g_chuglAPI && g_chuglVM);
-    CHUGL_App::init(g_chuglVM, g_chuglAPI);
-    CHUGL_App::start();
+    App_Init(g_chuglVM, g_chuglAPI, NULL);
+    App_Start(); // blocking
 
     { // cleanup (after exiting main loop)
         // remove all shreds (should trigger shutdown, unless running in --loop
@@ -31,7 +31,7 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
         if (g_chuglVM && g_chuglAPI)
             g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
 
-        CHUGL_App::end();
+        App_End();
     }
 
     return TRUE;
@@ -90,14 +90,17 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
 
     // activate hook only on GG.nextFrame();
     if (!hookActivated) {
-        log_trace("event_next_frame_waiting_on: activating hook");
-        hook->activate(hook);
         hookActivated = true;
+#ifdef __EMSCRIPTEN__
+        // no chuck command line host in webchuck so therefore no main loop
+        log_trace("emscripten main loop hook");
+        chugl_main_loop_hook(NULL);
+#else
+        hook->activate(hook);
+#endif
     }
 
     Sync_MarkShredWaited(SHRED);
-
-    log_trace("event_next_frame_waiting_on");
 }
 
 CK_DLL_SFUN(chugl_next_frame)
@@ -135,6 +138,8 @@ CK_DLL_QUERY(ChuGL)
     // set up for main thread hook, for running ChuGL on the main thread
     hook = QUERY->create_main_thread_hook(QUERY, chugl_main_loop_hook,
                                           chugl_main_loop_quit, NULL);
+
+    // TODO: add shred_on_destroy listener
 
     // initialize ChuGL API ========================================
     { // chugl events

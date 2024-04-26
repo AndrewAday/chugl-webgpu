@@ -40,7 +40,6 @@ void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
 {
     if (events[type] == NULL) Event_Init(api, vm);
     api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
-    log_debug("Event_Broadcast: %s", CHUGL_EventTypeNames[type]);
 }
 
 Chuck_Event* Event_Get(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
@@ -59,7 +58,8 @@ const char* Event_GetName(CHUGL_EventType type)
 // ============================================================================
 
 static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
-static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
+// static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
+static u64 waitingShreds = 0;
 
 static std::mutex gameLoopLock;
 static std::condition_variable gameLoopConditionVar;
@@ -103,17 +103,24 @@ void Sync_MarkShredWaited(Chuck_VM_Shred* shred)
     registeredShreds[shred] = true;
 
     // add to waiting set
-    waitingShreds.insert(shred);
+    // waitingShreds.insert(shred);
+    ++waitingShreds;
 
     // if #waiting == #registered, all chugl shreds have finished work, and we
     // are safe to wakeup the renderer
-    if (waitingShreds.size() >= registeredShreds.size()) {
+    // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
+    // i.e. does nextFrame() once and then goes on to say process audio, this
+    // code will stay be expecting that shred to call nextFrame() again and
+    // waitingShreds will never == registeredShreds.size() thus hanging the
+    // renderer
+    if (waitingShreds >= registeredShreds.size()) {
         // traverse scenegraph and call chuck-defined update() on all GGens
         // CGL::UpdateSceneGraph(CGL::mainScene, API, VM, SHRED);
 
         // clear thread waitlist; all expected shreds are now waiting on
         // GG.nextFrame()
-        waitingShreds.clear();
+        // waitingShreds.clear();
+        waitingShreds = 0;
 
         // signal the graphics-side that audio-side is done processing for this
         // frame see CGL::WaitOnUpdateDone() CGL::Render();
