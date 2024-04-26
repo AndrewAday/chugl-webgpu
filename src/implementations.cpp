@@ -1,3 +1,5 @@
+#pragma once
+
 #define STBI_FAILURE_USERMSG // user friendly error messages
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"

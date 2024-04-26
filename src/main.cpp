@@ -3,19 +3,15 @@
 
 // TODO: convert into unity build
 
-#include <cstdlib>
-
-#include "app.h"
-#include "core/log.h"
-#include "core/macros.h"
+#include "all.cpp"
 
 int main(int, char**)
 {
     log_trace("main");
-    AppOptions options = {};
-    options.standalone = true;
-    App_Init(NULL, NULL, &options);
-    App_Start();
-    App_End();
+    App app        = {};
+    app.standalone = true;
+    App::init(&app, NULL, NULL);
+    App::start(&app);
+    App::end(&app);
     return EXIT_SUCCESS;
 }

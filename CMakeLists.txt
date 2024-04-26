@@ -58,18 +58,7 @@ endif()
 
 set(
     CORE 
-    src/core/macros.h
-    src/core/log.h      src/core/log.c
-    src/core/memory.h   src/core/memory.cpp
-)
-
-set(
-    RENDERER
-    src/app.cpp          src/app.h
-    src/sync.cpp         src/sync.h
-    src/shaders.h
-    src/graphics.cpp     src/graphics.h
-    src/implementations.cpp
+    src/core/log.c
 )
 
 if (CHUGL_BUILD_RENDERER_TESTS)
@@ -77,7 +66,6 @@ if (CHUGL_BUILD_RENDERER_TESTS)
     add_executable(
         ChuGL-Renderer-Tester
         src/main.cpp
-        ${RENDERER}
         ${CORE}
     )
     set_target_properties(ChuGL-Renderer-Tester PROPERTIES
@@ -94,14 +82,12 @@ if (EMSCRIPTEN)
     add_executable(
         ${PROJECT_NAME} 
         src/chugl.cpp 
-        ${RENDERER}
         ${CORE}
     )
 else()
     add_library(
         ${PROJECT_NAME} SHARED 
         src/chugl.cpp 
-        ${RENDERER}
         ${CORE}
     )
 endif()

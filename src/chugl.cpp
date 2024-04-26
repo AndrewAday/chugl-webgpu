@@ -1,10 +1,4 @@
-#include <chuck/chugin.h>
-
-#include "app.h"
-#include "core/log.h"
-#include "core/macros.h"
-
-#include "sync.h"
+#include "all.cpp"
 
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
@@ -22,8 +16,11 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
     log_trace("chugl_main_loop_hook");
 
     ASSERT(g_chuglAPI && g_chuglVM);
-    App_Init(g_chuglVM, g_chuglAPI, NULL);
-    App_Start(); // blocking
+
+    App app = {};
+
+    App::init(&app, g_chuglVM, g_chuglAPI);
+    App::start(&app); // blocking
 
     { // cleanup (after exiting main loop)
         // remove all shreds (should trigger shutdown, unless running in --loop
@@ -31,10 +28,10 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
         if (g_chuglVM && g_chuglAPI)
             g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
 
-        App_End();
+        App::end(&app);
     }
 
-    return TRUE;
+    return true;
 }
 
 t_CKBOOL chugl_main_loop_quit(void* bindle)

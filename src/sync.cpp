@@ -1,16 +1,41 @@
+#pragma once
+
+#include <chuck/chugin.h>
 
 #include <condition_variable>
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
-
-#include "core/log.h"
-#include "core/macros.h"
-
-#include "sync.h"
 
 // ============================================================================
-// ChuGL Events
+// ChuGL Event API
+// ============================================================================
+
+#define CHUGL_EventTable                                                       \
+    X(NEXT_FRAME, "NextFrameEvent")                                            \
+    X(WINDOW_RESIZE, "WindowResizeEvent")
+
+enum CHUGL_EventType {
+#define X(name, str) name,
+    CHUGL_EventTable
+#undef X
+      CHUGL_EVENT_TYPE_COUNT
+};
+
+void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm);
+Chuck_Event* Event_Get(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm);
+const char* Event_GetName(CHUGL_EventType type);
+
+// ============================================================================
+// Thread Synchronization API
+// ============================================================================
+
+void Sync_MarkShredWaited(Chuck_VM_Shred* shred);
+bool Sync_HasShredWaited(Chuck_VM_Shred* shred);
+void Sync_RegisterShred(Chuck_VM_Shred* shred);
+void Sync_WaitOnUpdateDone();
+
+// ============================================================================
+// ChuGL Events Definitions
 // ============================================================================
 
 static const char* CHUGL_EventTypeNames[CHUGL_EVENT_TYPE_COUNT] = {
@@ -54,7 +79,7 @@ const char* Event_GetName(CHUGL_EventType type)
 }
 
 // ============================================================================
-// Thread Synchronization
+// Thread Synchronization Definitions
 // ============================================================================
 
 static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
