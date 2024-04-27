@@ -11,7 +11,9 @@
 #include <emscripten/html5.h>
 #endif
 
+#include "camera.cpp"
 #include "graphics.cpp"
+#include "tests/test_base.h"
 
 // forward decls
 // struct Chuck_VM;
@@ -23,11 +25,18 @@ struct App {
     bool standalone; // no chuck. renderer only
 
     GLFWwindow* window;
-    GraphicsContext gctx;
+    GraphicsContext gctx; // pass as pointer?
 
     // Chuck Context
     Chuck_VM* ckvm;
     CK_DL_API ckapi;
+
+    // frame metrics
+    u64 fc;
+
+    // renderer tests
+    Camera camera;
+    TestCallbacks callbacks;
 
     // ============================================================================
     // App API
@@ -36,8 +45,12 @@ struct App {
     static void init(App* app, Chuck_VM* vm, CK_DL_API api)
     {
         ASSERT(app->ckvm == NULL && app->ckapi == NULL);
+        ASSERT(app->window == NULL);
+
         app->ckvm  = vm;
         app->ckapi = api;
+
+        Camera::init(&app->camera);
     }
 
     static void start(App* app)
@@ -73,8 +86,13 @@ struct App {
             return;
         }
 
-        { // set window callbacks (TODO)
+        { // set window callbacks
+            glfwSetWindowUserPointer(app->window, app);
+            glfwSetMouseButtonCallback(app->window, _mouseButtonCallback);
+            glfwSetScrollCallback(app->window, _scrollCallback);
+            glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
+            glfwSetFramebufferSizeCallback(app->window, _onWindowResize);
         }
 
         // main loop
@@ -84,9 +102,9 @@ struct App {
         // instead pass a callback to emscripten_set_main_loop_arg
         emscripten_set_main_loop_arg(
           [](void* runner) {
-              mainLoop();
-              // if (glfwWindowShouldClose(runner->window)) {
-              //     if (runner->callbacks.onExit) runner->callbacks.onExit();
+              _mainLoop();
+              // if (glfwWindowShouldClose(app->window)) {
+              //     if (app->callbacks.onExit) app->callbacks.onExit();
               //     emscripten_cancel_main_loop(); // unregister the main loop
               // }
           },
@@ -95,9 +113,29 @@ struct App {
           true // simulate infinite loop (prevents code after this from exiting)
         );
 #else
+        if (app->standalone && app->callbacks.onInit)
+            app->callbacks.onInit(&app->gctx, app->window);
+
+        app->camera.entity.pos = glm::vec3(0.0, 0.0, 6.0); // move camera back
+
         // TODO: probably separate main loops for standalone vs library modes
-        while (!glfwWindowShouldClose(app->window)) _mainLoop(app);
+        log_trace("entering  main loop");
+        while (!glfwWindowShouldClose(app->window)) {
+            // handle input -------------------
+            glfwPollEvents();
+
+            // frame metrics ----------------------------
+            ++app->fc;
+            _showFPS(app->window);
+
+            if (app->standalone)
+                _testLoop(app); // renderer-only tests
+            else
+                _mainLoop(app); // chuck loop
+        }
         log_trace("Exiting main loop");
+
+        if (app->standalone && app->callbacks.onExit) app->callbacks.onExit();
 #endif
     }
 
@@ -120,11 +158,26 @@ struct App {
     // App Internal Functions
     // ============================================================================
 
+    static void _testLoop(App* app)
+    {
+        // update camera
+        // TODO store aspect in app state
+        i32 width, height;
+        glfwGetWindowSize(app->window, &width, &height);
+        f32 aspect = (f32)width / (f32)height;
+        app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
+
+        if (app->callbacks.onUpdate) app->callbacks.onUpdate(1.0f / 60.0f);
+        if (app->callbacks.onRender) {
+            app->callbacks.onRender(
+              Camera::projectionMatrix(&app->camera, aspect),
+              Entity::viewMatrix(&app->camera.entity));
+        }
+    }
+
     static void _mainLoop(App* app)
     {
-        glfwPollEvents();
-        _showFPS(app->window);
-
+        ASSERT(!app->standalone);
         // Render initialization ==================================
         // TODO
 
@@ -149,7 +202,7 @@ struct App {
         // waiting for audio synchronization (see cgl_update_event_waiting_on)
         // (i.e., when all registered GG.nextFrame() are called on their
         // respective shreds)
-        if (!app->standalone) Sync_WaitOnUpdateDone();
+        Sync_WaitOnUpdateDone();
 
         // question: why does putting this AFTER time calculation cause
         // everything to be so choppy at high FPS? hypothesis: puts time
@@ -185,8 +238,7 @@ struct App {
         // done swapping the double buffer, let chuck know it's good to continue
         // pushing commands this wakes all shreds currently waiting on
         // GG.nextFrame()
-        if (!app->standalone)
-            Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app->ckapi, app->ckvm);
+        Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app->ckapi, app->ckvm);
 
         // ====================
         // end critical section
@@ -243,12 +295,52 @@ struct App {
     static void _keyCallback(GLFWwindow* window, int key, int scancode,
                              int action, int mods)
     {
-        UNUSED_VAR(scancode);
-        UNUSED_VAR(mods);
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, GLFW_TRUE);
-            log_trace("ESC pressed, closing window");
             return;
         }
+
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        if (app->callbacks.onKey)
+            app->callbacks.onKey(key, scancode, action, mods);
+    }
+
+    static void _onWindowResize(GLFWwindow* window, int width, int height)
+    {
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        GraphicsContext::resize(&app->gctx, width, height);
+
+        if (app->callbacks.onWindowResize)
+            app->callbacks.onWindowResize(width, height);
+    }
+
+    static void _mouseButtonCallback(GLFWwindow* window, int button, int action,
+                                     int mods)
+    {
+        log_debug("mouse button callback");
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        if (app->callbacks.onMouseButton)
+            app->callbacks.onMouseButton(button, action, mods);
+
+        app->camera.onMouseButton(&app->camera, button, action, mods);
+    }
+
+    static void _scrollCallback(GLFWwindow* window, double xoffset,
+                                double yoffset)
+    {
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        if (app->callbacks.onScroll) app->callbacks.onScroll(xoffset, yoffset);
+
+        app->camera.onScroll(&app->camera, xoffset, yoffset);
+    }
+
+    static void _cursorPositionCallback(GLFWwindow* window, double xpos,
+                                        double ypos)
+    {
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        if (app->callbacks.onCursorPosition)
+            app->callbacks.onCursorPosition(xpos, ypos);
+
+        app->camera.onCursorPosition(&app->camera, xpos, ypos);
     }
 };

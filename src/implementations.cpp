@@ -7,5 +7,5 @@
 // #define CGLTF_IMPLEMENTATION
 // #include <cgltf/cgltf.h>
 
-// #define FAST_OBJ_IMPLEMENTATION
-// #include <fast_obj/fast_obj.h>
+#define FAST_OBJ_IMPLEMENTATION
+#include <fast_obj/fast_obj.h>
