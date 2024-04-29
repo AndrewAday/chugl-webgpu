@@ -59,6 +59,18 @@ endif()
 set(
     CORE 
     src/core/log.c
+    src/core/memory.cpp
+)
+
+set(
+    VENDOR
+    src/implementations.cpp
+)
+
+set(
+    RENDERER_TESTS
+    src/tests/obj.cpp
+    src/tests/gltf.cpp
 )
 
 if (CHUGL_BUILD_RENDERER_TESTS)
@@ -67,6 +79,8 @@ if (CHUGL_BUILD_RENDERER_TESTS)
         ChuGL-Renderer-Tester
         src/main.cpp
         ${CORE}
+        ${VENDOR}
+        ${RENDERER_TESTS}
     )
     set_target_properties(ChuGL-Renderer-Tester PROPERTIES
         CXX_STANDARD 11
@@ -83,12 +97,14 @@ if (EMSCRIPTEN)
         ${PROJECT_NAME} 
         src/chugl.cpp 
         ${CORE}
+        ${VENDOR}
     )
 else()
     add_library(
         ${PROJECT_NAME} SHARED 
         src/chugl.cpp 
         ${CORE}
+        ${VENDOR}
     )
 endif()
 

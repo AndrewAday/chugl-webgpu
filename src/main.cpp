@@ -1,10 +1,13 @@
 // standalone main for testing the renderer only
 // does NOT link with chuck or chugin.h in any way
 
-// TODO: convert into unity build
-
 #include "all.cpp"
-#include "tests/obj.cpp"
+
+// #include "tests/gltf.cpp"
+// #include "tests/obj.cpp"
+
+void Test_Obj(TestCallbacks* callbacks);
+void Test_Gltf(TestCallbacks* callbacks);
 
 int main(int, char**)
 {
@@ -13,7 +16,8 @@ int main(int, char**)
     app.standalone = true;
 
     // load test entry points
-    Test_Obj(&app.callbacks);
+    // Test_Obj(&app.callbacks);
+    Test_Gltf(&app.callbacks);
 
     App::init(&app, NULL, NULL);
     App::start(&app);

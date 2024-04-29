@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/macros.h"
+#include "graphics.h"
 
 // base declarations for all examples
 

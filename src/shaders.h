@@ -14,6 +14,13 @@
 // #define STRINGIFY(s) #s
 // #define INTERPOLATE(var) STRINGIFY(${##var##})
 
+// enum VertexAttributeLocations {
+//     POSITION = 0,
+//     NORMAL   = 1,
+//     UV       = 2,
+//     COLOR    = 3,
+// };
+
 struct FrameUniforms {
     glm::mat4x4 projectionMat; // at byte offset 0
     glm::mat4x4 viewMat;       // at byte offset 64
@@ -64,6 +71,7 @@ static const char* shaderCode = CODE(
         @location(0) position : vec3f,
         @location(1) normal : vec3f,
         @location(2) uv : vec2f,
+        // TODO add color, tangent
     };
 
     /**

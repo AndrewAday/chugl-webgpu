@@ -5,7 +5,7 @@
 // Original Arcball camera paper?
 // https://www.talisman.org/~erlkonig/misc/shoemake92-arcball.pdf
 
-#include "entity.cpp"
+#include "entity.h"
 
 struct Spherical {
     f32 radius;

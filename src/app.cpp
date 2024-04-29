@@ -12,7 +12,7 @@
 #endif
 
 #include "camera.cpp"
-#include "graphics.cpp"
+#include "graphics.h"
 #include "tests/test_base.h"
 
 // forward decls

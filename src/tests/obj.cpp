@@ -1,8 +1,4 @@
-#pragma once
-
-#ifndef FAST_OBJ_IMPLEMENTATION
 #include <fast_obj/fast_obj.h>
-#endif
 
 #include <GLFW/glfw3.h>
 
@@ -11,7 +7,7 @@
 #include <glm/gtx/quaternion.hpp> // quatToMat4
 
 #include "core/log.h"
-#include "entity.cpp"
+#include "entity.h"
 #include "shaders.h"
 #include "test_base.h"
 
