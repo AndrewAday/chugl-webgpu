@@ -11,6 +11,10 @@
 
 #include <stb/stb_image.h>
 
+#ifdef WEBGPU_BACKEND_WGPU
+#include <webgpu/wgpu.h>
+#endif
+
 // static void printBackend()
 // {
 // #if defined(WEBGPU_BACKEND_DAWN)
@@ -256,24 +260,53 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     if (!context->adapter) return false;
     log_trace("adapter created");
 
-    // TODO add device feature limits
-    // simple: inspect adapter max limits and request max
-    WGPUDeviceDescriptor deviceDescriptor = {
-        NULL,                          // nextInChain
-        "WebGPU-Renderer Device",      // label
-        0,                             // requiredFeaturesCount
-        NULL,                          // requiredFeatures
-        NULL,                          // requiredLimits
-        { NULL, "The default queue" }, // defaultQueue
-        NULL,                          // deviceLostCallback,
-        NULL                           // deviceLostUserdata
+    // set required limits to max supported
+    WGPUSupportedLimits supportedLimits = {};
+    wgpuAdapterGetLimits(context->adapter, &supportedLimits);
+    WGPURequiredLimits requiredLimits = {};
+    memcpy(&requiredLimits.limits, &supportedLimits.limits, sizeof(WGPULimits));
+
+    // required features
+#ifdef WEBGPU_BACKEND_WGPU
+    const u32 requiredFeaturesCount    = 1;
+    WGPUFeatureName requiredFeatures[] = {
+        (WGPUFeatureName)WGPUNativeFeature_VertexWritableStorage,
     };
+#else
+    const u32 requiredFeaturesCount   = 0;
+    WGPUFeatureName* requiredFeatures = NULL;
+#endif
+
+    log_trace("required features: %d", ARRAY_LENGTH(requiredFeatures));
+
+    WGPUDeviceDescriptor deviceDescriptor = {
+        NULL,                     // nextInChain
+        "WebGPU-Renderer Device", // label
+        requiredFeaturesCount,    // requiredFeaturesCount
+        requiredFeatures,         // requiredFeatures
+        &requiredLimits,          // requiredLimits
+        { NULL, "ChuGL queue" },  // defaultQueue
+        NULL,                     // deviceLostCallback,
+        NULL                      // deviceLostUserdata
+    };
+
     context->device = request_device(context->adapter, &deviceDescriptor);
     if (!context->device) return false;
     log_trace("device created");
 
-    wgpuDeviceSetUncapturedErrorCallback(context->device, on_device_error,
-                                         NULL /* pUserData */);
+    { // set debug callbacks
+        wgpuDeviceSetUncapturedErrorCallback(context->device, on_device_error,
+                                             NULL /* pUserData */);
+
+#if defined(CHUGL_DEBUG) && defined(WEBGPU_BACKEND_WGPU)
+        wgpuSetLogLevel(WGPULogLevel_Error);
+        wgpuSetLogCallback(
+          [](WGPULogLevel level, char const* message, void* userdata) {
+              log_error("WebGPU log [%d]: %s", level, message);
+          },
+          NULL);
+#endif
+    }
 
     context->queue = wgpuDeviceGetQueue(context->device);
     if (!context->queue) return false;
@@ -388,6 +421,7 @@ void GraphicsContext::release(GraphicsContext* ctx)
 void VertexBuffer::init(GraphicsContext* ctx, VertexBuffer* buf,
                         u64 data_length, const f32* data, const char* label)
 {
+    ASSERT(buf->buf == NULL);
     // update description
     buf->desc.label = label;
     buf->desc.usage |= WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
@@ -403,6 +437,7 @@ void VertexBuffer::init(GraphicsContext* ctx, VertexBuffer* buf,
 void IndexBuffer::init(GraphicsContext* ctx, IndexBuffer* buf, u64 data_length,
                        const u32* data, const char* label)
 {
+    ASSERT(buf->buf == NULL);
     // update description
     buf->desc.label = label;
     buf->desc.usage |= WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index;
@@ -463,10 +498,11 @@ void ShaderModule::init(GraphicsContext* ctx, ShaderModule* module,
     module->desc.nextInChain = &module->wgsl_desc.chain;
 
     module->module = wgpuDeviceCreateShaderModule(ctx->device, &module->desc);
-#ifdef CHUGL_DEBUG
-    wgpuShaderModuleGetCompilationInfo(module->module,
-                                       ShaderModule::compilationCallback, NULL);
-#endif
+    // #ifdef CHUGL_DEBUG
+    //     wgpuShaderModuleGetCompilationInfo(module->module,
+    //                                        ShaderModule::compilationCallback,
+    //                                        NULL);
+    // #endif
 }
 
 void ShaderModule::release(ShaderModule* module)
@@ -544,8 +580,9 @@ static WGPUDepthStencilState createDepthStencilState(WGPUTextureFormat format,
 // Render Pipeline
 // ============================================================================
 
-static WGPUBindGroupLayout createBindGroupLayout(GraphicsContext* ctx,
-                                                 u8 bindingNumber, u64 size)
+static WGPUBindGroupLayout
+createBindGroupLayout(GraphicsContext* ctx, u8 bindingNumber, u64 size,
+                      WGPUBufferBindingType bufferType)
 {
     UNUSED_VAR(bindingNumber);
 
@@ -555,7 +592,7 @@ static WGPUBindGroupLayout createBindGroupLayout(GraphicsContext* ctx,
     bindGroupLayout.binding = 0;
     bindGroupLayout.visibility // always both for simplicity
       = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
-    bindGroupLayout.buffer.type             = WGPUBufferBindingType_Uniform;
+    bindGroupLayout.buffer.type             = bufferType;
     bindGroupLayout.buffer.minBindingSize   = size;
     bindGroupLayout.buffer.hasDynamicOffset = false; // TODO
 
@@ -668,7 +705,8 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
 
     // layout
     pipeline->bindGroupLayouts[PER_FRAME_GROUP]
-      = createBindGroupLayout(ctx, PER_FRAME_GROUP, sizeof(FrameUniforms));
+      = createBindGroupLayout(ctx, PER_FRAME_GROUP, sizeof(FrameUniforms),
+                              WGPUBufferBindingType_Uniform);
 
     // material layout
     {
@@ -704,8 +742,11 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
           = wgpuDeviceCreateBindGroupLayout(ctx->device, &bindGroupLayoutDesc);
     }
 
-    pipeline->bindGroupLayouts[PER_DRAW_GROUP]
-      = createBindGroupLayout(ctx, PER_DRAW_GROUP, sizeof(DrawUniforms));
+    // pipeline->bindGroupLayouts[PER_DRAW_GROUP]
+    //   = createBindGroupLayout(ctx, PER_DRAW_GROUP, sizeof(DrawUniforms),
+    //                           WGPUBufferBindingType_ReadOnlyStorage);
+    pipeline->bindGroupLayouts[PER_DRAW_GROUP] = createBindGroupLayout(
+      ctx, PER_DRAW_GROUP, sizeof(DrawUniforms), WGPUBufferBindingType_Uniform);
 
     WGPUPipelineLayoutDescriptor layoutDesc = {};
     layoutDesc.bindGroupLayoutCount = ARRAY_LENGTH(pipeline->bindGroupLayouts);
@@ -719,7 +760,7 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
                     sizeof(FrameUniforms));
 
     pipeline->desc              = {};
-    pipeline->desc.label        = "render pipeline";
+    pipeline->desc.label        = "CHUGL render pipeline";
     pipeline->desc.layout       = pipelineLayout; // TODO
     pipeline->desc.primitive    = primitiveState;
     pipeline->desc.vertex       = vertexState;
@@ -1292,6 +1333,91 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
     texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
 };
 
+void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
+                              u8 pixelData[4])
+{
+    ASSERT(texture->texture == NULL);
+
+    // save texture info
+    texture->width           = 1;
+    texture->height          = 1;
+    texture->depth           = 1;
+    texture->mip_level_count = 1;
+
+    texture->format    = WGPUTextureFormat_RGBA8Unorm;
+    texture->dimension = WGPUTextureDimension_2D;
+
+    // create texture
+    WGPUTextureDescriptor textureDesc = {};
+    // render attachment usage is used for mip map generation
+    textureDesc.usage
+      = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    // | WGPUTextureUsage_RenderAttachment;
+    textureDesc.dimension       = texture->dimension;
+    textureDesc.size            = { texture->width, texture->height, 1 };
+    textureDesc.format          = texture->format;
+    textureDesc.mipLevelCount   = texture->mip_level_count;
+    textureDesc.sampleCount     = 1;
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = NULL;
+    textureDesc.label           = "single pixel texture";
+
+    texture->texture = wgpuDeviceCreateTexture(ctx->device, &textureDesc);
+    ASSERT(texture->texture != NULL);
+
+    // write texture data
+    {
+        WGPUImageCopyTexture destination = {};
+        destination.texture              = texture->texture;
+        destination.mipLevel             = 0;
+        destination.origin               = {
+            0,
+            0,
+            0,
+        }; // equivalent of the offset argument of Queue::writeBuffer
+        destination.aspect = WGPUTextureAspect_All; // only relevant for
+                                                    // depth/Stencil textures
+
+        WGPUTextureDataLayout source = {};
+        source.offset       = 0; // where to start reading from the cpu buffer
+        source.bytesPerRow  = 4;
+        source.rowsPerImage = textureDesc.size.height;
+
+        const u64 dataSize = 4;
+
+        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize,
+                              &source, &textureDesc.size);
+    }
+
+    /* Create the texture view */
+    WGPUTextureViewDescriptor textureViewDesc = {};
+    textureViewDesc.format                    = textureDesc.format;
+    textureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
+    textureViewDesc.baseMipLevel              = 0;
+    textureViewDesc.mipLevelCount             = textureDesc.mipLevelCount;
+    textureViewDesc.baseArrayLayer            = 0;
+    textureViewDesc.arrayLayerCount           = 1;
+    textureViewDesc.aspect                    = WGPUTextureAspect_All;
+    texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
+
+    /* Create the texture sampler */
+    WGPUSamplerDescriptor samplerDesc = {};
+    samplerDesc.addressModeU          = WGPUAddressMode_Repeat;
+    samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
+    samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
+
+    // TODO: make filtering configurable
+    samplerDesc.minFilter    = WGPUFilterMode_Nearest;
+    samplerDesc.magFilter    = WGPUFilterMode_Nearest;
+    samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+
+    samplerDesc.lodMinClamp   = 0.0f;
+    samplerDesc.lodMaxClamp   = (f32)texture->mip_level_count;
+    samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
+
+    texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
+}
+
 void Texture::release(Texture* texture)
 {
     // release textureview
@@ -1398,6 +1524,7 @@ void Material::release(Material* material)
     wgpuBindGroupRelease(material->bindGroup);
 
     // release buffer (TODO create uniform buffer struct)
-    wgpuBufferDestroy(material->uniformBuffer);
-    wgpuBufferRelease(material->uniformBuffer);
+    wgpuBufferDestroy(material->uniformBuffer); // frees GPU memory
+    wgpuBufferRelease(
+      material->uniformBuffer); // released driver/backend handle
 }

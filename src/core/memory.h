@@ -32,3 +32,20 @@ void* reallocate(void* pointer, i64 oldSize, i64 newSize);
         reallocate(ptr, 0, 0);                                                 \
         ptr = NULL;                                                            \
     } while (0)
+
+// ============================================================================
+// Arena Allocator
+// ============================================================================
+
+struct Arena {
+    u8* base;
+    u8* curr;
+    u64 cap;
+
+    static void init(Arena* a, u64 cap);
+    static void* alloc(Arena* a, u64 size);
+    static void pop(Arena* a, u64 size);
+    static void* get(Arena* a, u64 offset);
+    static void clear(Arena* a);
+    static void free(Arena* a);
+};

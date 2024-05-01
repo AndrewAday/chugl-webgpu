@@ -194,6 +194,9 @@ struct Texture {
     static void initFromFile(GraphicsContext* ctx, Texture* texture,
                              const char* filename, bool genMipMaps);
 
+    static void initSinglePixel(GraphicsContext* ctx, Texture* texture,
+                                u8 pixelData[4]);
+
     static void release(Texture* texture);
 };
 

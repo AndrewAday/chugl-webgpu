@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <chuck/chugin.h>
 #include <glfw3webgpu/glfw3webgpu.h>
+#include <glm/gtx/string_cast.hpp>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>

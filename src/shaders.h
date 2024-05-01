@@ -65,12 +65,14 @@ static const char* shaderCode = CODE(
         modelMat: mat4x4f,
     };
 
+    // @group(PER_DRAW_GROUP) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
     @group(PER_DRAW_GROUP) @binding(0) var<uniform> u_Draw: DrawUniforms;
 
     struct VertexInput {
         @location(0) position : vec3f,
         @location(1) normal : vec3f,
         @location(2) uv : vec2f,
+        @builtin(instance_index) instance : u32,
         // TODO add color, tangent
     };
 
@@ -94,8 +96,13 @@ static const char* shaderCode = CODE(
     {
         var out : VertexOutput;
 
+        // var u_Draw : DrawUniforms = drawInstances[in.instance];
+
         var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+        // TODO: no model mat
+        // var worldPos : vec4f = u_Frame.projViewMat * vec4f(in.position, 1.0f);
         out.v_worldPos = worldPos.xyz;
+        // TODO use normalMat instead of worldMat to transform normals
         out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
         out.v_uv     = in.uv;
 
@@ -124,9 +131,10 @@ static const char* shaderCode = CODE(
         color *= textureSample(u_Texture, u_Sampler, in.v_uv);
 
 
-        return vec4f(color.rgb * lightContrib, color.a);
-        // return vec4f(in.v_normal, 1.0);
+        // return vec4f(color.rgb * lightContrib, color.a);
+        return vec4f(in.v_normal, 1.0);
         // return vec4f(in.v_uv, 0.0, 1.0);
+        // return vec4f(1.0, 0.0, 0.0, 1.0);
     }
 );
 

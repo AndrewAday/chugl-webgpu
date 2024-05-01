@@ -140,7 +140,10 @@ else()
     target_compile_options(chugl_shared_properties INTERFACE -Wall -Wextra -pedantic)
 
     # disable warnings
-    target_compile_options(chugl_shared_properties INTERFACE -Wno-unused-parameter)
+    target_compile_options(chugl_shared_properties INTERFACE 
+        -Wno-unused-parameter
+        -Wno-deprecated-declarations
+    )
 endif()
 
 # Ignore Windows warnings

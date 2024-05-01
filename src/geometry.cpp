@@ -41,6 +41,7 @@ void Vertices::init(Vertices* v, u32 vertexCount, u32 indicesCount)
 
     v->vertexCount  = vertexCount;
     v->indicesCount = indicesCount;
+    // TODO: change when adding more vertex attributes
     if (vertexCount > 0) v->vertexData = ALLOCATE_COUNT(f32, vertexCount * 8);
     if (indicesCount > 0) v->indices = ALLOCATE_COUNT(u32, indicesCount);
 }
@@ -120,6 +121,8 @@ void Vertices::free(Vertices* v)
 {
     reallocate(v->vertexData, sizeof(Vertex) * v->vertexCount, 0);
     reallocate(v->indices, sizeof(u32) * v->indicesCount, 0);
+    v->vertexData   = NULL;
+    v->indices      = NULL;
     v->vertexCount  = 0;
     v->indicesCount = 0;
 }
@@ -147,4 +150,68 @@ void Vertices::copy(Vertices* v, Vertex* vertices, u32 vertexCount,
     }
 
     memcpy(v->indices, indices, indicesCount * sizeof(u32));
+}
+
+// ============================================================================
+// Plane
+// ============================================================================
+Vertices createPlane(const PlaneParams* params)
+{
+    Vertices vertices     = {};
+    const f32 width_half  = params->width * 0.5f;
+    const f32 height_half = params->height * 0.5f;
+
+    const u32 gridX = params->widthSegments;
+    const u32 gridY = params->heightSegments;
+
+    const u32 gridX1 = gridX + 1;
+    const u32 gridY1 = gridY + 1;
+
+    const f32 segment_width  = params->width / gridX;
+    const f32 segment_height = params->height / gridY;
+
+    Vertices::init(&vertices, gridX1 * gridY1, gridX * gridY * 6);
+
+    // f32* positions = Vertices::positions(&vertices);
+    // f32* normals   = Vertices::normals(&vertices);
+    // f32* texcoords = Vertices::texcoords(&vertices);
+
+    u32 index   = 0;
+    Vertex vert = {};
+    for (u32 iy = 0; iy < gridY1; iy++) {
+        const f32 y = iy * segment_height - height_half;
+        for (u32 ix = 0; ix < gridX1; ix++) {
+            const f32 x = ix * segment_width - width_half;
+
+            vert = {
+                x,  // x
+                -y, // y
+                0,  // z
+
+                0, // nx
+                0, // ny
+                1, // nz
+
+                (f32)ix / gridX,          // u
+                1.0f - ((f32)iy / gridY), // v
+            };
+
+            Vertices::setVertex(&vertices, vert, index++);
+        }
+    }
+    ASSERT(index == vertices.vertexCount);
+    index = 0;
+    for (u32 iy = 0; iy < gridY; iy++) {
+        for (u32 ix = 0; ix < gridX; ix++) {
+            const u32 a = ix + gridX1 * iy;
+            const u32 b = ix + gridX1 * (iy + 1);
+            const u32 c = (ix + 1) + gridX1 * (iy + 1);
+            const u32 d = (ix + 1) + gridX1 * iy;
+
+            Vertices::setIndices(&vertices, a, b, d, index++);
+            Vertices::setIndices(&vertices, b, c, d, index++);
+        }
+    }
+    ASSERT(index == vertices.indicesCount / 3);
+    return vertices;
 }

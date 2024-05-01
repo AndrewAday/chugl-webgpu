@@ -35,3 +35,10 @@ struct Vertices {
     static void copy(Vertices* v, Vertex* vertices, u32 vertexCount,
                      u32* indices, u32 indicesCount);
 };
+
+struct PlaneParams {
+    f32 width, height;
+    u32 widthSegments, heightSegments;
+};
+
+Vertices createPlane(const PlaneParams* params);
