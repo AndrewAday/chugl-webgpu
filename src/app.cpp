@@ -34,6 +34,8 @@ struct App {
 
     // frame metrics
     u64 fc;
+    f64 lastTime;
+    f64 dt;
 
     // renderer tests
     Camera camera;
@@ -126,8 +128,18 @@ struct App {
             glfwPollEvents();
 
             // frame metrics ----------------------------
-            ++app->fc;
-            _showFPS(app->window);
+            {
+                _showFPS(app->window);
+
+                ++app->fc;
+                f64 currentTime = glfwGetTime();
+
+                // first frame prevent huge dt
+                if (app->lastTime == 0) app->lastTime = currentTime;
+
+                app->dt       = currentTime - app->lastTime;
+                app->lastTime = currentTime;
+            }
 
             if (app->standalone)
                 _testLoop(app); // renderer-only tests
@@ -168,7 +180,7 @@ struct App {
         f32 aspect = (f32)width / (f32)height;
         app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
 
-        if (app->callbacks.onUpdate) app->callbacks.onUpdate(1.0f / 60.0f);
+        if (app->callbacks.onUpdate) app->callbacks.onUpdate(app->dt);
         if (app->callbacks.onRender) {
             app->callbacks.onRender(
               Camera::projectionMatrix(&app->camera, aspect),

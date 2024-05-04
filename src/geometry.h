@@ -14,6 +14,8 @@ struct Vertex {
 
 // TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags
+// probably requires splitting vertex data into separate arrays
+// per attribute type
 struct Vertices {
     u32 vertexCount;
     u32 indicesCount;

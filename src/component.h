@@ -90,10 +90,7 @@ struct SG_Transform : public SG_Component {
     SG_ID parentID;
     Arena children; // stores list of SG_IDs
 
-    // TODO: geometry ID
     SG_ID _geoID; // don't modify directly; use SG_Geo::addXform() instead
-    // TODO: on add, remove xform from old geo, add to new geo
-    // TODO: on xform modify, set geo storageBuffer stale
 
     static void init(SG_Transform* transform);
 
@@ -121,6 +118,10 @@ struct SG_Transform : public SG_Component {
     static void addChild(SG_Transform* parent, SG_Transform* child);
     static u32 numChildren(SG_Transform* xform);
     static SG_Transform* getChild(SG_Transform* xform, u32 index);
+
+    // Transform modification ------------------------------------------------
+    static void rotateOnLocalAxis(SG_Transform* xform, glm::vec3 axis, f32 deg);
+    static void rotateOnWorldAxis(SG_Transform* xform, glm::vec3 axis, f32 deg);
 
     // util -------------------------------------------------------------------
     static void print(SG_Transform* xform, u32 depth = 0);

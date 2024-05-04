@@ -26,6 +26,10 @@ static SG_ID* sceneIDs;
 // TODO add frameArena to app or graphics context
 static Arena frameArena = {};
 
+// TODO remove these, refactor into renderer
+static SG_Geometry* geo        = NULL;
+static SG_Transform* testXform = NULL;
+
 static u8 gltf_sizeOfComponentType(cgltf_component_type type)
 {
     switch (type) {
@@ -66,7 +70,6 @@ static u8 gltf_sizeOfAccessor(cgltf_accessor* accessor)
     return componentSize * numComponents;
 }
 
-static SG_Geometry* geo = NULL;
 static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 {
     SG_Transform* sg_node = Component_CreateTransform();
@@ -257,6 +260,11 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             // associate transform with geometry
             SG_Geometry::addXform(geo, sg_node);
 
+            // TODO remove tmp ----------------
+            SG_Geometry::addXform(geo, testXform);
+            SG_Transform::addChild(parent, testXform);
+            // --------------------------------
+
             // print vertices
             // Vertices::print(&vertices);
 
@@ -312,6 +320,12 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 
     Material::init(gctx, &material, &pipeline, &texture);
 
+    // TODO remove tmp ----------------
+    testXform = Component_CreateTransform();
+    SG_Transform::pos(testXform, VEC_RIGHT);
+
+    // --------------------------------
+
     cgltf_options options = {};
     // Use our own memory allocation functions
     options.memory.alloc_func
@@ -345,8 +359,19 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
     }
 }
 
+static void OnUpdate(f32 dt)
+{
+    // rotate the test transform
+    SG_Transform::rotateOnWorldAxis(testXform, VEC_UP, dt * 0.4f);
+    // rotate the root
+    SG_Transform::rotateOnLocalAxis(Component_GetXform(sceneIDs[0]), VEC_UP,
+                                    -dt * 0.1f);
+}
+
 static void OnRender(glm::mat4 proj, glm::mat4 view)
 {
+    // log_debug("geo num instances: %d", SG_Geometry::numInstances(geo));
+
     // Update all transforms
     SG_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]), &frameArena);
 
@@ -461,4 +486,5 @@ void Test_Gltf(TestCallbacks* callbacks)
     callbacks->onInit   = _Test_Gltf_OnInit;
     callbacks->onRender = OnRender;
     callbacks->onExit   = OnExit;
+    callbacks->onUpdate = OnUpdate;
 }

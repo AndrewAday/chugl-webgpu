@@ -57,10 +57,10 @@ static SG_ID getNewComponentID();
 void SG_Transform::init(SG_Transform* transform)
 {
     ASSERT(transform->id == 0); // ensure not initialized twice
+    *transform = {};
 
     transform->id   = getNewComponentID();
     transform->type = SG_COMPONENT_TRANSFORM;
-    transform->name = "";
 
     transform->_pos = glm::vec3(0.0f);
     transform->_rot = QUAT_IDENTITY;
@@ -78,9 +78,7 @@ void SG_Transform::init(SG_Transform* transform)
 void SG_Transform::setStale(SG_Transform* xform, SG_Transform_Staleness stale)
 {
     // only set if new staleness is higher priority
-    if (stale <= xform->_stale) return;
-
-    xform->_stale = stale;
+    if (stale > xform->_stale) xform->_stale = stale;
 
     // propagate staleness to parent
     // it is assumed that if a parent has staleness, all its parents will
@@ -327,6 +325,20 @@ SG_Transform* SG_Transform::getChild(SG_Transform* xform, u32 index)
     return child;
 }
 
+void SG_Transform::rotateOnLocalAxis(SG_Transform* xform, glm::vec3 axis,
+                                     f32 deg)
+{
+    SG_Transform::rot(xform,
+                      xform->_rot * glm::angleAxis(deg, glm::normalize(axis)));
+}
+
+void SG_Transform::rotateOnWorldAxis(SG_Transform* xform, glm::vec3 axis,
+                                     f32 deg)
+{
+    SG_Transform::rot(xform,
+                      glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
+}
+
 void SG_Transform::print(SG_Transform* xform, u32 depth)
 {
     for (u32 i = 0; i < depth; ++i) {
@@ -344,10 +356,12 @@ void SG_Transform::print(SG_Transform* xform, u32 depth)
 // ============================================================================
 void SG_Geometry::init(SG_Geometry* geo)
 {
-    geo->id           = getNewComponentID();
-    geo->type         = SG_COMPONENT_GEOMETRY;
-    geo->indexBuffer  = {};
-    geo->vertexBuffer = {};
+    ASSERT(geo->id == 0);
+    *geo = {};
+
+    geo->id   = getNewComponentID();
+    geo->type = SG_COMPONENT_GEOMETRY;
+    Arena::init(&geo->xformIDs, sizeof(SG_ID) * 8);
 }
 
 void SG_Geometry::buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,

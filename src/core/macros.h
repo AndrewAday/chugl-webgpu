@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <cstdio>
 
+#ifndef _NDEBUG
+#include "debugbreak.h"
+#endif
+
 // list of predefined macros:
 //     https://sourceforge.net/p/predef/wiki/Architectures/
 //     https://gcc.gnu.org/onlinedocs/cpp/Predefined-Macros.html
@@ -20,6 +24,7 @@
         if (!(expression)) {                                                   \
             printf("Assertion(%s) failed: file \"%s\", line %d\n",             \
                    #expression, __FILE__, __LINE__);                           \
+            debug_break();                                                     \
         }                                                                      \
     }
 #else
@@ -27,6 +32,12 @@
 #endif
 
 #define FORCE_CRASH *(int*)0 = 0
+
+#define _CODE(...) #__VA_ARGS__
+#define CODE(...) _CODE(__VA_ARGS__)
+#define UNUSED_VAR(x) ((void)(x))
+#define UNUSED_FUNCTION(x) ((void)(x))
+#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
 
 // ============================================================================
 // Types
@@ -46,24 +57,6 @@ typedef i32 b32;
 typedef i64 b64;
 typedef float f32;
 typedef double f64;
-
-#define _CODE(...) #__VA_ARGS__
-#define CODE(...) _CODE(__VA_ARGS__)
-#define UNUSED_VAR(x) ((void)(x))
-#define UNUSED_FUNCTION(x) ((void)(x))
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
-
-#ifndef NDEBUG
-#define ASSERT(expression)                                                     \
-    {                                                                          \
-        if (!(expression)) {                                                   \
-            printf("Assertion(%s) failed: file \"%s\", line %d\n",             \
-                   #expression, __FILE__, __LINE__);                           \
-        }                                                                      \
-    }
-#else
-#define ASSERT(expression) NULL;
-#endif
 
 // ============================================================================
 // Math

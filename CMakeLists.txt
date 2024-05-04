@@ -84,7 +84,7 @@ if (CHUGL_BUILD_RENDERER_TESTS)
         ${RENDERER_TESTS}
     )
 
-    # benchamrks TODO: put behind option flag
+    # benchamrks TODO: put behind option flag, link with compile options 
     # add_executable(
     #     ChuGL-Benchmarks
     #     bench/hashmap.cpp
