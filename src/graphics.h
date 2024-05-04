@@ -63,7 +63,7 @@ struct VertexBuffer {
 
     // hold copy of original data?
 
-    static void init(GraphicsContext* ctx, VertexBuffer* buf, u64 data_length,
+    static void init(GraphicsContext* ctx, VertexBuffer* buf, u64 vertexCount,
                      const f32* data, // force float data for now
                      const char* label);
 };

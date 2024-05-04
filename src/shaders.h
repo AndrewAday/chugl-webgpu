@@ -65,8 +65,8 @@ static const char* shaderCode = CODE(
         modelMat: mat4x4f,
     };
 
-    // @group(PER_DRAW_GROUP) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
-    @group(PER_DRAW_GROUP) @binding(0) var<uniform> u_Draw: DrawUniforms;
+    @group(PER_DRAW_GROUP) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
+    // @group(PER_DRAW_GROUP) @binding(0) var<uniform> u_Draw: DrawUniforms;
 
     struct VertexInput {
         @location(0) position : vec3f,
@@ -96,7 +96,7 @@ static const char* shaderCode = CODE(
     {
         var out : VertexOutput;
 
-        // var u_Draw : DrawUniforms = drawInstances[in.instance];
+        var u_Draw : DrawUniforms = drawInstances[in.instance];
 
         var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
         // TODO: no model mat

@@ -59,6 +59,7 @@ endif()
 set(
     CORE 
     src/core/log.c
+    src/core/hashmap.c
     src/core/memory.cpp
 )
 
@@ -82,6 +83,14 @@ if (CHUGL_BUILD_RENDERER_TESTS)
         ${VENDOR}
         ${RENDERER_TESTS}
     )
+
+    # benchamrks TODO: put behind option flag
+    # add_executable(
+    #     ChuGL-Benchmarks
+    #     bench/hashmap.cpp
+    #     ${CORE}
+    # )
+
     set_target_properties(ChuGL-Renderer-Tester PROPERTIES
         CXX_STANDARD 11
         CXX_EXTENSIONS OFF
@@ -143,6 +152,7 @@ else()
     target_compile_options(chugl_shared_properties INTERFACE 
         -Wno-unused-parameter
         -Wno-deprecated-declarations
+        -Wno-compound-token-split-by-macro
     )
 endif()
 

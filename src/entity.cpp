@@ -30,7 +30,7 @@ void Entity::setVertices(Entity* entity, Vertices* vertices,
     entity->vertices = *vertices; // points to same memory
 
     // build gpu buffers
-    VertexBuffer::init(ctx, &entity->gpuVertices, 8 * vertices->vertexCount,
+    VertexBuffer::init(ctx, &entity->gpuVertices, vertices->vertexCount,
                        vertices->vertexData, "vertices");
     IndexBuffer::init(ctx, &entity->gpuIndices, vertices->indicesCount,
                       vertices->indices, "indices");

@@ -1,4 +1,3 @@
-#pragma once
 #include <cstdlib>
 
 #include <chuck/chugin.h>
@@ -9,6 +8,7 @@
 #include "geometry.cpp"
 #include "entity.cpp"
 #include "sync.cpp"
+#include "component.cpp"
 #include "app.cpp"
 
 // clang-format on

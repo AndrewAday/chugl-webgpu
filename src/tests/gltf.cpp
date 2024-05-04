@@ -6,6 +6,7 @@
 #include "core/memory.h"
 #include "test_base.h"
 
+#include "component.h"
 #include "entity.h"
 #include "geometry.h"
 #include "shaders.h"
@@ -17,245 +18,13 @@
 static RenderPipeline pipeline = {};
 static Material material       = {};
 static Texture texture         = {};
+static GraphicsContext* gctx   = NULL;
 
-// =============================================================================
-// scenegraph data structures
-// =============================================================================
-// TODO: eventually use uniform Arena allocators for all component types
-// and track location via a custom hashmap from ID --> arena offset
+static SG_ID* sceneIDs;
+// static SG_ID* geoIDs;
 
-enum SG_ComponentType {
-    SG_COMPONENT_INVALID,
-    SG_COMPONENT_TRANSFORM,
-    SG_COMPONENT_GEOMETRY,
-    SG_COMPONENT_MATERIAL,
-    SG_COMPONENT_COUNT
-};
-
-struct SG_Component {
-    u64 id;
-    SG_ComponentType type;
-};
-
-static u64 _componentIDCounter = 0;
-static u64 getNewComponentID()
-{
-    return _componentIDCounter++;
-}
-
-struct SG_Transform : public SG_Component {
-    // transform
-    glm::vec3 pos;
-    glm::quat rot;
-    glm::vec3 sca;
-
-    // world matrix (TODO cache)
-    glm::mat4 world;
-    glm::mat4 local;
-
-    std::string name;
-
-    // not tracking parent to prevent cycles
-    // TODO: should we store a list of children directly, or pointers to
-    // children? storing children directly has better cache performs, but will
-    // invalidate pointers to these children on insertion/removal operations
-    // storing pointers to children for now, probably replace with child ID
-    // later e.g. every entity has ID, and components have unique ID as well?
-    SG_Transform** children;
-    u32 childrenCount;
-    u32 childrenCap;
-
-    static void init(SG_Transform* transform)
-    {
-        transform->id            = getNewComponentID();
-        transform->type          = SG_COMPONENT_TRANSFORM;
-        transform->pos           = glm::vec3(0.0f);
-        transform->rot           = QUAT_IDENTITY;
-        transform->sca           = glm::vec3(1.0f);
-        transform->world         = MAT_IDENTITY;
-        transform->local         = MAT_IDENTITY;
-        transform->children      = NULL;
-        transform->childrenCount = 0;
-        transform->childrenCap   = 0;
-        transform->name          = "";
-    }
-
-    static void addChild(SG_Transform* parent, SG_Transform* child)
-    {
-        if (parent->childrenCount >= parent->childrenCap) {
-            u32 oldCap          = parent->childrenCap;
-            parent->childrenCap = GROW_CAPACITY(oldCap);
-            parent->children    = GROW_ARRAY(SG_Transform*, parent->children,
-                                             oldCap, parent->childrenCap);
-        }
-        parent->children[parent->childrenCount++] = child;
-    }
-
-    static glm::mat4 modelMatrix(SG_Transform* xform)
-    {
-        glm::mat4 M = glm::mat4(1.0);
-        M           = glm::translate(M, xform->pos);
-        M           = M * glm::toMat4(xform->rot);
-        M           = glm::scale(M, xform->sca);
-        return M;
-    }
-
-    /// @brief decompose matrix into transform data
-    static void setXformFromMatrix(SG_Transform* xform, const glm::mat4& M)
-    {
-        log_trace("decomposing matrix");
-        xform->pos = glm::vec3(M[3]);
-        xform->rot = glm::quat_cast(M);
-        xform->sca
-          = glm::vec3(glm::length(M[0]), glm::length(M[1]), glm::length(M[2]));
-        xform->local = M;
-
-        log_trace("pos: %s", glm::to_string(xform->pos).c_str());
-        log_trace("rot: %s", glm::to_string(xform->rot).c_str());
-        log_trace("sca: %s", glm::to_string(xform->sca).c_str());
-    }
-
-    static void print(SG_Transform* xform, u32 depth = 0)
-    {
-        for (u32 i = 0; i < depth; ++i) {
-            printf("  ");
-        }
-        printf("%s\n", xform->name.c_str());
-        for (u32 i = 0; i < xform->childrenCount; ++i) {
-            print(xform->children[i], depth + 1);
-        }
-    }
-};
-
-struct SG_Geometry : public SG_Component {
-    IndexBuffer indexBuffer;
-    VertexBuffer vertexBuffer;
-    u32 numVertices;
-    u32 numIndices;
-
-    // associated xforms
-    std::vector<u64> xformIDs; // TODO: use arena allocator
-
-    // bindgroup
-    WGPUBindGroupEntry instanceBindGroup;
-    WGPUBindGroup bindGroup;
-    WGPUBuffer storageBuffer;
-
-    static void init(SG_Geometry* geo)
-    {
-        geo->id           = getNewComponentID();
-        geo->type         = SG_COMPONENT_GEOMETRY;
-        geo->indexBuffer  = {};
-        geo->vertexBuffer = {};
-    }
-
-    static void buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,
-                                  Vertices* vertices)
-    {
-        IndexBuffer::init(gctx, &geo->indexBuffer, vertices->indicesCount,
-                          vertices->indices, NULL);
-        const u8 COMPONENTS_PER_VERTEX = 8;
-        VertexBuffer::init(gctx, &geo->vertexBuffer,
-                           COMPONENTS_PER_VERTEX * vertices->vertexCount,
-                           vertices->vertexData, NULL);
-        geo->numVertices = vertices->vertexCount;
-        geo->numIndices  = vertices->indicesCount;
-        log_trace("geo->numVertices: %d", geo->numVertices);
-        log_trace("geo->numIndices: %d", geo->numIndices);
-    }
-
-    // uploads xform data to storage buffer
-    static void rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
-                                 WGPUBindGroupLayout layout)
-    {
-        // for now hardcoded to only support uniform buffers
-        // TODO: support textures, storage buffers, samplers, etc.
-        WGPUBufferDescriptor bufferDesc = {};
-        bufferDesc.size             = sizeof(glm::mat4) * geo->xformIDs.size();
-        bufferDesc.mappedAtCreation = false;
-        // bufferDesc.usage   = WGPUBufferUsage_CopyDst |
-        // WGPUBufferUsage_Storage;
-        bufferDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-        // destroy previous
-        if (geo->storageBuffer) {
-            wgpuBufferDestroy(geo->storageBuffer);
-            wgpuBufferRelease(geo->storageBuffer);
-        }
-        geo->storageBuffer = wgpuDeviceCreateBuffer(gctx->device, &bufferDesc);
-
-        // force only 1 @binding per @group
-        WGPUBindGroupEntry binding = {};
-        binding.binding            = 0; // @binding(0)
-        binding.offset             = 0;
-        binding.buffer
-          = geo->storageBuffer; // only supports uniform buffers for now
-        binding.size = bufferDesc.size;
-
-        // A bind group contains one or multiple bindings
-        WGPUBindGroupDescriptor desc = {};
-        desc.layout                  = layout;
-        desc.entries                 = &binding;
-        desc.entryCount              = 1; // force 1 binding per group
-
-        // release previous
-        if (geo->bindGroup) wgpuBindGroupRelease(geo->bindGroup);
-
-        geo->bindGroup = wgpuDeviceCreateBindGroup(gctx->device, &desc);
-        ASSERT(geo->bindGroup != NULL);
-    }
-};
-
-struct SG_ComponentManager {
-    std::unordered_map<u64, SG_Component*> components;
-};
-
-static SG_ComponentManager componentManager;
-
-static SG_Transform* createTransform()
-{
-    // TODO switch to pool allocators per component type
-    SG_Transform* xform = ALLOCATE_TYPE(SG_Transform);
-    SG_Transform::init(xform);
-    componentManager.components[xform->id] = xform;
-    return xform;
-}
-
-static SG_Geometry* createGeometry()
-{
-    SG_Geometry* geo = ALLOCATE_TYPE(SG_Geometry);
-    SG_Geometry::init(geo);
-    componentManager.components[geo->id] = geo;
-    return geo;
-}
-
-SG_Component* getComponent(u64 id)
-{
-    if (componentManager.components.find(id)
-        == componentManager.components.end()) {
-        log_error("component not found");
-        return NULL;
-    }
-    return componentManager.components[id];
-}
-
-#define GET_COMPONENT(type, id) (type*)getComponent(id)
-
-static GraphicsContext* gctx = NULL;
-
-/// @brief create a vertex buffer from a buffer view.
-/// needed because current VertexBuffer::init() doesn't support size in bytes
-/// (it should)
-/// @param bufferView
-/// @return
-// static WGPUBuffer vertexBufferFromBufferView(cgltf_buffer_view bufferView)
-// {
-//     WGPUBufferDescriptor desc = {};
-//     desc.size                 = bufferView.size;
-//     desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
-
-//     WGPUBuffer buffer = wgpuDeviceCreateBuffer(gctx->device, &desc);
-//     return buffer;
-// }
+// TODO add frameArena to app or graphics context
+static Arena frameArena = {};
 
 static u8 gltf_sizeOfComponentType(cgltf_component_type type)
 {
@@ -300,32 +69,34 @@ static u8 gltf_sizeOfAccessor(cgltf_accessor* accessor)
 static SG_Geometry* geo = NULL;
 static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 {
-    SG_Transform* sg_node = createTransform();
+    SG_Transform* sg_node = Component_CreateTransform();
     sg_node->name         = node->name;
     log_trace("processing node: %s", sg_node->name.c_str());
 
     // xform data
     if (node->has_translation) {
-        sg_node->pos = glm::make_vec3(node->translation);
+        SG_Transform::pos(sg_node, glm::make_vec3(node->translation));
     }
     if (node->has_rotation) {
-        sg_node->rot = glm::make_quat(node->rotation);
+        SG_Transform::rot(sg_node, glm::make_quat(node->rotation));
     }
     if (node->has_scale) {
-        sg_node->sca = glm::make_vec3(node->scale);
+        SG_Transform::sca(sg_node, glm::make_vec3(node->scale));
     }
     if (node->has_matrix) {
         sg_node->local = glm::make_mat4(node->matrix);
     } else {
-        sg_node->local = SG_Transform::modelMatrix(sg_node);
+        sg_node->local = SG_Transform::localMatrix(sg_node);
     }
     sg_node->world = parent->world * sg_node->local;
+
     // set xform data if gltf only provided a matrix
     if (!node->has_rotation || !node->has_scale || !node->has_translation)
         SG_Transform::setXformFromMatrix(sg_node, sg_node->local);
-    log_trace("sg_node pos: %s", glm::to_string(sg_node->pos).c_str());
-    log_trace("sg_node rot: %s", glm::to_string(sg_node->rot).c_str());
-    log_trace("sg_node sca: %s", glm::to_string(sg_node->sca).c_str());
+
+    // log_trace("sg_node pos: %s", glm::to_string(sg_node->pos).c_str());
+    // log_trace("sg_node rot: %s", glm::to_string(sg_node->rot).c_str());
+    // log_trace("sg_node sca: %s", glm::to_string(sg_node->sca).c_str());
 
     // parent-child relationship
     SG_Transform::addChild(parent, sg_node);
@@ -358,39 +129,34 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             u32* indices = vertices.indices;
             cgltf_size indexByteOffset
               = indexAccessor->offset + indexBufferView->offset;
-            u8* indexData     = (u8*)indexBuffer->data + indexByteOffset;
-            cgltf_size stride = indexBufferView->stride == 0 ?
-                                  indexAccessor->stride :
-                                  indexBufferView->stride;
-            u8 attribByteSize = gltf_sizeOfAccessor(indexAccessor);
+            u8* gltf_index_buff = (u8*)indexBuffer->data + indexByteOffset;
+            cgltf_size stride   = indexBufferView->stride == 0 ?
+                                    indexAccessor->stride :
+                                    indexBufferView->stride;
+            u8 attribByteSize   = gltf_sizeOfAccessor(indexAccessor);
+
+#define GLTF_COPY_INDICES(type, stride, srcByteArr, indexCount, dest)          \
+    for (u32 __tmp = 0; __tmp < (indexCount); ++__tmp) {                       \
+        (dest)[__tmp] = *(type*)((srcByteArr) + __tmp * (stride));             \
+    }
+
             // write index data to u32 array
             switch (attribByteSize) {
-                case 1: {
-                    for (u64 j = 0; j < indexCount; ++j) {
-                        u8* index  = indexData + j * stride;
-                        indices[j] = *(u8*)index;
-                    }
+                case 1:
+                    GLTF_COPY_INDICES(u8, stride, gltf_index_buff, indexCount,
+                                      indices);
                     break;
-                }
-                case 2: {
-                    for (u64 j = 0; j < indexCount; ++j) {
-                        u16* index = (u16*)(indexData + j * stride);
-                        indices[j] = *index;
-                    }
+                case 2:
+                    GLTF_COPY_INDICES(u16, stride, gltf_index_buff, indexCount,
+                                      indices);
                     break;
-                }
-                case 4: {
-                    for (u64 j = 0; j < indexCount; ++j) {
-                        u32* index = (u32*)(indexData + j * stride);
-                        indices[j] = *index;
-                    }
+                case 4:
+                    GLTF_COPY_INDICES(u32, stride, gltf_index_buff, indexCount,
+                                      indices);
                     break;
-                }
-                default: {
-                    log_error("unsupported index size");
-                    break;
-                }
+                default: log_error("unsupported index size"); break;
             }
+#undef GLTF_COPY_INDICES
 
             // print indices
             // log_trace("indices (%d):", indexCount);
@@ -401,6 +167,7 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 
             // vertex attributes
             u64 vertexCount = primitive->attributes->data->count;
+            ASSERT(vertexCount == vertices.vertexCount);
 
             for (u8 attribIndex = 0; attribIndex < primitive->attributes_count;
                  ++attribIndex) {
@@ -418,24 +185,33 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 
                 // get pointer to cpu buffer for this attribute
                 f32* attribWriteDest = NULL;
-                u8 attribComponentByteSize
-                  = gltf_sizeOfComponentType(accessor->component_type);
+                // vertex attributes should all be floats
+                ASSERT(accessor->component_type == cgltf_component_type_r_32f);
+                u8 attributeByteSize = gltf_sizeOfAccessor(accessor);
                 u8 attribNumComponents
                   = gltf_numComponentsForType(accessor->type);
+
+                // get the write destination
                 switch (attribute->type) {
                     case cgltf_attribute_type_position: {
                         attribWriteDest = Vertices::positions(&vertices);
                         ASSERT(attribNumComponents == 3);
+                        ASSERT(accessor->type == cgltf_type_vec3);
                         break;
                     }
                     case cgltf_attribute_type_normal: {
                         attribWriteDest = Vertices::normals(&vertices);
                         ASSERT(attribNumComponents == 3);
+                        ASSERT(accessor->type == cgltf_type_vec3);
                         break;
                     }
                     case cgltf_attribute_type_texcoord: {
                         attribWriteDest = Vertices::texcoords(&vertices);
                         ASSERT(attribNumComponents == 2);
+                        ASSERT(accessor->type == cgltf_type_vec2);
+
+                        // TODO: handle texcoord indices
+                        // e.g. TEXCOORD_0, TEXCOORD_1, etc.
                         break;
                     }
                     default: {
@@ -451,39 +227,16 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
                     cgltf_size stride = bufferView->stride == 0 ?
                                           accessor->stride :
                                           bufferView->stride;
-                    // write data to buffer
+                    // write data to buffer (assumed all float data)
                     for (u32 strideIdx = 0; strideIdx < vertexCount;
                          ++strideIdx) {
-                        u8* ptr = (data + strideIdx * stride);
-                        for (u8 compNum = 0; compNum < attribNumComponents;
-                             ++compNum) {
-                            f32 compVal = 0.0f;
-                            switch (attribComponentByteSize) {
-                                case 1:
-                                    compVal = *(
-                                      u8*)(ptr
-                                           + compNum * attribComponentByteSize);
-                                    break;
-                                case 2:
-                                    compVal
-                                      = *(u16*)(ptr
-                                                + compNum
-                                                    * attribComponentByteSize);
-                                    break;
-                                case 4:
-                                    compVal
-                                      = *(f32*)(ptr
-                                                + compNum
-                                                    * attribComponentByteSize);
-                                    break;
-                                default:
-                                    log_error("unsupported component size");
-                                    break;
-                            }
-                            attribWriteDest[strideIdx * attribNumComponents
-                                            + compNum]
-                              = compVal;
-                        }
+                        ASSERT(attributeByteSize
+                               == sizeof(f32) * attribNumComponents);
+                        memcpy(attribWriteDest
+                                 + strideIdx * attribNumComponents, // dest
+                               (data + strideIdx * stride),         // src
+                               sizeof(f32) * attribNumComponents    // size
+                        );
                     }
                 }
 
@@ -493,31 +246,23 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
                 // cgltf_attribute_type_texcoord,
                 // cgltf_attribute_type_color,
             }
-            // cgltf_accessor* positionAccessor = NULL;
-            // for (cgltf_size j = 0; j < primitive->attributes_count; ++j) {
-            //     cgltf_attribute* attr = &primitive->attributes[j];
-
-            //     if (attr->type == cgltf_attribute_type_position) {
-            //         positionAccessor = attr->data;
-            //         break;
-            //     }
-            // }
 
             // write to gpu buffer
-            geo = createGeometry();
+            // TODO: store geo ids instead
+            geo = Component_CreateGeometry();
             // PlaneParams planeParams = { 1.0f, 1.0f, 1u, 1u };
             // Vertices planeVertices  = createPlane(&planeParams);
             SG_Geometry::buildFromVertices(gctx, geo, &vertices);
             // SG_Geometry::buildFromVertices(gctx, geo, &planeVertices);
             // associate transform with geometry
-            geo->xformIDs.push_back(sg_node->id);
+            SG_Geometry::addXform(geo, sg_node);
 
             // print vertices
             // Vertices::print(&vertices);
 
-            break;
-        } // foreach primitive
-    }     // if (mesh)
+            break; // TODO: remove. forces only 1 primitive
+        }          // foreach primitive
+    }              // if (mesh)
 
     // process children
     for (cgltf_size i = 0; i < node->children_count; ++i) {
@@ -530,21 +275,18 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
     // }
 }
 
-static SG_Transform* gltf_ProcessData(cgltf_data* data)
+// appends scene ids to vector
+static void gltf_ProcessData(cgltf_data* data)
 {
-    // TODO: use arena allocator for SG nodes?
-    SG_Transform* sg_scenes = ALLOCATE_COUNT(SG_Transform, data->scenes_count);
-
     // process scene -- node transform hierarchy
     for (cgltf_size i = 0; i < data->scenes_count; ++i) {
         cgltf_scene* gltf_scene = &data->scenes[i];
-        char* sceneName         = gltf_scene->name;
 
-        SG_Transform* sg_root = sg_scenes + i;
-        SG_Transform::init(sg_root);
-        sg_root->name = sceneName;
+        SG_Transform* sg_root = Component_CreateTransform();
+        sg_root->name         = gltf_scene->name;
+        sceneIDs[i]           = sg_root->id;
 
-        log_trace("processing scene: %s with %d nodes", sceneName,
+        log_trace("processing scene: %s with %d nodes", gltf_scene->name,
                   gltf_scene->nodes_count);
 
         for (cgltf_size j = 0; j < gltf_scene->nodes_count; ++j) {
@@ -554,13 +296,14 @@ static SG_Transform* gltf_ProcessData(cgltf_data* data)
             gltf_ProcessNode(sg_root, node);
         }
     }
-    return sg_scenes;
 }
 
 static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 {
     gctx = ctx;
     log_trace("gltf test init");
+
+    Arena::init(&frameArena, MEGABYTE);
 
     RenderPipeline::init(gctx, &pipeline, shaderCode, shaderCode);
 
@@ -589,10 +332,13 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
         }
         log_trace("gltf buffer data loaded");
 
-        SG_Transform* sg_scenes = gltf_ProcessData(data);
+        // allocate memory to store scene IDs
+        sceneIDs = ALLOCATE_COUNT(SG_ID, data->scenes_count);
+
+        gltf_ProcessData(data);
         for (u32 i = 0; i < data->scenes_count; ++i) {
             printf("------scene %d------\n", i);
-            SG_Transform::print(sg_scenes + i);
+            SG_Transform::print(Component_GetXform(sceneIDs[i]));
         }
 
         cgltf_free(data);
@@ -601,6 +347,9 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 
 static void OnRender(glm::mat4 proj, glm::mat4 view)
 {
+    // Update all transforms
+    SG_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]), &frameArena);
+
     // std::cout << "-----basic example onRender" << std::endl;
     WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
     // set shader
@@ -640,6 +389,10 @@ static void OnRender(glm::mat4 proj, glm::mat4 view)
     // bool indexedDraw = entity->vertices.indicesCount > 0;
 
     // set vertex attributes
+    // TODO: move into renderer, and consider separate buffer for each attribute
+    // to handle case where some vertex attributes are missing (tangent, color,
+    // etc)
+    // TODO: what happens if a vertex attribute is not set in for the shader?
     wgpuRenderPassEncoderSetVertexBuffer(renderPass, 0, geo->vertexBuffer.buf,
                                          0, sizeof(f32) * geo->numVertices * 3);
 
@@ -664,39 +417,42 @@ static void OnRender(glm::mat4 proj, glm::mat4 view)
     //     wgpuRenderPassEncoderDraw(
     //       renderPass, entity->vertices.vertexCount, 1, 0, 0);
 
-    // model uniforms TODO add instancing
-
-    u64 numInstances            = geo->xformIDs.size();
-    DrawUniforms* drawInstances = ALLOCATE_COUNT(DrawUniforms, numInstances);
-    for (u32 i = 0; i < geo->xformIDs.size(); ++i) {
-        SG_Transform* xform = GET_COMPONENT(SG_Transform, geo->xformIDs[i]);
-        drawInstances[i].modelMat = SG_Transform::modelMatrix(xform);
-    }
-
-    // TODO: only do when xform list changes
-    SG_Geometry::rebuildBindGroup(gctx, geo,
-                                  pipeline.bindGroupLayouts[PER_DRAW_GROUP]);
-
-    wgpuQueueWriteBuffer(gctx->queue, geo->storageBuffer, 0, drawInstances,
-                         sizeof(DrawUniforms) * numInstances);
+    // update geometry storage buffer
+    SG_Geometry::rebuildBindGroup(
+      gctx, geo, pipeline.bindGroupLayouts[PER_DRAW_GROUP], &frameArena);
 
     // set model bind group
     wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
                                       geo->bindGroup, 0, NULL);
     // draw call (indexed)
     if (geo->numIndices > 0) {
-        wgpuRenderPassEncoderDrawIndexed(renderPass, geo->numIndices,
-                                         numInstances, 0, 0, 0);
+        wgpuRenderPassEncoderDrawIndexed(
+          renderPass, geo->numIndices, SG_Geometry::numInstances(geo), 0, 0, 0);
     } else {
         // draw call (nonindexed)
-        wgpuRenderPassEncoderDraw(renderPass, geo->numVertices, numInstances, 0,
-                                  0);
+        wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
+                                  SG_Geometry::numInstances(geo), 0, 0);
     }
 
-    // cleanup
-    FREE_ARRAY(DrawUniforms, drawInstances, numInstances);
-
     GraphicsContext::presentFrame(gctx);
+
+    // end of frame, clear arena
+    Arena::clear(&frameArena);
+}
+
+static void OnExit()
+{
+    log_trace("gltf test exit");
+
+    // TODO free components
+    // FREE_ARRAY(SG_ID, sceneIDs, 1);
+    // FREE_ARRAY(SG_ID, geoIDs, 1);
+
+    Arena::free(&frameArena);
+
+    Material::release(&material);
+    Texture::release(&texture);
+    RenderPipeline::release(&pipeline);
 }
 
 void Test_Gltf(TestCallbacks* callbacks)
@@ -704,4 +460,5 @@ void Test_Gltf(TestCallbacks* callbacks)
     *callbacks          = {};
     callbacks->onInit   = _Test_Gltf_OnInit;
     callbacks->onRender = OnRender;
+    callbacks->onExit   = OnExit;
 }

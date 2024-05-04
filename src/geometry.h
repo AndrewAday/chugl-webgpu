@@ -12,6 +12,8 @@ struct Vertex {
     static void norm(Vertex* v, char c, f32 val);
 };
 
+// TODO: redesign to support tangents / colors
+// add hasColor / hasTangent / has... flags
 struct Vertices {
     u32 vertexCount;
     u32 indicesCount;
