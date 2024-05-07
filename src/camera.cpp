@@ -64,6 +64,9 @@ struct Camera {
         camera->entity.pos = Spherical::toCartesian(camera->spherical);
         // camera lookat arcball origin
         Entity::lookAt(&camera->entity, VEC_ORIGIN);
+
+        // TODO group all inputs after glfwPollEvents into a single Input struct
+        // pass the input struct to update function as part of frameContext
     }
 
     static void onMouseButton(Camera* camera, i32 button, i32 action, i32 mods)
@@ -82,7 +85,8 @@ struct Camera {
     static void onScroll(Camera* camera, f64 xoffset, f64 yoffset)
     {
         UNUSED_VAR(xoffset);
-        camera->spherical.radius -= yoffset;
+        camera->spherical.radius
+          = MAX(0.1f, camera->spherical.radius -= yoffset);
     }
 
     static void onCursorPosition(Camera* camera, f64 xpos, f64 ypos)
@@ -95,6 +99,13 @@ struct Camera {
         if (camera->mouseDown) {
             camera->spherical.theta -= (speed * deltaX);
             camera->spherical.phi -= (speed * deltaY);
+
+            // clamp phi
+            camera->spherical.phi
+              = CLAMP(camera->spherical.phi, -PI / (2.0f + EPSILON),
+                      PI / (2.0f + EPSILON));
+            // clamp theta
+            camera->spherical.theta = fmod(camera->spherical.theta, 2.0f * PI);
         }
 
         camera->lastMouseX = xpos;

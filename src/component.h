@@ -175,3 +175,20 @@ void Component_Free();
 // TODO: add destroy functions. Remember to change offsets after swapping!
 // should these live in the components?
 // void Component_DestroyXform(u64 id);
+/*
+Enforcing pointer safety:
+- hide all component initialization fns as static within component.cpp
+    - only the manager can create/delete components
+    - similar to how all memory allocations are routed through realloc
+- all component accesses happen via IDs routed through the manager
+    - IDs, unlike pointers, are safe to store
+    - if the component created by that ID is deleted, the ID lookup will yield
+    NULL, and the calling code will likely crash with a NULL pointer dereference
+    (easy to debug)
+- all deletions / GC are deferred to the VERY END of the frame
+    - prevents bug where a component is deleted WHILE it is being used after an
+    ID lookup
+    - enforce hygiene of never storing / carrying pointers across frame
+    boundaries (within is ok)
+    - also enables a more controllable GC system
+*/

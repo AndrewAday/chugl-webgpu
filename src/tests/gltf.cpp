@@ -70,6 +70,7 @@ static u8 gltf_sizeOfAccessor(cgltf_accessor* accessor)
     return componentSize * numComponents;
 }
 
+// TODO cache gltf geometry, material ptrs etc so we don't process same data
 static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 {
     SG_Transform* sg_node = Component_CreateTransform();
@@ -115,6 +116,9 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             log_trace("processing primitive %d", i);
 
             // TODO: cache geo data
+            // TODO: simplify this code with cgltf_accessor_unpack_float
+            // and cgltf_accessor_unpack_indices
+
             Vertices vertices = {};
             Vertices::init(&vertices, primitive->attributes->data->count,
                            primitive->indices->count);
@@ -283,9 +287,38 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
     // }
 }
 
+#define MAX_TEXTURES 16
+Texture textures[16];
 // appends scene ids to vector
 static void gltf_ProcessData(cgltf_data* data)
 {
+
+    // images
+    // thinking for now, group image + sampler together
+    // i.e. every image has its own sampler?
+    // TODO add sampler options
+    {
+        for (cgltf_size i = 0; i < data->images_count; ++i) {
+            // TODO: cache image pointer --> chugl_tex to prevent duplicate
+            // loads
+            cgltf_image* image = &data->images[i];
+            log_trace("processing image %d: %s", i, image->name);
+            textures[i] = {};
+            if (image->uri) {
+                log_trace("\turi: %s", image->uri);
+                Texture::initFromFile(gctx, &textures[i], image->uri, true);
+            } else {
+                const u8* data = cgltf_buffer_view_data(image->buffer_view);
+                if (data == NULL) {
+                    log_error("image has no uri or data");
+                    continue;
+                }
+                Texture::initFromBuff(gctx, &textures[i], data,
+                                      image->buffer_view->size);
+            }
+        }
+    }
+
     // process scene -- node transform hierarchy
     for (cgltf_size i = 0; i < data->scenes_count; ++i) {
         cgltf_scene* gltf_scene = &data->scenes[i];

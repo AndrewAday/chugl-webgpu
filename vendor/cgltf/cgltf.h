@@ -371,9 +371,11 @@ typedef struct cgltf_attribute {
 
 typedef struct cgltf_image {
     char* name;
-    char* uri;
-    cgltf_buffer_view* buffer_view;
-    char* mime_type;
+
+    char* uri;                      // file path or data uri
+    cgltf_buffer_view* buffer_view; // image data in buffer
+    char* mime_type;                // e.g. "image/jpeg"
+
     cgltf_extras extras;
     cgltf_size extensions_count;
     cgltf_extension* extensions;
@@ -411,8 +413,8 @@ typedef struct cgltf_texture_transform {
 
 typedef struct cgltf_texture_view {
     cgltf_texture* texture;
-    cgltf_int texcoord;
-    cgltf_float scale; /* equivalent to strength for occlusion_texture */
+    cgltf_int texcoord; // 1 for TEXCOORD_1, etc.
+    cgltf_float scale;  /* equivalent to strength for occlusion_texture */
     cgltf_bool has_transform;
     cgltf_texture_transform transform;
 } cgltf_texture_view;

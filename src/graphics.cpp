@@ -1206,37 +1206,11 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
 // Texture
 // ============================================================================
 
-void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
-                           const char* filename, bool genMipMaps)
+static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
+                                       u8* pixelData, i32 width, i32 height,
+                                       u8 numComponents, bool genMipMaps,
+                                       const char* filename)
 {
-    ASSERT(texture->texture == NULL);
-
-    i32 width = 0, height = 0;
-    // Force loading 4 channel images to 3 channel by stb becasue Dawn
-    // doesn't support 3 channel formats currently. The group is discussing
-    // on whether webgpu shoud support 3 channel format.
-    // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
-    i32 read_comps    = 0;
-    i32 desired_comps = STBI_rgb_alpha; // force 4 channels
-
-    stbi_set_flip_vertically_on_load(true);
-    stbi_uc* pixel_data = stbi_load(filename,     //
-                                    &width,       //
-                                    &height,      //
-                                    &read_comps,  //
-                                    desired_comps //
-    );
-
-    if (pixel_data == NULL) {
-        log_error("Couldn't load '%s'\n", filename);
-
-        log_error("Reason: %s\n", stbi_failure_reason());
-        return;
-    } else {
-        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width,
-                  height, read_comps, desired_comps);
-    }
-
     // save texture info
     texture->width  = width;
     texture->height = height;
@@ -1282,14 +1256,14 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
 
         WGPUTextureDataLayout source = {};
         source.offset       = 0; // where to start reading from the cpu buffer
-        source.bytesPerRow  = desired_comps * textureDesc.size.width;
+        source.bytesPerRow  = numComponents * textureDesc.size.width;
         source.rowsPerImage = textureDesc.size.height;
 
         const u64 dataSize = textureDesc.size.width * textureDesc.size.height
                              * textureDesc.size.depthOrArrayLayers
-                             * desired_comps;
+                             * numComponents;
 
-        wgpuQueueWriteTexture(ctx->queue, &destination, pixel_data, dataSize,
+        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize,
                               &source, &textureDesc.size);
     }
 
@@ -1302,9 +1276,6 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
         MipMapGenerator::generate(&mipMapGenerator, texture->texture,
                                   &textureDesc);
     }
-
-    // free pixel data
-    stbi_image_free(pixel_data);
 
     /* Create the texture view */
     WGPUTextureViewDescriptor textureViewDesc = {};
@@ -1323,7 +1294,7 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
     samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
     samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
 
-    // TODO: make filtering configurable
+    // // TODO: make filtering configurable
     samplerDesc.minFilter    = WGPUFilterMode_Linear;
     samplerDesc.magFilter    = WGPUFilterMode_Linear;
     samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Linear;
@@ -1334,7 +1305,82 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
     samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
 
     texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
+}
+
+void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
+                           const char* filename, bool genMipMaps)
+{
+    ASSERT(texture->texture == NULL);
+
+    i32 width = 0, height = 0;
+    // Force loading 4 channel images to 3 channel by stb becasue Dawn
+    // doesn't support 3 channel formats currently. The group is discussing
+    // on whether webgpu shoud support 3 channel format.
+    // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
+    i32 read_comps    = 0;
+    i32 desired_comps = STBI_rgb_alpha; // force 4 channels
+
+    stbi_set_flip_vertically_on_load(true);
+    stbi_uc* pixelData = stbi_load(filename,     //
+                                   &width,       //
+                                   &height,      //
+                                   &read_comps,  //
+                                   desired_comps //
+    );
+
+    if (pixelData == NULL) {
+        log_error("Couldn't load '%s'\n", filename);
+
+        log_error("Reason: %s\n", stbi_failure_reason());
+        return;
+    } else {
+        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width,
+                  height, read_comps, desired_comps);
+    }
+
+    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height,
+                               desired_comps, true, filename);
+
+    // free pixel data
+    stbi_image_free(pixelData);
 };
+
+void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture,
+                           const u8* data, u64 dataLen)
+{
+    ASSERT(texture->texture == NULL);
+
+    i32 width = 0, height = 0;
+    // Force loading 4 channel images to 3 channel by stb becasue Dawn
+    // doesn't support 3 channel formats currently. The group is discussing
+    // on whether webgpu shoud support 3 channel format.
+    // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
+    i32 read_comps    = 0;
+    i32 desired_comps = STBI_rgb_alpha; // force 4 channels
+
+    stbi_set_flip_vertically_on_load(true);
+    stbi_uc* pixelData = stbi_load_from_memory(data, dataLen, //
+                                               &width,        //
+                                               &height,       //
+                                               &read_comps,   //
+                                               desired_comps  //
+    );
+
+    if (pixelData == NULL) {
+        log_error("Couldn't load data texture\n");
+        log_error("Reason: %s\n", stbi_failure_reason());
+        return;
+    } else {
+        log_debug("Loaded image texture from memory (%d, %d, %d / %d)\n", width,
+                  height, read_comps, desired_comps);
+    }
+
+    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height,
+                               desired_comps, true, "data texture");
+
+    // free pixel data
+    stbi_image_free(pixelData);
+}
 
 void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
                               u8 pixelData[4])

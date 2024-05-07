@@ -42,6 +42,17 @@ component
   - store offset and not pointer because pointers can be invalidated if the
 arena grows, or elements within are deleted and swapped
 
+Note: the stale flag scenegraph system allows for a nice programming pattern
+in ChucK:
+
+// put all objects that can move under here
+GGen dynamic --> GG.scene();
+// put all immobile objects here
+GGen static --> GG.scene();
+
+all static GGens are grouped under a single XForm, and this entire branch of the
+scenegraph will be skipped every frame!
+
 */
 
 // ============================================================================
@@ -440,7 +451,7 @@ void SG_Geometry::rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
 {
     if (!geo->staleBindGroup) return;
 
-    log_trace("rebuilding bindgroup for geometry %d", geo->id);
+    // log_trace("rebuilding bindgroup for geometry %d", geo->id);
     geo->staleBindGroup = false;
 
     // build new array of matrices on CPU
@@ -479,7 +490,10 @@ void SG_Geometry::rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
     // rebuild storage buffer only if it needs to grow
     if (numInstances > geo->storageBufferCap) {
         // double capacity (like dynamic array)
-        u64 newCap = MAX(numInstances, geo->storageBufferCap * 2);
+        u32 newCap = MAX(numInstances, geo->storageBufferCap * 2);
+        // round newCap to largest power of 2
+        newCap = NEXT_POW2(newCap);
+
         log_trace(
           "growing storage buffer for geometry %d from capacity: %d to "
           "%d",
@@ -496,6 +510,29 @@ void SG_Geometry::rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
         geo->storageBuffer = wgpuDeviceCreateBuffer(gctx->device, &bufferDesc);
         // update new capacity
         geo->storageBufferCap = newCap;
+
+        // create new bindgroup for new storage buffer
+        {
+            geo->bindGroupEntry         = {};
+            geo->bindGroupEntry.binding = 0; // @binding(0)
+            geo->bindGroupEntry.offset  = 0;
+            geo->bindGroupEntry.buffer
+              = geo->storageBuffer; // only supports uniform buffers for now
+            // note: bind size is NOT same as buffer capacity
+            // u64 bindingSize          = numInstances * sizeof(DrawUniforms);
+            // geo->bindGroupEntry.size = bindingSize;
+            geo->bindGroupEntry.size = bufferDesc.size;
+
+            // release previous
+            if (geo->bindGroup) wgpuBindGroupRelease(geo->bindGroup);
+
+            // A bind group contains one or multiple bindings
+            WGPUBindGroupDescriptor desc = {};
+            desc.layout                  = layout;
+            desc.entries                 = &geo->bindGroupEntry;
+            desc.entryCount              = 1; // force 1 binding per group
+            geo->bindGroup = wgpuDeviceCreateBindGroup(gctx->device, &desc);
+        }
     }
 
     // populate storage buffer with new xform data
@@ -506,28 +543,6 @@ void SG_Geometry::rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
     ARENA_POP_COUNT(arena, glm::mat4, matrixCount);
     ASSERT(modelMatrices
            == Arena::top(arena)); // make sure arena is back to original state
-
-    // create new bindgroup for new storage buffer
-    {
-        geo->bindGroupEntry         = {};
-        geo->bindGroupEntry.binding = 0; // @binding(0)
-        geo->bindGroupEntry.offset  = 0;
-        geo->bindGroupEntry.buffer
-          = geo->storageBuffer; // only supports uniform buffers for now
-        // note: bind size is NOT same as buffer capacity
-        u64 bindingSize          = numInstances * sizeof(DrawUniforms);
-        geo->bindGroupEntry.size = bindingSize;
-
-        // release previous
-        if (geo->bindGroup) wgpuBindGroupRelease(geo->bindGroup);
-
-        // A bind group contains one or multiple bindings
-        WGPUBindGroupDescriptor desc = {};
-        desc.layout                  = layout;
-        desc.entries                 = &geo->bindGroupEntry;
-        desc.entryCount              = 1; // force 1 binding per group
-        geo->bindGroup = wgpuDeviceCreateBindGroup(gctx->device, &desc);
-    }
 }
 
 // ============================================================================
