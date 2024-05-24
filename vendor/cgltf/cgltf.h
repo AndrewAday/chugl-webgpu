@@ -387,6 +387,7 @@ typedef struct cgltf_sampler {
     cgltf_int min_filter;
     cgltf_int wrap_s;
     cgltf_int wrap_t;
+
     cgltf_extras extras;
     cgltf_size extensions_count;
     cgltf_extension* extensions;
@@ -396,25 +397,30 @@ typedef struct cgltf_texture {
     char* name;
     cgltf_image* image;
     cgltf_sampler* sampler;
+
     cgltf_bool has_basisu;
     cgltf_image* basisu_image;
+
     cgltf_extras extras;
     cgltf_size extensions_count;
     cgltf_extension* extensions;
 } cgltf_texture;
 
 typedef struct cgltf_texture_transform {
+    // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_transform/README.md
     cgltf_float offset[2];
     cgltf_float rotation;
     cgltf_float scale[2];
     cgltf_bool has_texcoord;
-    cgltf_int texcoord;
+    cgltf_int texcoord; // Overrides the textureInfo texCoord value if supplied,
+                        // and if this extension is supported.
 } cgltf_texture_transform;
 
 typedef struct cgltf_texture_view {
     cgltf_texture* texture;
     cgltf_int texcoord; // 1 for TEXCOORD_1, etc.
     cgltf_float scale;  /* equivalent to strength for occlusion_texture */
+
     cgltf_bool has_transform;
     cgltf_texture_transform transform;
 } cgltf_texture_view;
@@ -501,6 +507,8 @@ typedef struct cgltf_dispersion {
 
 typedef struct cgltf_material {
     char* name;
+
+    // material flags
     cgltf_bool has_pbr_metallic_roughness;
     cgltf_bool has_pbr_specular_glossiness;
     cgltf_bool has_clearcoat;
@@ -513,6 +521,8 @@ typedef struct cgltf_material {
     cgltf_bool has_iridescence;
     cgltf_bool has_anisotropy;
     cgltf_bool has_dispersion;
+
+    // material properties
     cgltf_pbr_metallic_roughness pbr_metallic_roughness;
     cgltf_pbr_specular_glossiness pbr_specular_glossiness;
     cgltf_clearcoat clearcoat;
@@ -525,14 +535,22 @@ typedef struct cgltf_material {
     cgltf_iridescence iridescence;
     cgltf_anisotropy anisotropy;
     cgltf_dispersion dispersion;
+
+    // basic textures
     cgltf_texture_view normal_texture;
     cgltf_texture_view occlusion_texture;
     cgltf_texture_view emissive_texture;
+
     cgltf_float emissive_factor[3];
+
     cgltf_alpha_mode alpha_mode;
     cgltf_float alpha_cutoff;
+
+    // culling
     cgltf_bool double_sided;
+
     cgltf_bool unlit;
+
     cgltf_extras extras;
     cgltf_size extensions_count;
     cgltf_extension* extensions;
@@ -586,7 +604,11 @@ typedef struct cgltf_primitive {
 
 typedef struct cgltf_mesh {
     char* name;
+
+    // a mesh has multiple primitives if it has multiple materials
+    // each primitive can only have one material
     cgltf_primitive* primitives;
+
     cgltf_size primitives_count;
 
     // morph targets?
@@ -2420,6 +2442,7 @@ static cgltf_bool cgltf_element_read_float(
     return 1;
 }
 
+// returns pointer to data buffer from buffer view
 const uint8_t* cgltf_buffer_view_data(const cgltf_buffer_view* view)
 {
     if (view->data) return (const uint8_t*)view->data;

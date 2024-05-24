@@ -30,12 +30,6 @@ if(LINUX OR EMSCRIPTEN)
     #set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined" )
 endif()
 
-# IDE setup
-if(XCODE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        XCODE_GENERATE_SCHEME ON
-        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal")
-endif()
 
 if ( MSVC )
     # Set the startup project to be the actual project instead of ALL_BUILD 
@@ -66,11 +60,12 @@ set(
 set(
     VENDOR
     src/implementations.cpp
+    vendor/mikktspace/mikktspace.c
 )
 
 set(
     RENDERER_TESTS
-    src/tests/obj.cpp
+    # src/tests/obj.cpp
     src/tests/gltf.cpp
 )
 
@@ -97,6 +92,15 @@ if (CHUGL_BUILD_RENDERER_TESTS)
         COMPILE_WARNING_AS_ERROR ON
         VS_DEBUGGER_ENVIRONMENT "DAWN_DEBUG_BREAK_ON_ERROR=1"
     )
+
+    # IDE setup
+    if(XCODE)
+        set_target_properties(ChuGL-Renderer-Tester PROPERTIES
+            XCODE_GENERATE_SCHEME ON
+            XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal"
+            XCODE_SCHEME_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        )
+    endif()
 endif()
 
 # chugl library

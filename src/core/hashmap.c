@@ -767,7 +767,8 @@ uint64_t hashmap_murmur(const void *data, size_t len, uint64_t seed0,
     uint64_t seed1)
 {
     (void)seed1;
-    return MM86128(data, len, seed0);
+    // TODO: remove casting on types. just getting around xcode warnings for now
+    return MM86128(data, (int) len, (uint32_t) seed0);
 }
 
 uint64_t hashmap_xxhash3(const void *data, size_t len, uint64_t seed0,

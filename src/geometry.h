@@ -1,5 +1,16 @@
 #pragma once
 
+// follows glTF 2.0 spec
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes
+// see table on vertex attributes
+// TODO add tangent (vec4)
+// XYZW vertex tangents where the XYZ portion is normalized, and the W component
+// is a sign value (-1 or +1) indicating handedness of the tangent basis
+// unity code for calculating tangents
+// https://discussions.unity.com/t/calculating-tangents-for-the-mesh/321060
+
+// https://github.com/mmikk/MikkTSpace
+// tangent space calculation
 struct Vertex {
     f32 x, y, z;    // position
     f32 nx, ny, nz; // normal
@@ -16,6 +27,7 @@ struct Vertex {
 // add hasColor / hasTangent / has... flags
 // probably requires splitting vertex data into separate arrays
 // per attribute type
+#define CHUGL_FLOATS_PER_VERTEX (3 + 3 + 2 + 4)
 struct Vertices {
     u32 vertexCount;
     u32 indicesCount;
@@ -23,11 +35,20 @@ struct Vertices {
     u32* indices;    // alloc. owned
 
     // vertex data stored in single contiguous array
-    // [positions | normals | texcoords]
+    // [positions | normals | texcoords | tangents]
 
     static f32* positions(Vertices* v);
     static f32* normals(Vertices* v);
     static f32* texcoords(Vertices* v);
+    static f32* tangents(Vertices* v);
+
+    static void buildTangents(Vertices* v);
+
+    // returns offsets to contiguous attribute arrays in bytes
+    static size_t positionOffset(Vertices* v);
+    static size_t normalOffset(Vertices* v);
+    static size_t texcoordOffset(Vertices* v);
+    static size_t tangentOffset(Vertices* v);
 
     static void init(Vertices* v, u32 vertexCount, u32 indicesCount);
     static void setVertex(Vertices* vertices, Vertex v, u32 index);

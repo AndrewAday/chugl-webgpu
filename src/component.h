@@ -30,23 +30,24 @@
 // and track location via a custom hashmap from ID --> arena offset
 
 struct Vertices;
+struct R_Material;
 
 enum SG_ComponentType {
     SG_COMPONENT_INVALID,
     SG_COMPONENT_TRANSFORM,
     SG_COMPONENT_GEOMETRY,
     SG_COMPONENT_MATERIAL,
+    SG_COMPONENT_TEXTURE,
     SG_COMPONENT_COUNT
 };
 
 typedef u64 SG_ID;
+typedef i64 R_ID; // negative for R_Components NOT mapped to SG_Components
 
 struct SG_Component {
     SG_ID id;
     SG_ComponentType type;
-    std::string name;
-
-    // std::string name; ?
+    std::string name; // TODO move off std::string
 };
 
 // priority hiearchy for staleness
@@ -80,17 +81,14 @@ struct SG_Transform : public SG_Component {
     // world matrix (TODO cache)
     glm::mat4 world;
     glm::mat4 local;
+    glm::mat4 normal; // normal matrix
 
-    // not tracking parent to prevent cycles
-    // TODO: should we store a list of children directly, or pointers to
-    // children? storing children directly has better cache performs, but will
-    // invalidate pointers to these children on insertion/removal operations
-    // storing pointers to children for now, probably replace with child ID
-    // later e.g. every entity has ID, and components have unique ID as well?
     SG_ID parentID;
     Arena children; // stores list of SG_IDs
 
-    SG_ID _geoID; // don't modify directly; use SG_Geo::addXform() instead
+    // don't modify directly; use R_Material::addPrimitve() instead
+    SG_ID _geoID;
+    SG_ID _matID;
 
     static void init(SG_Transform* transform);
 
@@ -129,34 +127,225 @@ struct SG_Transform : public SG_Component {
 
 struct SG_Geometry : public SG_Component {
 
-    IndexBuffer indexBuffer;
-    VertexBuffer vertexBuffer;
+    // IndexBuffer indexBuffer;
+    // VertexBuffer vertexBuffer;
+
+    WGPUBuffer gpuIndexBuffer;
+    WGPUBuffer gpuVertexBuffer; // non-interleaved, contiguous
+    WGPUBufferDescriptor indexBufferDesc;
+    WGPUBufferDescriptor vertexBufferDesc;
+
     u32 numVertices;
     u32 numIndices;
 
+    // // associated xform instances
+    // Arena xformIDs;
+
+    // // bindgroup
+    // WGPUBindGroupEntry bindGroupEntry;
+    // WGPUBindGroup bindGroup;
+    // WGPUBuffer storageBuffer;
+    // u32 storageBufferCap; // capacity in number of FrameUniforms NOT bytes
+    // bool staleBindGroup;  // true if storage buffer needs to be rebuilt with
+    // new
+    //                       // world matrices
+
+    static void init(SG_Geometry* geo);
+    static void buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,
+                                  Vertices* vertices);
+    // static u64 numInstances(SG_Geometry* geo);
+
+    // uploads xform data to storage buffer
+};
+
+// =============================================================================
+// R_Texture
+// =============================================================================
+
+struct R_Texture : public SG_Component {
+    Texture gpuTexture;
+    SamplerConfig samplerConfig;
+
+    static void init(R_Texture* texture);
+};
+
+// =============================================================================
+// Material_Primitive
+// =============================================================================
+
+// groups xform data and geometry under a given R_Material instance
+struct Material_Primitive {
+    // geometry
+    SG_ID geoID;
+    // material this belongs to
+    SG_ID matID;
+
     // associated xform instances
-    Arena xformIDs;
+    Arena xformIDs; // array of SG_ID
 
     // bindgroup
     WGPUBindGroupEntry bindGroupEntry;
     WGPUBindGroup bindGroup;
     WGPUBuffer storageBuffer;
     u32 storageBufferCap; // capacity in number of FrameUniforms NOT bytes
-    bool staleBindGroup;  // true if storage buffer needs to be rebuilt with new
+    b32 stale;            // true if storage buffer needs to be rebuilt with new
                           // world matrices
 
-    static void init(SG_Geometry* geo);
-    static void buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,
-                                  Vertices* vertices);
-    static u64 numInstances(SG_Geometry* geo);
+    static void init(Material_Primitive* prim, R_Material* mat, SG_ID geoID);
+    static void free(Material_Primitive* prim);
+    static u32 numInstances(Material_Primitive* prim);
+    static void addXform(Material_Primitive* prim, SG_Transform* xform);
+    static void removeXform(Material_Primitive* prim, SG_Transform* xform);
 
-    // functions for adding/removing instances
-    static void addXform(SG_Geometry* geo, SG_Transform* xform);
-    static void removeXform(SG_Geometry* geo, SG_Transform* xform);
-
-    // uploads xform data to storage buffer
-    static void rebuildBindGroup(GraphicsContext* gctx, SG_Geometry* geo,
+    // recreates storagebuffer based on #xformIDs and rebuilds bindgroup
+    // populates storage buffer with new xform data
+    // only creates new storage buffer if #xformIDs grows or an existing xformID
+    // is moved
+    static void rebuildBindGroup(GraphicsContext* gctx,
+                                 Material_Primitive* prim,
                                  WGPUBindGroupLayout layout, Arena* arena);
+};
+
+// =============================================================================
+// R_Material
+// =============================================================================
+
+enum R_BindType : u32 {
+    R_BIND_EMPTY = 0, // empty binding
+    R_BIND_UNIFORM,
+    R_BIND_SAMPLER,
+    R_BIND_TEXTURE_ID,   // for scenegraph textures
+    R_BIND_TEXTURE_VIEW, // default textures (e.g. white pixel)
+    R_BIND_STORAGE
+};
+
+// TODO can we move R_Binding into .cpp
+struct R_Binding {
+    R_BindType type;
+    size_t size; // size of data in bytes for UNIFORM and STORAGE types
+    union {
+        SG_ID textureID;
+        WGPUTextureView textureView;
+        SamplerConfig samplerConfig;
+        ptrdiff_t uniformOffset; // offset into uniform buffer
+        void* storageData;       // cpu-side storage buffer data
+    } as;
+};
+
+struct MaterialTextureView {
+    // material texture view (not same as wgpu texture view)
+    i32 texcoord; // 1 for TEXCOORD_1, etc.
+    f32 strength; /* equivalent to strength for occlusion_texture */
+    b32 hasTransform;
+    // transform
+    f32 offset[2];
+    f32 rotation;
+    f32 scale[2];
+
+    static void init(MaterialTextureView* view);
+};
+
+enum R_ShaderType : u32 { R_SHADER_TYPE_PBR = 0, R_SHADER_TYPE_CUSTOM };
+
+// base material properties that determine pipeline selection
+struct R_MaterialConfig {
+    R_ShaderType shaderType;
+    SG_ID shaderID; // 0 for built-in shaders.
+    b32 doubleSided;
+};
+
+// TODO: somehow make this interop with render pipeline and shader
+// material instance component
+struct R_Material : public SG_Component {
+    R_MaterialConfig config;
+    b32 stale; // set if modified by chuck user, need to rebuild bind groups
+
+    R_ID pipelineID; // renderpipeline this material belongs to
+
+    Arena bindings;         // array of R_Binding
+    Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
+    WGPUBindGroup bindGroup;
+
+    // TODO: figure out how to include MaterialTextureView
+    // maybe as part of the R_BIND_TEXTURE_ID binding,
+    // because every texture needs a texture view
+
+    Arena uniformData;         // cpu-side uniform data buffer
+                               // used by all bindings of type R_BIND_UNIFORM
+    WGPUBuffer gpuUniformBuff; // gpu-side uniform buffer
+    WGPUBufferDescriptor uniformBuffDesc;
+
+    // textures (TODO: convert to SG_ID of SG_Texture)
+    // SG_Texture* baseColorTexture;
+    // MaterialTextureView baseColorTextureView;
+
+    // SG_Texture* metallicRoughnessTexture;
+    // MaterialTextureView metallicRoughnessTextureView;
+
+    // shared textures (by all material types)
+    // SG_Texture* normalTexture;
+    // MaterialTextureView normalTextureView;
+    // SG_Texture* occlusionTexture;
+    // SG_Texture* emissiveTexture;
+
+    // glm::vec4 baseColor;
+    // f32 metallicFactor;
+    // f32 roughnessFactor;
+
+    // primitive data ---------------
+    Arena primitives; // array of Material_Primitive (geo + xform)
+
+    // constructors ----------------------------------------------
+    static void init(GraphicsContext* gctx, R_Material* mat,
+                     R_MaterialConfig* config);
+
+    // bind group fns --------------------------------------------
+    static void rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
+                                 WGPUBindGroupLayout layout);
+    static void setBinding(R_Material* mat, u32 location, R_BindType type,
+                           void* data, size_t bytes);
+
+    static void setTextureAndSamplerBinding(R_Material* mat, u32 location,
+                                            SG_ID textureID,
+                                            WGPUTextureView defaultView);
+
+    // functions for adding/removing primitives ------------------
+    static u32 numPrimitives(R_Material* mat);
+    static void addPrimitive(R_Material* mat, SG_Geometry* geo,
+                             SG_Transform* xform);
+    static void removePrimitive(R_Material* mat, SG_Geometry* geo,
+                                SG_Transform* xform);
+    static void markPrimitiveStale(R_Material* mat, SG_Transform* xform);
+    static bool primitiveIter(R_Material* mat, size_t* indexPtr,
+                              Material_Primitive** primitive);
+};
+
+// =============================================================================
+// R_RenderPipeline
+// =============================================================================
+
+struct R_RenderPipeline /* NOT backed by SG_Component */ {
+    R_ID rid;
+    RenderPipeline pipeline;
+    R_MaterialConfig config;
+    ptrdiff_t offset; // acts as an ID, offset in bytes into pipeline Arena
+
+    Arena materialIDs; // array of SG_IDs
+
+    /*
+    possible optimizations:
+    - keep material IDs with nonzero #primitive contiguous
+      so we don't waste time iterating over empty materials
+    */
+
+    static void init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
+                     const R_MaterialConfig* config, ptrdiff_t offset);
+
+    static void addMaterial(R_RenderPipeline* pipeline, R_Material* material);
+
+    /// @brief Iterator for materials tied to render pipeline
+    static bool materialIter(R_RenderPipeline* pipeline, size_t* indexPtr,
+                             R_Material** material);
 };
 
 // =============================================================================
@@ -165,15 +354,36 @@ struct SG_Geometry : public SG_Component {
 
 SG_Transform* Component_CreateTransform();
 SG_Geometry* Component_CreateGeometry();
+R_Material* Component_CreateMaterial(GraphicsContext* gctx,
+                                     R_MaterialConfig* config);
+R_Texture* Component_CreateTexture();
 
-SG_Transform* Component_GetXform(u64 id);
-SG_Geometry* Component_GetGeo(u64 id);
+SG_Transform* Component_GetXform(SG_ID id);
+SG_Geometry* Component_GetGeo(SG_ID id);
+R_Material* Component_GetMaterial(SG_ID id);
+R_Texture* Component_GetTexture(SG_ID id);
 
+// lazily created on-demand because of many possible shader variations
+R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
+                                        R_MaterialConfig* config);
+R_RenderPipeline* Component_GetPipeline(R_ID rid);
+
+// component iterators
+// bool hashmap_scan(struct hashmap *map, bool (*iter)(const void *item, void
+// *udata), void *udata);
+
+// be careful to not delete components while iterating
+// returns false upon reachign end of material arena
+bool Component_MaterialIter(size_t* i, R_Material** material);
+bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline);
+
+// component manager initialization
 void Component_Init();
 void Component_Free();
 
 // TODO: add destroy functions. Remember to change offsets after swapping!
 // should these live in the components?
+// TODO: on xform destroy, set material/geo primitive to stale
 // void Component_DestroyXform(u64 id);
 /*
 Enforcing pointer safety:

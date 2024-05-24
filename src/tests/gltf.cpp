@@ -15,12 +15,13 @@
 #include <unordered_map>
 #include <vector>
 
-static RenderPipeline pipeline = {};
-static Material material       = {};
-static Texture texture         = {};
-static GraphicsContext* gctx   = NULL;
+static std::unordered_map<cgltf_texture*, SG_ID> rTextureMap;
+static std::unordered_map<cgltf_material*, SG_ID> rMaterialMap;
+
+static GraphicsContext* gctx = NULL;
 
 static SG_ID* sceneIDs;
+static cgltf_size numScenes;
 // static SG_ID* geoIDs;
 
 // TODO add frameArena to app or graphics context
@@ -30,45 +31,20 @@ static Arena frameArena = {};
 static SG_Geometry* geo        = NULL;
 static SG_Transform* testXform = NULL;
 
-static u8 gltf_sizeOfComponentType(cgltf_component_type type)
-{
-    switch (type) {
-        case cgltf_component_type_r_8:
-        case cgltf_component_type_r_8u: return 1;
-        case cgltf_component_type_r_16:
-        case cgltf_component_type_r_16u: return 2;
-        case cgltf_component_type_r_32u:
-        case cgltf_component_type_r_32f: return 4;
-        default: {
-            log_error("unknown cgltf component type");
-            return 0;
-        }
-    }
-}
+static u8 whitePixel[4]  = { 255, 255, 255, 255 };
+static u8 blackPixel[4]  = { 0, 0, 0, 0 };
+static u8 normalPixel[4] = { 128, 128, 255, 255 };
 
-static u8 gltf_numComponentsForType(cgltf_type type)
-{
-    switch (type) {
-        case cgltf_type_scalar: return 1;
-        case cgltf_type_vec2: return 2;
-        case cgltf_type_vec3: return 3;
-        case cgltf_type_vec4: return 4;
-        case cgltf_type_mat2: return 4;
-        case cgltf_type_mat3: return 9;
-        case cgltf_type_mat4: return 16;
-        default: {
-            log_error("unknown cgltf type");
-            return 0;
-        }
-    }
-}
+static Texture opaqueWhitePixel      = {};
+static Texture transparentBlackPixel = {};
+static Texture defaultNormalPixel    = {};
 
-static u8 gltf_sizeOfAccessor(cgltf_accessor* accessor)
-{
-    u8 componentSize = gltf_sizeOfComponentType(accessor->component_type);
-    u8 numComponents = gltf_numComponentsForType(accessor->type);
-    return componentSize * numComponents;
-}
+// static u8 gltf_sizeOfAccessor(cgltf_accessor* accessor)
+// {
+//     u8 componentSize = cgltf_component_size(accessor->component_type);
+//     u8 numComponents = cgltf_num_components(accessor->type);
+//     return componentSize * numComponents;
+// }
 
 // TODO cache gltf geometry, material ptrs etc so we don't process same data
 static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
@@ -104,9 +80,13 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
 
     // parent-child relationship
     SG_Transform::addChild(parent, sg_node);
+    SG_Transform::addChild(parent, testXform);
 
     // mesh
     if (node->mesh) {
+        // TODO: all meshes should be processed linearly at start
+        // (like how we do with textures)
+
         // gltf_ProcessMesh(node->mesh);
         cgltf_mesh* gltf_mesh = node->mesh;
         log_trace("processing mesh: %s", gltf_mesh->name);
@@ -115,56 +95,28 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             cgltf_primitive* primitive = gltf_mesh->primitives + i;
             log_trace("processing primitive %d", i);
 
-            // TODO: cache geo data
+            // TODO: cache map from primitive --> R_Geometry
+            // this is only possible if a single primitive can be shared by
+            // multiple gltf meshes
+            // a primitive has exactly 1 material, and index/vertex data
+            // technically R_Geometry can be reused if primitives share same
+            // indices accessor and attributes
+            // caching at primitive level, rather than accessor level, means
+            // gltf meshes with same geometry but different material will
+            // generate duplicate geometry
+
             // TODO: simplify this code with cgltf_accessor_unpack_float
             // and cgltf_accessor_unpack_indices
 
             Vertices vertices = {};
             Vertices::init(&vertices, primitive->attributes->data->count,
                            primitive->indices->count);
-            ASSERT(vertices.indicesCount > 0);
 
-            // index buffer
-            cgltf_accessor* indexAccessor      = primitive->indices;
-            cgltf_buffer_view* indexBufferView = indexAccessor->buffer_view;
-            cgltf_buffer* indexBuffer          = indexBufferView->buffer;
-            cgltf_size indexCount              = indexAccessor->count;
-            ASSERT(indexAccessor->type == cgltf_type_scalar);
-            ASSERT(indexBufferView->type == cgltf_buffer_view_type_indices);
-
-            // write indices to buffer, non-interleaved (TODO use arena?)
-            u32* indices = vertices.indices;
-            cgltf_size indexByteOffset
-              = indexAccessor->offset + indexBufferView->offset;
-            u8* gltf_index_buff = (u8*)indexBuffer->data + indexByteOffset;
-            cgltf_size stride   = indexBufferView->stride == 0 ?
-                                    indexAccessor->stride :
-                                    indexBufferView->stride;
-            u8 attribByteSize   = gltf_sizeOfAccessor(indexAccessor);
-
-#define GLTF_COPY_INDICES(type, stride, srcByteArr, indexCount, dest)          \
-    for (u32 __tmp = 0; __tmp < (indexCount); ++__tmp) {                       \
-        (dest)[__tmp] = *(type*)((srcByteArr) + __tmp * (stride));             \
-    }
-
-            // write index data to u32 array
-            switch (attribByteSize) {
-                case 1:
-                    GLTF_COPY_INDICES(u8, stride, gltf_index_buff, indexCount,
-                                      indices);
-                    break;
-                case 2:
-                    GLTF_COPY_INDICES(u16, stride, gltf_index_buff, indexCount,
-                                      indices);
-                    break;
-                case 4:
-                    GLTF_COPY_INDICES(u32, stride, gltf_index_buff, indexCount,
-                                      indices);
-                    break;
-                default: log_error("unsupported index size"); break;
-            }
-#undef GLTF_COPY_INDICES
-
+            // write indices to buffer
+            ASSERT(sizeof(vertices.indices[0] == 4));
+            cgltf_accessor_unpack_indices(primitive->indices, vertices.indices,
+                                          sizeof(vertices.indices[0]),
+                                          vertices.indicesCount);
             // print indices
             // log_trace("indices (%d):", indexCount);
             // for (u32 j = 0; j < indexCount; ++j) {
@@ -173,9 +125,6 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             // printf("\n");
 
             // vertex attributes
-            u64 vertexCount = primitive->attributes->data->count;
-            ASSERT(vertexCount == vertices.vertexCount);
-
             for (u8 attribIndex = 0; attribIndex < primitive->attributes_count;
                  ++attribIndex) {
                 cgltf_attribute* attribute
@@ -183,70 +132,50 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
                 log_trace("processing attribute %d [%d]: %s", attribIndex,
                           attribute->index, attribute->name);
 
-                cgltf_accessor* accessor      = attribute->data;
-                cgltf_buffer_view* bufferView = accessor->buffer_view;
-                cgltf_buffer* buffer          = bufferView->buffer;
-                cgltf_size count              = accessor->count;
+                cgltf_accessor* accessor = attribute->data;
+                ASSERT(accessor->count == vertices.vertexCount);
 
-                ASSERT(count == vertexCount);
-
-                // get pointer to cpu buffer for this attribute
-                f32* attribWriteDest = NULL;
-                // vertex attributes should all be floats
-                ASSERT(accessor->component_type == cgltf_component_type_r_32f);
-                u8 attributeByteSize = gltf_sizeOfAccessor(accessor);
-                u8 attribNumComponents
-                  = gltf_numComponentsForType(accessor->type);
+                cgltf_size numFloats
+                  = accessor->count * cgltf_num_components(accessor->type);
 
                 // get the write destination
                 switch (attribute->type) {
                     case cgltf_attribute_type_position: {
-                        attribWriteDest = Vertices::positions(&vertices);
-                        ASSERT(attribNumComponents == 3);
                         ASSERT(accessor->type == cgltf_type_vec3);
+                        ASSERT(numFloats == vertices.vertexCount * 3);
+                        cgltf_accessor_unpack_floats(
+                          accessor, Vertices::positions(&vertices), numFloats);
                         break;
                     }
                     case cgltf_attribute_type_normal: {
-                        attribWriteDest = Vertices::normals(&vertices);
-                        ASSERT(attribNumComponents == 3);
                         ASSERT(accessor->type == cgltf_type_vec3);
+                        ASSERT(numFloats == vertices.vertexCount * 3);
+                        cgltf_accessor_unpack_floats(
+                          accessor, Vertices::normals(&vertices), numFloats);
                         break;
                     }
                     case cgltf_attribute_type_texcoord: {
-                        attribWriteDest = Vertices::texcoords(&vertices);
-                        ASSERT(attribNumComponents == 2);
                         ASSERT(accessor->type == cgltf_type_vec2);
-
+                        ASSERT(numFloats == vertices.vertexCount * 2);
+                        cgltf_accessor_unpack_floats(
+                          accessor, Vertices::texcoords(&vertices), numFloats);
                         // TODO: handle texcoord indices
                         // e.g. TEXCOORD_0, TEXCOORD_1, etc.
                         break;
                     }
+                    case cgltf_attribute_type_tangent: {
+                        ASSERT(accessor->type == cgltf_type_vec4);
+                        ASSERT(numFloats == vertices.vertexCount * 4);
+                        cgltf_accessor_unpack_floats(
+                          accessor, Vertices::tangents(&vertices), numFloats);
+                        break;
+                    }
                     default: {
-                        log_error("unsupported attribute type");
+                        log_error("unsupported attribute type %d",
+                                  attribute->type);
                         break;
                     }
                 }
-
-                { // write attribute to non-interleaved buffer
-                    cgltf_size byteOffset
-                      = accessor->offset + bufferView->offset;
-                    u8* data          = (u8*)buffer->data + byteOffset;
-                    cgltf_size stride = bufferView->stride == 0 ?
-                                          accessor->stride :
-                                          bufferView->stride;
-                    // write data to buffer (assumed all float data)
-                    for (u32 strideIdx = 0; strideIdx < vertexCount;
-                         ++strideIdx) {
-                        ASSERT(attributeByteSize
-                               == sizeof(f32) * attribNumComponents);
-                        memcpy(attribWriteDest
-                                 + strideIdx * attribNumComponents, // dest
-                               (data + strideIdx * stride),         // src
-                               sizeof(f32) * attribNumComponents    // size
-                        );
-                    }
-                }
-
                 // cgltf_attribute_type_position,
                 // cgltf_attribute_type_normal,
                 // cgltf_attribute_type_tangent,
@@ -262,61 +191,334 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             SG_Geometry::buildFromVertices(gctx, geo, &vertices);
             // SG_Geometry::buildFromVertices(gctx, geo, &planeVertices);
             // associate transform with geometry
-            SG_Geometry::addXform(geo, sg_node);
 
-            // TODO remove tmp ----------------
-            SG_Geometry::addXform(geo, testXform);
-            SG_Transform::addChild(parent, testXform);
-            // --------------------------------
+            // free vertex data (TODO should R_Geo store cpu-side vertex data?)
+            Vertices::free(&vertices);
 
             // print vertices
             // Vertices::print(&vertices);
 
+            { // primitive material
+                ASSERT(primitive->material != NULL);
+                ASSERT(rMaterialMap.find(primitive->material)
+                       != rMaterialMap.end());
+                // get our sg material
+                R_Material* sgMaterial
+                  = Component_GetMaterial(rMaterialMap[primitive->material]);
+                // for rendering, materials need to know what geometries
+                // are used by them
+
+                // TODO: default normal texture
+                /*
+                const opaqueWhiteTexture = createSolidColorTexture(1, 1, 1, 1);
+const transparentBlackTexture = createSolidColorTexture(0, 0, 0, 0);
+const defaultNormalTexture = createSolidColorTexture(0.5, 0.5, 1, 1);
+                */
+
+                // add primitives to material
+                R_Material::addPrimitive(sgMaterial, geo, testXform);
+                R_Material::addPrimitive(sgMaterial, geo, sg_node);
+            } // primitive material
+
             break; // TODO: remove. forces only 1 primitive
-        }          // foreach primitive
-    }              // if (mesh)
+        } // foreach primitive
+    } // if (mesh)
 
     // process children
     for (cgltf_size i = 0; i < node->children_count; ++i) {
         cgltf_node* child = node->children[i];
         gltf_ProcessNode(sg_node, child);
     }
-    // process mesh
-    // if (node->mesh) {
-    //     gltf_ProcessMesh(node->mesh);
-    // }
 }
 
-#define MAX_TEXTURES 16
-Texture textures[16];
+static WGPUAddressMode _addressMode_GL_to_WGPU(cgltf_int glWrapMode)
+{
+    // GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT, GL_REPEAT, or
+    // GL_MIRROR_CLAMP_TO_EDGE
+#define _GLTF_CLAMP_TO_EDGE 33071
+#define _GLTF_CLAMP_TO_BORDER 33069
+#define _GLTF_MIRRORED_REPEAT 33648
+#define _GLTF_REPEAT 10497
+#define _GLTF_MIRROR_CLAMP_TO_EDGE 34627
+    switch (glWrapMode) {
+        // edge
+        case _GLTF_CLAMP_TO_BORDER:
+        case _GLTF_CLAMP_TO_EDGE: return WGPUAddressMode_ClampToEdge;
+        // mirrored repeat
+        case _GLTF_MIRROR_CLAMP_TO_EDGE: // weird edge case, repeats only once?
+                                         // treating as mirrored repeat for now
+        case _GLTF_MIRRORED_REPEAT: return WGPUAddressMode_MirrorRepeat;
+        // repeat
+        case _GLTF_REPEAT: return WGPUAddressMode_Repeat;
+        default: {
+            log_error("unsupported wrap mode %d", glWrapMode);
+            ASSERT(false);
+            return WGPUAddressMode_Repeat;
+        }
+    }
+#undef _GLTF_CLAMP_TO_EDGE
+#undef _GLTF_CLAMP_TO_BORDER
+#undef _GLTF_MIRRORED_REPEAT
+#undef _GLTF_REPEAT
+#undef _GLTF_MIRROR_CLAMP_TO_EDGE
+}
+
+static WGPUFilterMode _magFilter_GL_to_WGPU(cgltf_int glMagFilter)
+{
+#define _GLTF_MAG_NEAREST 9728
+#define _GLTF_MAG_LINEAR 9729
+    switch (glMagFilter) {
+        case _GLTF_MAG_NEAREST: return WGPUFilterMode_Nearest;
+        case _GLTF_MAG_LINEAR: return WGPUFilterMode_Linear;
+        default: {
+            // log_error("unsupported mag filter %d", glMagFilter);
+            return WGPUFilterMode_Linear;
+        }
+    }
+#undef _GLTF_MAG_NEAREST
+#undef _GLTF_MAG_LINEAR
+}
+
+static WGPUFilterMode _minFilter_GL_to_WGPU(cgltf_int glMinFilter)
+{
+#define _GLTF_MAG_NEAREST 9728
+#define _GLTF_MAG_LINEAR 9729
+#define _GLTF_NEAREST_MIPMAP_NEAREST 9984
+#define _GLTF_LINEAR_MIPMAP_NEAREST 9985
+#define _GLTF_NEAREST_MIPMAP_LINEAR 9986
+#define _GLTF_LINEAR_MIPMAP_LINEAR 9987
+    switch (glMinFilter) {
+
+        case _GLTF_MAG_NEAREST:
+        case _GLTF_NEAREST_MIPMAP_NEAREST:
+        case _GLTF_NEAREST_MIPMAP_LINEAR: return WGPUFilterMode_Nearest;
+        case _GLTF_MAG_LINEAR:
+        case _GLTF_LINEAR_MIPMAP_NEAREST:
+        case _GLTF_LINEAR_MIPMAP_LINEAR: return WGPUFilterMode_Linear;
+        default: {
+            log_error("unsupported min filter %d", glMinFilter);
+            return WGPUFilterMode_Linear;
+        }
+    }
+#undef _GLTF_MAG_NEAREST
+#undef _GLTF_MAG_LINEAR
+#undef _GLTF_NEAREST_MIPMAP_NEAREST
+#undef _GLTF_LINEAR_MIPMAP_NEAREST
+#undef _GLTF_NEAREST_MIPMAP_LINEAR
+#undef _GLTF_LINEAR_MIPMAP_LINEAR
+}
+
+static WGPUMipmapFilterMode _mipmapFilter_GL_to_WGPU(cgltf_int glFilter)
+{
+#define _GLTF_MAG_NEAREST 9728
+#define _GLTF_MAG_LINEAR 9729
+#define _GLTF_NEAREST_MIPMAP_NEAREST 9984
+#define _GLTF_LINEAR_MIPMAP_NEAREST 9985
+#define _GLTF_NEAREST_MIPMAP_LINEAR 9986
+#define _GLTF_LINEAR_MIPMAP_LINEAR 9987
+    switch (glFilter) {
+        // nearest
+        case _GLTF_MAG_NEAREST:
+        case _GLTF_NEAREST_MIPMAP_NEAREST:
+        case _GLTF_LINEAR_MIPMAP_NEAREST: return WGPUMipmapFilterMode_Nearest;
+        // linear
+        case _GLTF_MAG_LINEAR:
+        case _GLTF_NEAREST_MIPMAP_LINEAR:
+        case _GLTF_LINEAR_MIPMAP_LINEAR: return WGPUMipmapFilterMode_Linear;
+        default: {
+            // log_error("unsupported mipmap filter %d", glFilter);
+            return WGPUMipmapFilterMode_Linear;
+        }
+    }
+#undef _GLTF_MAG_NEAREST
+#undef _GLTF_MAG_LINEAR
+#undef _GLTF_NEAREST_MIPMAP_NEAREST
+#undef _GLTF_LINEAR_MIPMAP_NEAREST
+#undef _GLTF_NEAREST_MIPMAP_LINEAR
+#undef _GLTF_LINEAR_MIPMAP_LINEAR
+}
+
+static void _gltf_texture_view_to_MaterialTextureView(
+  cgltf_texture_view* gltf_texture_view,
+  MaterialTextureView* materialTextureView)
+{
+    MaterialTextureView::init(materialTextureView);
+
+    materialTextureView->texcoord     = gltf_texture_view->texcoord;
+    materialTextureView->strength     = gltf_texture_view->scale;
+    materialTextureView->hasTransform = gltf_texture_view->has_transform;
+    if (gltf_texture_view->has_transform) {
+        cgltf_texture_transform* transform = &gltf_texture_view->transform;
+        materialTextureView->offset[0]     = transform->offset[0];
+        materialTextureView->offset[1]     = transform->offset[1];
+        materialTextureView->rotation      = transform->rotation;
+        materialTextureView->scale[0]      = transform->scale[0];
+        materialTextureView->scale[1]      = transform->scale[1];
+    }
+}
+
+static SamplerConfig _gltf_sampler_to_sampler_config(cgltf_sampler* sampler)
+{
+    // convert into wgpu sampler
+    WGPUSamplerDescriptor desc = {};
+    desc.addressModeU          = _addressMode_GL_to_WGPU(sampler->wrap_s);
+    desc.addressModeV          = _addressMode_GL_to_WGPU(sampler->wrap_t);
+    // not provided by default gltf spec. defaulting to clamp
+    desc.addressModeW = WGPUAddressMode_ClampToEdge;
+
+    desc.minFilter    = _minFilter_GL_to_WGPU(sampler->min_filter);
+    desc.magFilter    = _magFilter_GL_to_WGPU(sampler->mag_filter);
+    desc.mipmapFilter = _mipmapFilter_GL_to_WGPU(sampler->min_filter);
+
+    desc.lodMinClamp   = 0.0f;
+    desc.lodMaxClamp   = 32.0f; // webgpu spec default
+    desc.maxAnisotropy = 16;    // max on most systems
+
+    return Graphics_SamplerConfigFromDesciptor(&desc);
+}
+
+static void _gltf_image_to_texture(cgltf_image* image, Texture* texture)
+{
+    log_trace("processing image %s", image->name);
+    if (image->uri) {
+        log_trace("\turi: %s", image->uri);
+        Texture::initFromFile(gctx, texture, image->uri, true);
+    } else {
+        const u8* data = cgltf_buffer_view_data(image->buffer_view);
+        if (data == NULL) {
+            log_error("image has no uri or data");
+            return;
+        }
+        Texture::initFromBuff(gctx, texture, data, image->buffer_view->size);
+    }
+}
+
 // appends scene ids to vector
 static void gltf_ProcessData(cgltf_data* data)
 {
 
-    // images
-    // thinking for now, group image + sampler together
-    // i.e. every image has its own sampler?
-    // TODO add sampler options
-    {
-        for (cgltf_size i = 0; i < data->images_count; ++i) {
-            // TODO: cache image pointer --> chugl_tex to prevent duplicate
-            // loads
-            cgltf_image* image = &data->images[i];
-            log_trace("processing image %d: %s", i, image->name);
-            textures[i] = {};
-            if (image->uri) {
-                log_trace("\turi: %s", image->uri);
-                Texture::initFromFile(gctx, &textures[i], image->uri, true);
-            } else {
-                const u8* data = cgltf_buffer_view_data(image->buffer_view);
-                if (data == NULL) {
-                    log_error("image has no uri or data");
-                    continue;
-                }
-                Texture::initFromBuff(gctx, &textures[i], data,
-                                      image->buffer_view->size);
+    { // gltf data stats
+        log_trace("gltf data stats:");
+        log_trace("file: %s", data->file_type == cgltf_file_type_invalid ?
+                                "invalid" :
+                              data->file_type == cgltf_file_type_gltf ? "gltf" :
+                                                                        "glb");
+        log_trace("buffers: %d", data->buffers_count);
+        log_trace("buffer views: %d", data->buffer_views_count);
+        log_trace("accessors: %d", data->accessors_count);
+        log_trace("images: %d", data->images_count);
+        log_trace("samplers: %d", data->samplers_count);
+        log_trace("textures: %d", data->textures_count);
+        log_trace("materials: %d", data->materials_count);
+        log_trace("meshes: %d", data->meshes_count);
+        log_trace("nodes: %d", data->nodes_count);
+        log_trace("scenes: %d", data->scenes_count);
+        log_trace("lights: %d", data->lights_count);
+        log_trace("cameras: %d", data->cameras_count);
+    }
+
+    // Textures
+    for (u32 i = 0; i < data->textures_count; ++i) {
+        cgltf_texture* gltf_texture = &data->textures[i];
+        log_trace("processing texture %d %s", i, gltf_texture->name);
+
+        // create new texture
+        R_Texture* rTexture = Component_CreateTexture();
+
+        // assign sampler config
+        rTexture->samplerConfig
+          = _gltf_sampler_to_sampler_config(gltf_texture->sampler);
+
+        // assign image data
+        _gltf_image_to_texture(gltf_texture->image, &rTexture->gpuTexture);
+
+        // add to map
+        ASSERT(rTextureMap.find(gltf_texture) == rTextureMap.end());
+        rTextureMap[gltf_texture] = rTexture->id;
+    }
+
+    { // material
+#define GET_TEXTURE(gltf_texture)                                              \
+    ((gltf_texture) ? rTextureMap[(gltf_texture)] : 0)
+        for (u32 i = 0; i < data->materials_count; ++i) {
+            cgltf_material* material = &data->materials[i];
+            // only support pbr metallic roughness for now
+            ASSERT(material->has_pbr_metallic_roughness);
+            cgltf_pbr_metallic_roughness* mr_config
+              = &material->pbr_metallic_roughness;
+
+            R_MaterialConfig materialConfig = {};
+            materialConfig.shaderType       = R_SHADER_TYPE_PBR;
+
+            R_Material* sgMat = Component_CreateMaterial(gctx, &materialConfig);
+
+            // set mr properties
+            {
+                struct MaterialUniforms matUniforms = {};
+                matUniforms.baseColor
+                  = glm::make_vec4(mr_config->base_color_factor);
+                matUniforms.emissiveFactor
+                  = glm::make_vec3(material->emissive_factor);
+                matUniforms.metallic     = mr_config->metallic_factor;
+                matUniforms.roughness    = mr_config->roughness_factor;
+                matUniforms.normalFactor = (material->normal_texture.texture ?
+                                              material->normal_texture.scale :
+                                              1.0f);
+                matUniforms.aoFactor = (material->occlusion_texture.texture ?
+                                          material->occlusion_texture.scale :
+                                          1.0f);
+
+                R_Material::setBinding(sgMat, 0, R_BIND_UNIFORM, &matUniforms,
+                                       sizeof(matUniforms));
+
+                // bind textures and samplers
+                // TODO: how does renderer know what defeault texture to use if
+                // texture is not provided?
+                // TODO: how to include texture view data?
+
+                R_Material::setTextureAndSamplerBinding(
+                  sgMat, 1, GET_TEXTURE(mr_config->base_color_texture.texture),
+                  opaqueWhitePixel.view);
+
+                R_Material::setTextureAndSamplerBinding(
+                  sgMat, 3, GET_TEXTURE(material->normal_texture.texture),
+                  defaultNormalPixel.view);
+
+                R_Material::setTextureAndSamplerBinding(
+                  sgMat, 5, GET_TEXTURE(material->occlusion_texture.texture),
+                  opaqueWhitePixel.view);
+
+                R_Material::setTextureAndSamplerBinding(
+                  sgMat, 7,
+                  GET_TEXTURE(mr_config->metallic_roughness_texture.texture),
+                  opaqueWhitePixel.view);
             }
+
+            // TODO: how to handle texture views
+            UNUSED_FUNCTION(_gltf_texture_view_to_MaterialTextureView);
+
+            // assign textures
+            // sgMat->baseColorTexture
+            //   = GET_TEXTURE(mr_config->base_color_texture.texture);
+            // sgMat->metallicRoughnessTexture
+            //   = GET_TEXTURE(mr_config->metallic_roughness_texture.texture);
+            // sgMat->normalTexture
+            //   = GET_TEXTURE(material->normal_texture.texture);
+
+            // assign texture views
+            // _gltf_texture_view_to_MaterialTextureView(
+            //   &mr_config->base_color_texture, &sgMat->baseColorTextureView);
+            // _gltf_texture_view_to_MaterialTextureView(
+            //   &mr_config->metallic_roughness_texture,
+            //   &sgMat->metallicRoughnessTextureView);
+            // _gltf_texture_view_to_MaterialTextureView(
+            //   &material->normal_texture, &sgMat->normalTextureView);
+
+            // finished initializing material, add to map
+            ASSERT(rMaterialMap.find(material) == rMaterialMap.end());
+            rMaterialMap[material] = sgMat->id;
         }
+#undef GET_TEXTURE
     }
 
     // process scene -- node transform hierarchy
@@ -346,16 +548,14 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 
     Arena::init(&frameArena, MEGABYTE);
 
-    RenderPipeline::init(gctx, &pipeline, shaderCode, shaderCode);
-
-    static u8 whitePixel[4] = { 255, 255, 255, 255 };
-    Texture::initSinglePixel(gctx, &texture, whitePixel);
-
-    Material::init(gctx, &material, &pipeline, &texture);
+    // TODO: initialize these default pixel textures in graphics context init
+    Texture::initSinglePixel(gctx, &opaqueWhitePixel, whitePixel);
+    Texture::initSinglePixel(gctx, &transparentBlackPixel, blackPixel);
+    Texture::initSinglePixel(gctx, &defaultNormalPixel, normalPixel);
 
     // TODO remove tmp ----------------
     testXform = Component_CreateTransform();
-    SG_Transform::pos(testXform, VEC_RIGHT);
+    SG_Transform::pos(testXform, 3.0f * VEC_RIGHT);
 
     // --------------------------------
 
@@ -369,7 +569,6 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
     const char* filename = "./assets/DamagedHelmet.glb";
     cgltf_result result  = cgltf_parse_file(&options, filename, &data);
     if (result == cgltf_result_success) {
-        /* TODO make awesome stuff */
         log_trace("gltf parsed successfully");
         cgltf_result buffers_result
           = cgltf_load_buffers(&options, data, filename);
@@ -380,9 +579,11 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
         log_trace("gltf buffer data loaded");
 
         // allocate memory to store scene IDs
-        sceneIDs = ALLOCATE_COUNT(SG_ID, data->scenes_count);
+        numScenes = data->scenes_count;
+        sceneIDs  = ALLOCATE_COUNT(SG_ID, numScenes);
 
         gltf_ProcessData(data);
+
         for (u32 i = 0; i < data->scenes_count; ++i) {
             printf("------scene %d------\n", i);
             SG_Transform::print(Component_GetXform(sceneIDs[i]));
@@ -401,95 +602,150 @@ static void OnUpdate(f32 dt)
                                     -dt * 0.1f);
 }
 
-static void OnRender(glm::mat4 proj, glm::mat4 view)
+static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 {
-    // log_debug("geo num instances: %d", SG_Geometry::numInstances(geo));
 
     // Update all transforms
     SG_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]), &frameArena);
 
-    // std::cout << "-----basic example onRender" << std::endl;
-    WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
-    // set shader
-    wgpuRenderPassEncoderSetPipeline(renderPass, pipeline.pipeline);
+    SG_Transform::print(Component_GetXform(sceneIDs[0]), 0);
 
-    // set frame uniforms
+    WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
+
+    // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
     frameUniforms.projectionMat = proj;
     frameUniforms.viewMat       = view;
     frameUniforms.projViewMat
       = frameUniforms.projectionMat * frameUniforms.viewMat;
+    frameUniforms.camPos   = camPos;
     frameUniforms.dirLight = VEC_FORWARD;
     frameUniforms.time     = time;
-    wgpuQueueWriteBuffer(gctx->queue,
-                         pipeline.bindGroups[PER_FRAME_GROUP].uniformBuffer, 0,
-                         &frameUniforms, sizeof(frameUniforms));
-    // set frame bind group
-    wgpuRenderPassEncoderSetBindGroup(
-      renderPass, PER_FRAME_GROUP,
-      pipeline.bindGroups[PER_FRAME_GROUP].bindGroup, 0, NULL);
 
-    // material uniforms
-    MaterialUniforms materialUniforms = {};
-    materialUniforms.color            = glm::vec4(1.0, 1.0, 1.0, 1.0);
-    // TODO: only need to write if it's stale/changed
-    wgpuQueueWriteBuffer(gctx->queue,                                //
-                         material.uniformBuffer,                     //
-                         0,                                          //
-                         &materialUniforms, sizeof(materialUniforms) //
-    );
-    // set material bind groups
-    wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
-                                      material.bindGroup, 0, NULL);
+    // log_debug("geo num instances: %d", SG_Geometry::numInstances(geo));
+    // Test render loop
+    // use bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline**
+    // renderPipeline);
+    // TODO move into renderer.cpp
+    R_RenderPipeline* renderPipeline = NULL;
+    size_t rpIndex                   = 0;
+    while (Component_RenderPipelineIter(&rpIndex, &renderPipeline)) {
+        // log_trace("drawing materials for render pipeline: %d",
+        //           renderPipeline->rid);
 
-    // check indexed draw
-    // bool indexedDraw = entity->vertices.indicesCount > 0;
+        WGPURenderPipeline gpuPipeline = renderPipeline->pipeline.pipeline;
+        // TODO: cache the bindGroupLayout in the pipeline after creation (it
+        // will never change)
+        WGPUBindGroupLayout perMaterialLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
+                                                 PER_MATERIAL_GROUP);
+        WGPUBindGroupLayout perDrawLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_DRAW_GROUP);
 
-    // set vertex attributes
-    // TODO: move into renderer, and consider separate buffer for each attribute
-    // to handle case where some vertex attributes are missing (tangent, color,
-    // etc)
-    // TODO: what happens if a vertex attribute is not set in for the shader?
-    wgpuRenderPassEncoderSetVertexBuffer(renderPass, 0, geo->vertexBuffer.buf,
-                                         0, sizeof(f32) * geo->numVertices * 3);
+        // set shader
+        wgpuRenderPassEncoderSetPipeline(renderPass, gpuPipeline);
 
-    auto normalsOffset = sizeof(f32) * geo->numVertices * 3;
+        // set frame bind group (needs to be set per renderpipeline as long as
+        // we use implicit layout:auto)
+        wgpuQueueWriteBuffer(gctx->queue,
+                             renderPipeline->pipeline.frameUniformBuffer, 0,
+                             &frameUniforms, sizeof(frameUniforms));
+        wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
+                                          renderPipeline->pipeline.frameGroup,
+                                          0, NULL);
 
-    wgpuRenderPassEncoderSetVertexBuffer(renderPass, 1, geo->vertexBuffer.buf,
-                                         normalsOffset,
-                                         sizeof(f32) * geo->numVertices * 3);
+        // per-material render loop
+        size_t materialIdx    = 0;
+        R_Material* rMaterial = NULL;
 
-    auto texcoordsOffset = sizeof(f32) * geo->numVertices * 6;
+        while (R_RenderPipeline::materialIter(renderPipeline, &materialIdx,
+                                              &rMaterial)) {
+            // get material
+            // log_trace("drawing material: %d", rMaterial->id);
 
-    wgpuRenderPassEncoderSetVertexBuffer(renderPass, 2, geo->vertexBuffer.buf,
-                                         texcoordsOffset,
-                                         sizeof(f32) * geo->numVertices * 2);
+            ASSERT(rMaterial && rMaterial->pipelineID == renderPipeline->rid);
 
-    // populate index buffer
-    if (geo->numIndices > 0)
-        wgpuRenderPassEncoderSetIndexBuffer(renderPass, geo->indexBuffer.buf,
-                                            WGPUIndexFormat_Uint32, 0,
-                                            geo->indexBuffer.desc.size);
-    // else
-    //     wgpuRenderPassEncoderDraw(
-    //       renderPass, entity->vertices.vertexCount, 1, 0, 0);
+            // TODO: figure out textures / texture views...
 
-    // update geometry storage buffer
-    SG_Geometry::rebuildBindGroup(
-      gctx, geo, pipeline.bindGroupLayouts[PER_DRAW_GROUP], &frameArena);
+            // set per_material bind group
+            R_Material::rebuildBindGroup(rMaterial, gctx, perMaterialLayout);
+            wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
+                                              rMaterial->bindGroup, 0, NULL);
 
-    // set model bind group
-    wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
-                                      geo->bindGroup, 0, NULL);
-    // draw call (indexed)
-    if (geo->numIndices > 0) {
-        wgpuRenderPassEncoderDrawIndexed(
-          renderPass, geo->numIndices, SG_Geometry::numInstances(geo), 0, 0, 0);
-    } else {
-        // draw call (nonindexed)
-        wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
-                                  SG_Geometry::numInstances(geo), 0, 0);
+            // iterate over material primitives
+            size_t primitiveIdx           = 0;
+            Material_Primitive* primitive = NULL;
+            while (
+              R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
+                u32 numInstances = Material_Primitive::numInstances(primitive);
+                if (numInstances == 0) continue;
+                Material_Primitive::rebuildBindGroup(
+                  gctx, primitive, perDrawLayout, &frameArena);
+
+                // set model bind group
+                wgpuRenderPassEncoderSetBindGroup(
+                  renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
+
+                SG_Geometry* geo = Component_GetGeo(primitive->geoID);
+                ASSERT(geo);
+
+                // set vertex attributes
+                // TODO: move into renderer, and consider separate buffer for
+                // each attribute to handle case where some vertex attributes
+                // are missing (tangent, color, etc)
+                // TODO: what happens if a vertex attribute is not set in for
+                // the shader?
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 0, geo->gpuVertexBuffer, 0,
+                  sizeof(f32) * geo->numVertices * 3);
+
+                auto normalsOffset = sizeof(f32) * geo->numVertices * 3;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 1, geo->gpuVertexBuffer, normalsOffset,
+                  sizeof(f32) * geo->numVertices * 3);
+
+                auto texcoordsOffset = sizeof(f32) * geo->numVertices * 6;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 2, geo->gpuVertexBuffer, texcoordsOffset,
+                  sizeof(f32) * geo->numVertices * 2);
+
+                size_t tangentOffset = sizeof(f32) * geo->numVertices * 8;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 3, geo->gpuVertexBuffer, tangentOffset,
+                  sizeof(f32) * geo->numVertices * 4);
+
+                // populate index buffer
+                if (geo->numIndices > 0)
+                    wgpuRenderPassEncoderSetIndexBuffer(
+                      renderPass, geo->gpuIndexBuffer, WGPUIndexFormat_Uint32,
+                      0, geo->indexBufferDesc.size);
+
+                // draw call (indexed)
+                if (geo->numIndices > 0) {
+                    wgpuRenderPassEncoderDrawIndexed(
+                      renderPass, geo->numIndices, numInstances, 0, 0, 0);
+                } else {
+                    // draw call (nonindexed)
+                    wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
+                                              numInstances, 0, 0);
+                }
+            }
+
+            // material uniforms TODO switch to pbr
+            // MaterialUniforms materialUniforms = {};
+            // materialUniforms.color            =
+            // glm::vec4(1.0, 1.0, 1.0, 1.0);
+            // // TODO: only need to write if it's stale/changed
+            // wgpuQueueWriteBuffer(gctx->queue, //
+            //                      material.uniformBuffer, // 0, //
+            //                      &materialUniforms, sizeof(materialUniforms)
+            //                      //
+            // );
+        }
     }
 
     GraphicsContext::presentFrame(gctx);
@@ -502,15 +758,13 @@ static void OnExit()
 {
     log_trace("gltf test exit");
 
-    // TODO free components
-    // FREE_ARRAY(SG_ID, sceneIDs, 1);
-    // FREE_ARRAY(SG_ID, geoIDs, 1);
+    FREE_ARRAY(SG_ID, sceneIDs, numScenes);
 
     Arena::free(&frameArena);
 
-    Material::release(&material);
-    Texture::release(&texture);
-    RenderPipeline::release(&pipeline);
+    Texture::release(&opaqueWhitePixel);
+    Texture::release(&transparentBlackPixel);
+    Texture::release(&defaultNormalPixel);
 }
 
 void Test_Gltf(TestCallbacks* callbacks)

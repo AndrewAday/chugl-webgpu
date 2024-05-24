@@ -2,6 +2,8 @@
 
 #include "core/memory.h"
 
+#include <mikktspace/mikktspace.h>
+
 #include <vector> // ew
 
 // ============================================================================
@@ -42,7 +44,9 @@ void Vertices::init(Vertices* v, u32 vertexCount, u32 indicesCount)
     v->vertexCount  = vertexCount;
     v->indicesCount = indicesCount;
     // TODO: change when adding more vertex attributes
-    if (vertexCount > 0) v->vertexData = ALLOCATE_COUNT(f32, vertexCount * 8);
+    if (vertexCount > 0)
+        v->vertexData
+          = ALLOCATE_COUNT(f32, vertexCount * CHUGL_FLOATS_PER_VERTEX);
     if (indicesCount > 0) v->indices = ALLOCATE_COUNT(u32, indicesCount);
 }
 
@@ -92,11 +96,107 @@ f32* Vertices::texcoords(Vertices* v)
     return v->vertexData + v->vertexCount * 6;
 }
 
+f32* Vertices::tangents(Vertices* v)
+{
+    return v->vertexData + v->vertexCount * 8;
+}
+
+void Vertices::buildTangents(Vertices* v)
+{
+    SMikkTSpaceInterface mikktspaceIface = {};
+    SMikkTSpaceContext mikktspaceContext = {};
+    mikktspaceContext.m_pInterface       = &mikktspaceIface;
+    mikktspaceContext.m_pUserData        = v;
+
+    mikktspaceIface.m_getNumFaces = [](const SMikkTSpaceContext* pContext) {
+        Vertices* v = (Vertices*)pContext->m_pUserData;
+        return (int)(v->indicesCount > 0 ? v->indicesCount / 3 :
+                                           v->vertexCount / 3);
+    };
+
+    mikktspaceIface.m_getNumVerticesOfFace
+      = [](const SMikkTSpaceContext* pContext, const int iFace) {
+            return 3; // triangles only
+        };
+
+    mikktspaceIface.m_getPosition
+      = [](const SMikkTSpaceContext* pContext, float fvPosOut[],
+           const int iFace, const int iVert) {
+            Vertices* v = (Vertices*)pContext->m_pUserData;
+            u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
+                                                (iFace * 3 + iVert);
+            f32* positions = Vertices::positions(v);
+            fvPosOut[0]    = positions[index * 3 + 0];
+            fvPosOut[1]    = positions[index * 3 + 1];
+            fvPosOut[2]    = positions[index * 3 + 2];
+        };
+
+    mikktspaceIface.m_getNormal
+      = [](const SMikkTSpaceContext* pContext, float fvNormOut[],
+           const int iFace, const int iVert) {
+            Vertices* v = (Vertices*)pContext->m_pUserData;
+            u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
+                                                (iFace * 3 + iVert);
+            f32* normals = Vertices::normals(v);
+            fvNormOut[0] = normals[index * 3 + 0];
+            fvNormOut[1] = normals[index * 3 + 1];
+            fvNormOut[2] = normals[index * 3 + 2];
+        };
+
+    mikktspaceIface.m_getTexCoord
+      = [](const SMikkTSpaceContext* pContext, float fvTexcOut[],
+           const int iFace, const int iVert) {
+            Vertices* v = (Vertices*)pContext->m_pUserData;
+            u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
+                                                (iFace * 3 + iVert);
+            f32* texcoords = Vertices::texcoords(v);
+            fvTexcOut[0]   = texcoords[index * 2 + 0];
+            fvTexcOut[1]   = texcoords[index * 2 + 1];
+        };
+
+    mikktspaceIface.m_setTSpaceBasic
+      = [](const SMikkTSpaceContext* pContext, const float fvTangent[],
+           const float fSign, const int iFace, const int iVert) {
+            Vertices* v = (Vertices*)pContext->m_pUserData;
+            u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
+                                                (iFace * 3 + iVert);
+            f32* tangents           = Vertices::tangents(v);
+            tangents[index * 4 + 0] = fvTangent[0];
+            tangents[index * 4 + 1] = fvTangent[1];
+            tangents[index * 4 + 2] = fvTangent[2];
+            tangents[index * 4 + 3] = fSign;
+        };
+
+    genTangSpaceDefault(&mikktspaceContext);
+}
+
+size_t Vertices::positionOffset(Vertices* v)
+{
+    return 0;
+}
+
+size_t Vertices::normalOffset(Vertices* v)
+{
+    return v->vertexCount * 3 * sizeof(f32);
+}
+
+size_t Vertices::texcoordOffset(Vertices* v)
+{
+    return v->vertexCount * 6 * sizeof(f32);
+}
+
+size_t Vertices::tangentOffset(Vertices* v)
+{
+    return v->vertexCount * 8 * sizeof(f32);
+}
+
 void Vertices::setVertex(Vertices* vertices, Vertex v, u32 index)
 {
     f32* positions = Vertices::positions(vertices);
     f32* normals   = Vertices::normals(vertices);
     f32* texcoords = Vertices::texcoords(vertices);
+
+    // TODO: add tangents here?
 
     positions[index * 3 + 0] = v.x;
     positions[index * 3 + 1] = v.y;
@@ -147,6 +247,8 @@ void Vertices::copy(Vertices* v, Vertex* vertices, u32 vertexCount,
 
         texcoords[i * 2 + 0] = vertices[i].u;
         texcoords[i * 2 + 1] = vertices[i].v;
+
+        // TODO tangents
     }
 
     memcpy(v->indices, indices, indicesCount * sizeof(u32));

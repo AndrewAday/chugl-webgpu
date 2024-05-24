@@ -29,6 +29,8 @@ void* reallocate(void* pointer, i64 oldSize, i64 newSize)
 
 void Arena::init(Arena* a, u64 cap)
 {
+    ASSERT(a->base == NULL); // must not already be initialized
+
     a->base = ALLOCATE_BYTES(u8, cap);
     a->curr = 0;
     a->cap  = cap;
@@ -86,6 +88,7 @@ void Arena::popZero(Arena* a, u64 size)
 void* Arena::get(Arena* a, u64 offset)
 {
     ASSERT(offset <= a->curr); // cannot access beyond current pointer
+    ASSERT(offset >= 0);       // cannot access before the base pointer
     return a->base + offset;
 }
 
@@ -107,4 +110,13 @@ void Arena::free(Arena* a)
     a->base = NULL;
     a->curr = 0;
     a->cap  = 0;
+}
+
+u64 Arena::offsetOf(Arena* a, void* ptr)
+{
+    ASSERT(a->base != NULL);         // must be initialized
+    ASSERT(ptr >= a->base);          // must be within the arena
+    ASSERT(ptr < a->base + a->curr); // must be within the arena
+
+    return (u64)((u8*)ptr - a->base);
 }

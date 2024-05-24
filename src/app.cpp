@@ -184,7 +184,7 @@ struct App {
         if (app->callbacks.onRender) {
             app->callbacks.onRender(
               Camera::projectionMatrix(&app->camera, aspect),
-              Entity::viewMatrix(&app->camera.entity));
+              Entity::viewMatrix(&app->camera.entity), app->camera.entity.pos);
         }
     }
 

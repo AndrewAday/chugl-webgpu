@@ -8,7 +8,7 @@
 // #include "tests/gltf.cpp"
 // #include "tests/obj.cpp"
 
-void Test_Obj(TestCallbacks* callbacks);
+// void Test_Obj(TestCallbacks* callbacks);
 void Test_Gltf(TestCallbacks* callbacks);
 
 int main(int, char**)

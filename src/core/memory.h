@@ -16,10 +16,8 @@ void* reallocate(void* pointer, i64 oldSize, i64 newSize);
                       (newCap) * sizeof(type))
 
 #define FREE_ARRAY(type, arrayPtr, oldCap)                                     \
-    do {                                                                       \
-        reallocate(arrayPtr, (oldCap) * sizeof(type), 0);                      \
-        arrayPtr = NULL;                                                       \
-    } while (0)
+    reallocate(arrayPtr, (oldCap) * sizeof(type), 0);                          \
+    arrayPtr = NULL;
 
 #define FREE_TYPE(type, ptr)                                                   \
     do {                                                                       \
@@ -52,9 +50,13 @@ struct Arena {
     static void clear(Arena* a);
     static void clearZero(Arena* a);
     static void free(Arena* a);
+    static u64 offsetOf(Arena* a, void* ptr);
 };
 
 #define ARENA_PUSH_TYPE(a, type) (type*)Arena::push(a, sizeof(type))
+#define ARENA_PUSH_ZERO_TYPE(a, type) (type*)Arena::pushZero(a, sizeof(type))
+#define ARENA_PUSH_COUNT(a, type, count)                                       \
+    (type*)Arena::push(a, sizeof(type) * (count))
 
 // assuming arena all contiguous elements of type
 #define ARENA_LENGTH(a, type) ((a)->curr / sizeof(type))

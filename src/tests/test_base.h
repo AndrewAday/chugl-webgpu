@@ -8,7 +8,7 @@
 // callbacks
 typedef void (*Test_OnInit)(GraphicsContext* ctx, GLFWwindow* window);
 typedef void (*Test_OnUpdate)(f32 dt);
-typedef void (*Test_OnRender)(glm::mat4 proj, glm::mat4 view);
+typedef void (*Test_OnRender)(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos);
 typedef void (*Test_OnExit)();
 
 typedef void (*Test_OnWindowResize)(i32 width, i32 height);
