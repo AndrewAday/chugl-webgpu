@@ -11,7 +11,7 @@
 // ============================================================================
 
 #define CHUGL_EventTable                                                       \
-    X(NEXT_FRAME, "NextFrameEvent")                                            \
+    X(NEXT_FRAME = 0, "NextFrameEvent")                                        \
     X(WINDOW_RESIZE, "WindowResizeEvent")
 
 enum CHUGL_EventType {
@@ -19,6 +19,12 @@ enum CHUGL_EventType {
     CHUGL_EventTable
 #undef X
       CHUGL_EVENT_TYPE_COUNT
+};
+
+static const char* CHUGL_EventTypeNames[CHUGL_EVENT_TYPE_COUNT] = {
+#define X(name, str) str,
+    CHUGL_EventTable
+#undef X
 };
 
 void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm);
@@ -37,12 +43,6 @@ void Sync_WaitOnUpdateDone();
 // ============================================================================
 // ChuGL Events Definitions
 // ============================================================================
-
-static const char* CHUGL_EventTypeNames[CHUGL_EVENT_TYPE_COUNT] = {
-#define X(name, str) str,
-    CHUGL_EventTable
-#undef X
-};
 
 static CBufferSimple* chuckEventQueue              = NULL;
 static Chuck_Event* events[CHUGL_EVENT_TYPE_COUNT] = {};

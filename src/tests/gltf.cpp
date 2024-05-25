@@ -6,9 +6,9 @@
 #include "core/memory.h"
 #include "test_base.h"
 
-#include "component.h"
 #include "entity.h"
 #include "geometry.h"
+#include "r_component.h"
 #include "shaders.h"
 
 #include <iostream>
@@ -28,8 +28,8 @@ static cgltf_size numScenes;
 static Arena frameArena = {};
 
 // TODO remove these, refactor into renderer
-static SG_Geometry* geo        = NULL;
-static SG_Transform* testXform = NULL;
+static R_Geometry* geo        = NULL;
+static R_Transform* testXform = NULL;
 
 static u8 whitePixel[4]  = { 255, 255, 255, 255 };
 static u8 blackPixel[4]  = { 0, 0, 0, 0 };
@@ -47,40 +47,40 @@ static Texture defaultNormalPixel    = {};
 // }
 
 // TODO cache gltf geometry, material ptrs etc so we don't process same data
-static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
+static void gltf_ProcessNode(R_Transform* parent, cgltf_node* node)
 {
-    SG_Transform* sg_node = Component_CreateTransform();
-    sg_node->name         = node->name;
+    R_Transform* sg_node = Component_CreateTransform();
+    sg_node->name        = node->name;
     log_trace("processing node: %s", sg_node->name.c_str());
 
     // xform data
     if (node->has_translation) {
-        SG_Transform::pos(sg_node, glm::make_vec3(node->translation));
+        R_Transform::pos(sg_node, glm::make_vec3(node->translation));
     }
     if (node->has_rotation) {
-        SG_Transform::rot(sg_node, glm::make_quat(node->rotation));
+        R_Transform::rot(sg_node, glm::make_quat(node->rotation));
     }
     if (node->has_scale) {
-        SG_Transform::sca(sg_node, glm::make_vec3(node->scale));
+        R_Transform::sca(sg_node, glm::make_vec3(node->scale));
     }
     if (node->has_matrix) {
         sg_node->local = glm::make_mat4(node->matrix);
     } else {
-        sg_node->local = SG_Transform::localMatrix(sg_node);
+        sg_node->local = R_Transform::localMatrix(sg_node);
     }
     sg_node->world = parent->world * sg_node->local;
 
     // set xform data if gltf only provided a matrix
     if (!node->has_rotation || !node->has_scale || !node->has_translation)
-        SG_Transform::setXformFromMatrix(sg_node, sg_node->local);
+        R_Transform::setXformFromMatrix(sg_node, sg_node->local);
 
     // log_trace("sg_node pos: %s", glm::to_string(sg_node->pos).c_str());
     // log_trace("sg_node rot: %s", glm::to_string(sg_node->rot).c_str());
     // log_trace("sg_node sca: %s", glm::to_string(sg_node->sca).c_str());
 
     // parent-child relationship
-    SG_Transform::addChild(parent, sg_node);
-    SG_Transform::addChild(parent, testXform);
+    R_Transform::addChild(parent, sg_node);
+    R_Transform::addChild(parent, testXform);
 
     // mesh
     if (node->mesh) {
@@ -188,8 +188,8 @@ static void gltf_ProcessNode(SG_Transform* parent, cgltf_node* node)
             geo = Component_CreateGeometry();
             // PlaneParams planeParams = { 1.0f, 1.0f, 1u, 1u };
             // Vertices planeVertices  = createPlane(&planeParams);
-            SG_Geometry::buildFromVertices(gctx, geo, &vertices);
-            // SG_Geometry::buildFromVertices(gctx, geo, &planeVertices);
+            R_Geometry::buildFromVertices(gctx, geo, &vertices);
+            // R_Geometry::buildFromVertices(gctx, geo, &planeVertices);
             // associate transform with geometry
 
             // free vertex data (TODO should R_Geo store cpu-side vertex data?)
@@ -525,9 +525,9 @@ static void gltf_ProcessData(cgltf_data* data)
     for (cgltf_size i = 0; i < data->scenes_count; ++i) {
         cgltf_scene* gltf_scene = &data->scenes[i];
 
-        SG_Transform* sg_root = Component_CreateTransform();
-        sg_root->name         = gltf_scene->name;
-        sceneIDs[i]           = sg_root->id;
+        R_Transform* sg_root = Component_CreateTransform();
+        sg_root->name        = gltf_scene->name;
+        sceneIDs[i]          = sg_root->id;
 
         log_trace("processing scene: %s with %d nodes", gltf_scene->name,
                   gltf_scene->nodes_count);
@@ -555,7 +555,7 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 
     // TODO remove tmp ----------------
     testXform = Component_CreateTransform();
-    SG_Transform::pos(testXform, 3.0f * VEC_RIGHT);
+    R_Transform::pos(testXform, 3.0f * VEC_RIGHT);
 
     // --------------------------------
 
@@ -586,7 +586,7 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 
         for (u32 i = 0; i < data->scenes_count; ++i) {
             printf("------scene %d------\n", i);
-            SG_Transform::print(Component_GetXform(sceneIDs[i]));
+            R_Transform::print(Component_GetXform(sceneIDs[i]));
         }
 
         cgltf_free(data);
@@ -596,19 +596,19 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
 static void OnUpdate(f32 dt)
 {
     // rotate the test transform
-    SG_Transform::rotateOnWorldAxis(testXform, VEC_UP, dt * 0.4f);
+    R_Transform::rotateOnWorldAxis(testXform, VEC_UP, dt * 0.4f);
     // rotate the root
-    SG_Transform::rotateOnLocalAxis(Component_GetXform(sceneIDs[0]), VEC_UP,
-                                    -dt * 0.1f);
+    R_Transform::rotateOnLocalAxis(Component_GetXform(sceneIDs[0]), VEC_UP,
+                                   -dt * 0.1f);
 }
 
 static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 {
 
     // Update all transforms
-    SG_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]), &frameArena);
+    R_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]), &frameArena);
 
-    SG_Transform::print(Component_GetXform(sceneIDs[0]), 0);
+    R_Transform::print(Component_GetXform(sceneIDs[0]), 0);
 
     WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
 
@@ -623,7 +623,7 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
     frameUniforms.dirLight = VEC_FORWARD;
     frameUniforms.time     = time;
 
-    // log_debug("geo num instances: %d", SG_Geometry::numInstances(geo));
+    // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
     // Test render loop
     // use bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline**
     // renderPipeline);
@@ -687,7 +687,7 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
                 wgpuRenderPassEncoderSetBindGroup(
                   renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
 
-                SG_Geometry* geo = Component_GetGeo(primitive->geoID);
+                R_Geometry* geo = Component_GetGeo(primitive->geoID);
                 ASSERT(geo);
 
                 // set vertex attributes

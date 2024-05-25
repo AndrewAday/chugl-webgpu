@@ -1,4 +1,4 @@
-#include "component.h"
+#include "r_component.h"
 #include "geometry.h"
 #include "graphics.h"
 #include "shaders.h"
@@ -18,7 +18,7 @@ needs to be recomputed
 recomputed
     - LOCAL means both local and world matrices need to be recomputed
 - at the start of each render, after all updates, the graphics thread needs to
-call SG_Transform::rebuildMatrices(root) to update all world matrices
+call R_Transform::rebuildMatrices(root) to update all world matrices
     - the staleness flags optimizes this process by ignoring all branches that
 don't require updating
     - during this rebuild, transforms that have been marked as WORLD or LOCAL
@@ -30,7 +30,7 @@ will be rendered in a single draw call
 - each geometry component has a storage buffer that holds all the world matrices
 of its associated xform instances
 - if a xform is moved or reparented, the geometry component will be marked
-stale, and the storage buffer will be rebuilt via SG_Geometry::rebuildBindGroup
+stale, and the storage buffer will be rebuilt via R_Geometry::rebuildBindGroup
 
 Component Manager:
 - handles all creation and deletion of components
@@ -78,7 +78,7 @@ static R_ID getNewRID()
 // Transform Component
 // ============================================================================
 
-void SG_Transform::init(SG_Transform* transform)
+void R_Transform::init(R_Transform* transform)
 {
     ASSERT(transform->id == 0); // ensure not initialized twice
     *transform = {};
@@ -92,32 +92,32 @@ void SG_Transform::init(SG_Transform* transform)
 
     transform->world  = MAT_IDENTITY;
     transform->local  = MAT_IDENTITY;
-    transform->_stale = SG_TRANSFORM_STALE_NONE;
+    transform->_stale = R_Transform_STALE_NONE;
 
     transform->parentID = 0;
     // initialize children array for 8 children
     Arena::init(&transform->children, sizeof(SG_ID) * 8);
 }
 
-void SG_Transform::setStale(SG_Transform* xform, SG_Transform_Staleness stale)
+void R_Transform::setStale(R_Transform* xform, R_Transform_Staleness stale)
 {
     // only set if new staleness is higher priority
     if (stale > xform->_stale) xform->_stale = stale;
 
     // propagate staleness to parent
     // it is assumed that if a parent has staleness, all its parents will
-    // also have been marked with prio at least SG_TRANSFORM_STALE_DESCENDENTS
+    // also have been marked with prio at least R_Transform_STALE_DESCENDENTS
     while (xform->parentID != 0) {
-        SG_Transform* parent = Component_GetXform(xform->parentID);
+        R_Transform* parent = Component_GetXform(xform->parentID);
         // upwards stale chain already established. skip
-        if (parent->_stale > SG_TRANSFORM_STALE_NONE) break;
+        if (parent->_stale > R_Transform_STALE_NONE) break;
         // otherwise set parent staleness and continue propagating
-        parent->_stale = SG_TRANSFORM_STALE_DESCENDENTS;
+        parent->_stale = R_Transform_STALE_DESCENDENTS;
         xform          = parent;
     }
 }
 
-bool SG_Transform::isAncestor(SG_Transform* ancestor, SG_Transform* descendent)
+bool R_Transform::isAncestor(R_Transform* ancestor, R_Transform* descendent)
 {
     while (descendent != NULL) {
         if (descendent == ancestor) return true;
@@ -126,7 +126,7 @@ bool SG_Transform::isAncestor(SG_Transform* ancestor, SG_Transform* descendent)
     return false;
 }
 
-void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
+void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
 {
     if (child->parentID != parent->id) {
         log_error("cannot remove a child who does not belong to parent");
@@ -162,13 +162,13 @@ void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
     // CHUGL_NODE_QUEUE_RELEASE(parent);
 }
 
-void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
+void R_Transform::addChild(R_Transform* parent, R_Transform* child)
 {
-    ASSERT(!SG_Transform::isAncestor(child, parent)); // prevent cycles
+    ASSERT(!R_Transform::isAncestor(child, parent)); // prevent cycles
     ASSERT(parent != NULL);
     ASSERT(child != NULL);
 
-    if (SG_Transform::isAncestor(child, parent)) {
+    if (R_Transform::isAncestor(child, parent)) {
         log_error(
           "No cycles in scenegraph; cannot add parent as child of descendent");
         return;
@@ -184,8 +184,8 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
 
     // remove child from previous parent
     if (child->parentID != 0) {
-        SG_Transform* prevParent = Component_GetXform(child->parentID);
-        SG_Transform::removeChild(prevParent, child);
+        R_Transform* prevParent = Component_GetXform(child->parentID);
+        R_Transform::removeChild(prevParent, child);
     }
 
     // set parent of child
@@ -201,10 +201,10 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
     // add ref to kid
     // CHUGL_NODE_ADD_REF(child);
 
-    SG_Transform::setStale(child, SG_TRANSFORM_STALE_WORLD);
+    R_Transform::setStale(child, R_Transform_STALE_WORLD);
 }
 
-glm::mat4 SG_Transform::localMatrix(SG_Transform* xform)
+glm::mat4 R_Transform::localMatrix(R_Transform* xform)
 {
     glm::mat4 M = glm::mat4(1.0);
     M           = glm::translate(M, xform->_pos);
@@ -214,7 +214,7 @@ glm::mat4 SG_Transform::localMatrix(SG_Transform* xform)
 }
 
 /// @brief decompose matrix into transform data
-void SG_Transform::setXformFromMatrix(SG_Transform* xform, const glm::mat4& M)
+void R_Transform::setXformFromMatrix(R_Transform* xform, const glm::mat4& M)
 {
     log_trace("decomposing matrix");
     xform->_pos = glm::vec3(M[3]);
@@ -227,38 +227,38 @@ void SG_Transform::setXformFromMatrix(SG_Transform* xform, const glm::mat4& M)
     // log_trace("rot: %s", glm::to_string(xform->_rot).c_str());
     // log_trace("sca: %s", glm::to_string(xform->_sca).c_str());
 
-    SG_Transform::setStale(xform, SG_TRANSFORM_STALE_LOCAL);
+    R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
-void SG_Transform::setXform(SG_Transform* xform, const glm::vec3& pos,
-                            const glm::quat& rot, const glm::vec3& sca)
+void R_Transform::setXform(R_Transform* xform, const glm::vec3& pos,
+                           const glm::quat& rot, const glm::vec3& sca)
 {
     xform->_pos = pos;
     xform->_rot = rot;
     xform->_sca = sca;
-    SG_Transform::setStale(xform, SG_TRANSFORM_STALE_LOCAL);
+    R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
-void SG_Transform::pos(SG_Transform* xform, const glm::vec3& pos)
+void R_Transform::pos(R_Transform* xform, const glm::vec3& pos)
 {
     xform->_pos = pos;
-    SG_Transform::setStale(xform, SG_TRANSFORM_STALE_LOCAL);
+    R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
-void SG_Transform::rot(SG_Transform* xform, const glm::quat& rot)
+void R_Transform::rot(R_Transform* xform, const glm::quat& rot)
 {
     xform->_rot = rot;
-    SG_Transform::setStale(xform, SG_TRANSFORM_STALE_LOCAL);
+    R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
-void SG_Transform::sca(SG_Transform* xform, const glm::vec3& sca)
+void R_Transform::sca(R_Transform* xform, const glm::vec3& sca)
 {
     xform->_sca = sca;
-    SG_Transform::setStale(xform, SG_TRANSFORM_STALE_LOCAL);
+    R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
 /// @brief recursive helper to regen matrices for xform and all descendents
-static void _Transform_RebuildDescendants(SG_Transform* xform,
+static void _Transform_RebuildDescendants(R_Transform* xform,
                                           const glm::mat4* parentWorld)
 {
     // mark primitive as stale since world matrix will change
@@ -269,8 +269,8 @@ static void _Transform_RebuildDescendants(SG_Transform* xform,
     }
 
     // rebuild local mat
-    if (xform->_stale == SG_TRANSFORM_STALE_LOCAL)
-        xform->local = SG_Transform::localMatrix(xform);
+    if (xform->_stale == R_Transform_STALE_LOCAL)
+        xform->local = R_Transform::localMatrix(xform);
 
     // always rebuild world mat
     xform->world = (*parentWorld) * xform->local;
@@ -279,18 +279,18 @@ static void _Transform_RebuildDescendants(SG_Transform* xform,
     xform->normal = glm::transpose(glm::inverse(xform->world));
 
     // set fresh
-    xform->_stale = SG_TRANSFORM_STALE_NONE;
+    xform->_stale = R_Transform_STALE_NONE;
 
     // rebuild all children
     for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID); ++i) {
-        SG_Transform* child
+        R_Transform* child
           = Component_GetXform(*ARENA_GET_TYPE(&xform->children, SG_ID, i));
         ASSERT(child != NULL);
         _Transform_RebuildDescendants(child, &xform->world);
     }
 }
 
-void SG_Transform::rebuildMatrices(SG_Transform* root, Arena* arena)
+void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
 {
     // push root onto stack
     SG_ID* base = ARENA_PUSH_TYPE(arena, SG_ID);
@@ -306,12 +306,12 @@ void SG_Transform::rebuildMatrices(SG_Transform* root, Arena* arena)
         // pop id from stack
         SG_ID xformID = top[-1];
         Arena::pop(arena, sizeof(SG_ID));
-        SG_Transform* xform = Component_GetXform(xformID);
+        R_Transform* xform = Component_GetXform(xformID);
         ASSERT(xform != NULL);
 
         switch (xform->_stale) {
-            case SG_TRANSFORM_STALE_NONE: break;
-            case SG_TRANSFORM_STALE_DESCENDENTS: {
+            case R_Transform_STALE_NONE: break;
+            case R_Transform_STALE_DESCENDENTS: {
                 // add to stack
                 SG_ID* children = (SG_ID*)xform->children.base;
                 for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID);
@@ -321,10 +321,10 @@ void SG_Transform::rebuildMatrices(SG_Transform* root, Arena* arena)
                 }
                 break;
             }
-            case SG_TRANSFORM_STALE_WORLD:
-            case SG_TRANSFORM_STALE_LOCAL: {
+            case R_Transform_STALE_WORLD:
+            case R_Transform_STALE_LOCAL: {
                 // get parent world matrix
-                SG_Transform* parent = Component_GetXform(xform->parentID);
+                R_Transform* parent = Component_GetXform(xform->parentID);
                 _Transform_RebuildDescendants(xform, parent ? &parent->world :
                                                               &identityMat);
                 break;
@@ -333,38 +333,36 @@ void SG_Transform::rebuildMatrices(SG_Transform* root, Arena* arena)
         }
 
         // always set fresh
-        xform->_stale = SG_TRANSFORM_STALE_NONE;
+        xform->_stale = R_Transform_STALE_NONE;
 
         // update stack top
         top = (SG_ID*)Arena::top(arena);
     }
 }
 
-u32 SG_Transform::numChildren(SG_Transform* xform)
+u32 R_Transform::numChildren(R_Transform* xform)
 {
     return ARENA_LENGTH(&xform->children, SG_ID);
 }
 
-SG_Transform* SG_Transform::getChild(SG_Transform* xform, u32 index)
+R_Transform* R_Transform::getChild(R_Transform* xform, u32 index)
 {
     return Component_GetXform(*ARENA_GET_TYPE(&xform->children, SG_ID, index));
 }
 
-void SG_Transform::rotateOnLocalAxis(SG_Transform* xform, glm::vec3 axis,
-                                     f32 deg)
+void R_Transform::rotateOnLocalAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
 {
-    SG_Transform::rot(xform,
-                      xform->_rot * glm::angleAxis(deg, glm::normalize(axis)));
+    R_Transform::rot(xform,
+                     xform->_rot * glm::angleAxis(deg, glm::normalize(axis)));
 }
 
-void SG_Transform::rotateOnWorldAxis(SG_Transform* xform, glm::vec3 axis,
-                                     f32 deg)
+void R_Transform::rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
 {
-    SG_Transform::rot(xform,
-                      glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
+    R_Transform::rot(xform,
+                     glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
 }
 
-void SG_Transform::print(SG_Transform* xform, u32 depth)
+void R_Transform::print(R_Transform* xform, u32 depth)
 {
     for (u32 i = 0; i < depth; ++i) {
         printf("  ");
@@ -376,16 +374,16 @@ void SG_Transform::print(SG_Transform* xform, u32 depth)
     }
     printf("  pos: %f %f %f\n", xform->_pos.x, xform->_pos.y, xform->_pos.z);
 
-    u32 childrenCount = SG_Transform::numChildren(xform);
+    u32 childrenCount = R_Transform::numChildren(xform);
     for (u32 i = 0; i < childrenCount; ++i) {
-        print(SG_Transform::getChild(xform, i), depth + 1);
+        print(R_Transform::getChild(xform, i), depth + 1);
     }
 }
 
 // ============================================================================
 // Geometry Component
 // ============================================================================
-void SG_Geometry::init(SG_Geometry* geo)
+void R_Geometry::init(R_Geometry* geo)
 {
     ASSERT(geo->id == 0);
     *geo = {};
@@ -394,8 +392,8 @@ void SG_Geometry::init(SG_Geometry* geo)
     geo->type = SG_COMPONENT_GEOMETRY;
 }
 
-void SG_Geometry::buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,
-                                    Vertices* vertices)
+void R_Geometry::buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
+                                   Vertices* vertices)
 {
     ASSERT(geo->gpuIndexBuffer == NULL);
     ASSERT(geo->gpuVertexBuffer == NULL);
@@ -485,7 +483,7 @@ u32 Material_Primitive::numInstances(Material_Primitive* prim)
     return ARENA_LENGTH(&prim->xformIDs, SG_ID);
 }
 
-void Material_Primitive::addXform(Material_Primitive* prim, SG_Transform* xform)
+void Material_Primitive::addXform(Material_Primitive* prim, R_Transform* xform)
 {
 // check we aren't inserting a duplicate
 #ifdef CHUGL_DEBUG
@@ -504,8 +502,8 @@ void Material_Primitive::addXform(Material_Primitive* prim, SG_Transform* xform)
 
     // remove xform from previous material
     if (xform->_geoID && xform->_matID) {
-        R_Material* prevMat  = Component_GetMaterial(xform->_matID);
-        SG_Geometry* prevGeo = Component_GetGeo(xform->_geoID);
+        R_Material* prevMat = Component_GetMaterial(xform->_matID);
+        R_Geometry* prevGeo = Component_GetGeo(xform->_geoID);
         ASSERT(prevMat && prevGeo); // reference counting should prevent geo
                                     // from being deleted
         R_Material::removePrimitive(prevMat, prevGeo, xform);
@@ -521,7 +519,7 @@ void Material_Primitive::addXform(Material_Primitive* prim, SG_Transform* xform)
 }
 
 void Material_Primitive::removeXform(Material_Primitive* prim,
-                                     SG_Transform* xform)
+                                     R_Transform* xform)
 {
     u64 numInstances = Material_Primitive::numInstances(prim);
     SG_ID* instances = (SG_ID*)prim->xformIDs.base;
@@ -560,7 +558,7 @@ void Material_Primitive::rebuildBindGroup(GraphicsContext* gctx,
     SG_ID* xformIDs  = (SG_ID*)prim->xformIDs.base;
     // delete and swap any destroyed xforms
     for (u32 i = 0; i < numInstances; ++i) {
-        SG_Transform* xform = Component_GetXform(xformIDs[i]);
+        R_Transform* xform = Component_GetXform(xformIDs[i]);
         // remove NULL xforms via swapping
         if (xform == NULL) {
             // swap with last element
@@ -578,7 +576,7 @@ void Material_Primitive::rebuildBindGroup(GraphicsContext* gctx,
         // else add xform matrix to arena
         ++matrixCount;
         // world matrix should already have been computed by now
-        ASSERT(xform->_stale == SG_TRANSFORM_STALE_NONE);
+        ASSERT(xform->_stale == R_Transform_STALE_NONE);
         glm::mat4* matPtr = ARENA_PUSH_TYPE(arena, glm::mat4);
         *matPtr           = xform->world;
     }
@@ -929,8 +927,8 @@ u32 R_Material::numPrimitives(R_Material* mat)
 // TODO: using array linear search for now
 // to improve: use array + hashmap combo for fast lookup
 // and linear iteration
-void R_Material::addPrimitive(R_Material* mat, SG_Geometry* geo,
-                              SG_Transform* xform)
+void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
+                              R_Transform* xform)
 {
     // check if primitive for geoID already exists
     u32 numPrims = R_Material::numPrimitives(mat);
@@ -962,8 +960,8 @@ void R_Material::addPrimitive(R_Material* mat, SG_Geometry* geo,
 
 /// @brief remove instance of xform from the geo primitive on mat
 // TODO: accelerate with hashmap
-void R_Material::removePrimitive(R_Material* mat, SG_Geometry* geo,
-                                 SG_Transform* xform)
+void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo,
+                                 R_Transform* xform)
 {
     ASSERT(xform->_geoID == geo->id && xform->_matID == mat->id);
 
@@ -998,7 +996,7 @@ static Material_Primitive* _R_Material_GetPrimitive(R_Material* mat,
     return NULL;
 }
 
-void R_Material::markPrimitiveStale(R_Material* mat, SG_Transform* xform)
+void R_Material::markPrimitiveStale(R_Material* mat, R_Transform* xform)
 {
     ASSERT(xform->_matID == mat->id);
     if (xform->_geoID == 0) return;
@@ -1175,8 +1173,8 @@ static std::unordered_map<R_ID, u64> _RenderPipelineMap;
 void Component_Init()
 {
     // initialize arena memory
-    Arena::init(&xformArena, sizeof(SG_Transform) * 128);
-    Arena::init(&geoArena, sizeof(SG_Geometry) * 128);
+    Arena::init(&xformArena, sizeof(R_Transform) * 128);
+    Arena::init(&geoArena, sizeof(R_Geometry) * 128);
     Arena::init(&materialArena, sizeof(R_Material) * 64);
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
@@ -1194,10 +1192,10 @@ void Component_Free()
     Arena::free(&textureArena);
 }
 
-SG_Transform* Component_CreateTransform()
+R_Transform* Component_CreateTransform()
 {
-    SG_Transform* xform = ARENA_PUSH_TYPE(&xformArena, SG_Transform);
-    SG_Transform::init(xform);
+    R_Transform* xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
+    R_Transform::init(xform);
 
     ASSERT(xform->id != 0);                        // ensure id is set
     ASSERT(xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
@@ -1208,10 +1206,10 @@ SG_Transform* Component_CreateTransform()
     return xform;
 }
 
-SG_Geometry* Component_CreateGeometry()
+R_Geometry* Component_CreateGeometry()
 {
-    SG_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, SG_Geometry);
-    SG_Geometry::init(geo);
+    R_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, R_Geometry);
+    R_Geometry::init(geo);
 
     ASSERT(geo->id != 0);                       // ensure id is set
     ASSERT(geo->type == SG_COMPONENT_GEOMETRY); // ensure type is set
@@ -1251,20 +1249,20 @@ R_Texture* Component_CreateTexture()
     return texture;
 }
 
-SG_Transform* Component_GetXform(SG_ID id)
+R_Transform* Component_GetXform(SG_ID id)
 {
     auto it = xformMap.find(id);
     if (it == xformMap.end()) return NULL;
 
-    return (SG_Transform*)Arena::get(&xformArena, it->second);
+    return (R_Transform*)Arena::get(&xformArena, it->second);
 }
 
-SG_Geometry* Component_GetGeo(SG_ID id)
+R_Geometry* Component_GetGeo(SG_ID id)
 {
     auto it = geoMap.find(id);
     if (it == geoMap.end()) return NULL;
 
-    return (SG_Geometry*)Arena::get(&geoArena, it->second);
+    return (R_Geometry*)Arena::get(&geoArena, it->second);
 }
 
 R_Material* Component_GetMaterial(SG_ID id)

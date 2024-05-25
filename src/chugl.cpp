@@ -1,5 +1,8 @@
 #include "all.cpp"
 
+// ulibs
+#include "ulib_texture.cpp"
+
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
 
@@ -190,6 +193,13 @@ CK_DLL_QUERY(ChuGL)
         //   frames");
 
         QUERY->end_class(QUERY); // GG
+    }
+
+    ulib_texture_query(QUERY);
+
+    { // SG_Component (base class for all referenced scenegraph components)
+        QUERY->begin_class(QUERY, "SG_Component", "Object");
+        QUERY->end_class(QUERY); // Sampler
     }
 
     // remember

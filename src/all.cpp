@@ -8,7 +8,8 @@
 #include "geometry.cpp"
 #include "entity.cpp"
 #include "sync.cpp"
-#include "component.cpp"
+#include "sg_component.cpp" // chugl scenegraph API
+#include "r_component.cpp" // chugl renderer API
 #include "app.cpp"
 
 // clang-format on

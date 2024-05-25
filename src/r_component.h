@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics.h"
+#include "sg_component.h"
 
 #include "core/macros.h"
 #include "core/memory.h"
@@ -26,50 +27,38 @@
 // =============================================================================
 // scenegraph data structures
 // =============================================================================
-// TODO: eventually use uniform Arena allocators for all component types
-// and track location via a custom hashmap from ID --> arena offset
 
 struct Vertices;
 struct R_Material;
 
-enum SG_ComponentType {
-    SG_COMPONENT_INVALID,
-    SG_COMPONENT_TRANSFORM,
-    SG_COMPONENT_GEOMETRY,
-    SG_COMPONENT_MATERIAL,
-    SG_COMPONENT_TEXTURE,
-    SG_COMPONENT_COUNT
-};
-
-typedef u64 SG_ID;
 typedef i64 R_ID; // negative for R_Components NOT mapped to SG_Components
 
-struct SG_Component {
-    SG_ID id;
+struct R_Component {
+    SG_ID id; // SG_Component this R_Component is mapped to
     SG_ComponentType type;
     std::string name; // TODO move off std::string
 };
 
 // priority hiearchy for staleness
-enum SG_Transform_Staleness {
-    SG_TRANSFORM_STALE_NONE = 0,
+enum R_Transform_Staleness {
+    R_Transform_STALE_NONE = 0,
 
-    SG_TRANSFORM_STALE_DESCENDENTS, // at least 1 descendent must recompute
-                                    // world matrix
+    R_Transform_STALE_DESCENDENTS, // at least 1 descendent must recompute
+                                   // world matrix
 
-    SG_TRANSFORM_STALE_WORLD, // world matrix of self and all descendents must
-                              // be recomputed
+    R_Transform_STALE_WORLD, // world matrix of self and all descendents must
+                             // be recomputed
 
-    SG_TRANSFORM_STALE_LOCAL, // local matrix of self must be recomputed,
-                              // AND world matrix of self and all descendents
-                              // must be recomputed
-    SG_TRANSFORM_STALE_COUNT
+    R_Transform_STALE_LOCAL, // local matrix of self must be recomputed,
+                             // AND world matrix of self and all descendents
+                             // must be recomputed
+    R_Transform_STALE_COUNT
 };
 
-struct SG_Transform : public SG_Component {
+struct R_Transform : public R_Component {
     // staleness flag has priority hiearchy, don't set directly!
     // instead use setStale()
-    SG_Transform_Staleness _stale;
+    R_Transform_Staleness _stale;
 
     // transform
     // don't update directly, otherwise staleness will be incorrect
@@ -90,42 +79,42 @@ struct SG_Transform : public SG_Component {
     SG_ID _geoID;
     SG_ID _matID;
 
-    static void init(SG_Transform* transform);
+    static void init(R_Transform* transform);
 
-    static void setStale(SG_Transform* xform, SG_Transform_Staleness stale);
+    static void setStale(R_Transform* xform, R_Transform_Staleness stale);
 
-    static glm::mat4 localMatrix(SG_Transform* xform);
+    static glm::mat4 localMatrix(R_Transform* xform);
 
     /// @brief decompose matrix into transform data
-    static void setXformFromMatrix(SG_Transform* xform, const glm::mat4& M);
+    static void setXformFromMatrix(R_Transform* xform, const glm::mat4& M);
 
-    static void setXform(SG_Transform* xform, const glm::vec3& pos,
+    static void setXform(R_Transform* xform, const glm::vec3& pos,
                          const glm::quat& rot, const glm::vec3& sca);
-    static void pos(SG_Transform* xform, const glm::vec3& pos);
-    static void rot(SG_Transform* xform, const glm::quat& rot);
-    static void sca(SG_Transform* xform, const glm::vec3& sca);
+    static void pos(R_Transform* xform, const glm::vec3& pos);
+    static void rot(R_Transform* xform, const glm::quat& rot);
+    static void sca(R_Transform* xform, const glm::vec3& sca);
 
     // updates all local/world matrices in the scenegraph
-    static void rebuildMatrices(SG_Transform* root, Arena* arena);
+    static void rebuildMatrices(R_Transform* root, Arena* arena);
 
     // Scenegraph relationships ----------------------------------------------
     // returns if ancestor is somewhere in the parent chain of descendent,
     // including descendent itself
-    static bool isAncestor(SG_Transform* ancestor, SG_Transform* descendent);
-    static void removeChild(SG_Transform* parent, SG_Transform* child);
-    static void addChild(SG_Transform* parent, SG_Transform* child);
-    static u32 numChildren(SG_Transform* xform);
-    static SG_Transform* getChild(SG_Transform* xform, u32 index);
+    static bool isAncestor(R_Transform* ancestor, R_Transform* descendent);
+    static void removeChild(R_Transform* parent, R_Transform* child);
+    static void addChild(R_Transform* parent, R_Transform* child);
+    static u32 numChildren(R_Transform* xform);
+    static R_Transform* getChild(R_Transform* xform, u32 index);
 
     // Transform modification ------------------------------------------------
-    static void rotateOnLocalAxis(SG_Transform* xform, glm::vec3 axis, f32 deg);
-    static void rotateOnWorldAxis(SG_Transform* xform, glm::vec3 axis, f32 deg);
+    static void rotateOnLocalAxis(R_Transform* xform, glm::vec3 axis, f32 deg);
+    static void rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg);
 
     // util -------------------------------------------------------------------
-    static void print(SG_Transform* xform, u32 depth = 0);
+    static void print(R_Transform* xform, u32 depth = 0);
 };
 
-struct SG_Geometry : public SG_Component {
+struct R_Geometry : public R_Component {
 
     // IndexBuffer indexBuffer;
     // VertexBuffer vertexBuffer;
@@ -150,10 +139,10 @@ struct SG_Geometry : public SG_Component {
     // new
     //                       // world matrices
 
-    static void init(SG_Geometry* geo);
-    static void buildFromVertices(GraphicsContext* gctx, SG_Geometry* geo,
+    static void init(R_Geometry* geo);
+    static void buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
                                   Vertices* vertices);
-    // static u64 numInstances(SG_Geometry* geo);
+    // static u64 numInstances(R_Geometry* geo);
 
     // uploads xform data to storage buffer
 };
@@ -162,7 +151,7 @@ struct SG_Geometry : public SG_Component {
 // R_Texture
 // =============================================================================
 
-struct R_Texture : public SG_Component {
+struct R_Texture : public R_Component {
     Texture gpuTexture;
     SamplerConfig samplerConfig;
 
@@ -194,8 +183,8 @@ struct Material_Primitive {
     static void init(Material_Primitive* prim, R_Material* mat, SG_ID geoID);
     static void free(Material_Primitive* prim);
     static u32 numInstances(Material_Primitive* prim);
-    static void addXform(Material_Primitive* prim, SG_Transform* xform);
-    static void removeXform(Material_Primitive* prim, SG_Transform* xform);
+    static void addXform(Material_Primitive* prim, R_Transform* xform);
+    static void removeXform(Material_Primitive* prim, R_Transform* xform);
 
     // recreates storagebuffer based on #xformIDs and rebuilds bindgroup
     // populates storage buffer with new xform data
@@ -256,7 +245,7 @@ struct R_MaterialConfig {
 
 // TODO: somehow make this interop with render pipeline and shader
 // material instance component
-struct R_Material : public SG_Component {
+struct R_Material : public R_Component {
     R_MaterialConfig config;
     b32 stale; // set if modified by chuck user, need to rebuild bind groups
 
@@ -311,11 +300,11 @@ struct R_Material : public SG_Component {
 
     // functions for adding/removing primitives ------------------
     static u32 numPrimitives(R_Material* mat);
-    static void addPrimitive(R_Material* mat, SG_Geometry* geo,
-                             SG_Transform* xform);
-    static void removePrimitive(R_Material* mat, SG_Geometry* geo,
-                                SG_Transform* xform);
-    static void markPrimitiveStale(R_Material* mat, SG_Transform* xform);
+    static void addPrimitive(R_Material* mat, R_Geometry* geo,
+                             R_Transform* xform);
+    static void removePrimitive(R_Material* mat, R_Geometry* geo,
+                                R_Transform* xform);
+    static void markPrimitiveStale(R_Material* mat, R_Transform* xform);
     static bool primitiveIter(R_Material* mat, size_t* indexPtr,
                               Material_Primitive** primitive);
 };
@@ -352,14 +341,14 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 // Component Manager API
 // =============================================================================
 
-SG_Transform* Component_CreateTransform();
-SG_Geometry* Component_CreateGeometry();
+R_Transform* Component_CreateTransform();
+R_Geometry* Component_CreateGeometry();
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config);
 R_Texture* Component_CreateTexture();
 
-SG_Transform* Component_GetXform(SG_ID id);
-SG_Geometry* Component_GetGeo(SG_ID id);
+R_Transform* Component_GetXform(SG_ID id);
+R_Geometry* Component_GetGeo(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
 
