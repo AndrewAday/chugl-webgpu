@@ -54,6 +54,9 @@ struct App {
         app->ckapi = api;
 
         Camera::init(&app->camera);
+
+        // initialize R_Component manager
+        Component_Init();
     }
 
     static void start(App* app)
@@ -154,6 +157,9 @@ struct App {
 
     static void end(App* app)
     {
+        // free R_Components
+        Component_Free();
+
         // release graphics context
         GraphicsContext::release(&app->gctx);
 
@@ -162,7 +168,6 @@ struct App {
 
         // terminate GLFW
         glfwTerminate();
-
         // zero all fields
         *app = {};
     }

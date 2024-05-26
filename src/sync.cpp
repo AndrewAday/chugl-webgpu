@@ -82,6 +82,9 @@ const char* Event_GetName(CHUGL_EventType type)
 // Thread Synchronization Definitions
 // ============================================================================
 
+// TODO: prob want to put syncer and SG_component managers into single
+// ChuGL_Context struct
+
 static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
 // static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
 static u64 waitingShreds = 0;

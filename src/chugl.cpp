@@ -40,6 +40,7 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
 t_CKBOOL chugl_main_loop_quit(void* bindle)
 {
     UNUSED_VAR(bindle);
+    SG_Free();
     return true;
 }
 
@@ -135,6 +136,10 @@ CK_DLL_SFUN(chugl_next_frame)
 // ============================================================================
 CK_DLL_QUERY(ChuGL)
 {
+    // initialize component pool
+    // TODO: have a single ChuGL_Context that manages this all
+    SG_Init();
+
     // set up for main thread hook, for running ChuGL on the main thread
     hook = QUERY->create_main_thread_hook(QUERY, chugl_main_loop_hook,
                                           chugl_main_loop_quit, NULL);
@@ -195,12 +200,12 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY); // GG
     }
 
-    ulib_texture_query(QUERY);
-
     { // SG_Component (base class for all referenced scenegraph components)
         QUERY->begin_class(QUERY, "SG_Component", "Object");
-        QUERY->end_class(QUERY); // Sampler
+        QUERY->end_class(QUERY);
     }
+
+    ulib_texture_query(QUERY);
 
     // remember
     g_chuglVM  = QUERY->ck_vm(QUERY);

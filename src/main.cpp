@@ -17,9 +17,6 @@ int main(int, char**)
     App app        = {};
     app.standalone = true;
 
-    // initialize component manager (TODO do this in App instead?)
-    Component_Init();
-
     // load test entry points
     // Test_Obj(&app.callbacks);
     Test_Gltf(&app.callbacks);
@@ -28,6 +25,5 @@ int main(int, char**)
     App::start(&app);
     App::end(&app);
 
-    Component_Free();
     return EXIT_SUCCESS;
 }
