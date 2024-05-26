@@ -19,6 +19,10 @@ public class T {
         if (!bool) err("Assertion failed: " + s);
     }
 
+    fun static int feq(float a, float b) {
+        return Math.fabs(a - b) < 0.0001;
+    }
+
     fun void assert(string code) {
         Machine.eval(
             this.context + 

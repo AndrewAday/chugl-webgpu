@@ -101,13 +101,14 @@ struct SG_Transform : public SG_Component {
     static void rotate(SG_Transform* t, glm::vec3 eulers);
     static void scale(SG_Transform* t, glm::vec3 s);
 
-    static void rotateOnWorldAxis(SG_Transform* t, glm::vec3 axis, float deg);
-    static void rotateOnLocalAxis(SG_Transform* t, glm::vec3 axis, float deg);
+    static void rotateOnWorldAxis(SG_Transform* t, glm::vec3 axis, float rad);
+    static void rotateOnLocalAxis(SG_Transform* t, glm::vec3 axis, float rad);
     static void rotateX(SG_Transform* t, float deg);
     static void rotateY(SG_Transform* t, float deg);
     static void rotateZ(SG_Transform* t, float deg);
     static void lookAt(SG_Transform* t, glm::vec3 pos);
 
+    static glm::vec3 eulerRotationRadians(SG_Transform* t);
     static glm::mat4 modelMatrix(SG_Transform* t);
     static glm::mat4 worldMatrix(SG_Transform* t);
     static glm::quat worldRotation(SG_Transform* t);

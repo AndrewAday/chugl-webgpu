@@ -36,6 +36,10 @@ CK_DLL_CTOR(component_ctor)
     // OBJ_MEMBER_INT(SELF, component_offset_id) = (t_CKUINT)component;
 }
 
+CK_DLL_DTOR(component_dtor)
+{
+}
+
 CK_DLL_MFUN(component_get_id)
 {
     SG_Component* component
@@ -47,7 +51,8 @@ CK_DLL_MFUN(component_get_name)
 {
     SG_Component* component
       = SG_GetComponent(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_string = ck_create_string(VM, component->name.c_str(), false);
+    RETURN->v_string
+      = API->object->create_string(VM, component->name.c_str(), false);
 }
 
 CK_DLL_MFUN(component_set_name)
@@ -63,19 +68,18 @@ CK_DLL_MFUN(component_set_name)
 
 static void ulib_component_query(Chuck_DL_Query* QUERY)
 {
-    { // Component
-        QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_BASE], "Object");
-        // member vars
-        component_offset_id
-          = QUERY->add_mvar(QUERY, "int", "@component_ptr", false);
-        // member functions
-        QUERY->add_mfun(QUERY, component_get_id, "int", "id");
-        QUERY->add_mfun(QUERY, component_get_name, "string", "name");
-        QUERY->add_mfun(QUERY, component_set_name, "string", "name");
-        QUERY->add_arg(QUERY, "string", "name");
+    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_BASE], "Object");
+    // member vars
+    component_offset_id
+      = QUERY->add_mvar(QUERY, "int", "@component_ptr", false);
 
-        QUERY->end_class(QUERY); // Component
-    }
+    // member functions
+    QUERY->add_mfun(QUERY, component_get_id, "int", "id");
+    QUERY->add_mfun(QUERY, component_get_name, "string", "name");
+    QUERY->add_mfun(QUERY, component_set_name, "string", "name");
+    QUERY->add_arg(QUERY, "string", "name");
+
+    QUERY->end_class(QUERY); // Component
 }
 
 // ============================================================================
@@ -162,12 +166,12 @@ CK_DLL_MFUN(ggen_local_pos_to_world_pos);
 
 // parent-child scenegraph API
 // CK_DLL_MFUN(ggen_disconnect);
-CK_DLL_MFUN(ggen_get_parent);
-CK_DLL_MFUN(ggen_get_child_default);
-CK_DLL_MFUN(ggen_get_child);
-CK_DLL_MFUN(ggen_get_num_children);
-CK_DLL_GFUN(ggen_op_gruck);   // add child
-CK_DLL_GFUN(ggen_op_ungruck); // remove child
+// CK_DLL_MFUN(ggen_get_parent);
+// CK_DLL_MFUN(ggen_get_child_default);
+// CK_DLL_MFUN(ggen_get_child);
+// CK_DLL_MFUN(ggen_get_num_children);
+// CK_DLL_GFUN(ggen_op_gruck);   // add child
+// CK_DLL_GFUN(ggen_op_ungruck); // remove child
 
 static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 {
@@ -175,8 +179,293 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_TRANSFORM],
                            SG_CKNames[SG_COMPONENT_BASE]);
         QUERY->add_ctor(QUERY, ggen_ctor);
-        // member vars
-        // member functions
+        QUERY->add_dtor(QUERY, ggen_dtor);
+
+        QUERY->add_mfun(QUERY, ggen_update, "void", "update");
+        QUERY->add_arg(QUERY, "float", "dt");
+        QUERY->doc_func(QUERY,
+                        "This method is automatically invoked once per frame "
+                        "for all GGens connected to the scene graph."
+                        "Override this method in custom GGen classes to "
+                        "implement your own update logic.");
+
+        QUERY->add_mfun(QUERY, ggen_get_right, "vec3", "right");
+        QUERY->doc_func(QUERY,
+                        "Get the right vector of this GGen in world space");
+
+        QUERY->add_mfun(QUERY, ggen_get_forward, "vec3", "forward");
+        QUERY->doc_func(QUERY,
+                        "Get the forward vector of this GGen in world space");
+
+        QUERY->add_mfun(QUERY, ggen_get_up, "vec3", "up");
+        QUERY->doc_func(QUERY, "Get the up vector of this GGen in world space");
+
+        // Position
+        // ===============================================================
+
+        // float posX()
+        QUERY->add_mfun(QUERY, ggen_get_pos_x, "float", "posX");
+        QUERY->doc_func(QUERY, "Get X position of this GGen in local space");
+
+        // float posX(float)
+        QUERY->add_mfun(QUERY, ggen_set_pos_x, "float", "posX");
+        QUERY->add_arg(QUERY, "float", "pos");
+        QUERY->doc_func(QUERY, "Set X position of this GGen in local space");
+
+        // float posY()
+        QUERY->add_mfun(QUERY, ggen_get_pos_y, "float", "posY");
+        QUERY->doc_func(QUERY, "Get Y position of this GGen in local space");
+
+        // float posY(float)
+        QUERY->add_mfun(QUERY, ggen_set_pos_y, "float", "posY");
+        QUERY->add_arg(QUERY, "float", "pos");
+        QUERY->doc_func(QUERY, "Set Y position of this GGen in local space");
+
+        // float posZ()
+        QUERY->add_mfun(QUERY, ggen_get_pos_z, "float", "posZ");
+        QUERY->doc_func(QUERY, "Get Z position of this GGen in local space");
+
+        // float posZ(float)
+        QUERY->add_mfun(QUERY, ggen_set_pos_z, "float", "posZ");
+        QUERY->add_arg(QUERY, "float", "pos");
+        QUERY->doc_func(QUERY, "Set Z position of this GGen in local space");
+
+        // vec3 pos()
+        QUERY->add_mfun(QUERY, ggen_get_pos, "vec3", "pos");
+        QUERY->doc_func(QUERY, "Get object position in local space");
+
+        // vec3 pos( vec3 )
+        QUERY->add_mfun(QUERY, ggen_set_pos, "vec3", "pos");
+        QUERY->add_arg(QUERY, "vec3", "pos");
+        QUERY->doc_func(QUERY, "Set object position in local space");
+
+        // vec3 posWorld()
+        QUERY->add_mfun(QUERY, ggen_get_pos_world, "vec3", "posWorld");
+        QUERY->doc_func(QUERY, "Get object position in world space");
+
+        // vec3 posWorld( float )
+        QUERY->add_mfun(QUERY, ggen_set_pos_world, "vec3", "posWorld");
+        QUERY->add_arg(QUERY, "vec3", "pos");
+        QUERY->doc_func(QUERY, "Set object position in world space");
+
+        // GGen translate( vec3 )
+        QUERY->add_mfun(QUERY, ggen_translate, "GGen", "translate");
+        QUERY->add_arg(QUERY, "vec3", "translation");
+        QUERY->doc_func(QUERY, "Translate this GGen by the given vector");
+
+        // GGen translateX( float )
+        QUERY->add_mfun(QUERY, ggen_translate_x, "GGen", "translateX");
+        QUERY->add_arg(QUERY, "float", "amt");
+        QUERY->doc_func(
+          QUERY,
+          "Translate this GGen by given amount on the X axis in local space");
+
+        // GGen translateY( float )
+        QUERY->add_mfun(QUERY, ggen_translate_y, "GGen", "translateY");
+        QUERY->add_arg(QUERY, "float", "amt");
+        QUERY->doc_func(
+          QUERY,
+          "Translate this GGen by given amount on the Y axis in local space");
+
+        // GGen translateZ( float )
+        QUERY->add_mfun(QUERY, ggen_translate_z, "GGen", "translateZ");
+        QUERY->add_arg(QUERY, "float", "amt");
+        QUERY->doc_func(
+          QUERY,
+          "Translate this GGen by given amount on the Z axis in local space");
+
+        // Rotation
+        // ===============================================================
+
+        // float rotX()
+        QUERY->add_mfun(QUERY, ggen_get_rot_x, "float", "rotX");
+        QUERY->doc_func(
+          QUERY, "Get the rotation of this GGen on the X axis in local space");
+
+        // float rotX( float )
+        QUERY->add_mfun(QUERY, ggen_set_rot_x, "float", "rotX");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(QUERY,
+                        "Set the rotation of this GGen on the X axis in local "
+                        "space to the given radians");
+
+        // float rotY()
+        QUERY->add_mfun(QUERY, ggen_get_rot_y, "float", "rotY");
+        QUERY->doc_func(
+          QUERY, "Get the rotation of this GGen on the Y axis in local space");
+
+        // float rotY( float )
+        QUERY->add_mfun(QUERY, ggen_set_rot_y, "float", "rotY");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(QUERY,
+                        "Set the rotation of this GGen on the Y axis in local "
+                        "space to the given radians");
+
+        // float rotZ()
+        QUERY->add_mfun(QUERY, ggen_get_rot_z, "float", "rotZ");
+        QUERY->doc_func(
+          QUERY, "Get the rotation of this GGen on the Z axis in local space");
+
+        // float rotZ( float )
+        QUERY->add_mfun(QUERY, ggen_set_rot_z, "float", "rotZ");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(QUERY,
+                        "Set the rotation of this GGen on the Z axis in local "
+                        "space to the given radians");
+
+        // vec3 rot()
+        QUERY->add_mfun(QUERY, ggen_get_rot, "vec3", "rot");
+        QUERY->doc_func(
+          QUERY,
+          "Get object rotation in local space as euler angles in radians");
+
+        // vec3 rot( vec3 )
+        QUERY->add_mfun(QUERY, ggen_set_rot, "vec3", "rot");
+        QUERY->add_arg(QUERY, "vec3", "eulers");
+        QUERY->doc_func(
+          QUERY, "Set rotation of this GGen in local space as euler angles");
+
+        // GGen rotate( vec3 )
+        QUERY->add_mfun(QUERY, ggen_rotate, "GGen", "rotate");
+        QUERY->add_arg(QUERY, "vec3", "eulers");
+        QUERY->doc_func(
+          QUERY, "Rotate this GGen by the given euler angles in local space");
+
+        // GGen rotateX( float )
+        QUERY->add_mfun(QUERY, ggen_rotate_x, "GGen", "rotateX");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(
+          QUERY,
+          "Rotate this GGen by the given radians on the X axis in local space");
+
+        // GGen rotateY( float )
+        QUERY->add_mfun(QUERY, ggen_rotate_y, "GGen", "rotateY");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(
+          QUERY,
+          "Rotate this GGen by the given radians on the Y axis in local space");
+
+        // GGen rotateZ( float )
+        QUERY->add_mfun(QUERY, ggen_rotate_z, "GGen", "rotateZ");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(
+          QUERY,
+          "Rotate this GGen by the given radians on the Z axis in local space");
+
+        // GGen rotateOnLocalAxis( vec3, float )
+        QUERY->add_mfun(QUERY, ggen_rot_on_local_axis, "GGen",
+                        "rotateOnLocalAxis");
+        QUERY->add_arg(QUERY, "vec3", "axis");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(QUERY,
+                        "Rotate this GGen by the given radians on the given "
+                        "axis in local space");
+
+        // GGen rotateOnWorldAxis( vec3, float )
+        QUERY->add_mfun(QUERY, ggen_rot_on_world_axis, "GGen",
+                        "rotateOnWorldAxis");
+        QUERY->add_arg(QUERY, "vec3", "axis");
+        QUERY->add_arg(QUERY, "float", "radians");
+        QUERY->doc_func(QUERY,
+                        "Rotate this GGen by the given radians on the given "
+                        "axis in world space");
+
+        // GGen lookAt( vec3 )
+        QUERY->add_mfun(QUERY, ggen_lookat_vec3, "GGen", "lookAt");
+        QUERY->add_arg(QUERY, "vec3", "pos");
+        QUERY->doc_func(QUERY, "Look at the given position in world space");
+
+        // vec3 lookAtDir()
+        QUERY->add_mfun(QUERY, ggen_get_forward, "vec3", "lookAtDir");
+        QUERY->doc_func(QUERY,
+                        "Get the direction this GGen is looking, i.e. the "
+                        "forward vector of this GGen in world space");
+
+        // Scale ===============================================================
+
+        // float scaX()
+        QUERY->add_mfun(QUERY, ggen_get_scale_x, "float", "scaX");
+        QUERY->doc_func(QUERY, "Get X scale of this GGen in local space");
+
+        // float scaX( float )
+        QUERY->add_mfun(QUERY, ggen_set_scale_x, "float", "scaX");
+        QUERY->add_arg(QUERY, "float", "scale");
+        QUERY->doc_func(QUERY, "Set X scale of this GGen in local space");
+
+        // float scaY()
+        QUERY->add_mfun(QUERY, ggen_get_scale_y, "float", "scaY");
+        QUERY->doc_func(QUERY, "Get Y scale of this GGen in local space");
+
+        // float scaY( float )
+        QUERY->add_mfun(QUERY, ggen_set_scale_y, "float", "scaY");
+        QUERY->add_arg(QUERY, "float", "scale");
+        QUERY->doc_func(QUERY, "Set Y scale of this GGen in local space");
+
+        // float scaZ()
+        QUERY->add_mfun(QUERY, ggen_get_scale_z, "float", "scaZ");
+        QUERY->doc_func(QUERY, "Get Z scale of this GGen in local space");
+
+        // float scaZ( float )
+        QUERY->add_mfun(QUERY, ggen_set_scale_z, "float", "scaZ");
+        QUERY->add_arg(QUERY, "float", "scale");
+        QUERY->doc_func(QUERY, "Set Z scale of this GGen in local space");
+
+        // vec3 sca()
+        QUERY->add_mfun(QUERY, ggen_get_scale, "vec3", "sca");
+        QUERY->doc_func(QUERY, "Get object scale in local space");
+
+        // vec3 sca( vec3 )
+        QUERY->add_mfun(QUERY, ggen_set_scale, "vec3", "sca");
+        QUERY->add_arg(QUERY, "vec3", "scale");
+        QUERY->doc_func(QUERY, "Set object scale in local space");
+
+        // vec3 sca( float )
+        QUERY->add_mfun(QUERY, ggen_set_scale_uniform, "vec3", "sca");
+        QUERY->add_arg(QUERY, "float", "scale");
+        QUERY->doc_func(
+          QUERY, "Set object scale in local space uniformly across all axes");
+
+        // vec3 scaWorld()
+        QUERY->add_mfun(QUERY, ggen_get_scale_world, "vec3", "scaWorld");
+        QUERY->doc_func(QUERY, "Get object scale in world space");
+
+        // vec3 scaWorld( vec3 )
+        QUERY->add_mfun(QUERY, ggen_set_scale_world, "vec3", "scaWorld");
+        QUERY->add_arg(QUERY, "vec3", "scale");
+        QUERY->doc_func(QUERY, "Set object scale in world space");
+
+        // Matrix transform API
+        // ===============================================================
+        QUERY->add_mfun(QUERY, ggen_local_pos_to_world_pos, "vec3",
+                        "posLocalToWorld");
+        QUERY->add_arg(QUERY, "vec3", "localPos");
+        QUERY->doc_func(QUERY,
+                        "Transform a position in local space to world space");
+
+        // scenegraph relationship methods
+        // =======================================
+        // QUERY->add_mfun(QUERY, ggen_get_parent, "GGen", "parent");
+        // QUERY->doc_func(QUERY, "Get the parent of this GGen");
+
+        // QUERY->add_mfun(QUERY, ggen_get_child, "GGen", "child");
+        // QUERY->add_arg(QUERY, "int", "n");
+        // QUERY->doc_func(QUERY, "Get the n'th child of this GGen");
+
+        // QUERY->add_mfun(QUERY, ggen_get_child_default, "GGen", "child");
+        // QUERY->doc_func(QUERY, "Get the 0th child of this GGen");
+
+        // QUERY->add_mfun(QUERY, ggen_get_num_children, "int",
+        // "numChildren"); QUERY->doc_func(QUERY, "Get the number of children
+        // for this GGen");
+
+        // // overload GGen --> GGen
+        // QUERY->add_op_overload_binary(QUERY, ggen_op_gruck, "GGen", "-->",
+        //                               "GGen", "lhs", "GGen", "rhs");
+
+        // // overload GGen --< GGen
+        // QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<",
+        //                               "GGen", "lhs", "GGen", "rhs");
+
         QUERY->end_class(QUERY); // GGen
     }
 }
@@ -211,7 +500,7 @@ CK_DLL_DTOR(ggen_dtor)
     // CGL::UnregisterGGenFromShred(SHRED, SELF);
 
     // push command to destroy this object on render thread as well
-    // CGL::PushCommand(new DestroySceneGraphNodeCommand(
+    // // CGL::PushCommand(new DestroySceneGraphNodeCommand(
     //   SELF, CGL::GetGGenDataOffset(), API, &CGL::mainScene));
 }
 
@@ -229,147 +518,166 @@ CK_DLL_MFUN(ggen_get_right)
 
 CK_DLL_MFUN(ggen_get_forward)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetForward();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec  = SG_Transform::forward(xform);
+    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_get_up)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetUp();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec  = SG_Transform::up(xform);
+    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
 }
 
 // Position Impl ===============================================================
 
 CK_DLL_MFUN(ggen_get_pos_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetPosition().x;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->pos.x;
 }
 
 CK_DLL_MFUN(ggen_set_pos_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT posX           = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 pos            = cglObj->GetPosition();
-    pos.x                    = posX;
-    cglObj->SetPosition(pos);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posX  = GET_NEXT_FLOAT(ARGS);
+    xform->pos.x    = posX;
     RETURN->v_float = posX;
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+
+    // TODO command
+    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_pos_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetPosition().y;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->pos.y;
 }
 
 CK_DLL_MFUN(ggen_set_pos_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT posY           = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 pos            = cglObj->GetPosition();
-    pos.y                    = posY;
-    cglObj->SetPosition(pos);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posY  = GET_NEXT_FLOAT(ARGS);
+    xform->pos.y    = posY;
     RETURN->v_float = posY;
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+
+    // TODO command
+    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_pos_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetPosition().z;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->pos.z;
 }
 
 CK_DLL_MFUN(ggen_set_pos_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT posZ           = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 pos            = cglObj->GetPosition();
-    pos.z                    = posZ;
-    cglObj->SetPosition(pos);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posZ  = GET_NEXT_FLOAT(ARGS);
+    xform->pos.z    = posZ;
     RETURN->v_float = posZ;
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+
+    // TODO command
+    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_pos)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetPosition();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_vec3 = { xform->pos.x, xform->pos.y, xform->pos.z };
 }
 
 CK_DLL_MFUN(ggen_set_pos)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->SetPosition(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
+    xform->pos.x   = vec.x;
+    xform->pos.y   = vec.y;
+    xform->pos.z   = vec.z;
     RETURN->v_vec3 = vec;
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+
+    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_pos_world)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetWorldPosition();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec  = SG_Transform::worldPosition(xform);
+    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_pos_world)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->SetWorldPosition(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform::worldPosition(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+
+    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_translate)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 trans           = GET_NEXT_VEC3(ARGS);
-    cglObj->Translate(glm::vec3(trans.x, trans.y, trans.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 trans = GET_NEXT_VEC3(ARGS);
+    SG_Transform::translate(xform, glm::vec3(trans.x, trans.y, trans.z));
 
     // add to command queue
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 
     RETURN->v_object = SELF;
 }
 
 CK_DLL_MFUN(ggen_translate_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT amt            = GET_NEXT_FLOAT(ARGS);
-    cglObj->Translate({ amt, 0, 0 });
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::translate(xform, { amt, 0, 0 });
 
     // add to command queue
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 
     RETURN->v_object = SELF;
 }
 
 CK_DLL_MFUN(ggen_translate_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT amt            = GET_NEXT_FLOAT(ARGS);
-    cglObj->Translate({ 0, amt, 0 });
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::translate(xform, { 0, amt, 0 });
 
     // add to command queue
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 
     RETURN->v_object = SELF;
 }
 
 CK_DLL_MFUN(ggen_translate_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT amt            = GET_NEXT_FLOAT(ARGS);
-    cglObj->Translate({ 0, 0, amt });
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::translate(xform, { 0, 0, amt });
 
     // add to command queue
-    CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
 
     RETURN->v_object = SELF;
 }
@@ -378,238 +686,263 @@ CK_DLL_MFUN(ggen_translate_z)
 
 CK_DLL_MFUN(ggen_get_rot_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetRotation().x;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).x;
 }
 
 CK_DLL_MFUN(ggen_set_rot_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    auto eulers              = cglObj->GetEulerRotationRadians();
-    eulers.x                 = rad;
-    cglObj->SetRotation(eulers);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad    = GET_NEXT_FLOAT(ARGS); // set in radians
+    glm::vec3 eulers = SG_Transform::eulerRotationRadians(xform);
+    eulers.x         = rad;
+    xform->rot       = glm::quat(eulers);
+
     RETURN->v_float = rad;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_rot_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetRotation().y;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).y;
 }
 
 CK_DLL_MFUN(ggen_set_rot_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    auto eulers              = cglObj->GetEulerRotationRadians();
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS); // set in radians
     // https://gamedev.stackexchange.com/questions/200292/applying-incremental-rotation-with-quaternions-flickering-or-hesitating
     // For continuous rotation, wrap rad to be in range [-PI/2, PI/2]
     // i.e. after exceeding PI/2, rad = rad - PI
     rad = glm::mod(rad + glm::half_pi<double>(), glm::pi<double>())
           - glm::half_pi<double>();
+    glm::vec3 eulers = SG_Transform::eulerRotationRadians(xform);
+    eulers.y         = rad;
+    xform->rot       = glm::quat(eulers);
 
-    eulers.y = rad;
-    cglObj->SetRotation(eulers);
-    RETURN->v_float = rad;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    RETURN->v_float = rad; // TODO: RETURN->v_object = SELF
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_rot_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetRotation().z;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).z;
 }
 
 CK_DLL_MFUN(ggen_set_rot_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    auto eulers              = cglObj->GetEulerRotationRadians();
-    eulers.z                 = rad;
-    cglObj->SetRotation(eulers);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad    = GET_NEXT_FLOAT(ARGS); // set in radians
+    glm::vec3 eulers = SG_Transform::eulerRotationRadians(xform);
+    eulers.z         = rad;
+    xform->rot       = glm::quat(eulers);
+
     RETURN->v_float = rad;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_rot)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetEulerRotationRadians();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec  = SG_Transform::eulerRotationRadians(xform);
+    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_rot)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->SetRotation(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
+    xform->rot     = glm::quat(glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rotate)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->Rotate(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform::rotate(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rotate_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    cglObj->RotateX(rad);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::rotateX(xform, rad);
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rotate_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    cglObj->RotateY(rad);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::rotateY(xform, rad);
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rotate_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT rad            = GET_NEXT_FLOAT(ARGS);
-    cglObj->RotateZ(rad);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::rotateZ(xform, rad);
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rot_on_local_axis)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    t_CKFLOAT deg            = GET_NEXT_FLOAT(ARGS);
-    cglObj->RotateOnLocalAxis(glm::vec3(vec.x, vec.y, vec.z), deg);
-
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec  = GET_NEXT_VEC3(ARGS);
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::rotateOnLocalAxis(xform, glm::vec3(vec.x, vec.y, vec.z), rad);
 
     RETURN->v_object = SELF;
+
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_rot_on_world_axis)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    t_CKFLOAT deg            = GET_NEXT_FLOAT(ARGS);
-    cglObj->RotateOnWorldAxis(glm::vec3(vec.x, vec.y, vec.z), deg);
-
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec  = GET_NEXT_VEC3(ARGS);
+    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform::rotateOnWorldAxis(xform, glm::vec3(vec.x, vec.y, vec.z), rad);
 
     RETURN->v_object = SELF;
+
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_lookat_vec3)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->LookAt(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform::lookAt(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
 }
 
 // Scale impl ===============================================================
 
 CK_DLL_MFUN(ggen_get_scale_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetScale().x;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->sca.x;
 }
 
 CK_DLL_MFUN(ggen_set_scale_x)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT scaleX         = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 scale          = cglObj->GetScale();
-    scale.x                  = scaleX;
-    cglObj->SetScale(scale);
-    RETURN->v_float = scaleX;
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleX = GET_NEXT_FLOAT(ARGS);
+    xform->sca.x     = scaleX;
+    RETURN->v_float  = scaleX;
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_scale_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetScale().y;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->sca.y;
 }
 
 CK_DLL_MFUN(ggen_set_scale_y)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT scaleY         = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 scale          = cglObj->GetScale();
-    scale.y                  = scaleY;
-    cglObj->SetScale(scale);
-    RETURN->v_float = scaleY;
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleY = GET_NEXT_FLOAT(ARGS);
+    xform->sca.y     = scaleY;
+    RETURN->v_float  = scaleY;
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_scale_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_float          = cglObj->GetScale().z;
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float = xform->sca.z;
 }
 
 CK_DLL_MFUN(ggen_set_scale_z)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT scaleZ         = GET_NEXT_FLOAT(ARGS);
-    glm::vec3 scale          = cglObj->GetScale();
-    scale.z                  = scaleZ;
-    cglObj->SetScale(scale);
-    RETURN->v_float = scaleZ;
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleZ = GET_NEXT_FLOAT(ARGS);
+    xform->sca.z     = scaleZ;
+    RETURN->v_float  = scaleZ;
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_scale)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetScale();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_vec3 = { xform->sca.x, xform->sca.y, xform->sca.z };
 }
 
 CK_DLL_MFUN(ggen_set_scale)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->SetScale(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
+    xform->sca     = glm::vec3(vec.x, vec.y, vec.z);
     RETURN->v_vec3 = vec;
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_set_scale_uniform)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKFLOAT s              = GET_NEXT_FLOAT(ARGS);
-    cglObj->SetScale({ s, s, s });
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT s    = GET_NEXT_FLOAT(ARGS);
+    xform->sca.x   = s;
+    xform->sca.y   = s;
+    xform->sca.z   = s;
     RETURN->v_vec3 = { s, s, s };
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 CK_DLL_MFUN(ggen_get_scale_world)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    const auto& vec          = cglObj->GetWorldScale();
-    RETURN->v_vec3           = { vec.x, vec.y, vec.z };
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec  = SG_Transform::worldScale(xform);
+    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_scale_world)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
-    cglObj->SetWorldScale(glm::vec3(vec.x, vec.y, vec.z));
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform::worldScale(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
-    CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
 }
 
 // Transformation API
@@ -617,89 +950,95 @@ CK_DLL_MFUN(ggen_set_scale_world)
 
 CK_DLL_MFUN(ggen_local_pos_to_world_pos)
 {
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    t_CKVEC3 vec             = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     glm::vec3 worldPos
-      = cglObj->GetWorldMatrix() * glm::vec4(vec.x, vec.y, vec.z, 1.0f);
+      = SG_Transform::worldMatrix(xform) * glm::vec4(vec.x, vec.y, vec.z, 1.0f);
     RETURN->v_vec3 = { worldPos.x, worldPos.y, worldPos.z };
 }
 
 // Scenegraph Relationship Impl
 // ===============================================================
-CK_DLL_GFUN(ggen_op_gruck)
-{
-    // get the arguments
-    Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
-    Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
+// CK_DLL_GFUN(ggen_op_gruck)
+// {
+//     // get the arguments
+//     Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
+//     Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
 
-    if (!lhs || !rhs) {
-        std::string errMsg = std::string("in gruck operator: ")
-                             + (lhs ? "LHS" : "[null]") + " --> "
-                             + (rhs ? "RHS" : "[null]");
-        // nullptr exception
-        API->vm->throw_exception("NullPointerException", errMsg.c_str(), SHRED);
-        return;
-    }
+//     if (!lhs || !rhs) {
+//         std::string errMsg = std::string("in gruck operator: ")
+//                              + (lhs ? "LHS" : "[null]") + " --> "
+//                              + (rhs ? "RHS" : "[null]");
+//         // nullptr exception
+//         API->vm->throw_exception("NullPointerException", errMsg.c_str(),
+//         SHRED); return;
+//     }
 
-    // get internal representation
-    SceneGraphObject* LHS = CGL::GetSGO(lhs);
-    SceneGraphObject* RHS = CGL::GetSGO(rhs);
+//     // get internal representation
+//     SceneGraphObject* LHS = CGL::GetSGO(lhs);
+//     SceneGraphObject* RHS = CGL::GetSGO(rhs);
 
-    // command
-    CGL::PushCommand(new RelationshipCommand(
-      RHS, LHS, RelationshipCommand::Relation::AddChild));
+//     // command
+//     // CGL::PushCommand(new RelationshipCommand(
+//       RHS, LHS, RelationshipCommand::Relation::AddChild));
 
-    // return RHS
-    RETURN->v_object = rhs;
-}
+//     // return RHS
+//     RETURN->v_object = rhs;
+// }
 
-CK_DLL_GFUN(ggen_op_ungruck)
-{
-    // get the arguments
-    Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
-    Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
-    // get internal representation
-    SceneGraphObject* LHS = CGL::GetSGO(lhs);
-    SceneGraphObject* RHS = CGL::GetSGO(rhs);
+// CK_DLL_GFUN(ggen_op_ungruck)
+// {
+//     // get the arguments
+//     Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
+//     Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
+//     // get internal representation
+//     SceneGraphObject* LHS = CGL::GetSGO(lhs);
+//     SceneGraphObject* RHS = CGL::GetSGO(rhs);
 
-    // command
-    CGL::PushCommand(new RelationshipCommand(
-      RHS, LHS, RelationshipCommand::Relation::RemoveChild));
+//     // command
+//     // CGL::PushCommand(new RelationshipCommand(
+//       RHS, LHS, RelationshipCommand::Relation::RemoveChild));
 
-    // return RHS
-    RETURN->v_object = rhs;
-}
+//     // return RHS
+//     RETURN->v_object = rhs;
+// }
 
-CK_DLL_MFUN(ggen_get_parent)
-{
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    auto* parent             = cglObj->GetParent();
-    // TODO: shouldn't have to refcount here, right?
-    RETURN->v_object = parent ? parent->m_ChuckObject : nullptr;
-}
+// CK_DLL_MFUN(ggen_get_parent)
+// {
+//     SG_Transform* xform
+// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+//     auto* parent             = SG_Transform::GetParent();
+//     // TODO: shouldn't have to refcount here, right?
+//     RETURN->v_object = parent ? parent->m_ChuckObject : nullptr;
+// }
 
-CK_DLL_MFUN(ggen_get_child_default)
-{
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    auto& children           = cglObj->GetChildren();
-    RETURN->v_object = children.empty() ? nullptr : children[0]->m_ChuckObject;
-}
+// CK_DLL_MFUN(ggen_get_child_default)
+// {
+//     SG_Transform* xform
+// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+//     auto& children           = SG_Transform::GetChildren();
+//     RETURN->v_object = children.empty() ? nullptr :
+//     children[0]->m_ChuckObject;
+// }
 
-CK_DLL_MFUN(ggen_get_child)
-{
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    auto& children           = cglObj->GetChildren();
-    int n                    = GET_NEXT_INT(ARGS);
-    if (n < 0 || n >= children.size()) {
-        API->vm->em_log(1, "Warning: GGen::child() index out of bounds!\n");
-        RETURN->v_object = nullptr;
-    } else {
-        RETURN->v_object = children[n]->m_ChuckObject;
-    }
-}
+// CK_DLL_MFUN(ggen_get_child)
+// {
+//     SG_Transform* xform
+// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+//     auto& children           = SG_Transform::GetChildren();
+//     int n                    = GET_NEXT_INT(ARGS);
+//     if (n < 0 || n >= children.size()) {
+//         API->vm->em_log(1, "Warning: GGen::child() index out of bounds!\n");
+//         RETURN->v_object = nullptr;
+//     } else {
+//         RETURN->v_object = children[n]->m_ChuckObject;
+//     }
+// }
 
-CK_DLL_MFUN(ggen_get_num_children)
-{
-    SceneGraphObject* cglObj = CGL::GetSGO(SELF);
-    RETURN->v_int            = cglObj->GetChildren().size();
-}
+// CK_DLL_MFUN(ggen_get_num_children)
+// {
+//     SG_Transform* xform
+// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+//     RETURN->v_int            = SG_Transform::GetChildren().size();
+// }

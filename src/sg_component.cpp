@@ -32,6 +32,31 @@ void SG_Transform::_init(SG_Transform* t)
     Arena::init(&t->childrenIDs, sizeof(SG_ID) * 8);
 }
 
+void SG_Transform::translate(SG_Transform* t, glm::vec3 delta)
+{
+    t->pos += delta;
+}
+
+void SG_Transform::rotate(SG_Transform* t, glm::quat q)
+{
+    t->rot = q * t->rot;
+}
+
+void SG_Transform::rotate(SG_Transform* t, glm::vec3 eulers)
+{
+    t->rot = glm::quat(eulers) * t->rot;
+}
+
+void SG_Transform::scale(SG_Transform* t, glm::vec3 s)
+{
+    t->sca *= s;
+}
+
+glm::vec3 SG_Transform::eulerRotationRadians(SG_Transform* t)
+{
+    return glm::eulerAngles(t->rot);
+}
+
 glm::mat4 SG_Transform::modelMatrix(SG_Transform* t)
 {
     return glm::translate(glm::mat4(1.0f), t->pos) * glm::toMat4(t->rot)
@@ -130,16 +155,16 @@ glm::vec3 SG_Transform::up(SG_Transform* t)
 }
 #undef _SG_XFORM_DIRECTION
 
-void SG_Transform::rotateOnLocalAxis(SG_Transform* t, glm::vec3 axis, float deg)
+void SG_Transform::rotateOnLocalAxis(SG_Transform* t, glm::vec3 axis, float rad)
 {
     // just flip the order of multiplication to go from local <--> world. so
     // elegant...
-    t->rot = t->rot * glm::angleAxis(deg, glm::normalize(axis));
+    t->rot = t->rot * glm::angleAxis(rad, glm::normalize(axis));
 }
 
-void SG_Transform::rotateOnWorldAxis(SG_Transform* t, glm::vec3 axis, float deg)
+void SG_Transform::rotateOnWorldAxis(SG_Transform* t, glm::vec3 axis, float rad)
 {
-    t->rot = glm::angleAxis(deg, glm::normalize(axis)) * t->rot;
+    t->rot = glm::angleAxis(rad, glm::normalize(axis)) * t->rot;
 }
 
 void SG_Transform::rotateX(SG_Transform* t, float deg)
@@ -179,7 +204,7 @@ void SG_Transform::lookAt(SG_Transform* t, glm::vec3 pos)
 // ============================================================================
 
 // storage arenas
-static Arena xformArena;
+static Arena SG_XformArena;
 // static Arena geoArena;
 // static Arena materialArena;
 // static Arena textureArena;
@@ -210,27 +235,27 @@ static u64 hashLocation(const void* item, uint64_t seed0, uint64_t seed1)
 }
 
 // state
-static SG_ID nextComponentID = 1; // 0 is reserved for NULL
+static SG_ID SG_NextComponentID = 1; // 0 is reserved for NULL
 
-static SG_ID getNewComponentID()
+static SG_ID SG_GetNewComponentID()
 {
-    return nextComponentID++;
+    return SG_NextComponentID++;
 }
 
 void SG_Init()
 {
     int seed = time(NULL);
     srand(seed);
-    locator = hashmap_new(sizeof(int), 0, seed, seed, hashLocation,
+    locator = hashmap_new(sizeof(SG_Location), 0, seed, seed, hashLocation,
                           compareLocation, NULL, NULL);
 
-    Arena::init(&xformArena, sizeof(SG_Transform) * 64);
+    Arena::init(&SG_XformArena, sizeof(SG_Transform) * 64);
 }
 
 void SG_Free()
 {
     // TODO call free() on the components themselves
-    Arena::free(&xformArena);
+    Arena::free(&SG_XformArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -238,15 +263,15 @@ void SG_Free()
 
 SG_Transform* SG_CreateTransform()
 {
-    size_t index        = ARENA_LENGTH(&xformArena, SG_Transform);
-    SG_Transform* xform = ARENA_PUSH_TYPE(&xformArena, SG_Transform);
+    size_t index        = ARENA_LENGTH(&SG_XformArena, SG_Transform);
+    SG_Transform* xform = ARENA_PUSH_TYPE(&SG_XformArena, SG_Transform);
     SG_Transform::_init(xform);
 
-    xform->id   = getNewComponentID();
+    xform->id   = SG_GetNewComponentID();
     xform->type = SG_COMPONENT_TRANSFORM;
 
     // store in map
-    SG_Location loc = { xform->id, index, &xformArena };
+    SG_Location loc = { xform->id, index, &SG_XformArena };
     hashmap_set(locator, &loc);
 
     return xform;
@@ -269,8 +294,17 @@ SG_Component* SG_GetComponent(SG_ID id)
 
 SG_Transform* SG_GetTransform(SG_ID id)
 {
-    _SG_GET_COMPONENT(id);
-    ASSERT(result->arena == &xformArena);
+    // _SG_GET_COMPONENT(id);
+
+    SG_Location key     = {};
+    key.id              = id;
+    SG_Location* result = (SG_Location*)hashmap_get(locator, &key);
+    SG_Component* component
+      = result ?
+          (ARENA_GET_TYPE(result->arena, SG_Transform, result->arenaIndex)) :
+          NULL;
+
+    ASSERT(result->arena == &SG_XformArena);
     ASSERT(component->type == SG_COMPONENT_TRANSFORM);
     return (SG_Transform*)component;
 }

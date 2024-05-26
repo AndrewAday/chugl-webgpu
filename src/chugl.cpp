@@ -1,6 +1,7 @@
 #include "all.cpp"
 
 // ulibs
+#include "ulib_component.cpp"
 #include "ulib_texture.cpp"
 
 // ChuGL version string
@@ -200,12 +201,9 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY); // GG
     }
 
-    { // SG_Component (base class for all referenced scenegraph components)
-        QUERY->begin_class(QUERY, "SG_Component", "Object");
-        QUERY->end_class(QUERY);
-    }
-
     ulib_texture_query(QUERY);
+    ulib_component_query(QUERY);
+    ulib_ggen_query(QUERY);
 
     // remember
     g_chuglVM  = QUERY->ck_vm(QUERY);
