@@ -36,6 +36,7 @@ T.assert(
     T.feq(A.rotZ(), Math.pi/2) && A.rotX() == 0 && A.rotY() == 0,
     "rotation not set correctly"
 );
+
 // A.rot(@(Math.pi/2, 0, 3));
 // A.rotateZ(Math.pi/2);
-<<< A.rotZ(), Math.pi/2 >>>;
+// <<< A.rotZ(), Math.pi/2 >>>;

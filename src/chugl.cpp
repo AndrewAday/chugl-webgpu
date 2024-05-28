@@ -42,6 +42,7 @@ t_CKBOOL chugl_main_loop_quit(void* bindle)
 {
     UNUSED_VAR(bindle);
     SG_Free();
+    Sync_Free();
     return true;
 }
 
@@ -132,6 +133,11 @@ CK_DLL_SFUN(chugl_next_frame)
     Sync_RegisterShred(SHRED);
 }
 
+CK_DLL_SFUN(chugl_gc)
+{
+    SG_GC();
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -139,6 +145,7 @@ CK_DLL_QUERY(ChuGL)
 {
     // initialize component pool
     // TODO: have a single ChuGL_Context that manages this all
+    Sync_Init();
     SG_Init();
 
     // set up for main thread hook, for running ChuGL on the main thread
@@ -190,6 +197,9 @@ CK_DLL_QUERY(ChuGL)
           "Note: this function returns an event that MUST be waited on for "
           "correct behavior, i.e. GG.nextFrame() => now;"
           "See the ChuGL tutorial and examples for more information.");
+
+        // QUERY->add_sfun(QUERY, chugl_gc, "void", "gc");
+        // QUERY->doc_func(QUERY, "Trigger garbage collection");
 
         // fps()
         // QUERY->add_sfun(QUERY, cgl_get_fps, "int", "fps");

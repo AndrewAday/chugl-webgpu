@@ -22,10 +22,12 @@
 
 typedef t_CKUINT SG_ID;
 
+// (enum, ckname)
 #define SG_ComponentTable                                                      \
     X(SG_COMPONENT_INVALID = 0, "Invalid")                                     \
     X(SG_COMPONENT_BASE, "SG_Component")                                       \
     X(SG_COMPONENT_TRANSFORM, "GGen")                                          \
+    X(SG_COMPONENT_SCENE, "GScene")                                            \
     X(SG_COMPONENT_GEOMETRY, "Geometry")                                       \
     X(SG_COMPONENT_MATERIAL, "Material")                                       \
     X(SG_COMPONENT_TEXTURE, "Texture")
@@ -47,6 +49,7 @@ struct SG_Component {
     SG_ID id;
     SG_ComponentType type;
     std::string name; // TODO move off std::string
+    Chuck_Object* ckobj;
     // TODO cache hash
     // u64 hash;
 
@@ -94,7 +97,7 @@ struct SG_Transform : public SG_Component {
     // TODO: come up with staleness scheme that makes sense for scenegraph
 
     // don't init directly. Use SG Component Manager instead
-    static void _init(SG_Transform* t);
+    static void _init(SG_Transform* t, Chuck_Object* ckobj);
 
     static void translate(SG_Transform* t, glm::vec3 delta);
     static void rotate(SG_Transform* t, glm::quat q);
@@ -121,10 +124,11 @@ struct SG_Transform : public SG_Component {
     static glm::vec3 up(SG_Transform* t);
 
     // SceneGraph relationships ========================================
-    // void AddChild(SceneGraphObject* child);
-    // void RemoveChild(SceneGraphObject* child);
-    // bool HasChild(SceneGraphObject* child);
-    // bool BelongsToSceneObject(SceneGraphObject* sgo);
+    static void addChild(SG_Transform* parent, SG_Transform* child);
+    static void removeChild(SG_Transform* parent, SG_Transform* child);
+    static bool isAncestor(SG_Transform* ancestor, SG_Transform* descendent);
+    static size_t numChildren(SG_Transform* t);
+    static SG_Transform* child(SG_Transform* t, size_t index);
 
     // disconnect from both parent and children
     // void Disconnect( bool sendChildrenToGrandparent = false );
@@ -137,8 +141,15 @@ struct SG_Transform : public SG_Component {
 void SG_Init();
 void SG_Free();
 
-// SG_Transform* SG_CreateTransform(Chuck_Object* ckobj, t_CKUINT);
-SG_Transform* SG_CreateTransform();
+SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
+
+// ============================================================================
+// SG Garbage Collection
+// ============================================================================
+
+void SG_DecrementRef(SG_ID id);
+void SG_AddRef(SG_Component* comp);
+void SG_GC();

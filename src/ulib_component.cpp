@@ -1,6 +1,8 @@
 #include "sg_component.h"
 #include <chuck/chugin.h>
 
+#include "sync.cpp"
+
 // Query function for base component class
 
 // TODO move into ulib_base / ulib_helper class
@@ -165,13 +167,12 @@ CK_DLL_MFUN(ggen_set_scale_world);
 CK_DLL_MFUN(ggen_local_pos_to_world_pos);
 
 // parent-child scenegraph API
-// CK_DLL_MFUN(ggen_disconnect);
-// CK_DLL_MFUN(ggen_get_parent);
-// CK_DLL_MFUN(ggen_get_child_default);
-// CK_DLL_MFUN(ggen_get_child);
-// CK_DLL_MFUN(ggen_get_num_children);
-// CK_DLL_GFUN(ggen_op_gruck);   // add child
-// CK_DLL_GFUN(ggen_op_ungruck); // remove child
+CK_DLL_MFUN(ggen_get_parent);
+CK_DLL_MFUN(ggen_get_child_default);
+CK_DLL_MFUN(ggen_get_child);
+CK_DLL_MFUN(ggen_get_num_children);
+CK_DLL_GFUN(ggen_op_gruck);   // add child
+CK_DLL_GFUN(ggen_op_ungruck); // remove child
 
 static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 {
@@ -375,12 +376,6 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->add_arg(QUERY, "vec3", "pos");
         QUERY->doc_func(QUERY, "Look at the given position in world space");
 
-        // vec3 lookAtDir()
-        QUERY->add_mfun(QUERY, ggen_get_forward, "vec3", "lookAtDir");
-        QUERY->doc_func(QUERY,
-                        "Get the direction this GGen is looking, i.e. the "
-                        "forward vector of this GGen in world space");
-
         // Scale ===============================================================
 
         // float scaX()
@@ -444,27 +439,26 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 
         // scenegraph relationship methods
         // =======================================
-        // QUERY->add_mfun(QUERY, ggen_get_parent, "GGen", "parent");
-        // QUERY->doc_func(QUERY, "Get the parent of this GGen");
+        QUERY->add_mfun(QUERY, ggen_get_parent, "GGen", "parent");
+        QUERY->doc_func(QUERY, "Get the parent of this GGen");
 
-        // QUERY->add_mfun(QUERY, ggen_get_child, "GGen", "child");
-        // QUERY->add_arg(QUERY, "int", "n");
-        // QUERY->doc_func(QUERY, "Get the n'th child of this GGen");
+        QUERY->add_mfun(QUERY, ggen_get_child, "GGen", "child");
+        QUERY->add_arg(QUERY, "int", "n");
+        QUERY->doc_func(QUERY, "Get the n'th child of this GGen");
 
-        // QUERY->add_mfun(QUERY, ggen_get_child_default, "GGen", "child");
-        // QUERY->doc_func(QUERY, "Get the 0th child of this GGen");
+        QUERY->add_mfun(QUERY, ggen_get_child_default, "GGen", "child");
+        QUERY->doc_func(QUERY, "Get the 0th child of this GGen");
 
-        // QUERY->add_mfun(QUERY, ggen_get_num_children, "int",
-        // "numChildren"); QUERY->doc_func(QUERY, "Get the number of children
-        // for this GGen");
+        QUERY->add_mfun(QUERY, ggen_get_num_children, "int", "numChildren");
+        QUERY->doc_func(QUERY, "Get the number of children for this GGen");
 
-        // // overload GGen --> GGen
-        // QUERY->add_op_overload_binary(QUERY, ggen_op_gruck, "GGen", "-->",
-        //                               "GGen", "lhs", "GGen", "rhs");
+        // overload GGen --> GGen
+        QUERY->add_op_overload_binary(QUERY, ggen_op_gruck, "GGen", "-->",
+                                      "GGen", "lhs", "GGen", "rhs");
 
-        // // overload GGen --< GGen
-        // QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<",
-        //                               "GGen", "lhs", "GGen", "rhs");
+        // overload GGen --< GGen
+        QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<",
+                                      "GGen", "lhs", "GGen", "rhs");
 
         QUERY->end_class(QUERY); // GGen
     }
@@ -485,10 +479,7 @@ CK_DLL_CTOR(ggen_ctor)
         || API->type->origin_hint(thisType)
              == ckte_origin_IMPORT // .ck file included in search path
     ) {
-        SG_Transform* xform = SG_CreateTransform();
-        // save SG_ID
-        OBJ_MEMBER_UINT(SELF, component_offset_id) = xform->id;
-        // TODO: push command
+        Sync_PushCommand_CreateTransform(SELF, component_offset_id, API);
     }
 }
 
@@ -549,8 +540,7 @@ CK_DLL_MFUN(ggen_set_pos_x)
     xform->pos.x    = posX;
     RETURN->v_float = posX;
 
-    // TODO command
-    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_y)
@@ -568,8 +558,7 @@ CK_DLL_MFUN(ggen_set_pos_y)
     xform->pos.y    = posY;
     RETURN->v_float = posY;
 
-    // TODO command
-    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_z)
@@ -587,8 +576,7 @@ CK_DLL_MFUN(ggen_set_pos_z)
     xform->pos.z    = posZ;
     RETURN->v_float = posZ;
 
-    // TODO command
-    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos)
@@ -608,7 +596,7 @@ CK_DLL_MFUN(ggen_set_pos)
     xform->pos.z   = vec.z;
     RETURN->v_vec3 = vec;
 
-    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_world)
@@ -625,9 +613,10 @@ CK_DLL_MFUN(ggen_set_pos_world)
       = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldPosition(xform, glm::vec3(vec.x, vec.y, vec.z));
-    RETURN->v_object = SELF;
 
-    // // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
+
+    RETURN->v_object = SELF;
 }
 
 CK_DLL_MFUN(ggen_translate)
@@ -637,8 +626,7 @@ CK_DLL_MFUN(ggen_translate)
     t_CKVEC3 trans = GET_NEXT_VEC3(ARGS);
     SG_Transform::translate(xform, glm::vec3(trans.x, trans.y, trans.z));
 
-    // add to command queue
-    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 
     RETURN->v_object = SELF;
 }
@@ -650,8 +638,7 @@ CK_DLL_MFUN(ggen_translate_x)
     t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { amt, 0, 0 });
 
-    // add to command queue
-    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
+    Sync_PushCommand_SetPosition(xform);
 
     RETURN->v_object = SELF;
 }
@@ -663,10 +650,9 @@ CK_DLL_MFUN(ggen_translate_y)
     t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { 0, amt, 0 });
 
-    // add to command queue
-    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
-
     RETURN->v_object = SELF;
+
+    Sync_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_translate_z)
@@ -676,10 +662,9 @@ CK_DLL_MFUN(ggen_translate_z)
     t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { 0, 0, amt });
 
-    // add to command queue
-    // CGL::PushCommand(new UpdatePositionCommand(cglObj));
-
     RETURN->v_object = SELF;
+
+    Sync_PushCommand_SetPosition(xform);
 }
 
 // Rotation Impl ===============================================================
@@ -701,7 +686,8 @@ CK_DLL_MFUN(ggen_set_rot_x)
     xform->rot       = glm::quat(eulers);
 
     RETURN->v_float = rad;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot_y)
@@ -726,7 +712,8 @@ CK_DLL_MFUN(ggen_set_rot_y)
     xform->rot       = glm::quat(eulers);
 
     RETURN->v_float = rad; // TODO: RETURN->v_object = SELF
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot_z)
@@ -747,7 +734,7 @@ CK_DLL_MFUN(ggen_set_rot_z)
 
     RETURN->v_float = rad;
 
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot)
@@ -766,7 +753,7 @@ CK_DLL_MFUN(ggen_set_rot)
     xform->rot     = glm::quat(glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
 
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate)
@@ -776,7 +763,8 @@ CK_DLL_MFUN(ggen_rotate)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::rotate(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_x)
@@ -786,7 +774,8 @@ CK_DLL_MFUN(ggen_rotate_x)
     t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateX(xform, rad);
     RETURN->v_object = SELF;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_y)
@@ -796,7 +785,7 @@ CK_DLL_MFUN(ggen_rotate_y)
     t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateY(xform, rad);
     RETURN->v_object = SELF;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_z)
@@ -806,7 +795,7 @@ CK_DLL_MFUN(ggen_rotate_z)
     t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateZ(xform, rad);
     RETURN->v_object = SELF;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rot_on_local_axis)
@@ -819,7 +808,7 @@ CK_DLL_MFUN(ggen_rot_on_local_axis)
 
     RETURN->v_object = SELF;
 
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rot_on_world_axis)
@@ -832,7 +821,7 @@ CK_DLL_MFUN(ggen_rot_on_world_axis)
 
     RETURN->v_object = SELF;
 
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_lookat_vec3)
@@ -842,7 +831,7 @@ CK_DLL_MFUN(ggen_lookat_vec3)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::lookAt(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    // CGL::PushCommand(new UpdateRotationCommand(cglObj));
+    Sync_PushCommand_SetRotation(xform);
 }
 
 // Scale impl ===============================================================
@@ -861,7 +850,7 @@ CK_DLL_MFUN(ggen_set_scale_x)
     t_CKFLOAT scaleX = GET_NEXT_FLOAT(ARGS);
     xform->sca.x     = scaleX;
     RETURN->v_float  = scaleX;
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_y)
@@ -878,7 +867,7 @@ CK_DLL_MFUN(ggen_set_scale_y)
     t_CKFLOAT scaleY = GET_NEXT_FLOAT(ARGS);
     xform->sca.y     = scaleY;
     RETURN->v_float  = scaleY;
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_z)
@@ -895,7 +884,7 @@ CK_DLL_MFUN(ggen_set_scale_z)
     t_CKFLOAT scaleZ = GET_NEXT_FLOAT(ARGS);
     xform->sca.z     = scaleZ;
     RETURN->v_float  = scaleZ;
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale)
@@ -912,7 +901,7 @@ CK_DLL_MFUN(ggen_set_scale)
     t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
     xform->sca     = glm::vec3(vec.x, vec.y, vec.z);
     RETURN->v_vec3 = vec;
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_set_scale_uniform)
@@ -924,7 +913,7 @@ CK_DLL_MFUN(ggen_set_scale_uniform)
     xform->sca.y   = s;
     xform->sca.z   = s;
     RETURN->v_vec3 = { s, s, s };
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_world)
@@ -942,7 +931,7 @@ CK_DLL_MFUN(ggen_set_scale_world)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldScale(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
-    // CGL::PushCommand(new UpdateScaleCommand(cglObj));
+    Sync_PushCommand_SetScale(xform);
 }
 
 // Transformation API
@@ -960,85 +949,86 @@ CK_DLL_MFUN(ggen_local_pos_to_world_pos)
 
 // Scenegraph Relationship Impl
 // ===============================================================
-// CK_DLL_GFUN(ggen_op_gruck)
-// {
-//     // get the arguments
-//     Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
-//     Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
+CK_DLL_GFUN(ggen_op_gruck)
+{
+    // get the arguments
+    Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
+    Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
 
-//     if (!lhs || !rhs) {
-//         std::string errMsg = std::string("in gruck operator: ")
-//                              + (lhs ? "LHS" : "[null]") + " --> "
-//                              + (rhs ? "RHS" : "[null]");
-//         // nullptr exception
-//         API->vm->throw_exception("NullPointerException", errMsg.c_str(),
-//         SHRED); return;
-//     }
+    if (!lhs || !rhs) {
+        std::string errMsg = std::string("in gruck operator: ")
+                             + (lhs ? "LHS" : "[null]") + " --> "
+                             + (rhs ? "RHS" : "[null]");
+        // nullptr exception
+        API->vm->throw_exception("NullPointerException", errMsg.c_str(), SHRED);
+        return;
+    }
 
-//     // get internal representation
-//     SceneGraphObject* LHS = CGL::GetSGO(lhs);
-//     SceneGraphObject* RHS = CGL::GetSGO(rhs);
+    // get internal representation
+    SG_Transform* lhs_xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(lhs, component_offset_id));
+    SG_Transform* rhs_xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(rhs, component_offset_id));
 
-//     // command
-//     // CGL::PushCommand(new RelationshipCommand(
-//       RHS, LHS, RelationshipCommand::Relation::AddChild));
+    // command
+    Sync_PushCommand_AddChild(rhs_xform, lhs_xform);
 
-//     // return RHS
-//     RETURN->v_object = rhs;
-// }
+    // return RHS
+    RETURN->v_object = rhs;
+}
 
-// CK_DLL_GFUN(ggen_op_ungruck)
-// {
-//     // get the arguments
-//     Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
-//     Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
-//     // get internal representation
-//     SceneGraphObject* LHS = CGL::GetSGO(lhs);
-//     SceneGraphObject* RHS = CGL::GetSGO(rhs);
+CK_DLL_GFUN(ggen_op_ungruck)
+{
+    // get the arguments
+    Chuck_Object* lhs = GET_NEXT_OBJECT(ARGS);
+    Chuck_Object* rhs = GET_NEXT_OBJECT(ARGS);
 
-//     // command
-//     // CGL::PushCommand(new RelationshipCommand(
-//       RHS, LHS, RelationshipCommand::Relation::RemoveChild));
+    // get internal
+    SG_Transform* lhs_xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(lhs, component_offset_id));
+    SG_Transform* rhs_xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(rhs, component_offset_id));
 
-//     // return RHS
-//     RETURN->v_object = rhs;
-// }
+    // command
+    Sync_PushCommand_RemoveChild(rhs_xform, lhs_xform);
 
-// CK_DLL_MFUN(ggen_get_parent)
-// {
-//     SG_Transform* xform
-// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-//     auto* parent             = SG_Transform::GetParent();
-//     // TODO: shouldn't have to refcount here, right?
-//     RETURN->v_object = parent ? parent->m_ChuckObject : nullptr;
-// }
+    // return RHS
+    RETURN->v_object = rhs;
+}
 
-// CK_DLL_MFUN(ggen_get_child_default)
-// {
-//     SG_Transform* xform
-// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-//     auto& children           = SG_Transform::GetChildren();
-//     RETURN->v_object = children.empty() ? nullptr :
-//     children[0]->m_ChuckObject;
-// }
+CK_DLL_MFUN(ggen_get_parent)
+{
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-// CK_DLL_MFUN(ggen_get_child)
-// {
-//     SG_Transform* xform
-// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-//     auto& children           = SG_Transform::GetChildren();
-//     int n                    = GET_NEXT_INT(ARGS);
-//     if (n < 0 || n >= children.size()) {
-//         API->vm->em_log(1, "Warning: GGen::child() index out of bounds!\n");
-//         RETURN->v_object = nullptr;
-//     } else {
-//         RETURN->v_object = children[n]->m_ChuckObject;
-//     }
-// }
+    SG_Component* parent = SG_GetComponent(xform->parentID);
 
-// CK_DLL_MFUN(ggen_get_num_children)
-// {
-//     SG_Transform* xform
-// = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-//     RETURN->v_int            = SG_Transform::GetChildren().size();
-// }
+    RETURN->v_object = parent ? parent->ckobj : NULL;
+}
+
+CK_DLL_MFUN(ggen_get_child_default)
+{
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* child = SG_Transform::child(xform, 0);
+    RETURN->v_object    = child ? NULL : child->ckobj;
+}
+
+CK_DLL_MFUN(ggen_get_child)
+{
+
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* child = SG_Transform::child(xform, GET_NEXT_INT(ARGS));
+    RETURN->v_object    = child ? NULL : child->ckobj;
+
+    // index warning
+    // API->vm->em_log(1, "Warning: GGen::child() index out of bounds!\n");
+}
+
+CK_DLL_MFUN(ggen_get_num_children)
+{
+    SG_Transform* xform
+      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_int = SG_Transform::numChildren(xform);
+}

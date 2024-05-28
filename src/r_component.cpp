@@ -99,6 +99,26 @@ void R_Transform::init(R_Transform* transform)
     Arena::init(&transform->children, sizeof(SG_ID) * 8);
 }
 
+void R_Transform::initFromSG(R_Transform* r_xform, SG_Command_CreateXform* cmd)
+{
+    ASSERT(r_xform->id == 0); // ensure not initialized twice
+    *r_xform = {};
+
+    // copy base component data
+    // TODO have a separate R_ComponentType enum?
+    r_xform->id   = cmd->sg_id;
+    r_xform->type = SG_COMPONENT_TRANSFORM;
+
+    // copy xform
+    r_xform->_pos   = cmd->pos;
+    r_xform->_rot   = cmd->rot;
+    r_xform->_sca   = cmd->sca;
+    r_xform->_stale = R_Transform_STALE_LOCAL;
+
+    // initialize children array for 8 children
+    Arena::init(&r_xform->children, sizeof(SG_ID) * 8);
+}
+
 void R_Transform::setStale(R_Transform* xform, R_Transform_Staleness stale)
 {
     // only set if new staleness is higher priority
@@ -133,16 +153,14 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
         return;
     }
 
-    u32 numChildren = ARENA_LENGTH(&parent->children, SG_ID);
-    u32* children   = (u32*)parent->children.base;
+    size_t numChildren = ARENA_LENGTH(&parent->children, SG_ID);
+    SG_ID* children    = (SG_ID*)parent->children.base;
 
     // remove child's parent reference
-    // (must do this first to prevent double-free, bc
-    // releasing the child may trigger a disconnect its the destructor)
     child->parentID = 0;
 
     // remove from parent
-    for (u32 i = 0; i < numChildren; ++i) {
+    for (size_t i = 0; i < numChildren; ++i) {
         if (children[i] == child->id) {
             // swap with last element
             children[i] = children[numChildren - 1];
@@ -151,15 +169,6 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
             break;
         }
     }
-
-    // TODO: gc
-    // release ref count on child's chuck object; one less reference to it
-    // from us (parent)
-    // CHUGL_NODE_QUEUE_RELEASE(child);
-
-    // release ref count on our (parent's) chuck object; one less reference
-    // to it from child
-    // CHUGL_NODE_QUEUE_RELEASE(parent);
 }
 
 void R_Transform::addChild(R_Transform* parent, R_Transform* child)
@@ -190,16 +199,10 @@ void R_Transform::addChild(R_Transform* parent, R_Transform* child)
 
     // set parent of child
     child->parentID = parent->id;
-    // TODO: reference count
-    // CHUGL_NODE_ADD_REF(this);
 
     // add child to parent
     SG_ID* xformID = ARENA_PUSH_TYPE(&parent->children, SG_ID);
     *xformID       = child->id;
-
-    // TODO: refcount
-    // add ref to kid
-    // CHUGL_NODE_ADD_REF(child);
 
     R_Transform::setStale(child, R_Transform_STALE_WORLD);
 }
@@ -1204,6 +1207,20 @@ R_Transform* Component_CreateTransform()
     xformMap[xform->id] = Arena::offsetOf(&xformArena, xform);
 
     return xform;
+}
+
+R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
+{
+    R_Transform* r_xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
+    R_Transform::initFromSG(r_xform, cmd);
+
+    ASSERT(r_xform->id != 0);                        // ensure id is set
+    ASSERT(r_xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
+
+    // store offset
+    xformMap[r_xform->id] = Arena::offsetOf(&xformArena, r_xform);
+
+    return r_xform;
 }
 
 R_Geometry* Component_CreateGeometry()

@@ -38,6 +38,7 @@
 #define UNUSED_VAR(x) ((void)(x))
 #define UNUSED_FUNCTION(x) ((void)(x))
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
+#define COPY_STRUCT(dst, src, type) (memcpy((dst), (src), sizeof(type)))
 
 // ============================================================================
 // Types

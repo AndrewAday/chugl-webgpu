@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics.h"
+#include "sg_command.h"
 #include "sg_component.h"
 
 #include "core/macros.h"
@@ -69,6 +70,7 @@ struct R_Transform : public R_Component {
     SG_ID _matID;
 
     static void init(R_Transform* transform);
+    static void initFromSG(R_Transform* r_xform, SG_Command_CreateXform* cmd);
 
     static void setStale(R_Transform* xform, R_Transform_Staleness stale);
 
@@ -299,6 +301,20 @@ struct R_Material : public R_Component {
 };
 
 // =============================================================================
+// R_Scene
+// =============================================================================
+struct R_Scene : R_Component {
+    Arena xforms;
+    Arena geos;
+    Arena materials;
+    Arena textures;
+    Arena pipelines;
+
+    static void init(R_Scene* scene);
+    static void free(R_Scene* scene);
+};
+
+// =============================================================================
 // R_RenderPipeline
 // =============================================================================
 
@@ -331,6 +347,7 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 // =============================================================================
 
 R_Transform* Component_CreateTransform();
+R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 R_Geometry* Component_CreateGeometry();
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config);

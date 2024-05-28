@@ -20,10 +20,12 @@ const char* SG_Component::ckname(SG_ComponentType type)
 // SG_Transform definitions
 // ============================================================================
 
-void SG_Transform::_init(SG_Transform* t)
+void SG_Transform::_init(SG_Transform* t, Chuck_Object* ckobj)
 {
     ASSERT(t->id == 0); // ensure not initialized twice
+    ASSERT(ckobj);
 
+    t->ckobj    = ckobj;
     t->pos      = glm::vec3(0.0f);
     t->rot      = QUAT_IDENTITY;
     t->sca      = glm::vec3(1.0f);
@@ -199,9 +201,113 @@ void SG_Transform::lookAt(SG_Transform* t, glm::vec3 pos)
     t->rot = local_rotation;
 }
 
+void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
+{
+    // Object cannot be added as child of itself
+    if (parent == child) {
+        std::cerr << "GGen cannot be added as child of itself" << std::endl;
+        return;
+    }
+
+    if (parent == NULL || child == NULL) {
+        std::cerr << "cannot add NULL parent or child GGen" << std::endl;
+        return;
+    }
+
+    if (child->type == SG_COMPONENT_SCENE) { // necessary to prevent cycles
+        std::cerr << "cannot add make GScene a child of another GGen"
+                  << std::endl;
+        return;
+    }
+
+    if (SG_Transform::isAncestor(child, parent)) {
+        std::cerr
+          << "No cycles in scenegraph; cannot add parent as child of descendent"
+          << std::endl;
+        return;
+    }
+
+    // we are already the parent, do nothing
+    if (child->parentID == parent->id) return;
+
+    // remove child from old parent
+    if (child->parentID) {
+        SG_Transform* prevParent = SG_GetTransform(child->parentID);
+        SG_Transform::removeChild(prevParent, child);
+    }
+
+    // assign to new parent
+    child->parentID = parent->id;
+
+    // reference count
+    SG_AddRef(parent);
+
+    // add to list of children
+    SG_ID* xformID = ARENA_PUSH_TYPE(&parent->childrenIDs, SG_ID);
+    *xformID       = child->id;
+
+    // add ref to kid
+    SG_AddRef(child);
+}
+void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
+{
+    if (child->parentID != parent->id) return;
+
+    size_t numChildren = ARENA_LENGTH(&parent->childrenIDs, SG_ID);
+    SG_ID* children    = (SG_ID*)parent->childrenIDs.base;
+
+    child->parentID = 0;
+
+    for (size_t i = 0; i < numChildren; ++i) {
+        if (children[i] == child->id) {
+            // swap with last element
+            children[i] = children[numChildren - 1];
+            // pop last element
+            Arena::pop(&parent->childrenIDs, sizeof(SG_ID));
+
+            // release ref count on child's chuck object; one less reference to
+            // it from us (parent)
+            SG_DecrementRef(child->id);
+
+            // release ref count on our (parent's) chuck object; one less
+            // reference to it from child
+            SG_DecrementRef(parent->id);
+            break;
+        }
+    }
+}
+bool SG_Transform::isAncestor(SG_Transform* ancestor, SG_Transform* descendent)
+{
+    while (descendent != NULL) {
+        if (descendent == ancestor) return true;
+        descendent = SG_GetTransform(descendent->parentID);
+    }
+    return false;
+}
+
+size_t SG_Transform::numChildren(SG_Transform* t)
+{
+    return ARENA_LENGTH(&t->childrenIDs, SG_ID);
+}
+
+SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
+{
+    if (index >= numChildren(t)) return NULL;
+    return SG_GetTransform(*ARENA_GET_TYPE(&t->childrenIDs, SG_ID, index));
+}
+
 // ============================================================================
 // SG Component Manager Definitions
 // ============================================================================
+
+// chugin API pointers
+static const Chuck_DL_Api* _ck_api = NULL;
+
+// GC arenas
+static Arena _gc_queue_a;
+static Arena _gc_queue_b;
+static Arena* _gc_queue_read  = &_gc_queue_a;
+static Arena* _gc_queue_write = &_gc_queue_b;
 
 // storage arenas
 static Arena SG_XformArena;
@@ -214,9 +320,9 @@ static hashmap* locator = NULL;
 
 // hashmap item for lookup
 struct SG_Location {
-    SG_ID id;          // key
-    size_t arenaIndex; // value
-    Arena* arena;      // where to find
+    SG_ID id;      // key
+    size_t offset; // value (byte offset into arena)
+    Arena* arena;  // where to find
 };
 
 static int compareLocation(const void* a, const void* b, void* udata)
@@ -242,71 +348,112 @@ static SG_ID SG_GetNewComponentID()
     return SG_NextComponentID++;
 }
 
-void SG_Init()
+void SG_Init(const Chuck_DL_Api* api)
 {
+    _ck_api = api;
+
     int seed = time(NULL);
     srand(seed);
     locator = hashmap_new(sizeof(SG_Location), 0, seed, seed, hashLocation,
                           compareLocation, NULL, NULL);
 
     Arena::init(&SG_XformArena, sizeof(SG_Transform) * 64);
+
+    // init gc state
+    Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
+    Arena::init(&_gc_queue_b, sizeof(SG_ID) * 64);
 }
 
 void SG_Free()
 {
+    _ck_api = NULL;
+
     // TODO call free() on the components themselves
     Arena::free(&SG_XformArena);
 
     hashmap_free(locator);
     locator = NULL;
+
+    // free gc state
+    Arena::free(&_gc_queue_a);
+    Arena::free(&_gc_queue_b);
 }
 
-SG_Transform* SG_CreateTransform()
+SG_Transform* SG_CreateTransform(Chuck_Object* ckobj)
 {
-    size_t index        = ARENA_LENGTH(&SG_XformArena, SG_Transform);
+    size_t offset       = SG_XformArena.curr;
     SG_Transform* xform = ARENA_PUSH_TYPE(&SG_XformArena, SG_Transform);
-    SG_Transform::_init(xform);
+    SG_Transform::_init(xform, ckobj);
 
     xform->id   = SG_GetNewComponentID();
     xform->type = SG_COMPONENT_TRANSFORM;
 
     // store in map
-    SG_Location loc = { xform->id, index, &SG_XformArena };
+    SG_Location loc = { xform->id, offset, &SG_XformArena };
     hashmap_set(locator, &loc);
 
     return xform;
 }
 
-#define _SG_GET_COMPONENT(id)                                                  \
-    SG_Location key     = {};                                                  \
-    key.id              = id;                                                  \
-    SG_Location* result = (SG_Location*)hashmap_get(locator, &key);            \
-    SG_Component* component                                                    \
-      = result ?                                                               \
-          (ARENA_GET_TYPE(result->arena, SG_Transform, result->arenaIndex)) :  \
-          NULL;
-
 SG_Component* SG_GetComponent(SG_ID id)
 {
-    _SG_GET_COMPONENT(id);
+    SG_Location key     = {};
+    key.id              = id;
+    SG_Location* result = (SG_Location*)hashmap_get(locator, &key);
+    SG_Component* component
+      = result ? (SG_Component*)Arena::get(result->arena, result->offset) :
+                 NULL;
     return component;
 }
 
 SG_Transform* SG_GetTransform(SG_ID id)
 {
-    // _SG_GET_COMPONENT(id);
-
-    SG_Location key     = {};
-    key.id              = id;
-    SG_Location* result = (SG_Location*)hashmap_get(locator, &key);
-    SG_Component* component
-      = result ?
-          (ARENA_GET_TYPE(result->arena, SG_Transform, result->arenaIndex)) :
-          NULL;
-
-    ASSERT(result->arena == &SG_XformArena);
+    SG_Component* component = SG_GetComponent(id);
     ASSERT(component->type == SG_COMPONENT_TRANSFORM);
+    // TODO: also check for other children of SG_Transform
     return (SG_Transform*)component;
 }
 
 #undef _SG_GET_COMPONENT
+
+// ============================================================================
+// SG Garbage Collector
+// ============================================================================
+
+static void _SG_SwapGCQueues()
+{
+    Arena* temp     = _gc_queue_read;
+    _gc_queue_read  = _gc_queue_write;
+    _gc_queue_write = temp;
+}
+
+void SG_QueueCKRelease(SG_ID id)
+{
+    SG_ID* idPtr = ARENA_PUSH_TYPE(_gc_queue_write, SG_ID);
+    *idPtr       = id;
+}
+
+void SG_AddRef(SG_Component* comp)
+{
+    if (comp) {
+        ASSERT(comp->ckobj);
+        _ck_api->object->add_ref(comp->ckobj);
+    }
+}
+
+void SG_GC()
+{
+    // swap queues
+    _SG_SwapGCQueues();
+
+    // release all objects in read queue
+    size_t count = ARENA_LENGTH(_gc_queue_read, SG_ID);
+    for (size_t i = 0; i < count; i++) {
+        SG_Component* comp = ARENA_GET_TYPE(_gc_queue_read, SG_Component, i);
+        if (!comp) continue; // already deleted
+        _ck_api->object->release(comp->ckobj);
+    }
+
+    // clear read queue
+    Arena::clear(_gc_queue_read);
+}
