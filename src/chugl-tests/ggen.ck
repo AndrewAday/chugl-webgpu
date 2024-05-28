@@ -40,3 +40,17 @@ T.assert(
 // A.rot(@(Math.pi/2, 0, 3));
 // A.rotateZ(Math.pi/2);
 // <<< A.rotZ(), Math.pi/2 >>>;
+
+// scenegraph relationships
+T.assert(
+    A.parent() == null && A.numChildren() == 0,
+    "gruck 0"
+);
+
+A --> B;
+
+T.assert(
+    A.parent() == B && A.numChildren() == 0 && 
+    B.child() == A && B.numChildren() == 1,
+    "gruck 1"
+);

@@ -43,14 +43,16 @@ frame arena and then copy over)
 */
 
 enum SG_CommandType : u32 {
-    SG_COMMAND_TYPE_NONE = 0,
-    SG_COMMAND_TYPE_CREATE_XFORM,
-    SG_COMMAND_TYPE_ADD_CHILD,
-    SG_COMMAND_TYPE_REMOVE_CHILD,
-    SG_COMMAND_TYPE_SET_POSITION,
-    SG_COMMAND_TYPE_SET_ROTATATION,
-    SG_COMMAND_TYPE_SET_SCALE,
-    SG_COMMAND_TYPE_COUNT
+    SG_COMMAND_NONE = 0,
+    SG_COMMAND_CREATE_XFORM,
+    SG_COMMAND_ADD_CHILD,
+    SG_COMMAND_REMOVE_CHILD,
+    SG_COMMAND_SET_POSITION,
+    SG_COMMAND_SET_ROTATATION,
+    SG_COMMAND_SET_SCALE,
+    SG_COMMAND_SCENE_CREATE,
+    SG_COMMAND_SCENE_BG_COLOR,
+    SG_COMMAND_COUNT
 };
 
 struct SG_Command {
@@ -92,3 +94,44 @@ struct SG_Command_SetScale : public SG_Command {
     SG_ID sg_id;
     glm::vec3 sca;
 };
+
+struct SG_Command_SceneCreate : public SG_Command {
+    SG_ID sg_id;
+};
+
+struct SG_Command_SceneBGColor : public SG_Command {
+    SG_ID sg_id;
+    glm::vec4 color;
+};
+
+// ============================================================================
+// Command Queue API
+// ============================================================================
+
+void CQ_Init();
+void CQ_Free();
+
+// swap the command queue double buffer
+void CQ_SwapQueues();
+
+bool CQ_ReadCommandQueueIter(SG_Command** command);
+
+void CQ_ReadCommandQueueClear();
+
+// ============================================================================
+// Commands
+// ============================================================================
+
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
+                                    t_CKUINT component_offset_id,
+                                    CK_DL_API API);
+void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child);
+void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child);
+void CQ_PushCommand_SetPosition(SG_Transform* xform);
+void CQ_PushCommand_SetRotation(SG_Transform* xform);
+void CQ_PushCommand_SetScale(SG_Transform* xform);
+
+void CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
+                                t_CKUINT component_offset_id, CK_DL_API API);
+
+void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);

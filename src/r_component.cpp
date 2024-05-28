@@ -1,4 +1,5 @@
 #include "r_component.h"
+#include "core/hashmap.h"
 #include "geometry.h"
 #include "graphics.h"
 #include "shaders.h"
@@ -92,6 +93,7 @@ void R_Transform::init(R_Transform* transform)
 
     transform->world  = MAT_IDENTITY;
     transform->local  = MAT_IDENTITY;
+    transform->normal = MAT_IDENTITY;
     transform->_stale = R_Transform_STALE_NONE;
 
     transform->parentID = 0;
@@ -1034,6 +1036,32 @@ bool R_Material::primitiveIter(R_Material* mat, size_t* indexPtr,
 }
 
 // ============================================================================
+// R_Scene
+// ============================================================================
+
+void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
+{
+    ASSERT(r_scene->id == 0); // ensure not initialized twice
+    *r_scene = {};
+
+    // copy base component data
+    // TODO have a separate R_ComponentType enum?
+    r_scene->id   = cmd->sg_id;
+    r_scene->type = SG_COMPONENT_SCENE;
+
+    // copy xform
+    r_scene->_pos = VEC_ORIGIN;
+    r_scene->_rot = QUAT_IDENTITY;
+    r_scene->_sca = VEC_ONES;
+
+    // set stale to force rebuild of matrices
+    r_scene->_stale = R_Transform_STALE_LOCAL;
+
+    // initialize children array for 8 children
+    Arena::init(&r_scene->children, sizeof(SG_ID) * 8);
+}
+
+// ============================================================================
 // Render Pipeline Definitions
 // ============================================================================
 
@@ -1160,27 +1188,53 @@ bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline,
 
 // storage arenas
 static Arena xformArena;
+static Arena sceneArena;
 static Arena geoArena;
 static Arena materialArena;
 static Arena textureArena;
 static Arena _RenderPipelineArena;
 
 // maps from id --> offset
-// TODO: switch to better hashmap impl
-static std::unordered_map<SG_ID, u64> xformMap;
-static std::unordered_map<SG_ID, u64> geoMap;
-static std::unordered_map<SG_ID, u64> materialMap;
-static std::unordered_map<SG_ID, u64> _textureMap;
-static std::unordered_map<R_ID, u64> _RenderPipelineMap;
+static hashmap* r_locator = NULL;
+std::unordered_map<R_ID, u64> _RenderPipelineMap;
+
+struct R_Location {
+    SG_ID id;      // key
+    size_t offset; // value (byte offset into arena)
+    Arena* arena;  // where to find
+};
+
+static int R_CompareLocation(const void* a, const void* b, void* udata)
+{
+    R_Location* locA = (R_Location*)a;
+    R_Location* locB = (R_Location*)b;
+    return locA->id - locB->id;
+}
+
+static u64 R_HashLocation(const void* item, uint64_t seed0, uint64_t seed1)
+{
+    // tested xxhash3 is best
+    R_Location* key = (R_Location*)item;
+    return hashmap_xxhash3(&key->id, sizeof(SG_ID), seed0, seed1);
+    // return hashmap_sip(item, sizeof(int), seed0, seed1);
+    // return hashmap_murmur(item, sizeof(int), seed0, seed1);
+}
 
 void Component_Init()
 {
     // initialize arena memory
     Arena::init(&xformArena, sizeof(R_Transform) * 128);
+    Arena::init(&sceneArena, sizeof(R_Scene) * 128);
     Arena::init(&geoArena, sizeof(R_Geometry) * 128);
     Arena::init(&materialArena, sizeof(R_Material) * 64);
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
+
+    // init locator
+    int seed = time(NULL);
+    srand(seed);
+    r_locator = hashmap_new(sizeof(R_Location), 0, seed, seed, R_HashLocation,
+                            R_CompareLocation, NULL, NULL);
 }
 
 void Component_Free()
@@ -1189,10 +1243,15 @@ void Component_Free()
 
     // free arena memory
     Arena::free(&xformArena);
+    Arena::free(&sceneArena);
     Arena::free(&geoArena);
     Arena::free(&materialArena);
     Arena::free(&_RenderPipelineArena);
     Arena::free(&textureArena);
+
+    // free locator
+    hashmap_free(r_locator);
+    r_locator = NULL;
 }
 
 R_Transform* Component_CreateTransform()
@@ -1204,23 +1263,46 @@ R_Transform* Component_CreateTransform()
     ASSERT(xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
 
     // store offset
-    xformMap[xform->id] = Arena::offsetOf(&xformArena, xform);
+    R_Location loc
+      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
 
     return xform;
 }
 
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
 {
-    R_Transform* r_xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
-    R_Transform::initFromSG(r_xform, cmd);
+    R_Transform* xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
+    R_Transform::initFromSG(xform, cmd);
 
-    ASSERT(r_xform->id != 0);                        // ensure id is set
-    ASSERT(r_xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
+    ASSERT(xform->id != 0);                        // ensure id is set
+    ASSERT(xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
 
     // store offset
-    xformMap[r_xform->id] = Arena::offsetOf(&xformArena, r_xform);
+    R_Location loc
+      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
 
-    return r_xform;
+    return xform;
+}
+
+R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
+{
+    R_Scene* r_scene = ARENA_PUSH_TYPE(&xformArena, R_Scene);
+    R_Scene::initFromSG(r_scene, cmd);
+
+    ASSERT(r_scene->id != 0);                    // ensure id is set
+    ASSERT(r_scene->type == SG_COMPONENT_SCENE); // ensure type is set
+
+    // store offset
+    R_Location loc
+      = { r_scene->id, Arena::offsetOf(&sceneArena, r_scene), &sceneArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return r_scene;
 }
 
 R_Geometry* Component_CreateGeometry()
@@ -1232,7 +1314,9 @@ R_Geometry* Component_CreateGeometry()
     ASSERT(geo->type == SG_COMPONENT_GEOMETRY); // ensure type is set
 
     // store offset
-    geoMap[geo->id] = Arena::offsetOf(&geoArena, geo);
+    R_Location loc = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
 
     return geo;
 }
@@ -1247,7 +1331,10 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
     ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
 
     // store offset
-    materialMap[mat->id] = Arena::offsetOf(&materialArena, mat);
+    R_Location loc
+      = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
 
     return mat;
 }
@@ -1261,41 +1348,58 @@ R_Texture* Component_CreateTexture()
     ASSERT(texture->type == SG_COMPONENT_TEXTURE); // ensure type is set
 
     // store offset
-    _textureMap[texture->id] = Arena::offsetOf(&textureArena, texture);
+    R_Location loc
+      = { texture->id, Arena::offsetOf(&textureArena, texture), &textureArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
 
     return texture;
 }
 
+R_Component* Component_GetComponent(SG_ID id)
+{
+    R_Location loc     = { id, 0, NULL };
+    R_Location* result = (R_Location*)hashmap_get(r_locator, &loc);
+    return result ? (R_Component*)Arena::get(result->arena, result->offset) :
+                    NULL;
+}
+
 R_Transform* Component_GetXform(SG_ID id)
 {
-    auto it = xformMap.find(id);
-    if (it == xformMap.end()) return NULL;
+    R_Component* comp = Component_GetComponent(id);
+    if (comp) {
+        ASSERT(comp->type == SG_COMPONENT_TRANSFORM
+               || comp->type == SG_COMPONENT_SCENE);
+    }
+    return (R_Transform*)comp;
+}
 
-    return (R_Transform*)Arena::get(&xformArena, it->second);
+R_Scene* Component_GetScene(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_SCENE);
+    return (R_Scene*)comp;
 }
 
 R_Geometry* Component_GetGeo(SG_ID id)
 {
-    auto it = geoMap.find(id);
-    if (it == geoMap.end()) return NULL;
-
-    return (R_Geometry*)Arena::get(&geoArena, it->second);
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_GEOMETRY);
+    return (R_Geometry*)comp;
 }
 
 R_Material* Component_GetMaterial(SG_ID id)
 {
-    auto it = materialMap.find(id);
-    if (it == materialMap.end()) return NULL;
-
-    return (R_Material*)Arena::get(&materialArena, it->second);
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_MATERIAL);
+    return (R_Material*)comp;
 }
 
 R_Texture* Component_GetTexture(SG_ID id)
 {
-    auto it = _textureMap.find(id);
-    if (it == _textureMap.end()) return NULL;
-
-    return (R_Texture*)Arena::get(&textureArena, it->second);
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_TEXTURE);
+    return (R_Texture*)comp;
 }
 
 bool Component_MaterialIter(size_t* i, R_Material** material)
@@ -1347,8 +1451,10 @@ R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
     u64 pipelineOffset = Arena::offsetOf(&_RenderPipelineArena, rPipeline);
     R_RenderPipeline::init(gctx, rPipeline, config, pipelineOffset);
 
-    // add to map
+    // TODO consolidate with hashmap?
+    ASSERT(_RenderPipelineMap.find(rPipeline->rid) == _RenderPipelineMap.end());
     _RenderPipelineMap[rPipeline->rid] = pipelineOffset;
+
     return rPipeline;
 }
 

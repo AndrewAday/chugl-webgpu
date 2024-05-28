@@ -19,6 +19,7 @@
 #define VEC_RIGHT (glm::vec3(1.0f, 0.0f, 0.0f))
 #define VEC_FORWARD (glm::vec3(0.0f, 0.0f, -1.0f))
 #define VEC_BACKWARD (glm::vec3(0.0f, 0.0f, 1.0f))
+#define VEC_ONES (glm::vec3(1.0f, 1.0f, 1.0f))
 
 typedef t_CKUINT SG_ID;
 
@@ -135,16 +136,26 @@ struct SG_Transform : public SG_Component {
 };
 
 // ============================================================================
+// SG_Scene
+// ============================================================================
+
+struct SG_Scene : public SG_Transform {
+    glm::vec4 bg_color;
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
-void SG_Init();
+void SG_Init(const Chuck_DL_Api* api);
 void SG_Free();
 
 SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
+SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
+SG_Scene* SG_GetScene(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

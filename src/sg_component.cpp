@@ -303,7 +303,7 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 // chugin API pointers
 static const Chuck_DL_Api* _ck_api = NULL;
 
-// GC arenas
+// GC arenas (TODO move into struct)
 static Arena _gc_queue_a;
 static Arena _gc_queue_b;
 static Arena* _gc_queue_read  = &_gc_queue_a;
@@ -311,6 +311,7 @@ static Arena* _gc_queue_write = &_gc_queue_b;
 
 // storage arenas
 static Arena SG_XformArena;
+static Arena SG_SceneArena;
 // static Arena geoArena;
 // static Arena materialArena;
 // static Arena textureArena;
@@ -335,7 +336,8 @@ static int compareLocation(const void* a, const void* b, void* udata)
 static u64 hashLocation(const void* item, uint64_t seed0, uint64_t seed1)
 {
     // tested xxhash3 is best
-    return hashmap_xxhash3(item, sizeof(SG_ID), seed0, seed1);
+    SG_Location* key = (SG_Location*)item;
+    return hashmap_xxhash3(&key->id, sizeof(SG_ID), seed0, seed1);
     // return hashmap_sip(item, sizeof(int), seed0, seed1);
     // return hashmap_murmur(item, sizeof(int), seed0, seed1);
 }
@@ -358,6 +360,7 @@ void SG_Init(const Chuck_DL_Api* api)
                           compareLocation, NULL, NULL);
 
     Arena::init(&SG_XformArena, sizeof(SG_Transform) * 64);
+    Arena::init(&SG_SceneArena, sizeof(SG_Scene) * 64);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -370,6 +373,7 @@ void SG_Free()
 
     // TODO call free() on the components themselves
     Arena::free(&SG_XformArena);
+    Arena::free(&SG_SceneArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -395,6 +399,24 @@ SG_Transform* SG_CreateTransform(Chuck_Object* ckobj)
     return xform;
 }
 
+SG_Scene* SG_CreateScene(Chuck_Object* ckobj)
+{
+    Arena* arena    = &SG_SceneArena;
+    size_t offset   = arena->curr;
+    SG_Scene* scene = ARENA_PUSH_TYPE(arena, SG_Scene);
+
+    SG_Scene::_init(scene, ckobj);
+
+    scene->id   = SG_GetNewComponentID();
+    scene->type = SG_COMPONENT_SCENE;
+
+    // store in map
+    SG_Location loc = { scene->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return scene;
+}
+
 SG_Component* SG_GetComponent(SG_ID id)
 {
     SG_Location key     = {};
@@ -409,12 +431,18 @@ SG_Component* SG_GetComponent(SG_ID id)
 SG_Transform* SG_GetTransform(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_TRANSFORM);
+    ASSERT(component->type == SG_COMPONENT_TRANSFORM
+           || component->type == SG_COMPONENT_SCENE);
     // TODO: also check for other children of SG_Transform
     return (SG_Transform*)component;
 }
 
-#undef _SG_GET_COMPONENT
+SG_Scene* SG_GetScene(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component->type == SG_COMPONENT_SCENE);
+    return (SG_Scene*)component;
+}
 
 // ============================================================================
 // SG Garbage Collector
@@ -427,7 +455,7 @@ static void _SG_SwapGCQueues()
     _gc_queue_write = temp;
 }
 
-void SG_QueueCKRelease(SG_ID id)
+void SG_DecrementRef(SG_ID id)
 {
     SG_ID* idPtr = ARENA_PUSH_TYPE(_gc_queue_write, SG_ID);
     *idPtr       = id;

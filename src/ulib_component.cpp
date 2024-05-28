@@ -1,3 +1,4 @@
+#include "sg_command.h"
 #include "sg_component.h"
 #include <chuck/chugin.h>
 
@@ -479,7 +480,7 @@ CK_DLL_CTOR(ggen_ctor)
         || API->type->origin_hint(thisType)
              == ckte_origin_IMPORT // .ck file included in search path
     ) {
-        Sync_PushCommand_CreateTransform(SELF, component_offset_id, API);
+        CQ_PushCommand_CreateTransform(SELF, component_offset_id, API);
     }
 }
 
@@ -540,7 +541,7 @@ CK_DLL_MFUN(ggen_set_pos_x)
     xform->pos.x    = posX;
     RETURN->v_float = posX;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_y)
@@ -558,7 +559,7 @@ CK_DLL_MFUN(ggen_set_pos_y)
     xform->pos.y    = posY;
     RETURN->v_float = posY;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_z)
@@ -576,7 +577,7 @@ CK_DLL_MFUN(ggen_set_pos_z)
     xform->pos.z    = posZ;
     RETURN->v_float = posZ;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos)
@@ -596,7 +597,7 @@ CK_DLL_MFUN(ggen_set_pos)
     xform->pos.z   = vec.z;
     RETURN->v_vec3 = vec;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_world)
@@ -614,7 +615,7 @@ CK_DLL_MFUN(ggen_set_pos_world)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldPosition(xform, glm::vec3(vec.x, vec.y, vec.z));
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 
     RETURN->v_object = SELF;
 }
@@ -626,7 +627,7 @@ CK_DLL_MFUN(ggen_translate)
     t_CKVEC3 trans = GET_NEXT_VEC3(ARGS);
     SG_Transform::translate(xform, glm::vec3(trans.x, trans.y, trans.z));
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 
     RETURN->v_object = SELF;
 }
@@ -638,7 +639,7 @@ CK_DLL_MFUN(ggen_translate_x)
     t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { amt, 0, 0 });
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 
     RETURN->v_object = SELF;
 }
@@ -652,7 +653,7 @@ CK_DLL_MFUN(ggen_translate_y)
 
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_translate_z)
@@ -664,7 +665,7 @@ CK_DLL_MFUN(ggen_translate_z)
 
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetPosition(xform);
+    CQ_PushCommand_SetPosition(xform);
 }
 
 // Rotation Impl ===============================================================
@@ -687,7 +688,7 @@ CK_DLL_MFUN(ggen_set_rot_x)
 
     RETURN->v_float = rad;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot_y)
@@ -713,7 +714,7 @@ CK_DLL_MFUN(ggen_set_rot_y)
 
     RETURN->v_float = rad; // TODO: RETURN->v_object = SELF
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot_z)
@@ -734,7 +735,7 @@ CK_DLL_MFUN(ggen_set_rot_z)
 
     RETURN->v_float = rad;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_get_rot)
@@ -753,7 +754,7 @@ CK_DLL_MFUN(ggen_set_rot)
     xform->rot     = glm::quat(glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate)
@@ -764,7 +765,7 @@ CK_DLL_MFUN(ggen_rotate)
     SG_Transform::rotate(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_x)
@@ -775,7 +776,7 @@ CK_DLL_MFUN(ggen_rotate_x)
     SG_Transform::rotateX(xform, rad);
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_y)
@@ -785,7 +786,7 @@ CK_DLL_MFUN(ggen_rotate_y)
     t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateY(xform, rad);
     RETURN->v_object = SELF;
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate_z)
@@ -795,7 +796,7 @@ CK_DLL_MFUN(ggen_rotate_z)
     t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateZ(xform, rad);
     RETURN->v_object = SELF;
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rot_on_local_axis)
@@ -808,7 +809,7 @@ CK_DLL_MFUN(ggen_rot_on_local_axis)
 
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rot_on_world_axis)
@@ -821,7 +822,7 @@ CK_DLL_MFUN(ggen_rot_on_world_axis)
 
     RETURN->v_object = SELF;
 
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_lookat_vec3)
@@ -831,7 +832,7 @@ CK_DLL_MFUN(ggen_lookat_vec3)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::lookAt(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
-    Sync_PushCommand_SetRotation(xform);
+    CQ_PushCommand_SetRotation(xform);
 }
 
 // Scale impl ===============================================================
@@ -850,7 +851,7 @@ CK_DLL_MFUN(ggen_set_scale_x)
     t_CKFLOAT scaleX = GET_NEXT_FLOAT(ARGS);
     xform->sca.x     = scaleX;
     RETURN->v_float  = scaleX;
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_y)
@@ -867,7 +868,7 @@ CK_DLL_MFUN(ggen_set_scale_y)
     t_CKFLOAT scaleY = GET_NEXT_FLOAT(ARGS);
     xform->sca.y     = scaleY;
     RETURN->v_float  = scaleY;
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_z)
@@ -884,7 +885,7 @@ CK_DLL_MFUN(ggen_set_scale_z)
     t_CKFLOAT scaleZ = GET_NEXT_FLOAT(ARGS);
     xform->sca.z     = scaleZ;
     RETURN->v_float  = scaleZ;
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale)
@@ -901,7 +902,7 @@ CK_DLL_MFUN(ggen_set_scale)
     t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
     xform->sca     = glm::vec3(vec.x, vec.y, vec.z);
     RETURN->v_vec3 = vec;
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_set_scale_uniform)
@@ -913,7 +914,7 @@ CK_DLL_MFUN(ggen_set_scale_uniform)
     xform->sca.y   = s;
     xform->sca.z   = s;
     RETURN->v_vec3 = { s, s, s };
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_world)
@@ -931,7 +932,7 @@ CK_DLL_MFUN(ggen_set_scale_world)
     t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldScale(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
-    Sync_PushCommand_SetScale(xform);
+    CQ_PushCommand_SetScale(xform);
 }
 
 // Transformation API
@@ -971,7 +972,7 @@ CK_DLL_GFUN(ggen_op_gruck)
       = SG_GetTransform(OBJ_MEMBER_UINT(rhs, component_offset_id));
 
     // command
-    Sync_PushCommand_AddChild(rhs_xform, lhs_xform);
+    CQ_PushCommand_AddChild(rhs_xform, lhs_xform);
 
     // return RHS
     RETURN->v_object = rhs;
@@ -990,7 +991,7 @@ CK_DLL_GFUN(ggen_op_ungruck)
       = SG_GetTransform(OBJ_MEMBER_UINT(rhs, component_offset_id));
 
     // command
-    Sync_PushCommand_RemoveChild(rhs_xform, lhs_xform);
+    CQ_PushCommand_RemoveChild(rhs_xform, lhs_xform);
 
     // return RHS
     RETURN->v_object = rhs;
@@ -1031,4 +1032,62 @@ CK_DLL_MFUN(ggen_get_num_children)
     SG_Transform* xform
       = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     RETURN->v_int = SG_Transform::numChildren(xform);
+}
+
+// ===============================================================
+// GScene
+// ===============================================================
+CK_DLL_CTOR(gscene_ctor);
+CK_DLL_DTOR(gscene_dtor);
+
+CK_DLL_MFUN(gscene_set_background_color);
+CK_DLL_MFUN(gscene_get_background_color);
+
+static void ulib_gscene_query(Chuck_DL_Query* QUERY)
+{
+    // EM_log(CK_LOG_INFO, "ChuGL scene");
+    // CGL scene
+    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_SCENE],
+                       SG_CKNames[SG_COMPONENT_TRANSFORM]);
+    QUERY->add_ctor(QUERY, gscene_ctor);
+
+    // background color
+    QUERY->add_mfun(QUERY, gscene_set_background_color, "vec4",
+                    "backgroundColor");
+    QUERY->add_arg(QUERY, "vec4", "color");
+    QUERY->doc_func(QUERY, "Set the background color of the scene");
+
+    QUERY->add_mfun(QUERY, gscene_get_background_color, "vec4",
+                    "backgroundColor");
+    QUERY->doc_func(QUERY, "Get the background color of the scene");
+
+    // end class -----------------------------------------------------
+    QUERY->end_class(QUERY);
+}
+
+CK_DLL_CTOR(gscene_ctor)
+{
+    CQ_PushCommand_SceneCreate(SELF, component_offset_id, API);
+}
+
+CK_DLL_DTOR(gscene_dtor)
+{
+    // TODO
+}
+
+CK_DLL_MFUN(gscene_get_background_color)
+{
+    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec4 color = scene->bg_color;
+    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
+}
+
+CK_DLL_MFUN(gscene_set_background_color)
+{
+    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC4 color  = GET_NEXT_VEC4(ARGS);
+
+    CQ_PushCommand_SceneBGColor(scene, color);
+
+    RETURN->v_vec4 = color;
 }

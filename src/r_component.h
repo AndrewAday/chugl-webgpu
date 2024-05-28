@@ -303,15 +303,11 @@ struct R_Material : public R_Component {
 // =============================================================================
 // R_Scene
 // =============================================================================
-struct R_Scene : R_Component {
-    Arena xforms;
-    Arena geos;
-    Arena materials;
-    Arena textures;
-    Arena pipelines;
+struct R_Scene : R_Transform {
+    glm::vec4 bg_color;
 
-    static void init(R_Scene* scene);
-    static void free(R_Scene* scene);
+    static void initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd);
+    // static void free(R_Scene* scene);
 };
 
 // =============================================================================
@@ -348,12 +344,15 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 
 R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
+R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 R_Geometry* Component_CreateGeometry();
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config);
 R_Texture* Component_CreateTexture();
 
+R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
+R_Scene* Component_GetScene(SG_ID id);
 R_Geometry* Component_GetGeo(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
