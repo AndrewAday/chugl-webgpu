@@ -44,6 +44,7 @@ frame arena and then copy over)
 
 enum SG_CommandType : u32 {
     SG_COMMAND_NONE = 0,
+    SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
     SG_COMMAND_ADD_CHILD,
     SG_COMMAND_REMOVE_CHILD,
@@ -52,12 +53,17 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_SCALE,
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
+    SG_COMMAND_GEO_CREATE,
     SG_COMMAND_COUNT
 };
 
 struct SG_Command {
     SG_CommandType type;
     u64 nextCommandOffset;
+};
+
+struct SG_Command_GG_Scene : public SG_Command {
+    SG_ID sg_id;
 };
 
 struct SG_Command_CreateXform : public SG_Command {
@@ -104,6 +110,12 @@ struct SG_Command_SceneBGColor : public SG_Command {
     glm::vec4 color;
 };
 
+struct SG_Command_GeoCreate : public SG_Command {
+    SG_ID sg_id;
+    SG_Geometry_Params params;
+    SG_GeometryType geo_type;
+};
+
 // ============================================================================
 // Command Queue API
 // ============================================================================
@@ -122,6 +134,7 @@ void CQ_ReadCommandQueueClear();
 // Commands
 // ============================================================================
 
+void CQ_PushCommand_GG_Scene(SG_Scene* scene);
 void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
                                     t_CKUINT component_offset_id,
                                     CK_DL_API API);
@@ -135,3 +148,4 @@ void CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
                                 t_CKUINT component_offset_id, CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
+void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);

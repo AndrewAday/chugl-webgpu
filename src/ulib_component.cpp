@@ -2,6 +2,7 @@
 #include "sg_component.h"
 #include <chuck/chugin.h>
 
+#include "geometry.h"
 #include "sync.cpp"
 
 // Query function for base component class
@@ -1012,7 +1013,7 @@ CK_DLL_MFUN(ggen_get_child_default)
     SG_Transform* xform
       = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     SG_Transform* child = SG_Transform::child(xform, 0);
-    RETURN->v_object    = child ? NULL : child->ckobj;
+    RETURN->v_object    = child ? child->ckobj : NULL;
 }
 
 CK_DLL_MFUN(ggen_get_child)
@@ -1090,4 +1091,66 @@ CK_DLL_MFUN(gscene_set_background_color)
     CQ_PushCommand_SceneBGColor(scene, color);
 
     RETURN->v_vec4 = color;
+}
+
+// ===============================================================
+// Geometry  (for now, immutable)
+// ===============================================================
+
+CK_DLL_CTOR(plane_geo_ctor);
+CK_DLL_CTOR(plane_geo_ctor_params);
+
+static void ulib_geometry_query(Chuck_DL_Query* QUERY)
+{
+    // Geometry -----------------------------------------------------
+    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_GEOMETRY],
+                       SG_CKNames[SG_COMPONENT_BASE]);
+
+    // abstract class, no destructor or constructor
+    QUERY->end_class(QUERY);
+
+    // Plane -----------------------------------------------------
+    QUERY->begin_class(QUERY, "PlaneGeometry",
+                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
+
+    QUERY->add_ctor(QUERY, plane_geo_ctor);
+    QUERY->add_ctor(QUERY, plane_geo_ctor_params);
+    QUERY->add_arg(QUERY, "float", "width");
+    QUERY->add_arg(QUERY, "float", "height");
+    QUERY->add_arg(QUERY, "int", "widthSegments");
+    QUERY->add_arg(QUERY, "int", "heightSegments");
+    QUERY->doc_func(QUERY, "Set plane dimensions and subdivisions");
+
+    QUERY->end_class(QUERY);
+}
+
+// Plane Geometry -----------------------------------------------------
+CK_DLL_CTOR(plane_geo_ctor)
+{
+    PlaneParams params = {};
+    // test default value initialization
+    ASSERT(params.widthSegments == 1 && params.heightSegments == 1);
+
+    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
+    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
+    ASSERT(geo->id > 0);
+    ASSERT(geo->geo_type == SG_GEOMETRY_PLANE);
+
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+
+    CQ_PushCommand_GeometryCreate(geo);
+}
+
+CK_DLL_CTOR(plane_geo_ctor_params)
+{
+    PlaneParams params    = {};
+    params.width          = GET_NEXT_FLOAT(ARGS);
+    params.height         = GET_NEXT_FLOAT(ARGS);
+    params.widthSegments  = GET_NEXT_INT(ARGS);
+    params.heightSegments = GET_NEXT_INT(ARGS);
+
+    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+
+    CQ_PushCommand_GeometryCreate(geo);
 }

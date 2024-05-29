@@ -346,6 +346,8 @@ R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 R_Geometry* Component_CreateGeometry();
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
+                                     SG_Command_GeoCreate* cmd);
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config);
 R_Texture* Component_CreateTexture();

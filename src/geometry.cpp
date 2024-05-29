@@ -257,9 +257,11 @@ void Vertices::copy(Vertices* v, Vertex* vertices, u32 vertexCount,
 // ============================================================================
 // Plane
 // ============================================================================
-Vertices createPlane(const PlaneParams* params)
+void Vertices::createPlane(Vertices* vertices, PlaneParams* params)
 {
-    Vertices vertices     = {};
+    ASSERT(vertices->vertexCount == 0);
+    ASSERT(vertices->indicesCount == 0);
+
     const f32 width_half  = params->width * 0.5f;
     const f32 height_half = params->height * 0.5f;
 
@@ -272,7 +274,7 @@ Vertices createPlane(const PlaneParams* params)
     const f32 segment_width  = params->width / gridX;
     const f32 segment_height = params->height / gridY;
 
-    Vertices::init(&vertices, gridX1 * gridY1, gridX * gridY * 6);
+    Vertices::init(vertices, gridX1 * gridY1, gridX * gridY * 6);
 
     // f32* positions = Vertices::positions(&vertices);
     // f32* normals   = Vertices::normals(&vertices);
@@ -298,10 +300,10 @@ Vertices createPlane(const PlaneParams* params)
                 1.0f - ((f32)iy / gridY), // v
             };
 
-            Vertices::setVertex(&vertices, vert, index++);
+            Vertices::setVertex(vertices, vert, index++);
         }
     }
-    ASSERT(index == vertices.vertexCount);
+    ASSERT(index == vertices->vertexCount);
     index = 0;
     for (u32 iy = 0; iy < gridY; iy++) {
         for (u32 ix = 0; ix < gridX; ix++) {
@@ -310,10 +312,9 @@ Vertices createPlane(const PlaneParams* params)
             const u32 c = (ix + 1) + gridX1 * (iy + 1);
             const u32 d = (ix + 1) + gridX1 * iy;
 
-            Vertices::setIndices(&vertices, a, b, d, index++);
-            Vertices::setIndices(&vertices, b, c, d, index++);
+            Vertices::setIndices(vertices, a, b, d, index++);
+            Vertices::setIndices(vertices, b, c, d, index++);
         }
     }
-    ASSERT(index == vertices.indicesCount / 3);
-    return vertices;
+    ASSERT(index == vertices->indicesCount / 3);
 }

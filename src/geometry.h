@@ -1,6 +1,6 @@
 #pragma once
 
-// follows glTF 2.0 spec
+// tangents follow glTF 2.0 spec
 // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes
 // see table on vertex attributes
 // TODO add tangent (vec4)
@@ -21,6 +21,11 @@ struct Vertex {
 
     static void pos(Vertex* v, char c, f32 val);
     static void norm(Vertex* v, char c, f32 val);
+};
+
+struct PlaneParams {
+    f32 width = 1.0f, height = 1.0f;
+    u32 widthSegments = 1, heightSegments = 1;
 };
 
 // TODO: redesign to support tangents / colors
@@ -59,11 +64,9 @@ struct Vertices {
     // copy from existing arrays
     static void copy(Vertices* v, Vertex* vertices, u32 vertexCount,
                      u32* indices, u32 indicesCount);
+
+    // shapes
+    static void createPlane(Vertices* vertices, PlaneParams* params);
 };
 
-struct PlaneParams {
-    f32 width, height;
-    u32 widthSegments, heightSegments;
-};
-
-Vertices createPlane(const PlaneParams* params);
+// Vertices createPlane(const PlaneParams* params);

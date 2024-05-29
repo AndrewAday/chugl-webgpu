@@ -50,7 +50,16 @@ T.assert(
 A --> B;
 
 T.assert(
-    A.parent() == B && A.numChildren() == 0 && 
-    B.child() == A && B.numChildren() == 1,
+    A.parent() == B && A.numChildren() == 0
+    && B.child() == A && B.numChildren() == 1,
     "gruck 1"
+);
+
+// forming a cycle 
+B --> A;
+
+T.assert(
+    A.parent() == B && A.numChildren() == 0
+    && B.child() == A && B.numChildren() == 1,
+    "no cycles allowed"
 );

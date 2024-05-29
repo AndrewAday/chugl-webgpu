@@ -1,20 +1,8 @@
 #include "sg_component.h"
 #include "core/hashmap.h"
+#include "geometry.h"
 
 #include <glm/gtx/quaternion.hpp>
-
-const char* SG_Component::ckname(SG_ComponentType type)
-{
-    switch (type) {
-        case SG_COMPONENT_INVALID: return "Invalid";
-        case SG_COMPONENT_TRANSFORM: return "GGen";
-        case SG_COMPONENT_GEOMETRY: return "Geometry";
-        case SG_COMPONENT_MATERIAL: return "Material";
-        case SG_COMPONENT_TEXTURE: return "Texture";
-        default: ASSERT(false);
-    }
-    return "Invalid";
-}
 
 // ============================================================================
 // SG_Transform definitions
@@ -297,6 +285,23 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 }
 
 // ============================================================================
+// SG_Geometry Definitions
+// ============================================================================
+
+void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
+{
+    ASSERT(params);
+    g->geo_type = geo_type;
+    switch (geo_type) {
+        case SG_GEOMETRY_PLANE: {
+            PlaneParams* p  = (PlaneParams*)params;
+            g->params.plane = *p;
+        } break;
+        default: ASSERT(false);
+    }
+}
+
+// ============================================================================
 // SG Component Manager Definitions
 // ============================================================================
 
@@ -312,7 +317,7 @@ static Arena* _gc_queue_write = &_gc_queue_b;
 // storage arenas
 static Arena SG_XformArena;
 static Arena SG_SceneArena;
-// static Arena geoArena;
+static Arena SG_GeoArena;
 // static Arena materialArena;
 // static Arena textureArena;
 
@@ -417,6 +422,26 @@ SG_Scene* SG_CreateScene(Chuck_Object* ckobj)
     return scene;
 }
 
+SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
+                               void* params)
+{
+    Arena* arena     = &SG_GeoArena;
+    size_t offset    = arena->curr;
+    SG_Geometry* geo = ARENA_PUSH_TYPE(arena, SG_Geometry);
+
+    SG_Geometry::_init(geo, geo_type, params);
+
+    geo->id    = SG_GetNewComponentID();
+    geo->type  = SG_COMPONENT_GEOMETRY;
+    geo->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { geo->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return geo;
+}
+
 SG_Component* SG_GetComponent(SG_ID id)
 {
     SG_Location key     = {};
@@ -431,7 +456,7 @@ SG_Component* SG_GetComponent(SG_ID id)
 SG_Transform* SG_GetTransform(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_TRANSFORM
+    ASSERT(component == NULL || component->type == SG_COMPONENT_TRANSFORM
            || component->type == SG_COMPONENT_SCENE);
     // TODO: also check for other children of SG_Transform
     return (SG_Transform*)component;
@@ -442,6 +467,13 @@ SG_Scene* SG_GetScene(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component->type == SG_COMPONENT_SCENE);
     return (SG_Scene*)component;
+}
+
+SG_Geometry* SG_GetGeometry(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component->type == SG_COMPONENT_GEOMETRY);
+    return (SG_Geometry*)component;
 }
 
 // ============================================================================

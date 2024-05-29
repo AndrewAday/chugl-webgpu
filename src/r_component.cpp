@@ -1321,6 +1321,35 @@ R_Geometry* Component_CreateGeometry()
     return geo;
 }
 
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
+                                     SG_Command_GeoCreate* cmd)
+{
+    // first build vertices
+    Vertices vertices;
+    switch (cmd->geo_type) {
+        case SG_GEOMETRY_PLANE: {
+            Vertices::createPlane(&vertices, &cmd->params.plane);
+            break;
+        }
+        default: ASSERT(false)
+    }
+
+    R_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, R_Geometry);
+    R_Geometry::buildFromVertices(gctx, geo, &vertices);
+
+    geo->id   = cmd->sg_id;
+    geo->type = SG_COMPONENT_GEOMETRY;
+    // for now not storing geo_type (cube, sphere, custom etc.)
+    // we only store the GPU vertex data, and don't care about semantics
+
+    // store offset
+    R_Location loc = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return geo;
+}
+
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config)
 {

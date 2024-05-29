@@ -107,6 +107,26 @@ void CQ_ReadCommandQueueClear()
     Arena::clear(cq.read_q);
 }
 
+// ============================================================================
+// Command API
+// ============================================================================
+
+void CQ_PushCommand_GG_Scene(SG_Scene* scene)
+{
+    spinlock::lock(&cq.write_q_lock);
+    {
+        // allocate memory
+        SG_Command_GG_Scene* command
+          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_GG_Scene);
+
+        // initialize memory
+        command->type              = SG_COMMAND_GG_SCENE;
+        command->nextCommandOffset = cq.write_q->curr;
+        command->sg_id             = scene ? scene->id : 0;
+    }
+    spinlock::unlock(&cq.write_q_lock);
+}
+
 void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
                                     t_CKUINT component_offset_id, CK_DL_API API)
 {
@@ -263,3 +283,21 @@ void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color)
     }
     spinlock::unlock(&cq.write_q_lock);
 }
+
+void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
+{
+    spinlock::lock(&cq.write_q_lock);
+    {
+        // allocate memory
+        SG_Command_GeoCreate* command
+          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_GeoCreate);
+
+        // initialize memory
+        command->type              = SG_COMMAND_GEO_CREATE;
+        command->nextCommandOffset = cq.write_q->curr;
+        command->geo_type          = geo->geo_type;
+        command->sg_id             = geo->id;
+        command->params            = geo->params;
+    }
+    spinlock::unlock(&cq.write_q_lock);
+} // Path: src/sg_command.h

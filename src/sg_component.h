@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphics.h"
+
 #include "core/macros.h"
 #include "core/memory.h"
 
@@ -53,8 +55,6 @@ struct SG_Component {
     Chuck_Object* ckobj;
     // TODO cache hash
     // u64 hash;
-
-    static const char* ckname(SG_ComponentType type);
 };
 
 // ============================================================================
@@ -144,6 +144,37 @@ struct SG_Scene : public SG_Transform {
 };
 
 // ============================================================================
+// SG_Geometry
+// ============================================================================
+
+enum SG_GeometryType : u8 {
+    SG_GEOMETRY_INVALID = 0,
+    SG_GEOMETRY_PLANE,
+    SG_GEOMETRY_CUBE,
+    SG_GEOMETRY_SPHERE,
+    SG_GEOMETRY_CYLINDER,
+    SG_GEOMETRY_CONE,
+    SG_GEOMETRY_TORUS,
+    SG_GEOMETRY_CUSTOM,
+    SG_GEOMETRY_COUNT
+};
+
+union SG_Geometry_Params {
+    PlaneParams plane;
+};
+
+// immutable
+struct SG_Geometry : SG_Component {
+    SG_GeometryType geo_type;
+    // TODO add cpu-side vertex data
+    SG_Geometry_Params params;
+
+    /// @brief
+    /// @param params pointer to struct containing geometry parameters
+    static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -152,10 +183,13 @@ void SG_Free();
 
 SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
+SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
+                               void* params);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
 SG_Scene* SG_GetScene(SG_ID id);
+SG_Geometry* SG_GetGeometry(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

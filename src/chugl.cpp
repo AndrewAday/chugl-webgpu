@@ -14,6 +14,14 @@ static CK_DL_API g_chuglAPI = NULL;
 static Chuck_DL_MainThreadHook* hook = NULL;
 static bool hookActivated            = false;
 
+// metadata required for scene rendering
+struct GG_Config {
+    SG_ID mainScene;
+    SG_ID mainCamera;
+};
+
+static GG_Config gg_config = {};
+
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
     UNUSED_VAR(bindle);
@@ -138,6 +146,20 @@ CK_DLL_SFUN(chugl_gc)
     SG_GC();
 }
 
+CK_DLL_SFUN(chugl_get_scene)
+{
+    RETURN->v_object = SG_GetScene(gg_config.mainScene)->ckobj;
+}
+
+CK_DLL_SFUN(chugl_set_scene)
+{
+    Chuck_Object* newScene = GET_NEXT_OBJECT(ARGS);
+    SG_Scene* sg_scene
+      = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
+    gg_config.mainScene = sg_scene ? sg_scene->id : 0;
+    CQ_PushCommand_GG_Scene(sg_scene);
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -183,6 +205,12 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY);
     }
 
+    ulib_texture_query(QUERY);
+    ulib_component_query(QUERY);
+    ulib_ggen_query(QUERY);
+    ulib_gscene_query(QUERY);
+    ulib_geometry_query(QUERY);
+
     static u64 foo = 12345;
     { // GG static functions
         QUERY->begin_class(QUERY, "GG", "Object");
@@ -198,6 +226,12 @@ CK_DLL_QUERY(ChuGL)
           "correct behavior, i.e. GG.nextFrame() => now;"
           "See the ChuGL tutorial and examples for more information.");
 
+        QUERY->add_sfun(QUERY, chugl_get_scene, SG_CKNames[SG_COMPONENT_SCENE],
+                        "scene");
+        QUERY->add_sfun(QUERY, chugl_set_scene, SG_CKNames[SG_COMPONENT_SCENE],
+                        "scene");
+        QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_SCENE], "scene");
+
         // QUERY->add_sfun(QUERY, chugl_gc, "void", "gc");
         // QUERY->doc_func(QUERY, "Trigger garbage collection");
 
@@ -210,11 +244,6 @@ CK_DLL_QUERY(ChuGL)
 
         QUERY->end_class(QUERY); // GG
     }
-
-    ulib_texture_query(QUERY);
-    ulib_component_query(QUERY);
-    ulib_ggen_query(QUERY);
-    ulib_gscene_query(QUERY);
 
     // remember
     g_chuglVM  = QUERY->ck_vm(QUERY);

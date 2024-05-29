@@ -37,55 +37,9 @@
 //     SG_CommandType->fn(App, SG_CommandSubclass)
 // }
 
-static void _R_HandleCommand(SG_Command* command)
-{
-    switch (command->type) {
-        case SG_COMMAND_CREATE_XFORM:
-            Component_CreateTransform((SG_Command_CreateXform*)command);
-            break;
-        case SG_COMMAND_ADD_CHILD: {
-            SG_Command_AddChild* cmd = (SG_Command_AddChild*)command;
-            R_Transform::addChild(Component_GetXform(cmd->parent_id),
-                                  Component_GetXform(cmd->child_id));
-            break;
-        }
-        case SG_COMMAND_REMOVE_CHILD: {
-            SG_Command_RemoveChild* cmd = (SG_Command_RemoveChild*)command;
-            R_Transform::removeChild(Component_GetXform(cmd->parent),
-                                     Component_GetXform(cmd->child));
-            break;
-        }
-        case SG_COMMAND_SET_POSITION: {
-            SG_Command_SetPosition* cmd = (SG_Command_SetPosition*)command;
-            R_Transform::pos(Component_GetXform(cmd->sg_id), cmd->pos);
-            break;
-        }
-        case SG_COMMAND_SET_ROTATATION: {
-            SG_Command_SetRotation* cmd = (SG_Command_SetRotation*)command;
-            R_Transform::rot(Component_GetXform(cmd->sg_id), cmd->rot);
-            break;
-        }
-        case SG_COMMAND_SET_SCALE: {
-            SG_Command_SetScale* cmd = (SG_Command_SetScale*)command;
-            R_Transform::sca(Component_GetXform(cmd->sg_id), cmd->sca);
-            break;
-        }
-        case SG_COMMAND_SCENE_CREATE: {
-            SG_Command_SceneCreate* cmd = (SG_Command_SceneCreate*)command;
-            Component_CreateScene(cmd);
-            break;
-        }
-        case SG_COMMAND_SCENE_BG_COLOR: {
-            SG_Command_SceneBGColor* cmd = (SG_Command_SceneBGColor*)command;
-            R_Scene* scene               = Component_GetScene(cmd->sg_id);
-            scene->bg_color              = cmd->color;
-            break;
-        }
-        default: ASSERT(false);
-    }
-}
-
 struct App;
+static void _R_HandleCommand(App* app, SG_Command* command);
+
 static void _R_RenderScene(App* app)
 {
     // // Update all transforms
@@ -266,6 +220,9 @@ struct App {
     // renderer tests
     Camera camera;
     TestCallbacks callbacks;
+
+    // scenegraph state
+    SG_ID mainScene;
 
     // ============================================================================
     // App API
@@ -496,7 +453,7 @@ struct App {
         // CGL::FlushCommandQueue(scene); // TODO next!
         { // flush command queue
             SG_Command* cmd = NULL;
-            while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(cmd);
+            while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
             CQ_ReadCommandQueueClear();
         }
 
@@ -595,3 +552,60 @@ struct App {
         app->camera.onCursorPosition(&app->camera, xpos, ypos);
     }
 };
+
+static void _R_HandleCommand(App* app, SG_Command* command)
+{
+    switch (command->type) {
+        case SG_COMMAND_GG_SCENE: {
+            app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
+            break;
+        }
+        case SG_COMMAND_CREATE_XFORM:
+            Component_CreateTransform((SG_Command_CreateXform*)command);
+            break;
+        case SG_COMMAND_ADD_CHILD: {
+            SG_Command_AddChild* cmd = (SG_Command_AddChild*)command;
+            R_Transform::addChild(Component_GetXform(cmd->parent_id),
+                                  Component_GetXform(cmd->child_id));
+            break;
+        }
+        case SG_COMMAND_REMOVE_CHILD: {
+            SG_Command_RemoveChild* cmd = (SG_Command_RemoveChild*)command;
+            R_Transform::removeChild(Component_GetXform(cmd->parent),
+                                     Component_GetXform(cmd->child));
+            break;
+        }
+        case SG_COMMAND_SET_POSITION: {
+            SG_Command_SetPosition* cmd = (SG_Command_SetPosition*)command;
+            R_Transform::pos(Component_GetXform(cmd->sg_id), cmd->pos);
+            break;
+        }
+        case SG_COMMAND_SET_ROTATATION: {
+            SG_Command_SetRotation* cmd = (SG_Command_SetRotation*)command;
+            R_Transform::rot(Component_GetXform(cmd->sg_id), cmd->rot);
+            break;
+        }
+        case SG_COMMAND_SET_SCALE: {
+            SG_Command_SetScale* cmd = (SG_Command_SetScale*)command;
+            R_Transform::sca(Component_GetXform(cmd->sg_id), cmd->sca);
+            break;
+        }
+        case SG_COMMAND_SCENE_CREATE: {
+            SG_Command_SceneCreate* cmd = (SG_Command_SceneCreate*)command;
+            Component_CreateScene(cmd);
+            break;
+        }
+        case SG_COMMAND_SCENE_BG_COLOR: {
+            SG_Command_SceneBGColor* cmd = (SG_Command_SceneBGColor*)command;
+            R_Scene* scene               = Component_GetScene(cmd->sg_id);
+            scene->bg_color              = cmd->color;
+            break;
+        }
+        case SG_COMMAND_GEO_CREATE: {
+            SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
+            Component_CreateGeometry(&app->gctx, cmd);
+            break;
+        }
+        default: ASSERT(false);
+    }
+}

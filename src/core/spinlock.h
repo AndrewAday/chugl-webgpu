@@ -6,6 +6,7 @@
 // Spinlock implementation adapted from from
 // https://rigtorp.se/spinlock/
 // https://github.com/open-telemetry/opentelemetry-cpp/blob/main/api/include/opentelemetry/common/spin_lock_mutex.h
+// https://github.com/open-telemetry/opentelemetry-cpp/pull/443
 
 /*
 Spinlock with NO backoff strategy. No yields or sleeps.
