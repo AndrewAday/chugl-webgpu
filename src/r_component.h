@@ -66,6 +66,9 @@ struct R_Transform : public R_Component {
     Arena children; // stores list of SG_IDs
 
     // don't modify directly; use R_Material::addPrimitve() instead
+    // Possibly separate this into R_Mesh / R_Camera / R_Light
+    // for now holding all type data in the R_Transform struct
+    // (maybe middle ground is to use a union { R_Mesh, R_Camera, R_Light })
     SG_ID _geoID;
     SG_ID _matID;
 

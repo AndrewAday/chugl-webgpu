@@ -302,6 +302,38 @@ void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
 }
 
 // ============================================================================
+// SG_Mesh
+// ============================================================================
+
+void SG_Mesh::setGeometry(SG_Mesh* mesh, SG_Geometry* geo)
+{
+    SG_ID oldGeoID = mesh->_geo_id;
+
+    // bump ref on new geometry
+    SG_AddRef(geo);
+
+    // assign new geometry
+    mesh->_geo_id = geo ? geo->id : 0;
+
+    // decrement ref on old geometry
+    SG_DecrementRef(oldGeoID);
+}
+
+void SG_Mesh::setMaterial(SG_Mesh* mesh, SG_Material* mat)
+{
+    SG_ID oldMatID = mesh->_mat_id;
+
+    // bump ref on new material
+    SG_AddRef(mat);
+
+    // assign new material
+    mesh->_mat_id = mat ? mat->id : 0;
+
+    // decrement ref on old material
+    SG_DecrementRef(oldMatID);
+}
+
+// ============================================================================
 // SG Component Manager Definitions
 // ============================================================================
 
@@ -319,6 +351,7 @@ static Arena SG_XformArena;
 static Arena SG_SceneArena;
 static Arena SG_GeoArena;
 static Arena SG_MaterialArena;
+static Arena SG_MeshArena;
 // static Arena textureArena;
 
 // locators (TODO switch to table)
@@ -331,14 +364,14 @@ struct SG_Location {
     Arena* arena;  // where to find
 };
 
-static int compareLocation(const void* a, const void* b, void* udata)
+static int _SG_CompareLocation(const void* a, const void* b, void* udata)
 {
     SG_Location* locA = (SG_Location*)a;
     SG_Location* locB = (SG_Location*)b;
     return locA->id - locB->id;
 }
 
-static u64 hashLocation(const void* item, uint64_t seed0, uint64_t seed1)
+static u64 _SG_HashLocation(const void* item, uint64_t seed0, uint64_t seed1)
 {
     // tested xxhash3 is best
     SG_Location* key = (SG_Location*)item;
@@ -361,13 +394,14 @@ void SG_Init(const Chuck_DL_Api* api)
 
     int seed = time(NULL);
     srand(seed);
-    locator = hashmap_new(sizeof(SG_Location), 0, seed, seed, hashLocation,
-                          compareLocation, NULL, NULL);
+    locator = hashmap_new(sizeof(SG_Location), 0, seed, seed, _SG_HashLocation,
+                          _SG_CompareLocation, NULL, NULL);
 
     Arena::init(&SG_XformArena, sizeof(SG_Transform) * 64);
     Arena::init(&SG_SceneArena, sizeof(SG_Scene) * 64);
     Arena::init(&SG_GeoArena, sizeof(SG_Geometry) * 32);
     Arena::init(&SG_MaterialArena, sizeof(SG_Material) * 32);
+    Arena::init(&SG_MeshArena, sizeof(SG_Mesh) * 64);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -383,6 +417,7 @@ void SG_Free()
     Arena::free(&SG_SceneArena);
     Arena::free(&SG_GeoArena);
     Arena::free(&SG_MaterialArena);
+    Arena::free(&SG_MeshArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -481,6 +516,27 @@ SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
     return mat;
 }
 
+SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo,
+                       SG_Material* sg_mat)
+{
+    Arena* arena  = &SG_MeshArena;
+    size_t offset = arena->curr;
+    SG_Mesh* mesh = ARENA_PUSH_TYPE(arena, SG_Mesh);
+    SG_Transform::_init(mesh, ckobj); // init transform data
+
+    mesh->ckobj = ckobj;
+    mesh->id    = SG_GetNewComponentID();
+    mesh->type  = SG_COMPONENT_MESH;
+    SG_Mesh::setGeometry(mesh, sg_geo);
+    SG_Mesh::setMaterial(mesh, sg_mat);
+
+    // store in map
+    SG_Location loc = { mesh->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return mesh;
+}
+
 SG_Component* SG_GetComponent(SG_ID id)
 {
     SG_Location key     = {};
@@ -515,6 +571,20 @@ SG_Geometry* SG_GetGeometry(SG_ID id)
     return (SG_Geometry*)component;
 }
 
+SG_Material* SG_GetMaterial(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component->type == SG_COMPONENT_MATERIAL);
+    return (SG_Material*)component;
+}
+
+SG_Mesh* SG_GetMesh(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component->type == SG_COMPONENT_MESH);
+    return (SG_Mesh*)component;
+}
+
 // ============================================================================
 // SG Garbage Collector
 // ============================================================================
@@ -528,16 +598,16 @@ static void _SG_SwapGCQueues()
 
 void SG_DecrementRef(SG_ID id)
 {
+    if (id == 0) return; // NULL component
     SG_ID* idPtr = ARENA_PUSH_TYPE(_gc_queue_write, SG_ID);
     *idPtr       = id;
 }
 
 void SG_AddRef(SG_Component* comp)
 {
-    if (comp) {
-        ASSERT(comp->ckobj);
-        _ck_api->object->add_ref(comp->ckobj);
-    }
+    if (comp == NULL) return;
+    ASSERT(comp->ckobj);
+    _ck_api->object->add_ref(comp->ckobj);
 }
 
 void SG_GC()

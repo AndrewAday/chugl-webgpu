@@ -322,3 +322,21 @@ void CQ_PushCommand_MaterialCreate(SG_Material* material)
     }
     spinlock::unlock(&cq.write_q_lock);
 }
+
+void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
+{
+    spinlock::lock(&cq.write_q_lock);
+    {
+        // allocate memory
+        SG_Command_Mesh_Create* command
+          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_Mesh_Create);
+
+        // initialize memory
+        command->type              = SG_COMMAND_MESH_CREATE;
+        command->nextCommandOffset = cq.write_q->curr;
+        command->mesh_id           = mesh->id;
+        command->geo_id            = mesh->_geo_id;
+        command->mat_id            = mesh->_mat_id;
+    }
+    spinlock::unlock(&cq.write_q_lock);
+}

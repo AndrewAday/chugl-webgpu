@@ -55,6 +55,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SCENE_BG_COLOR,
     SG_COMMAND_GEO_CREATE,
     SG_COMMAND_MATERIAL_CREATE,
+    SG_COMMAND_MESH_CREATE,
     SG_COMMAND_COUNT
 };
 
@@ -124,6 +125,12 @@ struct SG_Command_MaterialCreate : public SG_Command {
     SG_MaterialType material_type;
 };
 
+struct SG_Command_Mesh_Create : public SG_Command {
+    SG_ID mesh_id; // gmesh id
+    SG_ID geo_id;
+    SG_ID mat_id;
+};
+
 // ============================================================================
 // Command Queue API
 // ============================================================================
@@ -160,3 +167,4 @@ void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
 
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
+void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);

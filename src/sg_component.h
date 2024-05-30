@@ -33,7 +33,8 @@ typedef t_CKUINT SG_ID;
     X(SG_COMPONENT_SCENE, "GScene")                                            \
     X(SG_COMPONENT_GEOMETRY, "Geometry")                                       \
     X(SG_COMPONENT_MATERIAL, "Material")                                       \
-    X(SG_COMPONENT_TEXTURE, "Texture")
+    X(SG_COMPONENT_TEXTURE, "Texture")                                         \
+    X(SG_COMPONENT_MESH, "GMesh")
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -218,6 +219,22 @@ struct SG_Material : SG_Component {
 };
 
 // ============================================================================
+// SG_Mesh
+// ============================================================================
+
+// in SG we'll try deep: SG_Mesh inherits SG_Transform
+// in R we'll try flat: R_Transform contains union { mesh, light, camera }
+struct SG_Mesh : SG_Transform {
+    // don't set directly. use setGeometry and setMaterial for proper
+    // refcounting
+    SG_ID _geo_id;
+    SG_ID _mat_id;
+
+    static void setGeometry(SG_Mesh* mesh, SG_Geometry* geo);
+    static void setMaterial(SG_Mesh* mesh, SG_Material* mat);
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -230,11 +247,15 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
                                void* params);
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
                                SG_MaterialType material_type, void* params);
+SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo,
+                       SG_Material* sg_mat);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
 SG_Scene* SG_GetScene(SG_ID id);
 SG_Geometry* SG_GetGeometry(SG_ID id);
+SG_Material* SG_GetMaterial(SG_ID id);
+SG_Mesh* SG_GetMesh(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

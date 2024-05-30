@@ -1189,3 +1189,53 @@ CK_DLL_CTOR(pbr_material_ctor)
 
     CQ_PushCommand_MaterialCreate(material);
 }
+
+// ===============================================================
+// GMesh
+// ===============================================================
+
+CK_DLL_CTOR(gmesh_ctor);
+CK_DLL_CTOR(gmesh_ctor_params);
+
+static void ulib_mesh_query(Chuck_DL_Query* QUERY)
+{
+    // Material -----------------------------------------------------
+    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_MESH],
+                       SG_CKNames[SG_COMPONENT_TRANSFORM]);
+
+    QUERY->add_ctor(QUERY, gmesh_ctor);
+    QUERY->add_ctor(QUERY, gmesh_ctor_params);
+    QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_GEOMETRY], "geo");
+    QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_MATERIAL], "mat");
+
+    // abstract class, no destructor or constructor
+    QUERY->end_class(QUERY);
+}
+
+CK_DLL_CTOR(gmesh_ctor)
+{
+    SG_Mesh* mesh = SG_CreateMesh(SELF, NULL, NULL);
+    ASSERT(mesh->type == SG_COMPONENT_MATERIAL);
+
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
+
+    CQ_PushCommand_Mesh_Create(mesh);
+}
+
+CK_DLL_CTOR(gmesh_ctor_params)
+{
+    Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
+    Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
+
+    SG_Geometry* sg_geo
+      = SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id));
+    SG_Material* sg_mat
+      = SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id));
+
+    SG_Mesh* mesh = SG_CreateMesh(SELF, sg_geo, sg_mat);
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
+    ASSERT(mesh->_geo_id == sg_geo->id);
+    ASSERT(mesh->_mat_id == sg_mat->id);
+
+    CQ_PushCommand_Mesh_Create(mesh);
+}

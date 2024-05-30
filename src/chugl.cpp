@@ -153,11 +153,22 @@ CK_DLL_SFUN(chugl_get_scene)
 
 CK_DLL_SFUN(chugl_set_scene)
 {
+    SG_ID prev_scene_id = gg_config.mainScene;
+
+    // get new scene
     Chuck_Object* newScene = GET_NEXT_OBJECT(ARGS);
     SG_Scene* sg_scene
       = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
+
+    // bump refcount on new scene
+    SG_AddRef(sg_scene);
+
+    // assign new scene
     gg_config.mainScene = sg_scene ? sg_scene->id : 0;
     CQ_PushCommand_GG_Scene(sg_scene);
+
+    // decrement refcount on old scene
+    SG_DecrementRef(prev_scene_id);
 }
 
 // ============================================================================
@@ -216,6 +227,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_gscene_query(QUERY);
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
+    ulib_mesh_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
