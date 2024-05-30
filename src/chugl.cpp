@@ -165,9 +165,14 @@ CK_DLL_SFUN(chugl_set_scene)
 // ============================================================================
 CK_DLL_QUERY(ChuGL)
 {
+
+    // remember
+    g_chuglVM  = QUERY->ck_vm(QUERY);
+    g_chuglAPI = QUERY->ck_api(QUERY);
+
     // initialize component pool
     // TODO: have a single ChuGL_Context that manages this all
-    SG_Init(QUERY->ck_api(QUERY));
+    SG_Init(g_chuglAPI);
     CQ_Init();
 
     // set up for main thread hook, for running ChuGL on the main thread
@@ -210,6 +215,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_ggen_query(QUERY);
     ulib_gscene_query(QUERY);
     ulib_geometry_query(QUERY);
+    ulib_material_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
@@ -226,6 +232,7 @@ CK_DLL_QUERY(ChuGL)
           "correct behavior, i.e. GG.nextFrame() => now;"
           "See the ChuGL tutorial and examples for more information.");
 
+        // TODO: refcount on GG.scene()
         QUERY->add_sfun(QUERY, chugl_get_scene, SG_CKNames[SG_COMPONENT_SCENE],
                         "scene");
         QUERY->add_sfun(QUERY, chugl_set_scene, SG_CKNames[SG_COMPONENT_SCENE],
@@ -245,9 +252,18 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY); // GG
     }
 
-    // remember
-    g_chuglVM  = QUERY->ck_vm(QUERY);
-    g_chuglAPI = QUERY->ck_api(QUERY);
+    { // Default components
+        // scene
+        Chuck_DL_Api::Type sceneCKType
+          = g_chuglAPI->type->lookup(g_chuglVM, SG_CKNames[SG_COMPONENT_SCENE]);
+        Chuck_DL_Api::Object sceneObj
+          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType,
+                                                     true);
+        SG_Scene* scene = CQ_PushCommand_SceneCreate(
+          sceneObj, component_offset_id, g_chuglAPI);
+        gg_config.mainScene = scene->id;
+        CQ_PushCommand_GG_Scene(scene);
+    }
 
     // wasn't that a breeze?
     return true;

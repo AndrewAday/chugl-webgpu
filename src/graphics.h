@@ -55,6 +55,8 @@ struct GraphicsContext {
     // Device limits --------
     WGPULimits limits;
 
+    // Default Resources
+
     // Methods --------
     static bool init(GraphicsContext* context, GLFWwindow* window);
     static WGPURenderPassEncoder prepareFrame(GraphicsContext* ctx);

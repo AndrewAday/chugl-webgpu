@@ -54,6 +54,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
     SG_COMMAND_GEO_CREATE,
+    SG_COMMAND_MATERIAL_CREATE,
     SG_COMMAND_COUNT
 };
 
@@ -112,8 +113,15 @@ struct SG_Command_SceneBGColor : public SG_Command {
 
 struct SG_Command_GeoCreate : public SG_Command {
     SG_ID sg_id;
-    SG_Geometry_Params params;
+    SG_GeometryParams params;
     SG_GeometryType geo_type;
+};
+
+// TODO: need way to specify config (doublesided, alpha, etc)
+struct SG_Command_MaterialCreate : public SG_Command {
+    SG_ID sg_id;
+    SG_MaterialParams params;
+    SG_MaterialType material_type;
 };
 
 // ============================================================================
@@ -144,8 +152,11 @@ void CQ_PushCommand_SetPosition(SG_Transform* xform);
 void CQ_PushCommand_SetRotation(SG_Transform* xform);
 void CQ_PushCommand_SetScale(SG_Transform* xform);
 
-void CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                t_CKUINT component_offset_id, CK_DL_API API);
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
+                                     t_CKUINT component_offset_id,
+                                     CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
+
+void CQ_PushCommand_MaterialCreate(SG_Material* material);

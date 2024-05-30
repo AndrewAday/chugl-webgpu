@@ -243,8 +243,9 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-void CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                t_CKUINT component_offset_id, CK_DL_API API)
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
+                                     t_CKUINT component_offset_id,
+                                     CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Scene* scene = SG_CreateScene(ckobj);
@@ -263,6 +264,8 @@ void CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
         command->sg_id             = scene->id;
     }
     spinlock::unlock(&cq.write_q_lock);
+
+    return scene;
 }
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color)
@@ -301,3 +304,21 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
     }
     spinlock::unlock(&cq.write_q_lock);
 } // Path: src/sg_command.h
+
+void CQ_PushCommand_MaterialCreate(SG_Material* material)
+{
+    spinlock::lock(&cq.write_q_lock);
+    {
+        // allocate memory
+        SG_Command_MaterialCreate* command
+          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MaterialCreate);
+
+        // initialize memory
+        command->type              = SG_COMMAND_MATERIAL_CREATE;
+        command->nextCommandOffset = cq.write_q->curr;
+        command->material_type     = material->material_type;
+        command->sg_id             = material->id;
+        command->params            = material->params;
+    }
+    spinlock::unlock(&cq.write_q_lock);
+}

@@ -448,7 +448,7 @@ static void gltf_ProcessData(cgltf_data* data)
               = &material->pbr_metallic_roughness;
 
             R_MaterialConfig materialConfig = {};
-            materialConfig.shaderType       = R_SHADER_TYPE_PBR;
+            materialConfig.material_type    = SG_MATERIAL_PBR;
 
             R_Material* sgMat = Component_CreateMaterial(gctx, &materialConfig);
 

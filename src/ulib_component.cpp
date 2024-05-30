@@ -1154,3 +1154,38 @@ CK_DLL_CTOR(plane_geo_ctor_params)
 
     CQ_PushCommand_GeometryCreate(geo);
 }
+
+// ===============================================================
+// Material
+// ===============================================================
+
+CK_DLL_CTOR(pbr_material_ctor);
+
+static void ulib_material_query(Chuck_DL_Query* QUERY)
+{
+    // Material -----------------------------------------------------
+    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_MATERIAL],
+                       SG_CKNames[SG_COMPONENT_BASE]);
+
+    // abstract class, no destructor or constructor
+    QUERY->end_class(QUERY);
+
+    // PBR Material -----------------------------------------------------
+    QUERY->begin_class(QUERY, "PBRMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+
+    QUERY->add_ctor(QUERY, pbr_material_ctor);
+
+    // abstract class, no destructor or constructor
+    QUERY->end_class(QUERY);
+}
+
+CK_DLL_CTOR(pbr_material_ctor)
+{
+    SG_Material* material = SG_CreateMaterial(SELF, SG_MATERIAL_PBR, NULL);
+    ASSERT(material->type == SG_COMPONENT_MATERIAL);
+    ASSERT(material->material_type == SG_MATERIAL_PBR);
+
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = material->id;
+
+    CQ_PushCommand_MaterialCreate(material);
+}

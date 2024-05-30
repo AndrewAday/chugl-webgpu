@@ -225,13 +225,11 @@ struct MaterialTextureView {
     static void init(MaterialTextureView* view);
 };
 
-enum R_ShaderType : u32 { R_SHADER_TYPE_PBR = 0, R_SHADER_TYPE_CUSTOM };
-
 // base material properties that determine pipeline selection
 struct R_MaterialConfig {
-    R_ShaderType shaderType;
-    SG_ID shaderID; // 0 for built-in shaders.
-    b32 doubleSided;
+    SG_MaterialType material_type = SG_MATERIAL_PBR;
+    SG_ID shaderID                = 0; // 0 for built-in shaders.
+    b32 doubleSided               = false;
 };
 
 // TODO: somehow make this interop with render pipeline and shader
@@ -345,11 +343,16 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
+
 R_Geometry* Component_CreateGeometry();
 R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
                                      SG_Command_GeoCreate* cmd);
+
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config);
+R_Material* Component_CreateMaterial(GraphicsContext* gctx,
+                                     SG_Command_MaterialCreate* cmd);
+
 R_Texture* Component_CreateTexture();
 
 R_Component* Component_GetComponent(SG_ID id);
@@ -374,7 +377,7 @@ bool Component_MaterialIter(size_t* i, R_Material** material);
 bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline);
 
 // component manager initialization
-void Component_Init();
+void Component_Init(GraphicsContext* gctx);
 void Component_Free();
 
 // TODO: add destroy functions. Remember to change offsets after swapping!

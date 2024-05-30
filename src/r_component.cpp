@@ -837,7 +837,7 @@ void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type,
     { // replace previous binding
         // NOTE: currently don't allow changing binding type for a given
         // location
-        // NOTE: don't allow changing binding size fo UNIFORM bindings
+        // NOTE: don't allow changing binding size for UNIFORM bindings
         // at same location
         R_Binding* binding
           = ARENA_GET_TYPE(&mat->bindings, R_Binding, location);
@@ -1079,13 +1079,12 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
 
     const char* vertShaderCode = NULL;
     const char* fragShaderCode = NULL;
-    switch (config->shaderType) {
-        case R_SHADER_TYPE_PBR: {
+    switch (config->material_type) {
+        case SG_MATERIAL_PBR: {
             vertShaderCode = shaderCode;
             fragShaderCode = shaderCode;
             break;
         }
-        case R_SHADER_TYPE_CUSTOM:
         default: ASSERT(false && "unsupported shader type");
     }
 
@@ -1194,6 +1193,11 @@ static Arena materialArena;
 static Arena textureArena;
 static Arena _RenderPipelineArena;
 
+// default textures
+static Texture opaqueWhitePixel      = {};
+static Texture transparentBlackPixel = {};
+static Texture defaultNormalPixel    = {};
+
 // maps from id --> offset
 static hashmap* r_locator = NULL;
 std::unordered_map<R_ID, u64> _RenderPipelineMap;
@@ -1220,7 +1224,7 @@ static u64 R_HashLocation(const void* item, uint64_t seed0, uint64_t seed1)
     // return hashmap_murmur(item, sizeof(int), seed0, seed1);
 }
 
-void Component_Init()
+void Component_Init(GraphicsContext* gctx)
 {
     // initialize arena memory
     Arena::init(&xformArena, sizeof(R_Transform) * 128);
@@ -1229,6 +1233,14 @@ void Component_Init()
     Arena::init(&materialArena, sizeof(R_Material) * 64);
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
+
+    // initialize default textures
+    static u8 white[4]  = { 255, 255, 255, 255 };
+    static u8 black[4]  = { 0, 0, 0, 0 };
+    static u8 normal[4] = { 128, 128, 255, 255 };
+    Texture::initSinglePixel(gctx, &opaqueWhitePixel, white);
+    Texture::initSinglePixel(gctx, &transparentBlackPixel, black);
+    Texture::initSinglePixel(gctx, &defaultNormalPixel, normal);
 
     // init locator
     int seed = time(NULL);
@@ -1248,6 +1260,11 @@ void Component_Free()
     Arena::free(&materialArena);
     Arena::free(&_RenderPipelineArena);
     Arena::free(&textureArena);
+
+    // free default textures
+    Texture::release(&opaqueWhitePixel);
+    Texture::release(&transparentBlackPixel);
+    Texture::release(&defaultNormalPixel);
 
     // free locator
     hashmap_free(r_locator);
@@ -1358,6 +1375,79 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
     ASSERT(mat->id != 0);                       // ensure id is set
     ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
+
+    // store offset
+    R_Location loc
+      = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return mat;
+}
+
+R_Material* Component_CreateMaterial(GraphicsContext* gctx,
+                                     SG_Command_MaterialCreate* cmd)
+{
+    R_Material* mat = ARENA_PUSH_TYPE(&materialArena, R_Material);
+
+    // initialize
+    {
+        *mat       = {};
+        mat->id    = cmd->sg_id;
+        mat->type  = SG_COMPONENT_MATERIAL;
+        mat->stale = true;
+
+        // build config
+        // TODO: pass config from SG_Material
+        mat->config               = {};
+        mat->config.material_type = cmd->material_type;
+
+        // set material params/uniforms
+        // TODO this only works for PBR for now
+        {
+            // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
+            // make the SG_MaterialParams struct alignment work for webgpu
+            // uniforms
+            MaterialUniforms pbr_uniforms  = {};
+            SG_Material_PBR_Params* params = &cmd->params.pbr;
+            pbr_uniforms.baseColor         = params->baseColor;
+            pbr_uniforms.emissiveFactor    = params->emissiveFactor;
+            pbr_uniforms.metallic          = params->metallic;
+            pbr_uniforms.roughness         = params->roughness;
+            pbr_uniforms.normalFactor      = params->normalFactor;
+            pbr_uniforms.aoFactor          = params->aoFactor;
+
+            R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
+                                   sizeof(pbr_uniforms));
+
+            R_Material::setTextureAndSamplerBinding(mat, 1, 0,
+                                                    opaqueWhitePixel.view);
+
+            R_Material::setTextureAndSamplerBinding(mat, 3, 0,
+                                                    defaultNormalPixel.view);
+
+            R_Material::setTextureAndSamplerBinding(mat, 5, 0,
+                                                    opaqueWhitePixel.view);
+
+            R_Material::setTextureAndSamplerBinding(mat, 7, 0,
+                                                    opaqueWhitePixel.view);
+        }
+
+        // initialize primitives arena
+        Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
+
+        // initialize bind entry arenas
+        Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
+        Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
+        Arena::init(&mat->uniformData, 64);
+
+        // get pipeline
+        R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->config);
+
+        // add material to pipeline
+        R_RenderPipeline::addMaterial(pipeline, mat);
+        ASSERT(mat->pipelineID != 0);
+    }
 
     // store offset
     R_Location loc

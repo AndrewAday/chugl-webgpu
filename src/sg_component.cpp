@@ -318,7 +318,7 @@ static Arena* _gc_queue_write = &_gc_queue_b;
 static Arena SG_XformArena;
 static Arena SG_SceneArena;
 static Arena SG_GeoArena;
-// static Arena materialArena;
+static Arena SG_MaterialArena;
 // static Arena textureArena;
 
 // locators (TODO switch to table)
@@ -366,6 +366,8 @@ void SG_Init(const Chuck_DL_Api* api)
 
     Arena::init(&SG_XformArena, sizeof(SG_Transform) * 64);
     Arena::init(&SG_SceneArena, sizeof(SG_Scene) * 64);
+    Arena::init(&SG_GeoArena, sizeof(SG_Geometry) * 32);
+    Arena::init(&SG_MaterialArena, sizeof(SG_Material) * 32);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -379,6 +381,8 @@ void SG_Free()
     // TODO call free() on the components themselves
     Arena::free(&SG_XformArena);
     Arena::free(&SG_SceneArena);
+    Arena::free(&SG_GeoArena);
+    Arena::free(&SG_MaterialArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -440,6 +444,41 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
     hashmap_set(locator, &loc);
 
     return geo;
+}
+
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
+                               SG_MaterialType material_type, void* params)
+{
+    Arena* arena     = &SG_MaterialArena;
+    size_t offset    = arena->curr;
+    SG_Material* mat = ARENA_PUSH_TYPE(arena, SG_Material);
+
+    mat->ckobj         = ckobj;
+    mat->id            = SG_GetNewComponentID();
+    mat->type          = SG_COMPONENT_MATERIAL;
+    mat->material_type = material_type;
+
+    switch (material_type) {
+        case SG_MATERIAL_PBR: {
+            if (params == NULL) {
+                // copy default values
+                SG_Material_PBR_Params p = {};
+                COPY_STRUCT(&mat->params.pbr, &p, SG_Material_PBR_Params);
+                // confirm default values
+                ASSERT(mat->params.pbr.baseColor == glm::vec4(1.0f));
+            } else {
+                COPY_STRUCT(&mat->params.pbr, (SG_Material_PBR_Params*)params,
+                            SG_Material_PBR_Params);
+            }
+        } break;
+        default: ASSERT(false);
+    }
+
+    // store in map
+    SG_Location loc = { mat->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return mat;
 }
 
 SG_Component* SG_GetComponent(SG_ID id)

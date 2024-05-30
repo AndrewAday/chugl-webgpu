@@ -63,3 +63,11 @@ T.assert(
     && B.child() == A && B.numChildren() == 1,
     "no cycles allowed"
 );
+
+A --> GG.scene();
+
+T.assert(
+    A.parent() == GG.scene() 
+    && GG.scene().child() == A,
+    "grucking to scene"
+);

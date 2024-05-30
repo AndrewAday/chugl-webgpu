@@ -237,9 +237,6 @@ struct App {
         app->ckapi = api;
 
         Camera::init(&app->camera);
-
-        // initialize R_Component manager
-        Component_Init();
     }
 
     static void start(App* app)
@@ -274,6 +271,9 @@ struct App {
             log_fatal("Failed to initialize graphics context\n");
             return;
         }
+
+        // initialize R_Component manager
+        Component_Init(&app->gctx);
 
         { // set window callbacks
             glfwSetWindowUserPointer(app->window, app);
@@ -604,6 +604,12 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_GEO_CREATE: {
             SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
             Component_CreateGeometry(&app->gctx, cmd);
+            break;
+        }
+        case SG_COMMAND_MATERIAL_CREATE: {
+            SG_Command_MaterialCreate* cmd
+              = (SG_Command_MaterialCreate*)command;
+            Component_CreateMaterial(&app->gctx, cmd);
             break;
         }
         default: ASSERT(false);

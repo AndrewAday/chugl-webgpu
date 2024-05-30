@@ -83,6 +83,12 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
       SG_SAMPLER_FILTER_LINEAR, SG_SAMPLER_FILTER_LINEAR };
 
 // ============================================================================
+// SG_Texture
+// ============================================================================
+struct SG_Texture : SG_Component {
+};
+
+// ============================================================================
 // SG_Transform
 // ============================================================================
 
@@ -159,7 +165,7 @@ enum SG_GeometryType : u8 {
     SG_GEOMETRY_COUNT
 };
 
-union SG_Geometry_Params {
+union SG_GeometryParams {
     PlaneParams plane;
 };
 
@@ -167,11 +173,48 @@ union SG_Geometry_Params {
 struct SG_Geometry : SG_Component {
     SG_GeometryType geo_type;
     // TODO add cpu-side vertex data
-    SG_Geometry_Params params;
+    SG_GeometryParams params;
 
     /// @brief
     /// @param params pointer to struct containing geometry parameters
     static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
+};
+
+// ============================================================================
+// SG_Material
+// ============================================================================
+
+enum SG_MaterialType : u8 {
+    SG_MATERIAL_INVALID = 0,
+    SG_MATERIAL_PBR,
+    SG_MATERIAL_CUSTOM,
+    SG_MATERIAL_COUNT
+};
+
+struct SG_Material_PBR_Params {
+    // uniforms
+    glm::vec4 baseColor      = glm::vec4(1.0f);
+    glm::vec3 emissiveFactor = glm::vec3(0.0f);
+    f32 metallic             = 0.0f;
+    f32 roughness            = 1.0f;
+    f32 normalFactor         = 1.0f;
+    f32 aoFactor             = 1.0f;
+
+    // textures and samplers
+    // TODO
+    // SG_Sampler baseColorSampler;
+};
+
+// TODO if discrepency between material params too large,
+// switch to allocated void* rather than union
+// Then SG_Command_MaterialCreate will need a pointer too...
+union SG_MaterialParams {
+    SG_Material_PBR_Params pbr;
+};
+
+struct SG_Material : SG_Component {
+    SG_MaterialType material_type;
+    SG_MaterialParams params;
 };
 
 // ============================================================================
@@ -185,6 +228,8 @@ SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
                                void* params);
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
+                               SG_MaterialType material_type, void* params);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
