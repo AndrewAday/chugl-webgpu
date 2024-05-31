@@ -1100,6 +1100,9 @@ CK_DLL_MFUN(gscene_set_background_color)
 CK_DLL_CTOR(plane_geo_ctor);
 CK_DLL_CTOR(plane_geo_ctor_params);
 
+CK_DLL_CTOR(sphere_geo_ctor);
+CK_DLL_CTOR(sphere_geo_ctor_params);
+
 static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 {
     // Geometry -----------------------------------------------------
@@ -1120,6 +1123,23 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "int", "widthSegments");
     QUERY->add_arg(QUERY, "int", "heightSegments");
     QUERY->doc_func(QUERY, "Set plane dimensions and subdivisions");
+
+    QUERY->end_class(QUERY);
+
+    // Sphere -----------------------------------------------------
+    QUERY->begin_class(QUERY, "SphereGeometry",
+                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
+
+    QUERY->add_ctor(QUERY, sphere_geo_ctor);
+    QUERY->add_ctor(QUERY, sphere_geo_ctor_params);
+    QUERY->add_arg(QUERY, "float", "radius");
+    QUERY->add_arg(QUERY, "int", "widthSeg");
+    QUERY->add_arg(QUERY, "int", "heightSeg");
+    QUERY->add_arg(QUERY, "float", "phiStart");
+    QUERY->add_arg(QUERY, "float", "phiLength");
+    QUERY->add_arg(QUERY, "float", "thetaStart");
+    QUERY->add_arg(QUERY, "float", "thetaLength");
+    QUERY->doc_func(QUERY, "Set sphere dimensions and subdivisions");
 
     QUERY->end_class(QUERY);
 }
@@ -1148,6 +1168,37 @@ CK_DLL_CTOR(plane_geo_ctor_params)
     params.height         = GET_NEXT_FLOAT(ARGS);
     params.widthSegments  = GET_NEXT_INT(ARGS);
     params.heightSegments = GET_NEXT_INT(ARGS);
+
+    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+
+    CQ_PushCommand_GeometryCreate(geo);
+}
+
+CK_DLL_CTOR(sphere_geo_ctor)
+{
+    SphereParams params = {};
+
+    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_SPHERE, &params);
+    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
+    ASSERT(geo->id > 0);
+    ASSERT(geo->geo_type == SG_GEOMETRY_SPHERE);
+
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+
+    CQ_PushCommand_GeometryCreate(geo);
+}
+
+CK_DLL_CTOR(sphere_geo_ctor_params)
+{
+    SphereParams params = {};
+    params.radius       = GET_NEXT_FLOAT(ARGS);
+    params.widthSeg     = GET_NEXT_INT(ARGS);
+    params.heightSeg    = GET_NEXT_INT(ARGS);
+    params.phiStart     = GET_NEXT_FLOAT(ARGS);
+    params.phiLength    = GET_NEXT_FLOAT(ARGS);
+    params.thetaStart   = GET_NEXT_FLOAT(ARGS);
+    params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
@@ -1215,7 +1266,7 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 CK_DLL_CTOR(gmesh_ctor)
 {
     SG_Mesh* mesh = SG_CreateMesh(SELF, NULL, NULL);
-    ASSERT(mesh->type == SG_COMPONENT_MATERIAL);
+    ASSERT(mesh->type == SG_COMPONENT_MESH);
 
     OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
 

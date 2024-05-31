@@ -168,6 +168,7 @@ enum SG_GeometryType : u8 {
 
 union SG_GeometryParams {
     PlaneParams plane;
+    SphereParams sphere;
 };
 
 // immutable

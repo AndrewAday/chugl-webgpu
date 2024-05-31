@@ -2,6 +2,8 @@
 
 #include "core/memory.h"
 
+#include <glm/gtc/epsilon.hpp>
+
 #include <mikktspace/mikktspace.h>
 
 #include <vector> // ew
@@ -120,8 +122,8 @@ void Vertices::buildTangents(Vertices* v)
         };
 
     mikktspaceIface.m_getPosition
-      = [](const SMikkTSpaceContext* pContext, float fvPosOut[],
-           const int iFace, const int iVert) {
+      = [](const SMikkTSpaceContext* pContext, f32 fvPosOut[], const int iFace,
+           const int iVert) {
             Vertices* v = (Vertices*)pContext->m_pUserData;
             u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
                                                 (iFace * 3 + iVert);
@@ -132,8 +134,8 @@ void Vertices::buildTangents(Vertices* v)
         };
 
     mikktspaceIface.m_getNormal
-      = [](const SMikkTSpaceContext* pContext, float fvNormOut[],
-           const int iFace, const int iVert) {
+      = [](const SMikkTSpaceContext* pContext, f32 fvNormOut[], const int iFace,
+           const int iVert) {
             Vertices* v = (Vertices*)pContext->m_pUserData;
             u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
                                                 (iFace * 3 + iVert);
@@ -144,8 +146,8 @@ void Vertices::buildTangents(Vertices* v)
         };
 
     mikktspaceIface.m_getTexCoord
-      = [](const SMikkTSpaceContext* pContext, float fvTexcOut[],
-           const int iFace, const int iVert) {
+      = [](const SMikkTSpaceContext* pContext, f32 fvTexcOut[], const int iFace,
+           const int iVert) {
             Vertices* v = (Vertices*)pContext->m_pUserData;
             u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
                                                 (iFace * 3 + iVert);
@@ -155,8 +157,8 @@ void Vertices::buildTangents(Vertices* v)
         };
 
     mikktspaceIface.m_setTSpaceBasic
-      = [](const SMikkTSpaceContext* pContext, const float fvTangent[],
-           const float fSign, const int iFace, const int iVert) {
+      = [](const SMikkTSpaceContext* pContext, const f32 fvTangent[],
+           const f32 fSign, const int iFace, const int iVert) {
             Vertices* v = (Vertices*)pContext->m_pUserData;
             u32 index = (v->indicesCount > 0) ? v->indices[iFace * 3 + iVert] :
                                                 (iFace * 3 + iVert);
@@ -317,4 +319,93 @@ void Vertices::createPlane(Vertices* vertices, PlaneParams* params)
         }
     }
     ASSERT(index == vertices->indicesCount / 3);
+}
+
+void Vertices::createSphere(Vertices* vertices, SphereParams* params)
+{
+    ASSERT(vertices->vertexCount == 0);
+    ASSERT(vertices->indicesCount == 0);
+
+    params->widthSeg  = MAX(3, params->widthSeg);
+    params->heightSeg = MAX(2, params->heightSeg);
+
+    const f32 thetaEnd = MIN(params->thetaStart + params->thetaLength, PI);
+
+    u32 index = 0;
+
+    std::vector<u32> grid;
+    std::vector<Vertex> verts;
+    std::vector<u32> indices;
+
+    // generate vertices, normals and uvs
+    for (u32 iy = 0; iy <= params->heightSeg; iy++) {
+
+        const f32 v = (f32)iy / (f32)params->heightSeg;
+
+        // special case for the poles
+        f32 uOffset = 0;
+        if (iy == 0 && glm::epsilonEqual(params->thetaStart, 0.0f, EPSILON)) {
+            uOffset = 0.5f / params->widthSeg;
+        } else if (iy == params->heightSeg
+                   && glm::epsilonEqual(thetaEnd, PI, EPSILON)) {
+            uOffset = -0.5 / params->widthSeg;
+        }
+
+        for (u32 ix = 0; ix <= params->widthSeg; ix++) {
+
+            const f32 u = (f32)ix / (f32)params->widthSeg;
+
+            Vertex vert;
+
+            // vertex
+            vert.x = -params->radius
+                     * glm::cos(params->phiStart + u * params->phiLength)
+                     * glm::sin(params->thetaStart + v * params->thetaLength);
+            vert.y = params->radius
+                     * glm::cos(params->thetaStart + v * params->thetaLength);
+            vert.z = params->radius
+                     * glm::sin(params->phiStart + u * params->phiLength)
+                     * glm::sin(params->thetaStart + v * params->thetaLength);
+
+            // normal
+            glm::vec3 normal
+              = glm::normalize(glm::vec3(vert.x, vert.y, vert.z));
+            vert.nx = normal.x;
+            vert.ny = normal.y;
+            vert.nz = normal.z;
+
+            // uv
+            vert.u = u + uOffset;
+            vert.v = 1 - v;
+
+            verts.push_back(vert);
+            grid.push_back(index++);
+        }
+    }
+
+    const size_t rowSize = (size_t)params->widthSeg + 1;
+    for (size_t iy = 0; iy < params->heightSeg; iy++) {
+        for (size_t ix = 0; ix < params->widthSeg; ix++) {
+
+            const u32 a = grid[(iy * rowSize) + ix + 1];
+            const u32 b = grid[(iy * rowSize) + ix];
+            const u32 c = grid[(rowSize * (iy + 1)) + ix];
+            const u32 d = grid[rowSize * (iy + 1) + (ix + 1)];
+
+            if (iy != 0 || params->thetaStart > EPSILON) {
+                indices.push_back(a);
+                indices.push_back(b);
+                indices.push_back(d);
+            }
+            if (iy != (size_t)params->heightSeg - 1
+                || thetaEnd < PI - EPSILON) {
+                indices.push_back(b);
+                indices.push_back(c);
+                indices.push_back(d);
+            }
+        }
+    }
+
+    Vertices::copy(vertices, verts.data(), verts.size(), indices.data(),
+                   indices.size());
 }

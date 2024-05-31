@@ -175,10 +175,6 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
 
 void R_Transform::addChild(R_Transform* parent, R_Transform* child)
 {
-    ASSERT(!R_Transform::isAncestor(child, parent)); // prevent cycles
-    ASSERT(parent != NULL);
-    ASSERT(child != NULL);
-
     if (R_Transform::isAncestor(child, parent)) {
         log_error(
           "No cycles in scenegraph; cannot add parent as child of descendent");
@@ -203,7 +199,7 @@ void R_Transform::addChild(R_Transform* parent, R_Transform* child)
     child->parentID = parent->id;
 
     // add child to parent
-    SG_ID* xformID = ARENA_PUSH_TYPE(&parent->children, SG_ID);
+    SG_ID* xformID = ARENA_PUSH_ZERO_TYPE(&parent->children, SG_ID);
     *xformID       = child->id;
 
     R_Transform::setStale(child, R_Transform_STALE_WORLD);
@@ -298,7 +294,7 @@ static void _Transform_RebuildDescendants(R_Transform* xform,
 void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
 {
     // push root onto stack
-    SG_ID* base = ARENA_PUSH_TYPE(arena, SG_ID);
+    SG_ID* base = ARENA_PUSH_ZERO_TYPE(arena, SG_ID);
     *base       = root->id;
     SG_ID* top  = (SG_ID*)Arena::top(arena);
 
@@ -321,7 +317,7 @@ void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
                 SG_ID* children = (SG_ID*)xform->children.base;
                 for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID);
                      ++i) {
-                    SG_ID* childID = ARENA_PUSH_TYPE(arena, SG_ID);
+                    SG_ID* childID = ARENA_PUSH_ZERO_TYPE(arena, SG_ID);
                     *childID       = children[i];
                 }
                 break;
@@ -365,6 +361,11 @@ void R_Transform::rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
 {
     R_Transform::rot(xform,
                      glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
+}
+
+void R_Transform::print(R_Transform* xform)
+{
+    R_Transform::print(xform, 0);
 }
 
 void R_Transform::print(R_Transform* xform, u32 depth)
@@ -502,25 +503,21 @@ void Material_Primitive::addXform(Material_Primitive* prim, R_Transform* xform)
     // if xform is already set to this primitive, do nothing
     if (xform->_geoID == prim->geoID && xform->_matID == prim->matID) return;
 
+    // remove xform from previous material
+    R_Material* prevMat = Component_GetMaterial(xform->_matID);
+    R_Geometry* prevGeo = Component_GetGeometry(xform->_geoID);
+    R_Material::removePrimitive(prevMat, prevGeo, xform);
+    ASSERT(xform->_geoID == 0);
+    ASSERT(xform->_matID == 0);
+
     // set stale
     prim->stale = true;
-
-    // remove xform from previous material
-    if (xform->_geoID && xform->_matID) {
-        R_Material* prevMat = Component_GetMaterial(xform->_matID);
-        R_Geometry* prevGeo = Component_GetGeo(xform->_geoID);
-        ASSERT(prevMat && prevGeo); // reference counting should prevent geo
-                                    // from being deleted
-        R_Material::removePrimitive(prevMat, prevGeo, xform);
-    }
 
     // add xform to new primitive
     xform->_geoID  = prim->geoID;
     xform->_matID  = prim->matID;
-    SG_ID* xformID = ARENA_PUSH_TYPE(&prim->xformIDs, SG_ID);
+    SG_ID* xformID = ARENA_PUSH_ZERO_TYPE(&prim->xformIDs, SG_ID);
     *xformID       = xform->id;
-
-    // TODO refcounting
 }
 
 void Material_Primitive::removeXform(Material_Primitive* prim,
@@ -537,7 +534,10 @@ void Material_Primitive::removeXform(Material_Primitive* prim,
             Arena::popZero(&prim->xformIDs, sizeof(SG_ID));
             // set stale
             prim->stale = true;
-            break;
+            // set xform ids
+            xform->_geoID = 0;
+            xform->_matID = 0;
+            return;
         }
     }
 }
@@ -582,7 +582,7 @@ void Material_Primitive::rebuildBindGroup(GraphicsContext* gctx,
         ++matrixCount;
         // world matrix should already have been computed by now
         ASSERT(xform->_stale == R_Transform_STALE_NONE);
-        glm::mat4* matPtr = ARENA_PUSH_TYPE(arena, glm::mat4);
+        glm::mat4* matPtr = ARENA_PUSH_ZERO_TYPE(arena, glm::mat4);
         *matPtr           = xform->world;
     }
     // sanity check that we have the correct number of matrices
@@ -935,6 +935,8 @@ u32 R_Material::numPrimitives(R_Material* mat)
 void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
                               R_Transform* xform)
 {
+    if (mat == NULL || geo == NULL || xform == NULL) return;
+
     // check if primitive for geoID already exists
     u32 numPrims = R_Material::numPrimitives(mat);
     for (u32 i = 0; i < numPrims; ++i) {
@@ -948,7 +950,7 @@ void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
     }
     // else create new primitive for this geometry
     Material_Primitive* prim
-      = ARENA_PUSH_TYPE(&mat->primitives, Material_Primitive);
+      = ARENA_PUSH_ZERO_TYPE(&mat->primitives, Material_Primitive);
     Material_Primitive::init(prim, mat, geo->id);
 
     // add xform to new primitive
@@ -958,9 +960,6 @@ void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
     ASSERT(xform->_geoID == geo->id);
     ASSERT(xform->_matID == mat->id);
     ASSERT(prim->stale);
-
-    // TODO: reference counting (or maybe only need in Material::Primitive
-    // addXform / removeXform)
 }
 
 /// @brief remove instance of xform from the geo primitive on mat
@@ -968,6 +967,8 @@ void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
 void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo,
                                  R_Transform* xform)
 {
+    if (mat == NULL || geo == NULL || xform == NULL) return;
+
     ASSERT(xform->_geoID == geo->id && xform->_matID == mat->id);
 
     u32 numPrims = R_Material::numPrimitives(mat);
@@ -977,6 +978,8 @@ void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo,
         if (prim->geoID == geo->id) {
             Material_Primitive::removeXform(prim, xform);
             ASSERT(prim->stale);
+            ASSERT(xform->_geoID == 0);
+            ASSERT(xform->_matID == 0);
             // empty primitive, either remove or swap with last
             if (Material_Primitive::numInstances(prim) == 0) {
                 // TODO: figure out how to handle this.
@@ -1138,9 +1141,14 @@ void R_RenderPipeline::addMaterial(R_RenderPipeline* pipeline,
     // materials whose pipeline id doesn't match
 
     // add material to new pipeline
-    SG_ID* newMaterialID = ARENA_PUSH_TYPE(&pipeline->materialIDs, SG_ID);
+    SG_ID* newMaterialID = ARENA_PUSH_ZERO_TYPE(&pipeline->materialIDs, SG_ID);
     *newMaterialID       = material->id;
     material->pipelineID = pipeline->rid;
+}
+
+size_t R_RenderPipeline::numMaterials(R_RenderPipeline* pipeline)
+{
+    return ARENA_LENGTH(&pipeline->materialIDs, SG_ID);
 }
 
 // While iterating, will lazy delete NULL material IDs and materials
@@ -1151,7 +1159,7 @@ void R_RenderPipeline::addMaterial(R_RenderPipeline* pipeline,
 bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline,
                                     size_t* indexPtr, R_Material** material)
 {
-    size_t numMaterials = ARENA_LENGTH(&pipeline->materialIDs, SG_ID);
+    size_t numMaterials = R_RenderPipeline::numMaterials(pipeline);
 
     if (*indexPtr >= numMaterials) {
         *material = NULL;
@@ -1273,7 +1281,7 @@ void Component_Free()
 
 R_Transform* Component_CreateTransform()
 {
-    R_Transform* xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
+    R_Transform* xform = ARENA_PUSH_ZERO_TYPE(&xformArena, R_Transform);
     R_Transform::init(xform);
 
     ASSERT(xform->id != 0);                        // ensure id is set
@@ -1290,7 +1298,7 @@ R_Transform* Component_CreateTransform()
 
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
 {
-    R_Transform* xform = ARENA_PUSH_TYPE(&xformArena, R_Transform);
+    R_Transform* xform = ARENA_PUSH_ZERO_TYPE(&xformArena, R_Transform);
     R_Transform::initFromSG(xform, cmd);
 
     ASSERT(xform->id != 0);                        // ensure id is set
@@ -1305,17 +1313,54 @@ R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
     return xform;
 }
 
+R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
+{
+    R_Transform* xform = ARENA_PUSH_ZERO_TYPE(&xformArena, R_Transform);
+
+    {
+        xform->id         = cmd->mesh_id;
+        xform->type       = SG_COMPONENT_MESH;
+        xform->xform_type = R_TRANSFORM_MESH;
+
+        xform->_pos = glm::vec3(0.0f);
+        xform->_rot = QUAT_IDENTITY;
+        xform->_sca = glm::vec3(1.0f);
+
+        xform->world  = MAT_IDENTITY;
+        xform->local  = MAT_IDENTITY;
+        xform->normal = MAT_IDENTITY;
+        xform->_stale = R_Transform_STALE_LOCAL;
+
+        xform->parentID = 0;
+        // initialize children array for 8 children
+        Arena::init(&xform->children, sizeof(SG_ID) * 8);
+    }
+
+    // store offset
+    R_Location loc
+      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    // add geo and mat
+    R_Geometry* geo = Component_GetGeometry(cmd->geo_id);
+    R_Material* mat = Component_GetMaterial(cmd->mat_id);
+    R_Material::addPrimitive(mat, geo, xform);
+
+    return xform;
+}
+
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
 {
-    R_Scene* r_scene = ARENA_PUSH_TYPE(&xformArena, R_Scene);
+    Arena* arena     = &sceneArena;
+    R_Scene* r_scene = ARENA_PUSH_ZERO_TYPE(arena, R_Scene);
     R_Scene::initFromSG(r_scene, cmd);
 
     ASSERT(r_scene->id != 0);                    // ensure id is set
     ASSERT(r_scene->type == SG_COMPONENT_SCENE); // ensure type is set
 
     // store offset
-    R_Location loc
-      = { r_scene->id, Arena::offsetOf(&sceneArena, r_scene), &sceneArena };
+    R_Location loc = { r_scene->id, Arena::offsetOf(arena, r_scene), arena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1324,7 +1369,7 @@ R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
 
 R_Geometry* Component_CreateGeometry()
 {
-    R_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, R_Geometry);
+    R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
     R_Geometry::init(geo);
 
     ASSERT(geo->id != 0);                       // ensure id is set
@@ -1342,16 +1387,20 @@ R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
                                      SG_Command_GeoCreate* cmd)
 {
     // first build vertices
-    Vertices vertices;
+    Vertices vertices = {};
     switch (cmd->geo_type) {
         case SG_GEOMETRY_PLANE: {
             Vertices::createPlane(&vertices, &cmd->params.plane);
             break;
         }
+        case SG_GEOMETRY_SPHERE: {
+            Vertices::createSphere(&vertices, &cmd->params.sphere);
+            break;
+        }
         default: ASSERT(false)
     }
 
-    R_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, R_Geometry);
+    R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
     R_Geometry::buildFromVertices(gctx, geo, &vertices);
 
     geo->id   = cmd->sg_id;
@@ -1370,7 +1419,7 @@ R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      R_MaterialConfig* config)
 {
-    R_Material* mat = ARENA_PUSH_TYPE(&materialArena, R_Material);
+    R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
     R_Material::init(gctx, mat, config);
 
     ASSERT(mat->id != 0);                       // ensure id is set
@@ -1385,10 +1434,11 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
     return mat;
 }
 
+// TODO: refactor so that R_Component doesn't know about SG_Command
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      SG_Command_MaterialCreate* cmd)
 {
-    R_Material* mat = ARENA_PUSH_TYPE(&materialArena, R_Material);
+    R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
 
     // initialize
     {
@@ -1401,37 +1451,6 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
         // TODO: pass config from SG_Material
         mat->config               = {};
         mat->config.material_type = cmd->material_type;
-
-        // set material params/uniforms
-        // TODO this only works for PBR for now
-        {
-            // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
-            // make the SG_MaterialParams struct alignment work for webgpu
-            // uniforms
-            MaterialUniforms pbr_uniforms  = {};
-            SG_Material_PBR_Params* params = &cmd->params.pbr;
-            pbr_uniforms.baseColor         = params->baseColor;
-            pbr_uniforms.emissiveFactor    = params->emissiveFactor;
-            pbr_uniforms.metallic          = params->metallic;
-            pbr_uniforms.roughness         = params->roughness;
-            pbr_uniforms.normalFactor      = params->normalFactor;
-            pbr_uniforms.aoFactor          = params->aoFactor;
-
-            R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
-                                   sizeof(pbr_uniforms));
-
-            R_Material::setTextureAndSamplerBinding(mat, 1, 0,
-                                                    opaqueWhitePixel.view);
-
-            R_Material::setTextureAndSamplerBinding(mat, 3, 0,
-                                                    defaultNormalPixel.view);
-
-            R_Material::setTextureAndSamplerBinding(mat, 5, 0,
-                                                    opaqueWhitePixel.view);
-
-            R_Material::setTextureAndSamplerBinding(mat, 7, 0,
-                                                    opaqueWhitePixel.view);
-        }
 
         // initialize primitives arena
         Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
@@ -1449,6 +1468,37 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
         ASSERT(mat->pipelineID != 0);
     }
 
+    // set material params/uniforms
+    // TODO this only works for PBR for now
+    {
+        // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
+        // make the SG_MaterialParams struct alignment work for webgpu
+        // uniforms
+        MaterialUniforms pbr_uniforms  = {};
+        SG_Material_PBR_Params* params = &cmd->params.pbr;
+        pbr_uniforms.baseColor         = params->baseColor;
+        pbr_uniforms.emissiveFactor    = params->emissiveFactor;
+        pbr_uniforms.metallic          = params->metallic;
+        pbr_uniforms.roughness         = params->roughness;
+        pbr_uniforms.normalFactor      = params->normalFactor;
+        pbr_uniforms.aoFactor          = params->aoFactor;
+
+        R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
+                               sizeof(pbr_uniforms));
+
+        R_Material::setTextureAndSamplerBinding(mat, 1, 0,
+                                                opaqueWhitePixel.view);
+
+        R_Material::setTextureAndSamplerBinding(mat, 3, 0,
+                                                defaultNormalPixel.view);
+
+        R_Material::setTextureAndSamplerBinding(mat, 5, 0,
+                                                opaqueWhitePixel.view);
+
+        R_Material::setTextureAndSamplerBinding(mat, 7, 0,
+                                                opaqueWhitePixel.view);
+    }
+
     // store offset
     R_Location loc
       = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
@@ -1460,7 +1510,7 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
 R_Texture* Component_CreateTexture()
 {
-    R_Texture* texture = ARENA_PUSH_TYPE(&textureArena, R_Texture);
+    R_Texture* texture = ARENA_PUSH_ZERO_TYPE(&textureArena, R_Texture);
     R_Texture::init(texture);
 
     ASSERT(texture->id != 0);                      // ensure id is set
@@ -1488,7 +1538,8 @@ R_Transform* Component_GetXform(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     if (comp) {
         ASSERT(comp->type == SG_COMPONENT_TRANSFORM
-               || comp->type == SG_COMPONENT_SCENE);
+               || comp->type == SG_COMPONENT_SCENE
+               || comp->type == SG_COMPONENT_MESH);
     }
     return (R_Transform*)comp;
 }
@@ -1500,7 +1551,7 @@ R_Scene* Component_GetScene(SG_ID id)
     return (R_Scene*)comp;
 }
 
-R_Geometry* Component_GetGeo(SG_ID id)
+R_Geometry* Component_GetGeometry(SG_ID id)
 {
     R_Component* comp = Component_GetComponent(id);
     ASSERT(comp == NULL || comp->type == SG_COMPONENT_GEOMETRY);

@@ -372,7 +372,7 @@ static SamplerConfig _gltf_sampler_to_sampler_config(cgltf_sampler* sampler)
 
     desc.lodMinClamp   = 0.0f;
     desc.lodMaxClamp   = 32.0f; // webgpu spec default
-    desc.maxAnisotropy = 16;    // max on most systems
+    desc.maxAnisotropy = 1;     // default
 
     return Graphics_SamplerConfigFromDesciptor(&desc);
 }

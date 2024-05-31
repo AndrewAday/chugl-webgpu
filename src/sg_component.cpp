@@ -296,7 +296,13 @@ void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
         case SG_GEOMETRY_PLANE: {
             PlaneParams* p  = (PlaneParams*)params;
             g->params.plane = *p;
-        } break;
+            break;
+        }
+        case SG_GEOMETRY_SPHERE: {
+            SphereParams* p  = (SphereParams*)params;
+            g->params.sphere = *p;
+            break;
+        }
         default: ASSERT(false);
     }
 }
@@ -499,8 +505,6 @@ SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
                 // copy default values
                 SG_Material_PBR_Params p = {};
                 COPY_STRUCT(&mat->params.pbr, &p, SG_Material_PBR_Params);
-                // confirm default values
-                ASSERT(mat->params.pbr.baseColor == glm::vec4(1.0f));
             } else {
                 COPY_STRUCT(&mat->params.pbr, (SG_Material_PBR_Params*)params,
                             SG_Material_PBR_Params);
@@ -552,8 +556,8 @@ SG_Transform* SG_GetTransform(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component == NULL || component->type == SG_COMPONENT_TRANSFORM
-           || component->type == SG_COMPONENT_SCENE);
-    // TODO: also check for other children of SG_Transform
+           || component->type == SG_COMPONENT_SCENE
+           || component->type == SG_COMPONENT_MESH);
     return (SG_Transform*)component;
 }
 

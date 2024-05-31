@@ -45,10 +45,19 @@ enum R_Transform_Staleness {
     R_Transform_STALE_COUNT
 };
 
+enum R_Transform_Type : u8 {
+    R_TRANSFORM_NONE = 0,
+    R_TRANSFORM_MESH,
+    R_TRANSFORM_CAMERA,
+    R_TRANSFORM_LIGHT,
+    R_TRANSFORM_COUNT
+};
+
 struct R_Transform : public R_Component {
     // staleness flag has priority hiearchy, don't set directly!
     // instead use setStale()
     R_Transform_Staleness _stale;
+    R_Transform_Type xform_type = R_TRANSFORM_NONE;
 
     // transform
     // don't update directly, otherwise staleness will be incorrect
@@ -105,7 +114,8 @@ struct R_Transform : public R_Component {
     static void rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg);
 
     // util -------------------------------------------------------------------
-    static void print(R_Transform* xform, u32 depth = 0);
+    static void print(R_Transform* xform, u32 depth);
+    static void print(R_Transform* xform);
 };
 
 struct R_Geometry : public R_Component {
@@ -335,6 +345,7 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
     static void addMaterial(R_RenderPipeline* pipeline, R_Material* material);
 
     /// @brief Iterator for materials tied to render pipeline
+    static size_t numMaterials(R_RenderPipeline* pipeline);
     static bool materialIter(R_RenderPipeline* pipeline, size_t* indexPtr,
                              R_Material** material);
 };
@@ -345,6 +356,9 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 
 R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
+
+R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
+
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 
 R_Geometry* Component_CreateGeometry();
@@ -361,7 +375,7 @@ R_Texture* Component_CreateTexture();
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
 R_Scene* Component_GetScene(SG_ID id);
-R_Geometry* Component_GetGeo(SG_ID id);
+R_Geometry* Component_GetGeometry(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
 

@@ -28,6 +28,13 @@ struct PlaneParams {
     u32 widthSegments = 1, heightSegments = 1;
 };
 
+struct SphereParams {
+    f32 radius   = 0.5;
+    u32 widthSeg = 32, heightSeg = 16;
+    f32 phiStart = 0.0, phiLength = 2 * PI; // how much along circumference
+    f32 thetaStart = 0.0, thetaLength = PI; // how much along central diameter
+};
+
 // TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags
 // probably requires splitting vertex data into separate arrays
@@ -67,6 +74,7 @@ struct Vertices {
 
     // shapes
     static void createPlane(Vertices* vertices, PlaneParams* params);
+    static void createSphere(Vertices* vertices, SphereParams* params);
 };
 
 // Vertices createPlane(const PlaneParams* params);

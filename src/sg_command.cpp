@@ -60,12 +60,11 @@ void CQ_Free()
 // swap the command queue double buffer
 void CQ_SwapQueues()
 {
+    // assert read queue has been flushed before swapping
+    ASSERT(cq.read_q->curr == 0);
 
     Arena* temp = cq.read_q;
     cq.read_q   = cq.write_q;
-
-    // assert read queue has been flushed before swapping
-    ASSERT(cq.read_q->curr == 0);
 
     spinlock::lock(&cq.write_q_lock);
     cq.write_q = temp;

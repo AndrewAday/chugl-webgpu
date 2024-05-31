@@ -280,15 +280,17 @@ static const char* shaderCode = R"glsl(
 
         // color.g = 0.5 + 0.5 * sin(u_Frame.time);
         // lambertian diffuse
-        // let normal = normalize(in.v_normal);
-        // var lightContrib : f32 = max(0.0, dot(u_Frame.dirLight, -normal));
+        let normal = normalize(in.v_normal);
+        var lightContrib : f32 = max(0.0, dot(u_Frame.dirLight, -normal));
+        // return vec4f(lightContrib * albedo, 1.0);
         // add global ambient
         // lightContrib = clamp(lightContrib, 0.2, 1.0);
 
-        return vec4f(finalColor, u_Material.baseColor.a);
+        // return vec4f(finalColor, u_Material.baseColor.a);
+        // return vec4f(Lo, u_Material.baseColor.a);
         // return vec4f(
         //     ambient, u_Material.baseColor.a);
-        // return vec4f(in.v_normal, 1.0);
+        return vec4f(in.v_normal, 1.0);
         // return vec4f(in.v_uv, 0.0, 1.0);
         // return vec4f(1.0, 0.0, 0.0, 1.0);
     }

@@ -1578,7 +1578,7 @@ WGPUSampler Graphics_GetSampler(GraphicsContext* gctx, SamplerConfig config)
     samplerDesc.mipmapFilter          = (WGPUMipmapFilterMode)config.filterMip;
     samplerDesc.lodMinClamp           = 0;
     samplerDesc.lodMaxClamp           = 32;
-    samplerDesc.maxAnisotropy         = 16; // default to typical max
+    samplerDesc.maxAnisotropy = 1; // (16 is max but requires LINEAR filtering)
     _sampler_cache[key] = wgpuDeviceCreateSampler(gctx->device, &samplerDesc);
 
     ASSERT(_sampler_cache[key]);

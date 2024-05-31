@@ -40,166 +40,7 @@
 struct App;
 static void _R_HandleCommand(App* app, SG_Command* command);
 
-static void _R_RenderScene(App* app)
-{
-    // // Update all transforms
-    // R_Transform::rebuildMatrices(Component_GetXform(sceneIDs[0]),
-    // &frameArena);
-
-    // R_Transform::print(Component_GetXform(sceneIDs[0]), 0);
-
-    // WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
-
-    // // write per-frame uniforms
-    // f32 time                    = (f32)glfwGetTime();
-    // FrameUniforms frameUniforms = {};
-    // frameUniforms.projectionMat = proj;
-    // frameUniforms.viewMat       = view;
-    // frameUniforms.projViewMat
-    //   = frameUniforms.projectionMat * frameUniforms.viewMat;
-    // frameUniforms.camPos   = camPos;
-    // frameUniforms.dirLight = VEC_FORWARD;
-    // frameUniforms.time     = time;
-
-    // // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
-    // // Test render loop
-    // // use bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline**
-    // // renderPipeline);
-    // // TODO move into renderer.cpp
-    // R_RenderPipeline* renderPipeline = NULL;
-    // size_t rpIndex                   = 0;
-    // while (Component_RenderPipelineIter(&rpIndex, &renderPipeline)) {
-    //     // log_trace("drawing materials for render pipeline: %d",
-    //     //           renderPipeline->rid);
-
-    //     // TODO: early out if numMaterials == 0;
-
-    //     WGPURenderPipeline gpuPipeline = renderPipeline->pipeline.pipeline;
-    //     // TODO: cache the bindGroupLayout in the pipeline after creation (it
-    //     // will never change)
-    //     WGPUBindGroupLayout perMaterialLayout
-    //       = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
-    //                                              PER_MATERIAL_GROUP);
-    //     WGPUBindGroupLayout perDrawLayout
-    //       = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
-    //       PER_DRAW_GROUP);
-
-    //     // set shader
-    //     wgpuRenderPassEncoderSetPipeline(renderPass, gpuPipeline);
-
-    //     // set frame bind group (needs to be set per renderpipeline as long
-    //     as
-    //     // we use implicit layout:auto)
-    //     wgpuQueueWriteBuffer(gctx->queue,
-    //                          renderPipeline->pipeline.frameUniformBuffer, 0,
-    //                          &frameUniforms, sizeof(frameUniforms));
-    //     wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-    //                                       renderPipeline->pipeline.frameGroup,
-    //                                       0, NULL);
-
-    //     // per-material render loop
-    //     size_t materialIdx    = 0;
-    //     R_Material* rMaterial = NULL;
-
-    //     while (R_RenderPipeline::materialIter(renderPipeline, &materialIdx,
-    //                                           &rMaterial)) {
-    //         // get material
-    //         // log_trace("drawing material: %d", rMaterial->id);
-
-    //         ASSERT(rMaterial && rMaterial->pipelineID ==
-    //         renderPipeline->rid);
-
-    //         // TODO: early out on rMaterial->numPrimitives == 0
-
-    //         // TODO: figure out textures / texture views...
-
-    //         // set per_material bind group
-    //         R_Material::rebuildBindGroup(rMaterial, gctx, perMaterialLayout);
-    //         wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
-    //                                           rMaterial->bindGroup, 0, NULL);
-
-    //         // iterate over material primitives
-    //         size_t primitiveIdx           = 0;
-    //         Material_Primitive* primitive = NULL;
-    //         while (
-    //           R_Material::primitiveIter(rMaterial, &primitiveIdx,
-    //           &primitive)) {
-    //             u32 numInstances =
-    //             Material_Primitive::numInstances(primitive); if (numInstances
-    //             == 0) continue; Material_Primitive::rebuildBindGroup(
-    //               gctx, primitive, perDrawLayout, &frameArena);
-
-    //             // set model bind group
-    //             wgpuRenderPassEncoderSetBindGroup(
-    //               renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
-
-    //             R_Geometry* geo = Component_GetGeo(primitive->geoID);
-    //             ASSERT(geo);
-
-    //             // set vertex attributes
-    //             // TODO: move into renderer, and consider separate buffer for
-    //             // each attribute to handle case where some vertex attributes
-    //             // are missing (tangent, color, etc)
-    //             // TODO: what happens if a vertex attribute is not set in for
-    //             // the shader?
-    //             wgpuRenderPassEncoderSetVertexBuffer(
-    //               renderPass, 0, geo->gpuVertexBuffer, 0,
-    //               sizeof(f32) * geo->numVertices * 3);
-
-    //             auto normalsOffset = sizeof(f32) * geo->numVertices * 3;
-
-    //             wgpuRenderPassEncoderSetVertexBuffer(
-    //               renderPass, 1, geo->gpuVertexBuffer, normalsOffset,
-    //               sizeof(f32) * geo->numVertices * 3);
-
-    //             auto texcoordsOffset = sizeof(f32) * geo->numVertices * 6;
-
-    //             wgpuRenderPassEncoderSetVertexBuffer(
-    //               renderPass, 2, geo->gpuVertexBuffer, texcoordsOffset,
-    //               sizeof(f32) * geo->numVertices * 2);
-
-    //             size_t tangentOffset = sizeof(f32) * geo->numVertices * 8;
-
-    //             wgpuRenderPassEncoderSetVertexBuffer(
-    //               renderPass, 3, geo->gpuVertexBuffer, tangentOffset,
-    //               sizeof(f32) * geo->numVertices * 4);
-
-    //             // populate index buffer
-    //             if (geo->numIndices > 0)
-    //                 wgpuRenderPassEncoderSetIndexBuffer(
-    //                   renderPass, geo->gpuIndexBuffer,
-    //                   WGPUIndexFormat_Uint32, 0, geo->indexBufferDesc.size);
-
-    //             // draw call (indexed)
-    //             if (geo->numIndices > 0) {
-    //                 wgpuRenderPassEncoderDrawIndexed(
-    //                   renderPass, geo->numIndices, numInstances, 0, 0, 0);
-    //             } else {
-    //                 // draw call (nonindexed)
-    //                 wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
-    //                                           numInstances, 0, 0);
-    //             }
-    //         }
-
-    //         // material uniforms TODO switch to pbr
-    //         // MaterialUniforms materialUniforms = {};
-    //         // materialUniforms.color            =
-    //         // glm::vec4(1.0, 1.0, 1.0, 1.0);
-    //         // // TODO: only need to write if it's stale/changed
-    //         // wgpuQueueWriteBuffer(gctx->queue, //
-    //         //                      material.uniformBuffer, // 0, //
-    //         //                      &materialUniforms,
-    //         sizeof(materialUniforms)
-    //         //                      //
-    //         // );
-    //     }
-    // }
-
-    // GraphicsContext::presentFrame(gctx);
-
-    // // end of frame, clear arena
-    // Arena::clear(&frameArena);
-}
+static void _R_RenderScene(App* app);
 
 struct App {
     // options
@@ -224,6 +65,9 @@ struct App {
     // scenegraph state
     SG_ID mainScene;
 
+    // memory
+    Arena frameArena;
+
     // ============================================================================
     // App API
     // ============================================================================
@@ -237,6 +81,34 @@ struct App {
         app->ckapi = api;
 
         Camera::init(&app->camera);
+        Arena::init(&app->frameArena, MEGABYTE); // 1MB
+    }
+
+    static void gameloop(App* app)
+    {
+        // handle input -------------------
+        glfwPollEvents();
+
+        // frame metrics ----------------------------
+        {
+            _showFPS(app->window);
+
+            ++app->fc;
+            f64 currentTime = glfwGetTime();
+
+            // first frame prevent huge dt
+            if (app->lastTime == 0) app->lastTime = currentTime;
+
+            app->dt       = currentTime - app->lastTime;
+            app->lastTime = currentTime;
+        }
+
+        if (app->standalone)
+            _testLoop(app); // renderer-only tests
+        else
+            _mainLoop(app); // chuck loop
+
+        Arena::clear(&app->frameArena);
     }
 
     static void start(App* app)
@@ -291,7 +163,7 @@ struct App {
         // instead pass a callback to emscripten_set_main_loop_arg
         emscripten_set_main_loop_arg(
           [](void* runner) {
-              _mainLoop();
+              gameloop(app);
               // if (glfwWindowShouldClose(app->window)) {
               //     if (app->callbacks.onExit) app->callbacks.onExit();
               //     emscripten_cancel_main_loop(); // unregister the main loop
@@ -307,31 +179,8 @@ struct App {
 
         app->camera.entity.pos = glm::vec3(0.0, 0.0, 6.0); // move camera back
 
-        // TODO: probably separate main loops for standalone vs library modes
         log_trace("entering  main loop");
-        while (!glfwWindowShouldClose(app->window)) {
-            // handle input -------------------
-            glfwPollEvents();
-
-            // frame metrics ----------------------------
-            {
-                _showFPS(app->window);
-
-                ++app->fc;
-                f64 currentTime = glfwGetTime();
-
-                // first frame prevent huge dt
-                if (app->lastTime == 0) app->lastTime = currentTime;
-
-                app->dt       = currentTime - app->lastTime;
-                app->lastTime = currentTime;
-            }
-
-            if (app->standalone)
-                _testLoop(app); // renderer-only tests
-            else
-                _mainLoop(app); // chuck loop
-        }
+        while (!glfwWindowShouldClose(app->window)) gameloop(app);
         log_trace("Exiting main loop");
 
         if (app->standalone && app->callbacks.onExit) app->callbacks.onExit();
@@ -351,6 +200,10 @@ struct App {
 
         // terminate GLFW
         glfwTerminate();
+
+        // free memory
+        Arena::free(&app->frameArena);
+
         // zero all fields
         *app = {};
     }
@@ -468,9 +321,6 @@ struct App {
         // now renderer can work on drawing the copied scenegraph
         // renderer.RenderScene(&scene, scene.GetMainCamera());
         _R_RenderScene(app);
-
-        GraphicsContext::prepareFrame(&app->gctx);
-        GraphicsContext::presentFrame(&app->gctx);
     }
 
     static void _showFPS(GLFWwindow* window)
@@ -553,6 +403,158 @@ struct App {
     }
 };
 
+static void _R_RenderScene(App* app)
+{
+    R_Scene* main_scene = Component_GetScene(app->mainScene);
+
+    { // Update all transforms
+        R_Transform::rebuildMatrices(main_scene, &app->frameArena);
+        // R_Transform::print(main_scene, 0);
+    }
+
+    // update camera
+    // TODO switch to GCamera
+    i32 width, height;
+    glfwGetWindowSize(app->window, &width, &height);
+    f32 aspect = (f32)width / (f32)height;
+    app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
+
+    WGPURenderPassEncoder renderPass
+      = GraphicsContext::prepareFrame(&app->gctx);
+
+    // write per-frame uniforms
+    f32 time                    = (f32)glfwGetTime();
+    FrameUniforms frameUniforms = {};
+    frameUniforms.projectionMat
+      = Camera::projectionMatrix(&app->camera, aspect);
+    frameUniforms.viewMat = Entity::viewMatrix(&app->camera.entity);
+    frameUniforms.projViewMat
+      = frameUniforms.projectionMat * frameUniforms.viewMat;
+    frameUniforms.camPos   = app->camera.entity.pos;
+    frameUniforms.dirLight = VEC_FORWARD;
+    frameUniforms.time     = time;
+
+    // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
+    // Test render loop
+    R_RenderPipeline* renderPipeline = NULL;
+    size_t rpIndex                   = 0;
+    while (Component_RenderPipelineIter(&rpIndex, &renderPipeline)) {
+        // log_trace("drawing materials for render pipeline: %d",
+        //           renderPipeline->rid);
+
+        // early out if numMaterials == 0;
+        if (R_RenderPipeline::numMaterials(renderPipeline) == 0) continue;
+
+        WGPURenderPipeline gpuPipeline = renderPipeline->pipeline.pipeline;
+        // TODO: cache the bindGroupLayout in the pipeline after creation (it
+        // will never change)
+        WGPUBindGroupLayout perMaterialLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
+                                                 PER_MATERIAL_GROUP);
+        WGPUBindGroupLayout perDrawLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_DRAW_GROUP);
+
+        // set shader
+        wgpuRenderPassEncoderSetPipeline(renderPass, gpuPipeline);
+
+        // set frame bind group (needs to be set per renderpipeline as long
+        // as we use implicit layout:auto)
+        wgpuQueueWriteBuffer(app->gctx.queue,
+                             renderPipeline->pipeline.frameUniformBuffer, 0,
+                             &frameUniforms, sizeof(frameUniforms));
+        wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
+                                          renderPipeline->pipeline.frameGroup,
+                                          0, NULL);
+
+        // per-material render loop
+        size_t materialIdx    = 0;
+        R_Material* rMaterial = NULL;
+        while (R_RenderPipeline::materialIter(renderPipeline, &materialIdx,
+                                              &rMaterial)) {
+            // get material
+            // log_trace("drawing material: %d", rMaterial->id);
+
+            ASSERT(rMaterial && rMaterial->pipelineID == renderPipeline->rid);
+
+            // early out if numPrimitives == 0;
+            if (R_Material::numPrimitives(rMaterial) == 0) continue;
+
+            // TODO: figure out textures / texture views...
+
+            // set per_material bind group
+            R_Material::rebuildBindGroup(rMaterial, &app->gctx,
+                                         perMaterialLayout);
+            wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
+                                              rMaterial->bindGroup, 0, NULL);
+
+            // iterate over material primitives
+            size_t primitiveIdx           = 0;
+            Material_Primitive* primitive = NULL;
+            while (
+              R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
+                u32 numInstances = Material_Primitive::numInstances(primitive);
+                if (numInstances == 0) continue;
+
+                Material_Primitive::rebuildBindGroup(
+                  &app->gctx, primitive, perDrawLayout, &app->frameArena);
+
+                // set model bind group
+                wgpuRenderPassEncoderSetBindGroup(
+                  renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
+
+                R_Geometry* geo = Component_GetGeometry(primitive->geoID);
+                ASSERT(geo);
+
+                // set vertex attributes
+                // TODO: move into renderer, and consider separate buffer for
+                // each attribute to handle case where some vertex attributes
+                // are missing (tangent, color, etc)
+                // TODO: what happens if a vertex attribute is not set in for
+                // the shader?
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 0, geo->gpuVertexBuffer, 0,
+                  sizeof(f32) * geo->numVertices * 3);
+
+                auto normalsOffset = sizeof(f32) * geo->numVertices * 3;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 1, geo->gpuVertexBuffer, normalsOffset,
+                  sizeof(f32) * geo->numVertices * 3);
+
+                auto texcoordsOffset = sizeof(f32) * geo->numVertices * 6;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 2, geo->gpuVertexBuffer, texcoordsOffset,
+                  sizeof(f32) * geo->numVertices * 2);
+
+                size_t tangentOffset = sizeof(f32) * geo->numVertices * 8;
+
+                wgpuRenderPassEncoderSetVertexBuffer(
+                  renderPass, 3, geo->gpuVertexBuffer, tangentOffset,
+                  sizeof(f32) * geo->numVertices * 4);
+
+                // populate index buffer
+                if (geo->numIndices > 0)
+                    wgpuRenderPassEncoderSetIndexBuffer(
+                      renderPass, geo->gpuIndexBuffer, WGPUIndexFormat_Uint32,
+                      0, geo->indexBufferDesc.size);
+
+                // draw call (indexed)
+                if (geo->numIndices > 0) {
+                    wgpuRenderPassEncoderDrawIndexed(
+                      renderPass, geo->numIndices, numInstances, 0, 0, 0);
+                } else {
+                    // draw call (nonindexed)
+                    wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
+                                              numInstances, 0, 0);
+                }
+            }
+        }
+    }
+
+    GraphicsContext::presentFrame(&app->gctx);
+}
+
 static void _R_HandleCommand(App* app, SG_Command* command)
 {
     switch (command->type) {
@@ -610,6 +612,11 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_MaterialCreate* cmd
               = (SG_Command_MaterialCreate*)command;
             Component_CreateMaterial(&app->gctx, cmd);
+            break;
+        }
+        case SG_COMMAND_MESH_CREATE: {
+            SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
+            Component_CreateMesh(cmd);
             break;
         }
         default: ASSERT(false);
