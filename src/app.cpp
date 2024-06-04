@@ -111,6 +111,12 @@ struct App {
         Arena::clear(&app->frameArena);
     }
 
+    static void emscriptenMainLoop(void* arg)
+    {
+        App* app = (App*)arg;
+        gameloop(app);
+    }
+
     static void start(App* app)
     {
         ASSERT(app->window == NULL);
@@ -156,35 +162,36 @@ struct App {
             glfwSetFramebufferSizeCallback(app->window, _onWindowResize);
         }
 
+        if (app->standalone && app->callbacks.onInit)
+            app->callbacks.onInit(&app->gctx, app->window);
+
+        app->camera.entity.pos = glm::vec3(0.0, 0.0, 6.0); // move camera back
+
         // main loop
+        log_trace("entering  main loop");
 #ifdef __EMSCRIPTEN__
         // https://emscripten.org/docs/api_reference/emscripten.h.html#c.emscripten_set_main_loop_arg
         // can't have an infinite loop in emscripten
         // instead pass a callback to emscripten_set_main_loop_arg
         emscripten_set_main_loop_arg(
           [](void* runner) {
-              gameloop(app);
+              App::emscriptenMainLoop(runner);
+              //   gameloop(app);
               // if (glfwWindowShouldClose(app->window)) {
               //     if (app->callbacks.onExit) app->callbacks.onExit();
               //     emscripten_cancel_main_loop(); // unregister the main loop
               // }
           },
-          NULL, // user data (void *)
-          -1,   // FPS (negative means use browser's requestAnimationFrame)
+          app, // user data (void *)
+          -1,  // FPS (negative means use browser's requestAnimationFrame)
           true // simulate infinite loop (prevents code after this from exiting)
         );
 #else
-        if (app->standalone && app->callbacks.onInit)
-            app->callbacks.onInit(&app->gctx, app->window);
-
-        app->camera.entity.pos = glm::vec3(0.0, 0.0, 6.0); // move camera back
-
-        log_trace("entering  main loop");
         while (!glfwWindowShouldClose(app->window)) gameloop(app);
-        log_trace("Exiting main loop");
-
-        if (app->standalone && app->callbacks.onExit) app->callbacks.onExit();
 #endif
+
+        log_trace("Exiting main loop");
+        if (app->standalone && app->callbacks.onExit) app->callbacks.onExit();
     }
 
     static void end(App* app)

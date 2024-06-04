@@ -1211,9 +1211,9 @@ static hashmap* r_locator = NULL;
 std::unordered_map<R_ID, u64> _RenderPipelineMap;
 
 struct R_Location {
-    SG_ID id;      // key
-    size_t offset; // value (byte offset into arena)
-    Arena* arena;  // where to find
+    SG_ID id;     // key
+    u64 offset;   // value (byte offset into arena)
+    Arena* arena; // where to find
 };
 
 static int R_CompareLocation(const void* a, const void* b, void* udata)

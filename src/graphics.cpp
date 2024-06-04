@@ -284,12 +284,11 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     WGPUFeatureName requiredFeatures[] = {
         (WGPUFeatureName)WGPUNativeFeature_VertexWritableStorage,
     };
+    log_trace("required features: %d", ARRAY_LENGTH(requiredFeatures));
 #else
     const u32 requiredFeaturesCount   = 0;
     WGPUFeatureName* requiredFeatures = NULL;
 #endif
-
-    log_trace("required features: %d", ARRAY_LENGTH(requiredFeatures));
 
     WGPUDeviceDescriptor deviceDescriptor = {
         NULL,                     // nextInChain

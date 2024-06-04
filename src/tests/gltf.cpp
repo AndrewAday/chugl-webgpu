@@ -687,7 +687,7 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
                 wgpuRenderPassEncoderSetBindGroup(
                   renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
 
-                R_Geometry* geo = Component_GetGeo(primitive->geoID);
+                R_Geometry* geo = Component_GetGeometry(primitive->geoID);
                 ASSERT(geo);
 
                 // set vertex attributes

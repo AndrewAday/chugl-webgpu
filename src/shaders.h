@@ -164,7 +164,7 @@ static const char* shaderCode = R"glsl(
 
         let N : vec3f = normalize(inNormal);
         let T : vec3f = normalize(inTangent.xyz);
-        let B : vec3f = inTangent.w * normalize(cross(N, T));
+        let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
         let TBN : mat3x3f = mat3x3(T, B, N);
 
         // return inTangent.xyz;
@@ -182,19 +182,22 @@ static const char* shaderCode = R"glsl(
         let denom : f32 = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
         return (alpha2)/(PI * denom*denom);
     }
+
     // Geometric Shadowing function ----------------------------------------------
-    fn G_SchlicksmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
+    fn G_SchlickSmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
         let r : f32 = (roughness + 1.0);
         let k : f32 = (r*r) / 8.0;
+
         let GL : f32 = dotNL / (dotNL * (1.0 - k) + k);
         let GV : f32 = dotNV / (dotNV * (1.0 - k) + k);
         return GL * GV;
+
     }
 
     // Fresnel function ----------------------------------------------------------
     // cosTheta assumed to be in range [0, 1]
     fn F_Schlick(cosTheta : f32, F0 : vec3<f32>) -> vec3f {
-        return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+        return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
     }
 
     // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
@@ -217,7 +220,7 @@ static const char* shaderCode = R"glsl(
 
         // linear-space albedo (normally authored in sRGB space so we have to convert to linear space)
         // transparency not supported
-        let albedo : vec3f = u_Material.baseColor.rgb * pow(textureSample(albedoMap, albedoSampler, in.v_uv).rgb, vec3f(2.2));
+        let albedo: vec3f = u_Material.baseColor.rgb * pow(textureSample(albedoMap, albedoSampler, in.v_uv).rgb, vec3f(2.2));
 
         let metallic : f32 = textureSample(mrMap, mrSampler, in.v_uv).b * u_Material.metallic;
         let roughness : f32 = textureSample(mrMap, mrSampler, in.v_uv).g * u_Material.roughness;
@@ -241,7 +244,6 @@ static const char* shaderCode = R"glsl(
             var colorContrib : vec3f = vec3f(0.0);
 
             if (dotNL > 0.0) {
-
                 // TODO calculate light color/attenutation
                 // float distance    = length(lightPositions[i] - WorldPos);
                 // float attenuation = 1.0 / (distance * distance);
@@ -251,12 +253,13 @@ static const char* shaderCode = R"glsl(
                 // D = Normal distribution (Distribution of the microfacets)
                 let D : f32 = D_GGX(dotNH, roughness);
                 // G = Geometric shadowing term (Microfacets shadowing)
-                let G : f32 = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+                let G : f32 = G_SchlickSmithGGX(dotNL, dotNV, roughness);
                 // F = Fresnel factor (Reflectance depending on angle of incidence)
-                let F : vec3<f32> = F_Schlick(dotNV, F0);
+                let F : vec3<f32> = F_Schlick(max(dot(H, V), 0.0), F0);
 
                 // specular contribution
-                let spec : vec3f = D * F * G / (4.0 * dotNL * dotNV + 0.001);
+                // float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0)  + 0.0001;
+                let spec : vec3f = D * F * G / (4.0 * dotNL * dotNV + 0.0001);
                 // diffuse contribution
                 let kD : vec3f = (vec3f(1.0) - F) * (1.0 - metallic);
                 colorContrib += (kD * albedo / PI + spec) * dotNL * radiance;
@@ -264,35 +267,41 @@ static const char* shaderCode = R"glsl(
             Lo += colorContrib;
         // }  // end light loop
 
-        // ambient occlusion (hardcoded for now)
+        // ambient occlusion (hardcoded for now) (ambient should only be applied to direct lighting, not indirect lighting)
         let ambient : vec3f = vec3f(0.03) * albedo * textureSample(aoMap, aoSampler, in.v_uv).r * u_Material.aoFactor;
         var finalColor : vec3f = Lo + ambient;  // TODO: can factor albedo out and multiply here instead
+
+        // add emission
+        // vec4 emissiveColor = texture2D( emissiveMap, vEmissiveMapUv );
+        // totalEmissiveRadiance *= emissiveColor.rgb;
+        // totalEmissiveRadiance
+
 
         // tone mapping
         let exposure : f32 = 1.0;
         let whiteScale : vec3f = 1.0 / Uncharted2Tonemap(vec3f(11.2f));
         finalColor = Uncharted2Tonemap(finalColor * exposure) * whiteScale;
-
         // finalColor = finalColor / (finalColor + vec3f(1.0));  // reinhard tone mapping
 
         // gamma correction
         finalColor = pow(finalColor, vec3f(1.0 / 2.2)); // convert back to sRGB
 
-        // color.g = 0.5 + 0.5 * sin(u_Frame.time);
         // lambertian diffuse
-        let normal = normalize(in.v_normal);
-        var lightContrib : f32 = max(0.0, dot(u_Frame.dirLight, -normal));
+        // let normal = normalize(in.v_normal);
+        // var lightContrib : f32 = max(0.0, dot(u_Frame.dirLight, -normal));
         // return vec4f(lightContrib * albedo, 1.0);
         // add global ambient
         // lightContrib = clamp(lightContrib, 0.2, 1.0);
 
-        // return vec4f(finalColor, u_Material.baseColor.a);
+        return vec4f(finalColor, u_Material.baseColor.a);
         // return vec4f(Lo, u_Material.baseColor.a);
+        // return vec4f(kD, u_Material.baseColor.a);
+        // return vec4f(vec3f(D), u_Material.baseColor.a);
+        // return vec4f(kD, u_Material.baseColor.a);
         // return vec4f(
         //     ambient, u_Material.baseColor.a);
-        return vec4f(in.v_normal, 1.0);
+        // return vec4f(in.v_normal, 1.0);
         // return vec4f(in.v_uv, 0.0, 1.0);
-        // return vec4f(1.0, 0.0, 0.0, 1.0);
     }
 )glsl";
 
