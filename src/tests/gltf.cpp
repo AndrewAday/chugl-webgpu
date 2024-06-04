@@ -492,6 +492,10 @@ static void gltf_ProcessData(cgltf_data* data)
                   sgMat, 7,
                   GET_TEXTURE(mr_config->metallic_roughness_texture.texture),
                   opaqueWhitePixel.view);
+
+                R_Material::setTextureAndSamplerBinding(
+                  sgMat, 9, GET_TEXTURE(material->emissive_texture.texture),
+                  transparentBlackPixel.view);
             }
 
             // TODO: how to handle texture views

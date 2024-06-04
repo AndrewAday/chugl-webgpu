@@ -738,8 +738,8 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
         };
         case R_BIND_STORAGE:
         default: {
-            ASSERT(false);
             log_error("unsupported binding type %d", binding->type);
+            ASSERT(false);
             break;
         }
     }
@@ -821,18 +821,23 @@ void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type,
     // allocate memory in arenas
     {
         u32 numBindings = ARENA_LENGTH(&mat->bindings, R_Binding);
-        u32 numbindGroups
+        u32 numBindGroups
           = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
-        ASSERT(numBindings == numbindGroups);
+        ASSERT(numBindings == numBindGroups);
         if (numBindings < location + 1) {
             // grow bindings arena
             ARENA_PUSH_COUNT(&mat->bindings, R_Binding,
                              location + 1 - numBindings);
             // grow bindgroup entries arena
             ARENA_PUSH_COUNT(&mat->bindGroupEntries, WGPUBindGroupEntry,
-                             location + 1 - numbindGroups);
+                             location + 1 - numBindings);
         }
     }
+
+    // TODO can combine R_Binding and WGPUBindGroupEntry into a single struct
+    ASSERT(mat->bindings.cap >= sizeof(R_Binding) * (location + 1));
+    ASSERT(mat->bindGroupEntries.cap
+           >= sizeof(WGPUBindGroupEntry) * (location + 1));
 
     { // replace previous binding
         // NOTE: currently don't allow changing binding type for a given
@@ -1497,6 +1502,9 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
         R_Material::setTextureAndSamplerBinding(mat, 7, 0,
                                                 opaqueWhitePixel.view);
+
+        R_Material::setTextureAndSamplerBinding(mat, 9, 0,
+                                                transparentBlackPixel.view);
     }
 
     // store offset

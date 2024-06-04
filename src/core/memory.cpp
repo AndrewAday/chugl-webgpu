@@ -48,14 +48,16 @@ void* Arena::push(Arena* a, u64 size)
     // reallocate more memory if needed
     if (a->curr + size > a->cap) {
         u64 oldCap = a->cap;
-        u64 newCap = MAX(GROW_CAPACITY(oldCap), a->curr + size);
-        a->base    = GROW_ARRAY(u8, a->base, oldCap, newCap);
+        a->cap     = MAX(GROW_CAPACITY(oldCap), a->curr + size);
+        a->base    = GROW_ARRAY(u8, a->base, oldCap, a->cap);
     }
 
     void* result = a->base + a->curr;
 
     // advance the current offset
     a->curr += size;
+
+    ASSERT(a->curr <= a->cap);
 
     return result;
 }
@@ -89,6 +91,7 @@ void* Arena::get(Arena* a, u64 offset)
 {
     ASSERT(offset <= a->curr); // cannot access beyond current pointer
     ASSERT(offset >= 0);       // cannot access before the base pointer
+    ASSERT(a->curr <= a->cap); // current pointer must be within capacity
     return a->base + offset;
 }
 

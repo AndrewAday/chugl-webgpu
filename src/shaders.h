@@ -85,6 +85,8 @@ static const char* shaderCode = R"glsl(
     @group(1) @binding(6) var aoSampler: sampler;
     @group(1) @binding(7) var mrMap: texture_2d<f32>;
     @group(1) @binding(8) var mrSampler: sampler;
+    @group(1) @binding(9) var emissiveMap: texture_2d<f32>;
+    @group(1) @binding(10) var emissiveSampler: sampler;
 
     struct DrawUniforms {
         modelMat: mat4x4f,
@@ -145,6 +147,10 @@ static const char* shaderCode = R"glsl(
         out.position = worldPos;
 
         return out;
+    }
+
+    fn srgbToLinear(srgb_in : vec3f) -> vec3f {
+        return pow(srgb_in.rgb,vec3f(2.2));
     }
 
     fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32) -> vec3f {
@@ -220,7 +226,7 @@ static const char* shaderCode = R"glsl(
 
         // linear-space albedo (normally authored in sRGB space so we have to convert to linear space)
         // transparency not supported
-        let albedo: vec3f = u_Material.baseColor.rgb * pow(textureSample(albedoMap, albedoSampler, in.v_uv).rgb, vec3f(2.2));
+        let albedo: vec3f = u_Material.baseColor.rgb * srgbToLinear(textureSample(albedoMap, albedoSampler, in.v_uv).rgb);
 
         let metallic : f32 = textureSample(mrMap, mrSampler, in.v_uv).b * u_Material.metallic;
         let roughness : f32 = textureSample(mrMap, mrSampler, in.v_uv).g * u_Material.roughness;
@@ -258,7 +264,6 @@ static const char* shaderCode = R"glsl(
                 let F : vec3<f32> = F_Schlick(max(dot(H, V), 0.0), F0);
 
                 // specular contribution
-                // float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0)  + 0.0001;
                 let spec : vec3f = D * F * G / (4.0 * dotNL * dotNV + 0.0001);
                 // diffuse contribution
                 let kD : vec3f = (vec3f(1.0) - F) * (1.0 - metallic);
@@ -267,15 +272,23 @@ static const char* shaderCode = R"glsl(
             Lo += colorContrib;
         // }  // end light loop
 
-        // ambient occlusion (hardcoded for now) (ambient should only be applied to direct lighting, not indirect lighting)
+        // // ambient occlusion (hardcoded for now) (ambient should only be applied to direct lighting, not indirect lighting)
+        // const float u_OcclusionStrength = 1.0f;
+        // // Apply optional PBR terms for additional (optional) shading
+        // if (material.occlusionTextureSet > -1) {
+        //     float ao = texture(aoMap, (material.occlusionTextureSet == 0 ? inUV0 : inUV1)).r;
+        //     color = mix(color, color * ao, u_OcclusionStrength);
+        // }
+        // let ao: f32 = textureSample(aoMap, aoSampler, in.v_uv).r;
+        // var finalColor : vec3f = mix(Lo, Lo * ao, u_Material.aoFactor);
+
         let ambient : vec3f = vec3f(0.03) * albedo * textureSample(aoMap, aoSampler, in.v_uv).r * u_Material.aoFactor;
         var finalColor : vec3f = Lo + ambient;  // TODO: can factor albedo out and multiply here instead
 
         // add emission
-        // vec4 emissiveColor = texture2D( emissiveMap, vEmissiveMapUv );
-        // totalEmissiveRadiance *= emissiveColor.rgb;
-        // totalEmissiveRadiance
-
+        let emissiveColor : vec3f = srgbToLinear(textureSample(emissiveMap, emissiveSampler, in.v_uv).rgb);
+        finalColor += emissiveColor * u_Material.emissiveFactor;
+        // finalColor += emissiveColor;
 
         // tone mapping
         let exposure : f32 = 1.0;
@@ -296,7 +309,7 @@ static const char* shaderCode = R"glsl(
         return vec4f(finalColor, u_Material.baseColor.a);
         // return vec4f(Lo, u_Material.baseColor.a);
         // return vec4f(kD, u_Material.baseColor.a);
-        // return vec4f(vec3f(D), u_Material.baseColor.a);
+        // return vec4f(vec3f(ao), u_Material.baseColor.a);
         // return vec4f(kD, u_Material.baseColor.a);
         // return vec4f(
         //     ambient, u_Material.baseColor.a);
