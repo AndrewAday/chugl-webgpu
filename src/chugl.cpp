@@ -102,13 +102,7 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
     // activate hook only on GG.nextFrame();
     if (!hookActivated) {
         hookActivated = true;
-#ifdef __EMSCRIPTEN__
-        // no chuck command line host in webchuck so therefore no main loop
-        log_trace("emscripten main loop hook");
-        chugl_main_loop_hook(NULL);
-#else
         hook->activate(hook);
-#endif
     }
 
     Sync_MarkShredWaited(SHRED);

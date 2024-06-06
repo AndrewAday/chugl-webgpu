@@ -614,7 +614,9 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 
     R_Transform::print(Component_GetXform(sceneIDs[0]), 0);
 
-    WGPURenderPassEncoder renderPass = GraphicsContext::prepareFrame(gctx);
+    GraphicsContext::prepareFrame(gctx);
+    WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(
+      gctx->commandEncoder, &gctx->renderPassDesc);
 
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();

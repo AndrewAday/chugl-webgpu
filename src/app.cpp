@@ -12,6 +12,8 @@
 #include <imgui/backends/imgui_impl_wgpu.h>
 #include <imgui/imgui.h>
 
+#include <sokol/sokol_time.h>
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -41,16 +43,45 @@
 //     SG_CommandType->fn(App, SG_CommandSubclass)
 // }
 
+struct TickStats {
+    u64 fc    = 0;
+    u64 min   = UINT64_MAX;
+    u64 max   = 0;
+    u64 total = 0;
+
+    void update(u64 ticks)
+    {
+        min = ticks < min ? ticks : min;
+        max = ticks > max ? ticks : max;
+        total += ticks;
+        if (++fc % 60 == 0) {
+            print("");
+            // fc    = 0;
+            // total = 0;
+        }
+    }
+
+    void print(const char* name)
+    {
+        printf("%s: min: %f, max: %f, avg: %f\n", name, stm_ms(min),
+               stm_ms(max), stm_ms(total / fc));
+    }
+};
+
+TickStats critical_section_stats = {};
+
 struct App;
 static void _R_HandleCommand(App* app, SG_Command* command);
 
-static void _R_RenderScene(App* app);
+static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass);
 
 static void _R_glfwErrorCallback(int error, const char* description)
 {
     log_error("GLFW Error[%i]: %s\n", error, description);
 }
 
+static int frame_buffer_width  = 0;
+static int frame_buffer_height = 0;
 struct App {
     // options
     bool standalone; // no chuck. renderer only
@@ -95,8 +126,6 @@ struct App {
 
     static void gameloop(App* app)
     {
-        // handle input -------------------
-        glfwPollEvents();
 
         // frame metrics ----------------------------
         {
@@ -110,6 +139,18 @@ struct App {
 
             app->dt       = currentTime - app->lastTime;
             app->lastTime = currentTime;
+        }
+
+        // handle window resize (special case b/c needs to happen before
+        // GraphicsContext::prepareFrame, unlike the rest of glfwPollEvents())
+        {
+            int width, height;
+            glfwGetFramebufferSize(app->window, &width, &height);
+            if (width != frame_buffer_width || height != frame_buffer_height) {
+                frame_buffer_width  = width;
+                frame_buffer_height = height;
+                _onWindowResize(app->window, width, height);
+            }
         }
 
         if (app->standalone)
@@ -132,6 +173,9 @@ struct App {
 
         // seed random number generator ===========================
         srand((unsigned int)time(0));
+
+        // initialize performance counters
+        stm_setup();
 
         { // Initialize window
             if (!glfwInit()) {
@@ -162,8 +206,7 @@ struct App {
         // initialize R_Component manager
         Component_Init(&app->gctx);
 
-        { // set window callbacks (must happen BEFORE initializing ImGui because
-          // ImGui will chain their window callbacks onto our existing ones)
+        { // set window callbacks
 #ifdef CHUGL_DEBUG
             glfwSetErrorCallback(_R_glfwErrorCallback);
 #endif
@@ -172,7 +215,6 @@ struct App {
             glfwSetScrollCallback(app->window, _scrollCallback);
             glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
-            glfwSetFramebufferSizeCallback(app->window, _onWindowResize);
 
             glfwPollEvents(); // call poll events first to get correct
                               //   framebuffer size (glfw bug:
@@ -214,6 +256,14 @@ struct App {
         int width, height;
         glfwGetFramebufferSize(app->window, &width, &height);
         _onWindowResize(app->window, width, height);
+
+        // initialize imgui frame (should be threadsafe as long as graphics
+        // shreds start with GG.nextFrame() => now)
+        if (!app->standalone) {
+            ImGui_ImplWGPU_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
+        }
 
         if (app->standalone && app->callbacks.onInit)
             app->callbacks.onInit(&app->gctx, app->window);
@@ -274,6 +324,8 @@ struct App {
 
     static void _testLoop(App* app)
     {
+        // handle input -------------------
+        glfwPollEvents();
         // update camera
         // TODO store aspect in app state
         i32 width, height;
@@ -306,6 +358,12 @@ struct App {
         // t_CKUINT dtWrite      = 0;
         // t_CKUINT dtInitFrames = 0;
         // bool firstFrame       = true;
+
+        // must happen after window resize
+        GraphicsContext::prepareFrame(&app->gctx);
+        WGPURenderPassEncoder imguiRenderPass
+          = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
+                                              &app->gctx.imguiPassDesc);
 
         // Render Loop ===========================================
         double prevTickTime = glfwGetTime();
@@ -346,8 +404,27 @@ struct App {
             - exposes a gameloop to chuck, gauranteed to be executed once per
         frame deadlock shouldn't happen because both locks are never held at the
         same time */
+        {
+            CQ_SwapQueues(); // ~ .0001ms
 
-        CQ_SwapQueues();
+            // Rendering
+            ImGui::Render();
+            ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(),
+                                          imguiRenderPass);
+
+            // u64 critical_start = stm_now();
+
+            // imgui and window callbacks
+            glfwPollEvents();
+
+            // reset imgui
+            ImGui_ImplWGPU_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
+
+            // ~2.6ms (15%)
+            // critical_section_stats.update(stm_since(critical_start));
+        }
 
         // done swapping the double buffer, let chuck know it's good to continue
         // pushing commands this wakes all shreds currently waiting on
@@ -357,6 +434,9 @@ struct App {
         // ====================
         // end critical section
         // ====================
+
+        // end ui renderpass
+        wgpuRenderPassEncoderEnd(imguiRenderPass);
 
         // now apply changes from the command queue chuck is NO Longer writing
         // to this executes all commands on the command queue, performs actions
@@ -380,7 +460,20 @@ struct App {
 
         // now renderer can work on drawing the copied scenegraph
         // renderer.RenderScene(&scene, scene.GetMainCamera());
-        _R_RenderScene(app);
+
+        // scene render pass
+        WGPURenderPassEncoder renderPassEncoder
+          = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
+                                              &app->gctx.renderPassDesc);
+        _R_RenderScene(app, renderPassEncoder);
+        wgpuRenderPassEncoderEnd(renderPassEncoder);
+
+        // submit and present
+        GraphicsContext::presentFrame(&app->gctx);
+
+        // cleanup
+        wgpuRenderPassEncoderRelease(renderPassEncoder);
+        wgpuRenderPassEncoderRelease(imguiRenderPass);
     }
 
     static void _showFPS(GLFWwindow* window)
@@ -423,6 +516,10 @@ struct App {
             app->callbacks.onKey(key, scancode, action, mods);
     }
 
+    // this is deliberately NOT made a glfw callback because glfwPollEvents()
+    // happens AFTER GraphicsContext::PrepareFrame(), after render surface has
+    // already been set window resize needs to be handled before the frame is
+    // prepared
     static void _onWindowResize(GLFWwindow* window, int width, int height)
     {
         log_trace("window resized: %d, %d", width, height);
@@ -468,7 +565,7 @@ struct App {
     }
 };
 
-static void _R_RenderScene(App* app)
+static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
 {
     R_Scene* main_scene = Component_GetScene(app->mainScene);
 
@@ -483,9 +580,6 @@ static void _R_RenderScene(App* app)
     glfwGetWindowSize(app->window, &width, &height);
     f32 aspect = (f32)width / (f32)height;
     app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
-
-    WGPURenderPassEncoder renderPass
-      = GraphicsContext::prepareFrame(&app->gctx);
 
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
@@ -616,8 +710,6 @@ static void _R_RenderScene(App* app)
             }
         }
     }
-
-    GraphicsContext::presentFrame(&app->gctx);
 }
 
 static void _R_HandleCommand(App* app, SG_Command* command)

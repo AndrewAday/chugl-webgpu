@@ -46,7 +46,7 @@ struct GraphicsContext {
     WGPURenderPassColorAttachment colorAttachment;
     WGPURenderPassDepthStencilAttachment depthStencilAttachment;
     WGPURenderPassDescriptor renderPassDesc;
-    WGPURenderPassEncoder renderPassEncoder;
+    WGPURenderPassDescriptor imguiPassDesc;
     WGPUCommandBuffer commandBuffer;
 
     // Window and surface --------
@@ -59,7 +59,7 @@ struct GraphicsContext {
 
     // Methods --------
     static bool init(GraphicsContext* context, GLFWwindow* window);
-    static WGPURenderPassEncoder prepareFrame(GraphicsContext* ctx);
+    static void prepareFrame(GraphicsContext* ctx);
     static void presentFrame(GraphicsContext* ctx);
     static void resize(GraphicsContext* ctx, u32 width, u32 height);
     static void release(GraphicsContext* ctx);

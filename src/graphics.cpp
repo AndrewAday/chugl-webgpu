@@ -351,10 +351,16 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     context->renderPassDesc.depthStencilAttachment
       = &context->depthStencilAttachment;
 
+    context->imguiPassDesc       = {};
+    context->imguiPassDesc.label = "Imgui render pass, no depth/stencil";
+    context->imguiPassDesc.colorAttachmentCount   = 1;
+    context->imguiPassDesc.colorAttachments       = &context->colorAttachment;
+    context->imguiPassDesc.depthStencilAttachment = nullptr;
+
     return true;
 }
 
-WGPURenderPassEncoder GraphicsContext::prepareFrame(GraphicsContext* ctx)
+void GraphicsContext::prepareFrame(GraphicsContext* ctx)
 {
     // get target texture view
     ctx->backbufferView = wgpuSwapChainGetCurrentTextureView(ctx->swapChain);
@@ -365,35 +371,26 @@ WGPURenderPassEncoder GraphicsContext::prepareFrame(GraphicsContext* ctx)
     WGPUCommandEncoderDescriptor encoderDesc = {};
     ctx->commandEncoder
       = wgpuDeviceCreateCommandEncoder(ctx->device, &encoderDesc);
-
-    ctx->renderPassEncoder = wgpuCommandEncoderBeginRenderPass(
-      ctx->commandEncoder, &ctx->renderPassDesc);
-
-    return ctx->renderPassEncoder;
 }
 
 void GraphicsContext::presentFrame(GraphicsContext* ctx)
 {
-    wgpuRenderPassEncoderEnd(ctx->renderPassEncoder);
-    wgpuRenderPassEncoderRelease(ctx->renderPassEncoder);
-
-    // release texture view
-    wgpuTextureViewRelease(ctx->backbufferView);
-
     // submit
     WGPUCommandBufferDescriptor cmdBufferDescriptor = {};
     WGPUCommandBuffer command
       = wgpuCommandEncoderFinish(ctx->commandEncoder, &cmdBufferDescriptor);
-    wgpuCommandEncoderRelease(ctx->commandEncoder);
 
     // Finally submit the command queue
     wgpuQueueSubmit(ctx->queue, 1, &command);
-    wgpuCommandBufferRelease(command);
 
     // present
 #ifndef __EMSCRIPTEN__
     wgpuSwapChainPresent(ctx->swapChain);
 #endif
+
+    wgpuCommandBufferRelease(command);
+    wgpuCommandEncoderRelease(ctx->commandEncoder);
+    wgpuTextureViewRelease(ctx->backbufferView);
 }
 
 void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
