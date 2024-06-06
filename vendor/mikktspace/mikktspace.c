@@ -756,6 +756,7 @@ GenerateSharedVerticesIndexListSlow(int piTriList_in_and_out[],
                                     const int iNrTrianglesIn)
 {
     int iNumUniqueVerts = 0, t = 0, i = 0;
+    ((void)(iNumUniqueVerts));
     for (t = 0; t < iNrTrianglesIn; t++) {
         for (i = 0; i < 3; i++) {
             const int offs  = t * 3 + i;
