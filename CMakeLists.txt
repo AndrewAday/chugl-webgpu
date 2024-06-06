@@ -61,12 +61,24 @@ set(
     VENDOR
     src/implementations.cpp
     vendor/mikktspace/mikktspace.c
+
+    # cimgui (no freetype )
+    vendor/cimgui/cimgui.cpp
+    vendor/cimgui/imgui/imgui.cpp
+    vendor/cimgui/imgui/imgui_draw.cpp
+    vendor/cimgui/imgui/imgui_demo.cpp
+    vendor/cimgui/imgui/imgui_widgets.cpp
+	vendor/cimgui/imgui/imgui_tables.cpp
+    vendor/cimgui/imgui/misc/cpp/imgui_stdlib.cpp
+    vendor/cimgui/imgui/backends/imgui_impl_glfw.cpp
+    vendor/cimgui/imgui/backends/imgui_impl_wgpu.cpp
 )
 
 set(
     RENDERER_TESTS
     # src/tests/obj.cpp
     src/tests/gltf.cpp
+    src/tests/imgui_test.cpp
 )
 
 if (CHUGL_BUILD_RENDERER_TESTS)
@@ -189,6 +201,8 @@ endif (MSVC)
 target_include_directories(chugl_shared_properties 
     INTERFACE src
     INTERFACE vendor
+    INTERFACE vendor/cimgui
+    INTERFACE vendor/cimgui/imgui
 )
 
 # vendor dependencies ==========================================================
@@ -198,7 +212,7 @@ if (NOT EMSCRIPTEN)
 endif()
 add_subdirectory(vendor/glfw3webgpu)
 
-# TODO: host our own distribution on CCRMA
+# host our own distribution of WebGPU on CCRMA
 # switching to static library instead of dynami b/c
 # chuck cannot find build/Debug/webgpu_native.dll.
 # throws Error [126]: The specified module could not be found.
@@ -222,13 +236,17 @@ endif()
 # emscripten specific options =================================================
 if (EMSCRIPTEN)
     # know to rebuild when assets/ directory changes
-    set(SHELL_FILE shell_minimal.html)
-    set_property(
-        TARGET ${PROJECT_NAME}
-        PROPERTY LINK_DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}
-    )
+    # set(SHELL_FILE shell_minimal.html)
+    # set_property(
+    #     TARGET ${PROJECT_NAME}
+    #     PROPERTY LINK_DEPENDS
+    #     ${CMAKE_CURRENT_SOURCE_DIR}/${SHELL_FILE}
+    # )
     # set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets)
+    target_compile_options(${PROJECT_NAME} PRIVATE -pthread)
+
+    target_link_options(${PROJECT_NAME} PRIVATE -sENVIRONMENT=worker)
+    target_link_options(${PROJECT_NAME} PRIVATE -pthread)
 
     # Add Emscripten-specific link options
     target_link_options(${PROJECT_NAME} PRIVATE

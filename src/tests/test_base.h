@@ -3,6 +3,8 @@
 #include "core/macros.h"
 #include "graphics.h"
 
+#include <glm/glm.hpp>
+
 // base declarations for all examples
 
 // callbacks

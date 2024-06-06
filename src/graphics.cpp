@@ -408,6 +408,7 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
     WGPU_RELEASE_RESOURCE(SwapChain, ctx->swapChain);
 
     // recreate swap chain
+    // createSwapChain(ctx, width, height);
     createSwapChain(ctx, width, height);
     // recreate depth texture
     createDepthTexture(ctx, width, height);

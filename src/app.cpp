@@ -8,6 +8,10 @@
 #include <glfw3webgpu/glfw3webgpu.h>
 #include <glm/gtx/string_cast.hpp>
 
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_wgpu.h>
+#include <imgui/imgui.h>
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -41,6 +45,11 @@ struct App;
 static void _R_HandleCommand(App* app, SG_Command* command);
 
 static void _R_RenderScene(App* app);
+
+static void _R_glfwErrorCallback(int error, const char* description)
+{
+    log_error("GLFW Error[%i]: %s\n", error, description);
+}
 
 struct App {
     // options
@@ -133,7 +142,7 @@ struct App {
             // Create the window without an OpenGL context
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-            app->window = glfwCreateWindow(640, 480, "ChuGL", NULL, NULL);
+            app->window = glfwCreateWindow(1280, 960, "ChuGL", NULL, NULL);
 
             // TODO: set window user pointer to CHUGL_App
 
@@ -153,14 +162,58 @@ struct App {
         // initialize R_Component manager
         Component_Init(&app->gctx);
 
-        { // set window callbacks
+        { // set window callbacks (must happen BEFORE initializing ImGui because
+          // ImGui will chain their window callbacks onto our existing ones)
+#ifdef CHUGL_DEBUG
+            glfwSetErrorCallback(_R_glfwErrorCallback);
+#endif
             glfwSetWindowUserPointer(app->window, app);
             glfwSetMouseButtonCallback(app->window, _mouseButtonCallback);
             glfwSetScrollCallback(app->window, _scrollCallback);
             glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
             glfwSetFramebufferSizeCallback(app->window, _onWindowResize);
+
+            glfwPollEvents(); // call poll events first to get correct
+                              //   framebuffer size (glfw bug:
+                              //   https://github.com/glfw/glfw/issues/1968)
         }
+
+        { // initialize imgui
+            // Setup Dear ImGui context
+            IMGUI_CHECKVERSION();
+            ImGui::CreateContext();
+            ImGuiIO& io = ImGui::GetIO();
+            (void)io;
+            io.ConfigFlags
+              |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+            io.ConfigFlags
+              |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+            io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
+            io.ConfigFlags
+              |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
+
+            // Setup Dear ImGui style
+            ImGui::StyleColorsDark();
+            // ImGui::StyleColorsLight();
+
+            // Setup Platform/Renderer backends
+            ImGui_ImplGlfw_InitForOther(app->window, true);
+#ifdef __EMSCRIPTEN__
+            ImGui_ImplGlfw_InstallEmscriptenCanvasResizeCallback("#canvas");
+#endif
+            ImGui_ImplWGPU_InitInfo init_info;
+            init_info.Device             = app->gctx.device;
+            init_info.NumFramesInFlight  = 3;
+            init_info.RenderTargetFormat = app->gctx.swapChainFormat;
+            init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
+            ImGui_ImplWGPU_Init(&init_info);
+        }
+
+        // trigger window resize callback to set up imgui
+        int width, height;
+        glfwGetFramebufferSize(app->window, &width, &height);
+        _onWindowResize(app->window, width, height);
 
         if (app->standalone && app->callbacks.onInit)
             app->callbacks.onInit(&app->gctx, app->window);
@@ -372,8 +425,13 @@ struct App {
 
     static void _onWindowResize(GLFWwindow* window, int width, int height)
     {
+        log_trace("window resized: %d, %d", width, height);
+
         App* app = (App*)glfwGetWindowUserPointer(window);
+
+        ImGui_ImplWGPU_InvalidateDeviceObjects();
         GraphicsContext::resize(&app->gctx, width, height);
+        ImGui_ImplWGPU_CreateDeviceObjects();
 
         if (app->callbacks.onWindowResize)
             app->callbacks.onWindowResize(width, height);

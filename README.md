@@ -6,6 +6,12 @@ Build for XCode:
 cmake -B build-xcode -G Xcode -DCMAKE_BUILD_TYPE=Debug -DCHUGL_BUILD_RENDERER_TESTS=ON
 ```
 
+Build for Web
+
+```
+emcmake cmake -B build-web
+```
+
 ## Directories
 
 **src/chugl-tests**: chugl integration tests. All tests are chuck programs exercising the chugin interface. A test passes if nothing is printed to stderr or stdout.

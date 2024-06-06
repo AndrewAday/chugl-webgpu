@@ -10,6 +10,7 @@
 
 // void Test_Obj(TestCallbacks* callbacks);
 void Test_Gltf(TestCallbacks* callbacks);
+void Test_ImGUI(TestCallbacks* callbacks);
 
 int main(int, char**)
 {
@@ -19,7 +20,8 @@ int main(int, char**)
 
     // load test entry points
     // Test_Obj(&app.callbacks);
-    Test_Gltf(&app.callbacks);
+    // Test_Gltf(&app.callbacks);
+    Test_ImGUI(&app.callbacks);
 
     App::init(&app, NULL, NULL);
     App::start(&app);
