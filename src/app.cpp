@@ -32,6 +32,7 @@
 //  ImGui::GetTime());
 //  [...]
 //  ImGui_ImplDX11_RenderDrawData(&snapshot.DrawData);
+// Source: https://github.com/ocornut/imgui/issues/1860
 
 struct ImDrawDataSnapshotEntry {
     ImDrawList* SrcCopy = NULL; // Drawlist owned by main context

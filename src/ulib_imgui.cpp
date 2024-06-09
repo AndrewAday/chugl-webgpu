@@ -1,6 +1,10 @@
 #include <chuck/chugin.h>
 
-#include <imgui/imgui.h>
+// Wrap this in a namespace to keep it separate from the C++ API
+namespace cimgui
+{
+#include <cimgui/cimgui.h>
+}
 
 // #ifdef __GNUC__
 // #pragma GCC diagnostic push
@@ -44,19 +48,19 @@ CK_DLL_MFUN(ui_bool_set_value)
 
 CK_DLL_SFUN(ui_begin)
 {
-    bool ret      = ImGui::Begin("Window");
+    bool ret      = cimgui::ImGui_Begin("Window", NULL, 0);
     RETURN->v_int = ret;
 }
 
 CK_DLL_SFUN(ui_end)
 {
-    ImGui::End();
+    cimgui::ImGui_End();
 }
 
 CK_DLL_SFUN(ui_button)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-    bool ret          = ImGui::Button(label);
+    bool ret          = cimgui::ImGui_Button(label);
     RETURN->v_int     = ret;
 }
 
@@ -67,7 +71,7 @@ CK_DLL_SFUN(ui_checkbox)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     bool* b           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
 
-    bool ret      = ImGui::Checkbox(label, b);
+    bool ret      = cimgui::ImGui_Checkbox(label, b);
     RETURN->v_int = ret;
 }
 void ulib_imgui_query(Chuck_DL_Query* QUERY)
