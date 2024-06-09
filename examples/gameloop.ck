@@ -11,6 +11,15 @@
 // uncomment to run in fullscreen
 // GG.fullscreen();
 
+SphereGeometry sphereGeo;
+PlaneGeometry planeGeo;
+PBRMaterial mat;
+GMesh plane(planeGeo, mat) --> GG.scene();
+
+GMesh sphere(sphereGeo, mat) --> GG.scene();
+sphere.translateX(2.0);
+
+
 // some variables for printing time; not needed for game loop
 0 => int fc;
 now => time lastTime;
@@ -30,10 +39,13 @@ while( true )
     now - lastTime => dur dt;
     // remember now as last time
     now => lastTime;
+    dt / second => float dt_f;
     
     // print
     // <<< "fc:", fc++ , "now:", now, "dt:", dt, "fps:", GG.fps() >>>;
     <<< "fc:", fc++ , "now:", now, "dt:", dt >>>;
+
+    plane.rotateY(0.5*dt_f);
 
     // IMPORTANT: synchronization point with next frame to render
     GG.nextFrame() => now;

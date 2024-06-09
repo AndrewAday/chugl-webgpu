@@ -177,18 +177,18 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     ASSERT(context->depthTextureView == NULL);
 
     // Depth texture
-    WGPUTextureDescriptor depthTextureDesc = {};
+    context->depthTextureDesc = {};
     // only support one format for now
     WGPUTextureFormat depthTextureFormat
       = WGPUTextureFormat_Depth24PlusStencil8;
-    depthTextureDesc.usage         = WGPUTextureUsage_RenderAttachment;
-    depthTextureDesc.dimension     = WGPUTextureDimension_2D;
-    depthTextureDesc.size          = { width, height, 1 };
-    depthTextureDesc.format        = depthTextureFormat;
-    depthTextureDesc.mipLevelCount = 1;
-    depthTextureDesc.sampleCount   = 1;
+    context->depthTextureDesc.usage         = WGPUTextureUsage_RenderAttachment;
+    context->depthTextureDesc.dimension     = WGPUTextureDimension_2D;
+    context->depthTextureDesc.size          = { width, height, 1 };
+    context->depthTextureDesc.format        = depthTextureFormat;
+    context->depthTextureDesc.mipLevelCount = 1;
+    context->depthTextureDesc.sampleCount   = 1;
     context->depthTexture
-      = wgpuDeviceCreateTexture(context->device, &depthTextureDesc);
+      = wgpuDeviceCreateTexture(context->device, &context->depthTextureDesc);
     ASSERT(context->depthTexture != NULL);
 
     // Create the view of the depth texture manipulated by the rasterizer
@@ -350,12 +350,6 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     context->renderPassDesc.colorAttachments     = &context->colorAttachment;
     context->renderPassDesc.depthStencilAttachment
       = &context->depthStencilAttachment;
-
-    context->imguiPassDesc       = {};
-    context->imguiPassDesc.label = "Imgui render pass, no depth/stencil";
-    context->imguiPassDesc.colorAttachmentCount   = 1;
-    context->imguiPassDesc.colorAttachments       = &context->colorAttachment;
-    context->imguiPassDesc.depthStencilAttachment = nullptr;
 
     return true;
 }

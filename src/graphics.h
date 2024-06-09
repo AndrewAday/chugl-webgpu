@@ -38,6 +38,7 @@ struct GraphicsContext {
     WGPUTextureFormat swapChainFormat;
 
     WGPUTexture depthTexture;
+    WGPUTextureDescriptor depthTextureDesc;
     WGPUTextureView depthTextureView;
 
     // Per frame resources --------
@@ -46,7 +47,6 @@ struct GraphicsContext {
     WGPURenderPassColorAttachment colorAttachment;
     WGPURenderPassDepthStencilAttachment depthStencilAttachment;
     WGPURenderPassDescriptor renderPassDesc;
-    WGPURenderPassDescriptor imguiPassDesc;
     WGPUCommandBuffer commandBuffer;
 
     // Window and surface --------

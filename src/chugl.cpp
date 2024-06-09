@@ -2,6 +2,7 @@
 
 // ulibs
 #include "ulib_component.cpp"
+#include "ulib_imgui.cpp"
 #include "ulib_texture.cpp"
 
 // ChuGL version string
@@ -214,6 +215,8 @@ CK_DLL_QUERY(ChuGL)
         //   QUERY, "int", "@cgl_window_resize_event_data", false);
         QUERY->end_class(QUERY);
     }
+
+    ulib_imgui_query(QUERY);
 
     ulib_texture_query(QUERY);
     ulib_component_query(QUERY);

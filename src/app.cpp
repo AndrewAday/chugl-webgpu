@@ -11,6 +11,7 @@
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_wgpu.h>
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h> // ImPool<>, ImHashData
 
 #include <sokol/sokol_time.h>
 
@@ -25,23 +26,102 @@
 #include "sg_component.h"
 #include "tests/test_base.h"
 
-// forward decls
-// struct Chuck_VM;
-// struct Chuck_DL_Api;
-// typedef const Chuck_DL_Api* CK_DL_API;
+// Usage:
+//  static ImDrawDataSnapshot snapshot; // Important: make persistent accross
+//  frames to reuse buffers. snapshot.SnapUsingSwap(ImGui::GetDrawData(),
+//  ImGui::GetTime());
+//  [...]
+//  ImGui_ImplDX11_RenderDrawData(&snapshot.DrawData);
 
-// command handling table
+struct ImDrawDataSnapshotEntry {
+    ImDrawList* SrcCopy = NULL; // Drawlist owned by main context
+    ImDrawList* OurCopy = NULL; // Our copy
+    double LastUsedTime = 0.0;
+};
 
-// typedef void (*R_CommandFunc)(App* app, SG_Command* command);
+struct ImDrawDataSnapshot {
+    // Members
+    ImDrawData DrawData;
+    ImPool<ImDrawDataSnapshotEntry> Cache;
+    float MemoryCompactTimer = 20.0f; // Discard unused data after 20 seconds
 
-// struct R_CommandHandler {
-//     SG_CommandType type;
+    // Functions
+    ~ImDrawDataSnapshot()
+    {
+        Clear();
+    }
+    void Clear();
+    void
+    SnapUsingSwap(ImDrawData* src,
+                  double current_time); // Efficient snapshot by swapping data,
+                                        // meaning "src_list" is unusable.
+    // void                          SnapUsingCopy(ImDrawData* src, double
+    // current_time); // Deep-copy snapshop
 
-// }
+    // Internals
+    ImGuiID GetDrawListID(ImDrawList* src_list)
+    {
+        return ImHashData(&src_list, sizeof(src_list));
+    } // Hash pointer
+    ImDrawDataSnapshotEntry* GetOrAddEntry(ImDrawList* src_list)
+    {
+        return Cache.GetOrAddByKey(GetDrawListID(src_list));
+    }
+};
 
-// {
-//     SG_CommandType->fn(App, SG_CommandSubclass)
-// }
+void ImDrawDataSnapshot::Clear()
+{
+    for (int n = 0; n < Cache.GetMapSize(); n++)
+        if (ImDrawDataSnapshotEntry* entry = Cache.TryGetMapData(n))
+            IM_DELETE(entry->OurCopy);
+    Cache.Clear();
+    DrawData.Clear();
+}
+
+void ImDrawDataSnapshot::SnapUsingSwap(ImDrawData* src, double current_time)
+{
+    ImDrawData* dst = &DrawData;
+    IM_ASSERT(src != dst && src->Valid);
+
+    // Copy all fields except CmdLists[]
+    ImVector<ImDrawList*> backup_draw_list;
+    backup_draw_list.swap(src->CmdLists);
+    IM_ASSERT(src->CmdLists.Data == NULL);
+    *dst = *src;
+    backup_draw_list.swap(src->CmdLists);
+
+    // Swap and mark as used
+    for (ImDrawList* src_list : src->CmdLists) {
+        ImDrawDataSnapshotEntry* entry = GetOrAddEntry(src_list);
+        if (entry->OurCopy == NULL) {
+            entry->SrcCopy = src_list;
+            entry->OurCopy = IM_NEW(ImDrawList)(src_list->_Data);
+        }
+        IM_ASSERT(entry->SrcCopy == src_list);
+        entry->SrcCopy->CmdBuffer.swap(entry->OurCopy->CmdBuffer); // Cheap swap
+        entry->SrcCopy->IdxBuffer.swap(entry->OurCopy->IdxBuffer);
+        entry->SrcCopy->VtxBuffer.swap(entry->OurCopy->VtxBuffer);
+        entry->SrcCopy->CmdBuffer.reserve(
+          entry->OurCopy->CmdBuffer
+            .Capacity); // Preserve bigger size to avoid reallocs for two
+                        // consecutive frames
+        entry->SrcCopy->IdxBuffer.reserve(entry->OurCopy->IdxBuffer.Capacity);
+        entry->SrcCopy->VtxBuffer.reserve(entry->OurCopy->VtxBuffer.Capacity);
+        entry->LastUsedTime = current_time;
+        dst->CmdLists.push_back(entry->OurCopy);
+    }
+
+    // Cleanup unused data
+    const double gc_threshold = current_time - MemoryCompactTimer;
+    for (int n = 0; n < Cache.GetMapSize(); n++)
+        if (ImDrawDataSnapshotEntry* entry = Cache.TryGetMapData(n)) {
+            if (entry->LastUsedTime > gc_threshold) continue;
+            IM_DELETE(entry->OurCopy);
+            Cache.Remove(GetDrawListID(entry->SrcCopy), entry);
+        }
+};
+
+static ImDrawDataSnapshot snapshot;
 
 struct TickStats {
     u64 fc    = 0;
@@ -143,6 +223,11 @@ struct App {
 
         // handle window resize (special case b/c needs to happen before
         // GraphicsContext::prepareFrame, unlike the rest of glfwPollEvents())
+        // Doing window resize AFTER surface is already prepared causes crash.
+        // Normally you glfwPollEvents() at the start of the frame, but
+        // dearImGUI hooks into glfwPollEvents, and modifies imgui state, so
+        // glfwPollEvents() must happen in the critial region, after
+        // GraphicsContext::prepareFrame
         {
             int width, height;
             glfwGetFramebufferSize(app->window, &width, &height);
@@ -248,7 +333,7 @@ struct App {
             init_info.Device             = app->gctx.device;
             init_info.NumFramesInFlight  = 3;
             init_info.RenderTargetFormat = app->gctx.swapChainFormat;
-            init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
+            init_info.DepthStencilFormat = app->gctx.depthTextureDesc.format;
             ImGui_ImplWGPU_Init(&init_info);
         }
 
@@ -360,10 +445,6 @@ struct App {
         // bool firstFrame       = true;
 
         // must happen after window resize
-        GraphicsContext::prepareFrame(&app->gctx);
-        WGPURenderPassEncoder imguiRenderPass
-          = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
-                                              &app->gctx.imguiPassDesc);
 
         // Render Loop ===========================================
         double prevTickTime = glfwGetTime();
@@ -404,15 +485,21 @@ struct App {
             - exposes a gameloop to chuck, gauranteed to be executed once per
         frame deadlock shouldn't happen because both locks are never held at the
         same time */
+
+        static ImDrawData* draw_data = NULL;
+        UNUSED_VAR(draw_data);
         {
+            // u64 critical_start = stm_now();
             CQ_SwapQueues(); // ~ .0001ms
+
+            static bool show_demo_window = true;
+            ImGui::ShowDemoWindow(&show_demo_window);
 
             // Rendering
             ImGui::Render();
-            ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(),
-                                          imguiRenderPass);
 
-            // u64 critical_start = stm_now();
+            // copy imgui draw data for rendering later
+            snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
 
             // imgui and window callbacks
             glfwPollEvents();
@@ -422,7 +509,12 @@ struct App {
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            // ~2.6ms (15%)
+            // enable docking to main window
+            ImGui::DockSpaceOverViewport(
+              0, ImGui::GetMainViewport(),
+              ImGuiDockNodeFlags_PassthruCentralNode);
+
+            // ~2.15ms (15%)
             // critical_section_stats.update(stm_since(critical_start));
         }
 
@@ -435,15 +527,11 @@ struct App {
         // end critical section
         // ====================
 
-        // end ui renderpass
-        wgpuRenderPassEncoderEnd(imguiRenderPass);
-
         // now apply changes from the command queue chuck is NO Longer writing
         // to this executes all commands on the command queue, performs actions
         // from CK code essentially applying a diff to bring graphics state up
         // to date with what is done in CK code
 
-        // CGL::FlushCommandQueue(scene); // TODO next!
         { // flush command queue
             SG_Command* cmd = NULL;
             while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
@@ -461,19 +549,27 @@ struct App {
         // now renderer can work on drawing the copied scenegraph
         // renderer.RenderScene(&scene, scene.GetMainCamera());
 
-        // scene render pass
-        WGPURenderPassEncoder renderPassEncoder
-          = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
-                                              &app->gctx.renderPassDesc);
-        _R_RenderScene(app, renderPassEncoder);
-        wgpuRenderPassEncoderEnd(renderPassEncoder);
+        GraphicsContext::prepareFrame(&app->gctx);
+
+        WGPURenderPassEncoder render_pass = NULL;
+        { // render pass
+            render_pass = wgpuCommandEncoderBeginRenderPass(
+              app->gctx.commandEncoder, &app->gctx.renderPassDesc);
+
+            // scene
+            _R_RenderScene(app, render_pass);
+
+            // UI
+            ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+
+            wgpuRenderPassEncoderEnd(render_pass);
+        }
 
         // submit and present
         GraphicsContext::presentFrame(&app->gctx);
 
         // cleanup
-        wgpuRenderPassEncoderRelease(renderPassEncoder);
-        wgpuRenderPassEncoderRelease(imguiRenderPass);
+        wgpuRenderPassEncoderRelease(render_pass);
     }
 
     static void _showFPS(GLFWwindow* window)
@@ -526,9 +622,12 @@ struct App {
 
         App* app = (App*)glfwGetWindowUserPointer(window);
 
-        ImGui_ImplWGPU_InvalidateDeviceObjects();
+        // causes inconsistent crash on window resize
+        // ImGui_ImplWGPU_InvalidateDeviceObjects();
+
         GraphicsContext::resize(&app->gctx, width, height);
-        ImGui_ImplWGPU_CreateDeviceObjects();
+
+        // ImGui_ImplWGPU_CreateDeviceObjects();
 
         if (app->callbacks.onWindowResize)
             app->callbacks.onWindowResize(width, height);
@@ -538,6 +637,10 @@ struct App {
                                      int mods)
     {
         log_debug("mouse button callback");
+
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureMouse) return;
+
         App* app = (App*)glfwGetWindowUserPointer(window);
         if (app->callbacks.onMouseButton)
             app->callbacks.onMouseButton(button, action, mods);
