@@ -1,4 +1,5 @@
 #include "all.cpp"
+#include "ulib_helper.h"
 
 // ulibs
 #include "ulib_component.cpp"
@@ -8,20 +9,11 @@
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
 
-// references to VM and API
-static Chuck_VM* g_chuglVM  = NULL;
-static CK_DL_API g_chuglAPI = NULL;
+// cimgui auto-generated bindings
+void ulib_cimgui_query(Chuck_DL_Query* QUERY);
 
 static Chuck_DL_MainThreadHook* hook = NULL;
 static bool hookActivated            = false;
-
-// metadata required for scene rendering
-struct GG_Config {
-    SG_ID mainScene;
-    SG_ID mainCamera;
-};
-
-static GG_Config gg_config = {};
 
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
@@ -86,6 +78,63 @@ CK_DLL_CTOR(event_next_frame_ctor)
       = (t_CKINT)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
 }
 
+static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
+                                 Chuck_VM* VM, CK_DL_API API,
+                                 t_CKINT ggen_update_vt_offset)
+{
+    static t_CKTIME chuglLastUpdateTime{};
+
+    t_CKTIME chuckTimeNow  = API->vm->now(VM);
+    t_CKTIME chuckTimeDiff = chuckTimeNow - chuglLastUpdateTime;
+    t_CKFLOAT ckdt         = chuckTimeDiff / API->vm->srate(VM);
+    chuglLastUpdateTime    = chuckTimeNow;
+
+    Chuck_DL_Arg theArg;
+    theArg.kind = kindof_FLOAT;
+    // if (CGL::useChuckTime) {
+    theArg.value.v_float = ckdt;
+    // } else {
+    // TODO: pass window state, dt, etc from render thread --> audio thread
+    // theArg.value.v_float = std::min(
+    //   1.0, CGL::GetTimeInfo().second); // this dt should be same as one
+    //                                    // gotten by chuck CGL.dt()
+    // }
+
+    void* arena_orig_top             = Arena::top(arena);
+    *(ARENA_PUSH_TYPE(arena, SG_ID)) = main_scene_id;
+
+    // BFS through graph
+    // TODO: scene and
+    while (Arena::top(arena) != arena_orig_top) {
+        ARENA_POP_TYPE(arena, SG_ID);
+        SG_ID sg_id = *(SG_ID*)Arena::top(arena);
+
+        SG_Transform* xform = SG_GetTransform(sg_id);
+        ASSERT(xform != NULL);
+
+        Chuck_Object* ggen = xform->ckobj;
+        ASSERT(ggen != NULL);
+
+        Chuck_VM_Shred* origin_shred = chugin_getOriginShred(ggen);
+
+        // origin_shred == NULL when ggens are default created during QUERY
+        // API->create_without_shred e.g. for mainScene, mainCamera
+        // these, by definition, have no overloaded update() function
+        // because they are not user defined
+        if (origin_shred != NULL) {
+            // invoke the update function in immediate mode
+            API->vm->invoke_mfun_immediate_mode(ggen, ggen_update_vt_offset, VM,
+                                                origin_shred, &theArg, 1);
+        }
+
+        // add children to stack
+        size_t numChildren  = SG_Transform::numChildren(xform);
+        SG_ID* children_ptr = ARENA_PUSH_COUNT(arena, SG_ID, numChildren);
+        memcpy(children_ptr, xform->childrenIDs.base,
+               sizeof(SG_ID) * numChildren);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // this is called by chuck VM at the earliest point when a shred begins to wait
 // on an Event used to catch GG.nextFrame() => now; on one or more shreds once
@@ -106,7 +155,33 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
         hook->activate(hook);
     }
 
-    Sync_MarkShredWaited(SHRED);
+    if (Sync_MarkShredWaited(SHRED)) {
+        // if #waiting == #registered, all chugl shreds have finished work, and
+        // we are safe to wakeup the renderer
+        // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
+        // i.e. does nextFrame() once and then goes on to say process audio,
+        // this code will stay be expecting that shred to call nextFrame() again
+        // and waitingShreds will never == registeredShreds.size() thus hanging
+        // the renderer
+
+        // traverse scenegraph and call chuck-defined update() on all GGens
+        autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
+                             g_chuglAPI, ggen_update_vt_offset);
+
+        // clear thread waitlist; all expected shreds are now waiting on
+        // GG.nextFrame()
+        waitingShreds = 0;
+
+        // signal the graphics-side that audio-side is done processing for
+        // this frame
+        Sync_SignalUpdateDone();
+
+        // Garbage collect (TODO add API function to control this via GG
+        // config) SG_GC();
+
+        // clear audio frame arena
+        Arena::clear(&audio_frame_arena);
+    }
 }
 
 CK_DLL_SFUN(chugl_next_frame)
@@ -176,6 +251,9 @@ CK_DLL_QUERY(ChuGL)
     g_chuglVM  = QUERY->ck_vm(QUERY);
     g_chuglAPI = QUERY->ck_api(QUERY);
 
+    // audio frame arena
+    Arena::init(&audio_frame_arena, 64 * KILOBYTE);
+
     // initialize component pool
     // TODO: have a single ChuGL_Context that manages this all
     SG_Init(g_chuglAPI);
@@ -216,6 +294,9 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY);
     }
 
+    // auto-generated
+    // ulib_cimgui_query(QUERY);
+    // hand-written
     ulib_imgui_query(QUERY);
 
     ulib_texture_query(QUERY);

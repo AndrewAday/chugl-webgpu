@@ -37,10 +37,11 @@ const char* Event_GetName(CHUGL_EventType type);
 // Thread Synchronization API
 // ============================================================================
 
-void Sync_MarkShredWaited(Chuck_VM_Shred* shred);
+bool Sync_MarkShredWaited(Chuck_VM_Shred* shred);
 bool Sync_HasShredWaited(Chuck_VM_Shred* shred);
 void Sync_RegisterShred(Chuck_VM_Shred* shred);
 void Sync_WaitOnUpdateDone();
+void Sync_SignalUpdateDone();
 
 // ============================================================================
 // ChuGL Events Definitions
@@ -118,7 +119,7 @@ void Sync_WaitOnUpdateDone()
     shouldRender = false;
 }
 
-static void _Sync_SignalUpdateDone()
+void Sync_SignalUpdateDone()
 {
     std::unique_lock<std::mutex> lock(gameLoopLock);
     shouldRender = true;
@@ -126,7 +127,8 @@ static void _Sync_SignalUpdateDone()
     gameLoopConditionVar.notify_all();
 }
 
-void Sync_MarkShredWaited(Chuck_VM_Shred* shred)
+// returns true if all shreds have waited
+bool Sync_MarkShredWaited(Chuck_VM_Shred* shred)
 {
     // mark shred as waited
     ASSERT(registeredShreds.find(shred) != registeredShreds.end());
@@ -135,26 +137,5 @@ void Sync_MarkShredWaited(Chuck_VM_Shred* shred)
     // add to waiting set
     ++waitingShreds;
 
-    // if #waiting == #registered, all chugl shreds have finished work, and we
-    // are safe to wakeup the renderer
-    // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
-    // i.e. does nextFrame() once and then goes on to say process audio, this
-    // code will stay be expecting that shred to call nextFrame() again and
-    // waitingShreds will never == registeredShreds.size() thus hanging the
-    // renderer
-    if (waitingShreds >= registeredShreds.size()) {
-        // traverse scenegraph and call chuck-defined update() on all GGens
-        // CGL::UpdateSceneGraph(CGL::mainScene, API, VM, SHRED);
-
-        // clear thread waitlist; all expected shreds are now waiting on
-        // GG.nextFrame()
-        waitingShreds = 0;
-
-        // signal the graphics-side that audio-side is done processing for this
-        // frame
-        _Sync_SignalUpdateDone();
-
-        // Garbage collect (TODO add API function to control this via GG config)
-        // SG_GC();
-    }
+    return waitingShreds >= registeredShreds.size();
 }

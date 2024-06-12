@@ -128,6 +128,8 @@ else()
     add_library(
         ${PROJECT_NAME} SHARED 
         src/chugl.cpp 
+        src/ulib_cimgui.cpp
+
         ${CORE}
         ${VENDOR}
     )

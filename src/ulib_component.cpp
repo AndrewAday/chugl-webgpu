@@ -1,6 +1,7 @@
+#include "ulib_helper.h"
+
 #include "sg_command.h"
 #include "sg_component.h"
-#include <chuck/chugin.h>
 
 #include "geometry.h"
 #include "sync.cpp"
@@ -464,6 +465,10 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 
         QUERY->end_class(QUERY); // GGen
     }
+
+    // set update vt offset
+    chugin_setVTableOffset(&ggen_update_vt_offset,
+                           SG_CKNames[SG_COMPONENT_TRANSFORM], "update");
 }
 
 // CGLObject DLL ==============================================
@@ -483,6 +488,9 @@ CK_DLL_CTOR(ggen_ctor)
     ) {
         CQ_PushCommand_CreateTransform(SELF, component_offset_id, API);
     }
+
+    // always register to shred map
+    chugin_setOriginShred(SELF, SHRED);
 }
 
 CK_DLL_DTOR(ggen_dtor)

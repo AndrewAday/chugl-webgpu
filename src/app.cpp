@@ -391,6 +391,11 @@ struct App {
         // release graphics context
         GraphicsContext::release(&app->gctx);
 
+        // destroy imgui
+        ImGui_ImplWGPU_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+
         // destroy window
         glfwDestroyWindow(app->window);
 
@@ -487,14 +492,12 @@ struct App {
         frame deadlock shouldn't happen because both locks are never held at the
         same time */
 
-        static ImDrawData* draw_data = NULL;
-        UNUSED_VAR(draw_data);
         {
             // u64 critical_start = stm_now();
             CQ_SwapQueues(); // ~ .0001ms
 
-            static bool show_demo_window = true;
-            ImGui::ShowDemoWindow(&show_demo_window);
+            // static bool show_demo_window = false;
+            // ImGui::ShowDemoWindow(&show_demo_window);
 
             // Rendering
             ImGui::Render();
@@ -515,7 +518,7 @@ struct App {
               0, ImGui::GetMainViewport(),
               ImGuiDockNodeFlags_PassthruCentralNode);
 
-            // ~2.15ms (15%)
+            // ~2.15ms (15%) In DEBUG mode!
             // critical_section_stats.update(stm_since(critical_start));
         }
 

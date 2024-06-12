@@ -29,16 +29,14 @@ struct ImGui_Stats {
     TickStats command;
     TickStats render;
     TickStats draw;
-    TickStats poll;
 
     void update(u64 new_frame_time, u64 command_time, u64 render_time,
-                u64 draw_time, u64 poll_time)
+                u64 draw_time)
     {
         new_frame.update(new_frame_time);
         command.update(command_time);
         render.update(render_time);
         draw.update(draw_time);
-        poll.update(poll_time);
         fc++;
     }
 
@@ -53,8 +51,6 @@ struct ImGui_Stats {
                stm_ms(render.max), stm_ms(render.total / fc));
         printf("Draw: min: %f, max: %f, avg: %f\n", stm_ms(draw.min),
                stm_ms(draw.max), stm_ms(draw.total / fc));
-        printf("Poll: min: %f, max: %f, avg: %f\n", stm_ms(poll.min),
-               stm_ms(poll.max), stm_ms(poll.total / fc));
     }
 };
 
@@ -71,12 +67,14 @@ static bool show_demo_window    = true;
 static bool show_another_window = true;
 static ImVec4 clear_color       = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+static void _Test_ImGUI_SizeCallback(ImGuiSizeCallbackData* data)
+{
+    printf("Size callback: %f, %f\n", data->DesiredSize.x, data->DesiredSize.y);
+}
+
 static void _Test_ImGUI_onRender(glm::mat4 proj, glm::mat4 view,
                                  glm::vec3 camPos)
 {
-    u64 poll_start = stm_now();
-    glfwPollEvents();
-    u64 poll_time = stm_since(poll_start);
 
     // Start the Dear ImGui frame
     u64 frame_start = stm_now();
@@ -99,6 +97,10 @@ static void _Test_ImGUI_onRender(glm::mat4 proj, glm::mat4 view,
     {
         static float f     = 0.0f;
         static int counter = 0;
+
+        printf("newframe\n");
+        ImGui::SetNextWindowSizeConstraints(ImVec2(200, 200), ImVec2(200, 200),
+                                            _Test_ImGUI_SizeCallback, NULL);
 
         ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!"
                                        // and append into it.
@@ -156,7 +158,7 @@ static void _Test_ImGUI_onRender(glm::mat4 proj, glm::mat4 view,
     WGPURenderPassDescriptor render_pass_desc = {};
     render_pass_desc.colorAttachmentCount     = 1;
     render_pass_desc.colorAttachments         = &color_attachments;
-    render_pass_desc.depthStencilAttachment   = nullptr;
+    render_pass_desc.depthStencilAttachment   = &gctx->depthStencilAttachment;
 
     WGPURenderPassEncoder pass
       = wgpuCommandEncoderBeginRenderPass(encoder, &render_pass_desc);
@@ -194,16 +196,8 @@ static void _Test_ImGUI_onRender(glm::mat4 proj, glm::mat4 view,
     wgpuCommandBufferRelease(cmd_buffer);
 
     stats.update(frame_start_time, imgui_command_time, imgui_render_time,
-                 imgui_draw_time, poll_time);
+                 imgui_draw_time);
     if (stats.fc % 100 == 0) stats.print();
-}
-
-static void _Test_ImGUI_onExit()
-{
-    // Cleanup
-    ImGui_ImplWGPU_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
 }
 
 void Test_ImGUI(TestCallbacks* callbacks)
@@ -211,5 +205,4 @@ void Test_ImGUI(TestCallbacks* callbacks)
     *callbacks          = {};
     callbacks->onInit   = _Test_ImGUI_onInit;
     callbacks->onRender = _Test_ImGUI_onRender;
-    callbacks->onExit   = _Test_ImGUI_onExit;
 }
