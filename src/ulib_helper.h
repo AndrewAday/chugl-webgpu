@@ -4,9 +4,22 @@
 #include <unordered_map>
 
 #include "core/macros.h"
+#include "core/memory.h"
 
 // TODO: group all this shared state together into a "chugl_audio_context"
 // struct, similar to App or Renderer struct
+
+#define BEGIN_CLASS(type, base) QUERY->begin_class(QUERY, type, base)
+#define END_CLASS() QUERY->end_class(QUERY)
+#define CTOR(func) QUERY->add_ctor(QUERY, func)
+#define DTOR(func) QUERY->add_dtor(QUERY, func)
+#define MVAR(type, name, is_const) QUERY->add_mvar(QUERY, type, name, is_const)
+#define MFUN(func, ret, name) QUERY->add_mfun(QUERY, func, ret, name)
+#define SFUN(func, ret, name) QUERY->add_sfun(QUERY, func, ret, name)
+#define ARG(type, name) QUERY->add_arg(QUERY, type, name)
+#define DOC_FUNC(doc) QUERY->doc_func(QUERY, doc)
+#define DOC_CLASS(doc) QUERY->doc_class(QUERY, doc)
+#define DOC_VAR(doc) QUERY->doc_var(QUERY, doc)
 
 // references to VM and API
 Chuck_VM* g_chuglVM  = NULL;
