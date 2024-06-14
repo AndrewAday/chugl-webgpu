@@ -297,6 +297,269 @@ CK_DLL_SFUN(ui_VSliderFloatEx);
 CK_DLL_SFUN(ui_VSliderInt);
 CK_DLL_SFUN(ui_VSliderIntEx);
 
+// Widgets: Input with Keyboard
+// - If you want to use InputText() with std::string or any custom dynamic
+// string type, see misc/cpp/imgui_stdlib.h and comments in imgui_demo.cpp.
+// - Most of the ImGuiInputTextFlags flags are only useful for InputText() and
+// not for InputFloatX, InputIntX, InputDouble etc.
+CK_DLL_SFUN(ui_InputText);
+CK_DLL_SFUN(ui_InputTextEx);
+CK_DLL_SFUN(ui_InputTextMultiline);
+CK_DLL_SFUN(ui_InputTextMultilineEx);
+CK_DLL_SFUN(ui_InputTextWithHint);
+CK_DLL_SFUN(ui_InputTextWithHintEx);
+CK_DLL_SFUN(ui_InputFloat);
+CK_DLL_SFUN(ui_InputFloatEx);
+CK_DLL_SFUN(ui_InputInt);
+CK_DLL_SFUN(ui_InputIntEx);
+CK_DLL_SFUN(ui_InputScalarN_CKINT);
+CK_DLL_SFUN(ui_InputScalarNEx_CKINT);
+CK_DLL_SFUN(ui_InputScalarN_CKFLOAT);
+CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT);
+
+// Widgets: Color Editor/Picker
+CK_DLL_SFUN(ui_ColorEdit3);
+CK_DLL_SFUN(ui_ColorEdit4);
+CK_DLL_SFUN(ui_ColorPicker3);
+CK_DLL_SFUN(ui_ColorPicker4);
+CK_DLL_SFUN(ui_ColorButton);
+CK_DLL_SFUN(ui_ColorButtonEx);
+CK_DLL_SFUN(ui_SetColorEditOptions);
+
+// Widgets: Trees
+// - TreeNode functions return true when the node is open, in which case you
+// need to also call TreePop() when you are finished displaying the tree node
+// contents.
+CK_DLL_SFUN(ui_TreeNode);
+CK_DLL_SFUN(ui_TreeNodeStrUnformatted);
+CK_DLL_SFUN(ui_TreeNodeEx);
+CK_DLL_SFUN(ui_TreeNodeExStrUnformatted);
+CK_DLL_SFUN(ui_TreePush);
+CK_DLL_SFUN(ui_TreePop);
+CK_DLL_SFUN(ui_GetTreeNodeToLabelSpacing);
+CK_DLL_SFUN(ui_CollapsingHeader);
+CK_DLL_SFUN(ui_CollapsingHeaderBoolPtr);
+CK_DLL_SFUN(ui_SetNextItemOpen);
+
+// Widgets: Selectables
+// - A selectable highlights when hovered, and can display another color when
+// selected.
+// - Neighbors selectable extend their highlight bounds in order to leave no gap
+// between them. This is so a series of selected Selectable appear contiguous.
+CK_DLL_SFUN(ui_Selectable);
+CK_DLL_SFUN(ui_SelectableEx);
+CK_DLL_SFUN(ui_SelectableBoolPtr);
+CK_DLL_SFUN(ui_SelectableBoolPtrEx);
+
+// Widgets: List Boxes
+CK_DLL_SFUN(ui_BeginListBox);
+CK_DLL_SFUN(ui_EndListBox);
+CK_DLL_SFUN(ui_ListBox);
+
+// Widgets: Data Plotting
+// - Consider using ImPlot (https://github.com/epezent/implot) which is much
+// better!
+// TODO: implement callback versions
+CK_DLL_SFUN(ui_PlotLines);
+CK_DLL_SFUN(ui_PlotLinesEx);
+CK_DLL_SFUN(ui_PlotHistogram);
+CK_DLL_SFUN(ui_PlotHistogramEx);
+
+// Widgets: Menus
+// - Use BeginMenuBar() on a window ImGuiWindowFlags_MenuBar to append to its
+// menu bar.
+// - Use BeginMainMenuBar() to create a menu bar at the top of the screen and
+// append to it.
+// - Use BeginMenu() to create a menu. You can call BeginMenu() multiple time
+// with the same identifier to append more items to it.
+// - Not that MenuItem() keyboardshortcuts are displayed as a convenience but
+// _not processed_ by Dear ImGui at the moment.
+CK_DLL_SFUN(ui_BeginMenuBar);
+CK_DLL_SFUN(ui_EndMenuBar);
+CK_DLL_SFUN(ui_BeginMainMenuBar);
+CK_DLL_SFUN(ui_EndMainMenuBar);
+CK_DLL_SFUN(ui_BeginMenu);
+CK_DLL_SFUN(ui_BeginMenuEx);
+CK_DLL_SFUN(ui_EndMenu);
+CK_DLL_SFUN(ui_MenuItem);
+CK_DLL_SFUN(ui_MenuItemBoolPtr);
+
+// Tooltips
+CK_DLL_SFUN(ui_BeginTooltip);
+CK_DLL_SFUN(ui_EndTooltip);
+CK_DLL_SFUN(ui_SetTooltipUnformatted);
+CK_DLL_SFUN(ui_SetItemTooltipUnformatted);
+
+// Popups, Modals
+CK_DLL_SFUN(ui_BeginPopup);
+CK_DLL_SFUN(ui_BeginPopupModal);
+CK_DLL_SFUN(ui_EndPopup);
+CK_DLL_SFUN(ui_OpenPopup);
+// CK_DLL_SFUN(ui_OpenPopupID);
+CK_DLL_SFUN(ui_OpenPopupOnItemClick);
+CK_DLL_SFUN(ui_CloseCurrentPopup);
+CK_DLL_SFUN(ui_BeginPopupContextItem);
+CK_DLL_SFUN(ui_BeginPopupContextItemEx);
+CK_DLL_SFUN(ui_BeginPopupContextWindow);
+CK_DLL_SFUN(ui_BeginPopupContextWindowEx);
+CK_DLL_SFUN(ui_BeginPopupContextVoid);
+CK_DLL_SFUN(ui_BeginPopupContextVoidEx);
+CK_DLL_SFUN(ui_IsPopupOpen);
+
+// Tables
+CK_DLL_SFUN(ui_BeginTable);
+CK_DLL_SFUN(ui_BeginTableEx);
+CK_DLL_SFUN(ui_EndTable);
+CK_DLL_SFUN(ui_TableNextRow);
+CK_DLL_SFUN(ui_TableNextRowEx);
+CK_DLL_SFUN(ui_TableNextColumn);
+CK_DLL_SFUN(ui_TableSetColumnIndex);
+
+CK_DLL_SFUN(ui_TableSetupColumn);
+CK_DLL_SFUN(ui_TableSetupColumnEx);
+CK_DLL_SFUN(ui_TableSetupScrollFreeze);
+CK_DLL_SFUN(ui_TableHeader);
+CK_DLL_SFUN(ui_TableHeadersRow);
+CK_DLL_SFUN(ui_TableAngledHeadersRow);
+
+// CK_DLL_SFUN(ui_TableGetSortSpecs);
+CK_DLL_SFUN(ui_TableGetColumnCount);
+CK_DLL_SFUN(ui_TableGetColumnIndex);
+CK_DLL_SFUN(ui_TableGetRowIndex);
+CK_DLL_SFUN(ui_TableGetColumnName);
+CK_DLL_SFUN(ui_TableGetColumnFlags);
+CK_DLL_SFUN(ui_TableSetColumnEnabled);
+CK_DLL_SFUN(ui_TableSetBgColor);
+
+// Tab Bars, Tabs
+// - Note: Tabs are automatically created by the docking system (when in
+// 'docking' branch). Use this to create tab bars/tabs yourself.
+CK_DLL_SFUN(ui_BeginTabBar);
+CK_DLL_SFUN(ui_EndTabBar);
+CK_DLL_SFUN(ui_BeginTabItem);
+CK_DLL_SFUN(ui_EndTabItem);
+CK_DLL_SFUN(ui_TabItemButton);
+CK_DLL_SFUN(ui_SetTabItemClosed);
+
+// Docking TODO
+// CIMGUI_API ImGuiID ImGui_DockSpace(ImGuiID dockspace_id); // Implied size =
+// ImVec2(0, 0), flags = 0, window_class = NULL CIMGUI_API ImGuiID
+// ImGui_DockSpaceEx(ImGuiID dockspace_id, ImVec2 size /* = ImVec2(0, 0) */,
+// ImGuiDockNodeFlags flags /* = 0 */, const ImGuiWindowClass* window_class /* =
+// NULL */); CIMGUI_API ImGuiID ImGui_DockSpaceOverViewport(void); // Implied
+// dockspace_id = 0, viewport = NULL, flags = 0, window_class = NULL CIMGUI_API
+// ImGuiID ImGui_DockSpaceOverViewportEx(ImGuiID dockspace_id /* = 0 */, const
+// ImGuiViewport* viewport /* = NULL */, ImGuiDockNodeFlags flags /* = 0 */,
+// const ImGuiWindowClass* window_class /* = NULL */); CIMGUI_API void
+// ImGui_SetNextWindowDockID(ImGuiID dock_id, ImGuiCond cond /* = 0 */);  // set
+// next window dock id CIMGUI_API void    ImGui_SetNextWindowClass(const
+// ImGuiWindowClass* window_class);        // set next window class (control
+// docking compatibility + provide hints to platform backend via custom viewport
+// flags and platform parent/child relationship) CIMGUI_API ImGuiID
+// ImGui_GetWindowDockID(void); CIMGUI_API bool    ImGui_IsWindowDocked(void);
+// // is current window docked into another window?
+
+// Logging/Capture TODO
+// - All text output from the interface can be captured into tty/file/clipboard.
+// By default, tree nodes are automatically opened during logging. CIMGUI_API
+// void ImGui_LogToTTY(int auto_open_depth /* = -1 */); // start logging to tty
+// (stdout) CIMGUI_API void ImGui_LogToFile(int auto_open_depth /* = -1 */,
+// const char* filename /* = NULL */);  // start logging to file CIMGUI_API void
+// ImGui_LogToClipboard(int auto_open_depth /* = -1 */); // start logging to OS
+// clipboard CIMGUI_API void ImGui_LogFinish(void); // stop logging (close file,
+// etc.) CIMGUI_API void ImGui_LogButtons(void); // helper to display buttons
+// for logging to tty/file/clipboard CIMGUI_API void ImGui_LogText(const char*
+// fmt, ...) IM_FMTARGS(1);                                   // pass text data
+// straight to log (without being displayed) CIMGUI_API void
+// ImGui_LogTextUnformatted(const char* text); // pass text data straight to log
+// (without being displayed) CIMGUI_API void ImGui_LogTextV(const char* fmt,
+// va_list args) IM_FMTLIST(1);
+
+// Drag and Drop TODO
+// CIMGUI_API bool                ImGui_BeginDragDropSource(ImGuiDragDropFlags
+// flags /* = 0 */);                      // call after submitting an item which
+// may be dragged. when this return true, you can call SetDragDropPayload() +
+// EndDragDropSource() CIMGUI_API bool ImGui_SetDragDropPayload(const char*
+// type, const void* data, size_t sz, ImGuiCond cond /* = 0 */); // type is a
+// user defined string of maximum 32 characters. Strings starting with '_' are
+// reserved for dear imgui internal types. Data is copied and held by imgui.
+// Return true when payload has been accepted. CIMGUI_API void
+// ImGui_EndDragDropSource(void); // only call EndDragDropSource() if
+// BeginDragDropSource() returns true! CIMGUI_API bool
+// ImGui_BeginDragDropTarget(void); // call after submitting an item that may
+// receive a payload. If this returns true, you can call AcceptDragDropPayload()
+// + EndDragDropTarget() CIMGUI_API const ImGuiPayload*
+// ImGui_AcceptDragDropPayload(const char* type, ImGuiDragDropFlags flags /* = 0
+// */);  // accept contents of a given type. If
+// ImGuiDragDropFlags_AcceptBeforeDelivery is set you can peek into the payload
+// before the mouse button is released. CIMGUI_API void
+// ImGui_EndDragDropTarget(void); // only call EndDragDropTarget() if
+// BeginDragDropTarget() returns true! CIMGUI_API const ImGuiPayload*
+// ImGui_GetDragDropPayload(void); // peek directly into the current payload
+// from anywhere. returns NULL when drag and drop is finished or inactive. use
+// ImGuiPayload::IsDataType() to test for the payload type.
+
+// Disabling [BETA API] TODO
+// - Disable all user interactions and dim items visuals (applying
+// style.DisabledAlpha over current colors)
+// - Those can be nested but it cannot be used to enable an already disabled
+// section (a single BeginDisabled(true) in the stack is enough to keep
+// everything disabled)
+// - BeginDisabled(false) essentially does nothing useful but is provided to
+// facilitate use of boolean expressions. If you can avoid calling
+// BeginDisabled(False)/EndDisabled() best to avoid it. CIMGUI_API void
+// ImGui_BeginDisabled(bool disabled /* = true */); CIMGUI_API void
+// ImGui_EndDisabled(void);
+
+// Clipping TODO
+// - Mouse hovering is affected by ImGui::PushClipRect() calls, unlike direct
+// calls to ImDrawList::PushClipRect() which are render only. CIMGUI_API void
+// ImGui_PushClipRect(ImVec2 clip_rect_min, ImVec2 clip_rect_max, bool
+// intersect_with_current_clip_rect); CIMGUI_API void ImGui_PopClipRect(void);
+
+// Focus, Activation TODO
+// - Prefer using "SetItemDefaultFocus()" over "if (IsWindowAppearing())
+// SetScrollHereY()" when applicable to signify "this is the default item"
+// CIMGUI_API void ImGui_SetItemDefaultFocus(void);                     // make
+// last item the default focused item of a window. CIMGUI_API void
+// ImGui_SetKeyboardFocusHere(void);                    // Implied offset = 0
+// CIMGUI_API void ImGui_SetKeyboardFocusHereEx(int offset /* = 0 */);  // focus
+// keyboard on the next widget. Use positive 'offset' to access sub components
+// of a multiple component widget. Use -1 to access previous widget.
+
+// Overlapping mode
+CK_DLL_SFUN(ui_SetNextItemAllowOverlap);
+
+// Item/Widgets Utilities and Query Functions
+// - Most of the functions are referring to the previous Item that has been
+// submitted.
+// - See Demo Window under "Widgets->Querying Status" for an interactive
+// visualization of most of those functions.
+CK_DLL_SFUN(ui_IsItemHovered);
+CK_DLL_SFUN(ui_IsItemActive);
+CK_DLL_SFUN(ui_IsItemFocused);
+CK_DLL_SFUN(ui_IsItemClicked);
+CK_DLL_SFUN(ui_IsItemClickedEx);
+CK_DLL_SFUN(ui_IsItemVisible);
+CK_DLL_SFUN(ui_IsItemEdited);
+CK_DLL_SFUN(ui_IsItemActivated);
+CK_DLL_SFUN(ui_IsItemDeactivated);
+CK_DLL_SFUN(ui_IsItemDeactivatedAfterEdit);
+CK_DLL_SFUN(ui_IsItemToggledOpen);
+CK_DLL_SFUN(ui_IsAnyItemHovered);
+CK_DLL_SFUN(ui_IsAnyItemActive);
+CK_DLL_SFUN(ui_IsAnyItemFocused);
+CK_DLL_SFUN(ui_GetItemID);
+CK_DLL_SFUN(ui_GetItemRectMin);
+CK_DLL_SFUN(ui_GetItemRectMax);
+CK_DLL_SFUN(ui_GetItemRectSize);
+
+// Clipboard Utilities
+// - Also see the LogToClipboard() function to capture GUI into clipboard, or
+// easily output text data to the clipboard.
+CK_DLL_SFUN(ui_GetClipboardText);
+CK_DLL_SFUN(ui_SetClipboardText);
+
 // Styles
 CK_DLL_SFUN(ui_styleColorsDark);
 CK_DLL_SFUN(ui_styleColorsLight);
@@ -323,12 +586,35 @@ CK_DLL_MFUN(ui_size_callback_data_set_desired_size);
 CK_DLL_MFUN(ui_combo_callback);
 static t_CKINT ui_combo_callback_vt_offset = -1;
 
+// InputTextCallback
+// CK_DLL_MFUN(ui_input_text_callback);
+// static t_CKINT ui_input_text_callback_vt_offset = -1;
+// InputTextCallbackData (complicated, ignoring for now)
+// static t_CKUINT ui_input_text_callback_data_ptr_offset = 0;
+// CK_DLL_MFUN(ui_input_text_callback_data_get_event_flag);  //
+// ImguiInputTextFlags read-only
+// CK_DLL_MFUN(ui_input_text_callback_data_get_flags);       //
+// ImGuiInputTextFlags read-only
+// CK_DLL_MFUN(ui_input_text_callback_data_get_event_char);  // ImWchar
+// read-write CK_DLL_MFUN(ui_input_text_callback_data_set_event_char);
+// CK_DLL_MFUN(ui_input_text_callback_data_get_event_key);   // ImGuiKey
+// read-only CK_DLL_MFUN(ui_input_text_callback_data_get_buf);         //
+// UI_String read-write
+
 // UI_Bool
 static t_CKUINT ui_bool_ptr_offset = 0;
 CK_DLL_CTOR(ui_bool_ctor);
 CK_DLL_DTOR(ui_bool_dtor);
 CK_DLL_MFUN(ui_bool_get_value);
 CK_DLL_MFUN(ui_bool_set_value);
+
+// UI_String
+static t_CKUINT ui_string_ptr_offset = 0;
+static t_CKUINT ui_string_cap_offset = 0;
+CK_DLL_CTOR(ui_string_ctor);
+CK_DLL_DTOR(ui_string_dtor);
+CK_DLL_MFUN(ui_string_get_value);
+CK_DLL_MFUN(ui_string_set_value);
 
 // UI_Int
 static t_CKUINT ui_int_ptr_offset = 0;
@@ -405,6 +691,17 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "int", "val");
 
     QUERY->end_class(QUERY); // UI_Bool
+
+    // UI_String ---------------------------------------------------------------
+    BEGIN_CLASS("UI_String", "Object");
+    ui_string_ptr_offset = MVAR("int", "@ui_string_ptr", false);
+    ui_string_cap_offset = MVAR("int", "@ui_string_cap", false);
+    CTOR(ui_string_ctor);
+    DTOR(ui_string_dtor);
+    MFUN(ui_string_get_value, "string", "val");
+    MFUN(ui_string_set_value, "void", "val");
+    ARG("string", "val");
+    END_CLASS(); // UI_String
 
     // UI_Int ---------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI_Int", "Object");
@@ -1181,6 +1478,1090 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "directly into the widget");
     QUERY->end_class(QUERY);
 
+    QUERY->begin_class(QUERY, "UI_InputTextFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImGui::InputText().\n(Those are per-item flags. There are "
+      "shared flags in ImGuiIO: io.ConfigInputTextCursorBlink and "
+      "io.ConfigInputTextEnterKeepActive).\n");
+    static t_CKINT ImGuiInputTextFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiInputTextFlags_None);
+    static t_CKINT ImGuiInputTextFlags_CharsDecimal = 1;
+    QUERY->add_svar(QUERY, "int", "CharsDecimal", true,
+                    &ImGuiInputTextFlags_CharsDecimal);
+    QUERY->doc_var(QUERY, "Allow 0123456789.+-*/");
+    static t_CKINT ImGuiInputTextFlags_CharsHexadecimal = 2;
+    QUERY->add_svar(QUERY, "int", "CharsHexadecimal", true,
+                    &ImGuiInputTextFlags_CharsHexadecimal);
+    QUERY->doc_var(QUERY, "Allow 0123456789ABCDEFabcdef");
+    static t_CKINT ImGuiInputTextFlags_CharsUppercase = 4;
+    QUERY->add_svar(QUERY, "int", "CharsUppercase", true,
+                    &ImGuiInputTextFlags_CharsUppercase);
+    QUERY->doc_var(QUERY, "Turn a..z into A..Z");
+    static t_CKINT ImGuiInputTextFlags_CharsNoBlank = 8;
+    QUERY->add_svar(QUERY, "int", "CharsNoBlank", true,
+                    &ImGuiInputTextFlags_CharsNoBlank);
+    QUERY->doc_var(QUERY, "Filter out spaces, tabs");
+    static t_CKINT ImGuiInputTextFlags_AutoSelectAll = 16;
+    QUERY->add_svar(QUERY, "int", "AutoSelectAll", true,
+                    &ImGuiInputTextFlags_AutoSelectAll);
+    QUERY->doc_var(QUERY, "Select entire text when first taking mouse focus");
+    static t_CKINT ImGuiInputTextFlags_EnterReturnsTrue = 32;
+    QUERY->add_svar(QUERY, "int", "EnterReturnsTrue", true,
+                    &ImGuiInputTextFlags_EnterReturnsTrue);
+    QUERY->doc_var(QUERY,
+                   "Return 'true' when Enter is pressed (as opposed to every "
+                   "time the value was modified). Consider looking at the "
+                   "IsItemDeactivatedAfterEdit() function.");
+    static t_CKINT ImGuiInputTextFlags_CallbackCompletion = 64;
+    QUERY->add_svar(QUERY, "int", "CallbackCompletion", true,
+                    &ImGuiInputTextFlags_CallbackCompletion);
+    QUERY->doc_var(QUERY, "Callback on pressing TAB (for completion handling)");
+    static t_CKINT ImGuiInputTextFlags_CallbackHistory = 128;
+    QUERY->add_svar(QUERY, "int", "CallbackHistory", true,
+                    &ImGuiInputTextFlags_CallbackHistory);
+    QUERY->doc_var(
+      QUERY, "Callback on pressing Up/Down arrows (for history handling)");
+    static t_CKINT ImGuiInputTextFlags_CallbackAlways = 256;
+    QUERY->add_svar(QUERY, "int", "CallbackAlways", true,
+                    &ImGuiInputTextFlags_CallbackAlways);
+    QUERY->doc_var(QUERY,
+                   "Callback on each iteration. User code may query cursor "
+                   "position, modify text buffer.");
+    static t_CKINT ImGuiInputTextFlags_CallbackCharFilter = 512;
+    QUERY->add_svar(QUERY, "int", "CallbackCharFilter", true,
+                    &ImGuiInputTextFlags_CallbackCharFilter);
+    QUERY->doc_var(
+      QUERY,
+      "Callback on character inputs to replace or discard them. Modify "
+      "'EventChar' to replace or discard, or return 1 in callback to discard.");
+    static t_CKINT ImGuiInputTextFlags_AllowTabInput = 1024;
+    QUERY->add_svar(QUERY, "int", "AllowTabInput", true,
+                    &ImGuiInputTextFlags_AllowTabInput);
+    QUERY->doc_var(QUERY,
+                   "Pressing TAB input a '\\t' character into the text field");
+    static t_CKINT ImGuiInputTextFlags_CtrlEnterForNewLine = 2048;
+    QUERY->add_svar(QUERY, "int", "CtrlEnterForNewLine", true,
+                    &ImGuiInputTextFlags_CtrlEnterForNewLine);
+    QUERY->doc_var(
+      QUERY,
+      "In multi-line mode, unfocus with Enter, add new line with Ctrl+Enter "
+      "(default is opposite: unfocus with Ctrl+Enter, add line with Enter).");
+    static t_CKINT ImGuiInputTextFlags_NoHorizontalScroll = 4096;
+    QUERY->add_svar(QUERY, "int", "NoHorizontalScroll", true,
+                    &ImGuiInputTextFlags_NoHorizontalScroll);
+    QUERY->doc_var(QUERY, "Disable following the cursor horizontally");
+    static t_CKINT ImGuiInputTextFlags_AlwaysOverwrite = 8192;
+    QUERY->add_svar(QUERY, "int", "AlwaysOverwrite", true,
+                    &ImGuiInputTextFlags_AlwaysOverwrite);
+    QUERY->doc_var(QUERY, "Overwrite mode");
+    static t_CKINT ImGuiInputTextFlags_ReadOnly = 16384;
+    QUERY->add_svar(QUERY, "int", "ReadOnly", true,
+                    &ImGuiInputTextFlags_ReadOnly);
+    QUERY->doc_var(QUERY, "Read-only mode");
+    static t_CKINT ImGuiInputTextFlags_Password = 32768;
+    QUERY->add_svar(QUERY, "int", "Password", true,
+                    &ImGuiInputTextFlags_Password);
+    QUERY->doc_var(QUERY, "Password mode, display all characters as '*'");
+    static t_CKINT ImGuiInputTextFlags_NoUndoRedo = 65536;
+    QUERY->add_svar(QUERY, "int", "NoUndoRedo", true,
+                    &ImGuiInputTextFlags_NoUndoRedo);
+    QUERY->doc_var(QUERY,
+                   "Disable undo/redo. Note that input text owns the text data "
+                   "while active, if you want to provide your own undo/redo "
+                   "stack you need e.g. to call ClearActiveID().");
+    static t_CKINT ImGuiInputTextFlags_CharsScientific = 131072;
+    QUERY->add_svar(QUERY, "int", "CharsScientific", true,
+                    &ImGuiInputTextFlags_CharsScientific);
+    QUERY->doc_var(QUERY,
+                   "Allow 0123456789.+-*/eE (Scientific notation input)");
+    static t_CKINT ImGuiInputTextFlags_CallbackResize = 262144;
+    QUERY->add_svar(QUERY, "int", "CallbackResize", true,
+                    &ImGuiInputTextFlags_CallbackResize);
+    QUERY->doc_var(
+      QUERY,
+      "Callback on buffer capacity changes request (beyond 'buf_size' "
+      "parameter value), allowing the string to grow. Notify when the string "
+      "wants to be resized (for string types which hold a cache of their "
+      "Size). You will be provided a new BufSize in the callback and NEED to "
+      "honor it. (see misc/cpp/imgui_stdlib.h for an example of using this)");
+    static t_CKINT ImGuiInputTextFlags_CallbackEdit = 524288;
+    QUERY->add_svar(QUERY, "int", "CallbackEdit", true,
+                    &ImGuiInputTextFlags_CallbackEdit);
+    QUERY->doc_var(QUERY,
+                   "Callback on any edit (note that InputText() already "
+                   "returns true on edit, the callback is useful mainly to "
+                   "manipulate the underlying buffer while focus is active)");
+    static t_CKINT ImGuiInputTextFlags_EscapeClearsAll = 1048576;
+    QUERY->add_svar(QUERY, "int", "EscapeClearsAll", true,
+                    &ImGuiInputTextFlags_EscapeClearsAll);
+    QUERY->doc_var(
+      QUERY,
+      "Escape key clears content if not empty, and deactivate otherwise "
+      "(contrast to default behavior of Escape to revert)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_ColorEditFlags", "Object");
+    QUERY->doc_class(QUERY,
+                     "Flags for ColorEdit3() / ColorEdit4() / ColorPicker3() / "
+                     "ColorPicker4() / ColorButton().\n");
+    static t_CKINT ImGuiColorEditFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiColorEditFlags_None);
+    static t_CKINT ImGuiColorEditFlags_NoAlpha = 2;
+    QUERY->add_svar(QUERY, "int", "NoAlpha", true,
+                    &ImGuiColorEditFlags_NoAlpha);
+    QUERY->doc_var(
+      QUERY,
+      "ColorEdit, ColorPicker, ColorButton: ignore Alpha component (will only "
+      "read 3 components from the input pointer).");
+    static t_CKINT ImGuiColorEditFlags_NoPicker = 4;
+    QUERY->add_svar(QUERY, "int", "NoPicker", true,
+                    &ImGuiColorEditFlags_NoPicker);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit: disable picker when clicking on color square.");
+    static t_CKINT ImGuiColorEditFlags_NoOptions = 8;
+    QUERY->add_svar(QUERY, "int", "NoOptions", true,
+                    &ImGuiColorEditFlags_NoOptions);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit: disable toggling options menu when "
+                   "right-clicking on inputs/small preview.");
+    static t_CKINT ImGuiColorEditFlags_NoSmallPreview = 16;
+    QUERY->add_svar(QUERY, "int", "NoSmallPreview", true,
+                    &ImGuiColorEditFlags_NoSmallPreview);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit, ColorPicker: disable color square preview next "
+                   "to the inputs. (e.g. to show only the inputs)");
+    static t_CKINT ImGuiColorEditFlags_NoInputs = 32;
+    QUERY->add_svar(QUERY, "int", "NoInputs", true,
+                    &ImGuiColorEditFlags_NoInputs);
+    QUERY->doc_var(
+      QUERY,
+      "ColorEdit, ColorPicker: disable inputs sliders/text widgets (e.g. to "
+      "show only the small preview color square).");
+    static t_CKINT ImGuiColorEditFlags_NoTooltip = 64;
+    QUERY->add_svar(QUERY, "int", "NoTooltip", true,
+                    &ImGuiColorEditFlags_NoTooltip);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit, ColorPicker, ColorButton: disable tooltip when "
+                   "hovering the preview.");
+    static t_CKINT ImGuiColorEditFlags_NoLabel = 128;
+    QUERY->add_svar(QUERY, "int", "NoLabel", true,
+                    &ImGuiColorEditFlags_NoLabel);
+    QUERY->doc_var(
+      QUERY,
+      "ColorEdit, ColorPicker: disable display of inline text label (the label "
+      "is still forwarded to the tooltip and picker).");
+    static t_CKINT ImGuiColorEditFlags_NoSidePreview = 256;
+    QUERY->add_svar(QUERY, "int", "NoSidePreview", true,
+                    &ImGuiColorEditFlags_NoSidePreview);
+    QUERY->doc_var(QUERY,
+                   "ColorPicker: disable bigger color preview on right side of "
+                   "the picker, use small color square preview instead.");
+    static t_CKINT ImGuiColorEditFlags_NoDragDrop = 512;
+    QUERY->add_svar(QUERY, "int", "NoDragDrop", true,
+                    &ImGuiColorEditFlags_NoDragDrop);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit: disable drag and drop target. ColorButton: "
+                   "disable drag and drop source.");
+    static t_CKINT ImGuiColorEditFlags_NoBorder = 1024;
+    QUERY->add_svar(QUERY, "int", "NoBorder", true,
+                    &ImGuiColorEditFlags_NoBorder);
+    QUERY->doc_var(
+      QUERY, "ColorButton: disable border (which is enforced by default)");
+    static t_CKINT ImGuiColorEditFlags_AlphaBar = 65536;
+    QUERY->add_svar(QUERY, "int", "AlphaBar", true,
+                    &ImGuiColorEditFlags_AlphaBar);
+    QUERY->doc_var(
+      QUERY,
+      "ColorEdit, ColorPicker: show vertical alpha bar/gradient in picker.");
+    static t_CKINT ImGuiColorEditFlags_AlphaPreview = 131072;
+    QUERY->add_svar(QUERY, "int", "AlphaPreview", true,
+                    &ImGuiColorEditFlags_AlphaPreview);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit, ColorPicker, ColorButton: display preview as a "
+                   "transparent color over a checkerboard, instead of opaque.");
+    static t_CKINT ImGuiColorEditFlags_AlphaPreviewHalf = 262144;
+    QUERY->add_svar(QUERY, "int", "AlphaPreviewHalf", true,
+                    &ImGuiColorEditFlags_AlphaPreviewHalf);
+    QUERY->doc_var(QUERY,
+                   "ColorEdit, ColorPicker, ColorButton: display half opaque / "
+                   "half checkerboard, instead of opaque.");
+    static t_CKINT ImGuiColorEditFlags_HDR = 524288;
+    QUERY->add_svar(QUERY, "int", "HDR", true, &ImGuiColorEditFlags_HDR);
+    QUERY->doc_var(QUERY,
+                   "(WIP) ColorEdit: Currently only disable 0.0f..1.0f limits "
+                   "in RGBA edition (note: you probably want to use "
+                   "ImGuiColorEditFlags_Float flag as well).");
+    static t_CKINT ImGuiColorEditFlags_DisplayRGB = 1048576;
+    QUERY->add_svar(QUERY, "int", "DisplayRGB", true,
+                    &ImGuiColorEditFlags_DisplayRGB);
+    QUERY->doc_var(
+      QUERY,
+      "[Display]     ColorEdit: override _display_ type among RGB/HSV/Hex. "
+      "ColorPicker: select any combination using one or more of RGB/HSV/Hex.");
+    static t_CKINT ImGuiColorEditFlags_DisplayHSV = 2097152;
+    QUERY->add_svar(QUERY, "int", "DisplayHSV", true,
+                    &ImGuiColorEditFlags_DisplayHSV);
+    QUERY->doc_var(QUERY, "[Display]     \"");
+    static t_CKINT ImGuiColorEditFlags_DisplayHex = 4194304;
+    QUERY->add_svar(QUERY, "int", "DisplayHex", true,
+                    &ImGuiColorEditFlags_DisplayHex);
+    QUERY->doc_var(QUERY, "[Display]     \"");
+    static t_CKINT ImGuiColorEditFlags_Uint8 = 8388608;
+    QUERY->add_svar(QUERY, "int", "Uint8", true, &ImGuiColorEditFlags_Uint8);
+    QUERY->doc_var(QUERY,
+                   "[DataType]    ColorEdit, ColorPicker, ColorButton: "
+                   "_display_ values formatted as 0..255.");
+    static t_CKINT ImGuiColorEditFlags_Float = 16777216;
+    QUERY->add_svar(QUERY, "int", "Float", true, &ImGuiColorEditFlags_Float);
+    QUERY->doc_var(QUERY,
+                   "[DataType]    ColorEdit, ColorPicker, ColorButton: "
+                   "_display_ values formatted as 0.0f..1.0f floats instead of "
+                   "0..255 integers. No round-trip of value via integers.");
+    static t_CKINT ImGuiColorEditFlags_PickerHueBar = 33554432;
+    QUERY->add_svar(QUERY, "int", "PickerHueBar", true,
+                    &ImGuiColorEditFlags_PickerHueBar);
+    QUERY->doc_var(
+      QUERY,
+      "[Picker]      ColorPicker: bar for Hue, rectangle for Sat/Value.");
+    static t_CKINT ImGuiColorEditFlags_PickerHueWheel = 67108864;
+    QUERY->add_svar(QUERY, "int", "PickerHueWheel", true,
+                    &ImGuiColorEditFlags_PickerHueWheel);
+    QUERY->doc_var(
+      QUERY,
+      "[Picker]      ColorPicker: wheel for Hue, triangle for Sat/Value.");
+    static t_CKINT ImGuiColorEditFlags_InputRGB = 134217728;
+    QUERY->add_svar(QUERY, "int", "InputRGB", true,
+                    &ImGuiColorEditFlags_InputRGB);
+    QUERY->doc_var(QUERY,
+                   "[Input]       ColorEdit, ColorPicker: input and output "
+                   "data in RGB format.");
+    static t_CKINT ImGuiColorEditFlags_InputHSV = 268435456;
+    QUERY->add_svar(QUERY, "int", "InputHSV", true,
+                    &ImGuiColorEditFlags_InputHSV);
+    QUERY->doc_var(QUERY,
+                   "[Input]       ColorEdit, ColorPicker: input and output "
+                   "data in HSV format.");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TreeNodeFlags", "Object");
+    QUERY->doc_class(
+      QUERY, "Flags for ImGui::TreeNodeEx(), ImGui::CollapsingHeader*().\n");
+    static t_CKINT ImGuiTreeNodeFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTreeNodeFlags_None);
+    static t_CKINT ImGuiTreeNodeFlags_Selected = 1;
+    QUERY->add_svar(QUERY, "int", "Selected", true,
+                    &ImGuiTreeNodeFlags_Selected);
+    QUERY->doc_var(QUERY, "Draw as selected");
+    static t_CKINT ImGuiTreeNodeFlags_Framed = 2;
+    QUERY->add_svar(QUERY, "int", "Framed", true, &ImGuiTreeNodeFlags_Framed);
+    QUERY->doc_var(QUERY,
+                   "Draw frame with background (e.g. for CollapsingHeader)");
+    static t_CKINT ImGuiTreeNodeFlags_AllowOverlap = 4;
+    QUERY->add_svar(QUERY, "int", "AllowOverlap", true,
+                    &ImGuiTreeNodeFlags_AllowOverlap);
+    QUERY->doc_var(
+      QUERY, "Hit testing to allow subsequent widgets to overlap this one");
+    static t_CKINT ImGuiTreeNodeFlags_NoTreePushOnOpen = 8;
+    QUERY->add_svar(QUERY, "int", "NoTreePushOnOpen", true,
+                    &ImGuiTreeNodeFlags_NoTreePushOnOpen);
+    QUERY->doc_var(
+      QUERY,
+      "Don't do a TreePush() when open (e.g. for CollapsingHeader) = no extra "
+      "indent nor pushing on ID stack");
+    static t_CKINT ImGuiTreeNodeFlags_NoAutoOpenOnLog = 16;
+    QUERY->add_svar(QUERY, "int", "NoAutoOpenOnLog", true,
+                    &ImGuiTreeNodeFlags_NoAutoOpenOnLog);
+    QUERY->doc_var(
+      QUERY,
+      "Don't automatically and temporarily open node when Logging is active "
+      "(by default logging will automatically open tree nodes)");
+    static t_CKINT ImGuiTreeNodeFlags_DefaultOpen = 32;
+    QUERY->add_svar(QUERY, "int", "DefaultOpen", true,
+                    &ImGuiTreeNodeFlags_DefaultOpen);
+    QUERY->doc_var(QUERY, "Default node to be open");
+    static t_CKINT ImGuiTreeNodeFlags_OpenOnDoubleClick = 64;
+    QUERY->add_svar(QUERY, "int", "OpenOnDoubleClick", true,
+                    &ImGuiTreeNodeFlags_OpenOnDoubleClick);
+    QUERY->doc_var(QUERY, "Need double-click to open node");
+    static t_CKINT ImGuiTreeNodeFlags_OpenOnArrow = 128;
+    QUERY->add_svar(QUERY, "int", "OpenOnArrow", true,
+                    &ImGuiTreeNodeFlags_OpenOnArrow);
+    QUERY->doc_var(QUERY,
+                   "Only open when clicking on the arrow part. If "
+                   "ImGuiTreeNodeFlags_OpenOnDoubleClick is also set, "
+                   "single-click arrow or double-click all box to open.");
+    static t_CKINT ImGuiTreeNodeFlags_Leaf = 256;
+    QUERY->add_svar(QUERY, "int", "Leaf", true, &ImGuiTreeNodeFlags_Leaf);
+    QUERY->doc_var(
+      QUERY, "No collapsing, no arrow (use as a convenience for leaf nodes).");
+    static t_CKINT ImGuiTreeNodeFlags_Bullet = 512;
+    QUERY->add_svar(QUERY, "int", "Bullet", true, &ImGuiTreeNodeFlags_Bullet);
+    QUERY->doc_var(
+      QUERY,
+      "Display a bullet instead of arrow. IMPORTANT: node can still be marked "
+      "open/close if you don't set the _Leaf flag!");
+    static t_CKINT ImGuiTreeNodeFlags_FramePadding = 1024;
+    QUERY->add_svar(QUERY, "int", "FramePadding", true,
+                    &ImGuiTreeNodeFlags_FramePadding);
+    QUERY->doc_var(QUERY,
+                   "Use FramePadding (even for an unframed text node) to "
+                   "vertically align text baseline to regular widget height. "
+                   "Equivalent to calling AlignTextToFramePadding().");
+    static t_CKINT ImGuiTreeNodeFlags_SpanAvailWidth = 2048;
+    QUERY->add_svar(QUERY, "int", "SpanAvailWidth", true,
+                    &ImGuiTreeNodeFlags_SpanAvailWidth);
+    QUERY->doc_var(QUERY,
+                   "Extend hit box to the right-most edge, even if not framed. "
+                   "This is not the default in order to allow adding other "
+                   "items on the same line without using AllowOverlap mode.");
+    static t_CKINT ImGuiTreeNodeFlags_SpanFullWidth = 4096;
+    QUERY->add_svar(QUERY, "int", "SpanFullWidth", true,
+                    &ImGuiTreeNodeFlags_SpanFullWidth);
+    QUERY->doc_var(QUERY,
+                   "Extend hit box to the left-most and right-most edges "
+                   "(cover the indent area).");
+    static t_CKINT ImGuiTreeNodeFlags_SpanTextWidth = 8192;
+    QUERY->add_svar(QUERY, "int", "SpanTextWidth", true,
+                    &ImGuiTreeNodeFlags_SpanTextWidth);
+    QUERY->doc_var(QUERY,
+                   "Narrow hit box + narrow hovering highlight, will only "
+                   "cover the label text.");
+    static t_CKINT ImGuiTreeNodeFlags_SpanAllColumns = 16384;
+    QUERY->add_svar(QUERY, "int", "SpanAllColumns", true,
+                    &ImGuiTreeNodeFlags_SpanAllColumns);
+    QUERY->doc_var(QUERY,
+                   "Frame will span all columns of its container table (text "
+                   "will still fit in current column)");
+    static t_CKINT ImGuiTreeNodeFlags_NavLeftJumpsBackHere = 32768;
+    QUERY->add_svar(QUERY, "int", "NavLeftJumpsBackHere", true,
+                    &ImGuiTreeNodeFlags_NavLeftJumpsBackHere);
+    QUERY->doc_var(
+      QUERY,
+      "(WIP) Nav: left direction may move to this TreeNode() from any of its "
+      "child (items submitted between TreeNode and TreePop)");
+    static t_CKINT ImGuiTreeNodeFlags_CollapsingHeader = 26;
+    QUERY->add_svar(QUERY, "int", "CollapsingHeader", true,
+                    &ImGuiTreeNodeFlags_CollapsingHeader);
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_SelectableFlags", "Object");
+    QUERY->doc_class(QUERY, "Flags for ImGui::Selectable().\n");
+    static t_CKINT ImGuiSelectableFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiSelectableFlags_None);
+    static t_CKINT ImGuiSelectableFlags_DontClosePopups = 1;
+    QUERY->add_svar(QUERY, "int", "DontClosePopups", true,
+                    &ImGuiSelectableFlags_DontClosePopups);
+    QUERY->doc_var(QUERY, "Clicking this doesn't close parent popup window");
+    static t_CKINT ImGuiSelectableFlags_SpanAllColumns = 2;
+    QUERY->add_svar(QUERY, "int", "SpanAllColumns", true,
+                    &ImGuiSelectableFlags_SpanAllColumns);
+    QUERY->doc_var(QUERY,
+                   "Frame will span all columns of its container table (text "
+                   "will still fit in current column)");
+    static t_CKINT ImGuiSelectableFlags_AllowDoubleClick = 4;
+    QUERY->add_svar(QUERY, "int", "AllowDoubleClick", true,
+                    &ImGuiSelectableFlags_AllowDoubleClick);
+    QUERY->doc_var(QUERY, "Generate press events on double clicks too");
+    static t_CKINT ImGuiSelectableFlags_Disabled = 8;
+    QUERY->add_svar(QUERY, "int", "Disabled", true,
+                    &ImGuiSelectableFlags_Disabled);
+    QUERY->doc_var(QUERY, "Cannot be selected, display grayed out text");
+    static t_CKINT ImGuiSelectableFlags_AllowOverlap = 16;
+    QUERY->add_svar(QUERY, "int", "AllowOverlap", true,
+                    &ImGuiSelectableFlags_AllowOverlap);
+    QUERY->doc_var(
+      QUERY,
+      "(WIP) Hit testing to allow subsequent widgets to overlap this one");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_PopupFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for OpenPopup*(), BeginPopupContext*(), IsPopupOpen() "
+      "functions..\n- To be backward compatible with older API which took an "
+      "'int mouse_button = 1' argument instead of 'ImGuiPopupFlags "
+      "flags',.\nwe need to treat small flags values as a mouse button index, "
+      "so we encode the mouse button in the first few bits of the flags..\nIt "
+      "is therefore guaranteed to be legal to pass a mouse button index in "
+      "ImGuiPopupFlags..\n- For the same reason, we exceptionally default the "
+      "ImGuiPopupFlags argument of BeginPopupContextXXX functions to 1 instead "
+      "of 0..\nIMPORTANT: because the default parameter is 1 "
+      "(==ImGuiPopupFlags_MouseButtonRight), if you rely on the default "
+      "parameter.\nand want to use another flag, you need to pass in the "
+      "ImGuiPopupFlags_MouseButtonRight flag explicitly..\n- Multiple buttons "
+      "currently cannot be combined/or-ed in those functions (we could allow "
+      "it later)..\n");
+    static t_CKINT ImGuiPopupFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiPopupFlags_None);
+    static t_CKINT ImGuiPopupFlags_MouseButtonLeft = 0;
+    QUERY->add_svar(QUERY, "int", "MouseButtonLeft", true,
+                    &ImGuiPopupFlags_MouseButtonLeft);
+    QUERY->doc_var(
+      QUERY,
+      "For BeginPopupContext*(): open on Left Mouse release. Guaranteed to "
+      "always be == 0 (same as ImGuiMouseButton_Left)");
+    static t_CKINT ImGuiPopupFlags_MouseButtonRight = 1;
+    QUERY->add_svar(QUERY, "int", "MouseButtonRight", true,
+                    &ImGuiPopupFlags_MouseButtonRight);
+    QUERY->doc_var(
+      QUERY,
+      "For BeginPopupContext*(): open on Right Mouse release. Guaranteed to "
+      "always be == 1 (same as ImGuiMouseButton_Right)");
+    static t_CKINT ImGuiPopupFlags_MouseButtonMiddle = 2;
+    QUERY->add_svar(QUERY, "int", "MouseButtonMiddle", true,
+                    &ImGuiPopupFlags_MouseButtonMiddle);
+    QUERY->doc_var(
+      QUERY,
+      "For BeginPopupContext*(): open on Middle Mouse release. Guaranteed to "
+      "always be == 2 (same as ImGuiMouseButton_Middle)");
+    static t_CKINT ImGuiPopupFlags_NoReopen = 32;
+    QUERY->add_svar(QUERY, "int", "NoReopen", true, &ImGuiPopupFlags_NoReopen);
+    QUERY->doc_var(
+      QUERY,
+      "For OpenPopup*(), BeginPopupContext*(): don't reopen same popup if "
+      "already open (won't reposition, won't reinitialize navigation)");
+    static t_CKINT ImGuiPopupFlags_NoOpenOverExistingPopup = 128;
+    QUERY->add_svar(QUERY, "int", "NoOpenOverExistingPopup", true,
+                    &ImGuiPopupFlags_NoOpenOverExistingPopup);
+    QUERY->doc_var(
+      QUERY,
+      "For OpenPopup*(), BeginPopupContext*(): don't open if there's already a "
+      "popup at the same level of the popup stack");
+    static t_CKINT ImGuiPopupFlags_NoOpenOverItems = 256;
+    QUERY->add_svar(QUERY, "int", "NoOpenOverItems", true,
+                    &ImGuiPopupFlags_NoOpenOverItems);
+    QUERY->doc_var(QUERY,
+                   "For BeginPopupContextWindow(): don't return true when "
+                   "hovering items, only when hovering empty space");
+    static t_CKINT ImGuiPopupFlags_AnyPopupId = 1024;
+    QUERY->add_svar(QUERY, "int", "AnyPopupId", true,
+                    &ImGuiPopupFlags_AnyPopupId);
+    QUERY->doc_var(QUERY,
+                   "For IsPopupOpen(): ignore the ImGuiID parameter and test "
+                   "for any popup.");
+    static t_CKINT ImGuiPopupFlags_AnyPopupLevel = 2048;
+    QUERY->add_svar(QUERY, "int", "AnyPopupLevel", true,
+                    &ImGuiPopupFlags_AnyPopupLevel);
+    QUERY->doc_var(QUERY,
+                   "For IsPopupOpen(): search/test at any level of the popup "
+                   "stack (default test in the current level)");
+    static t_CKINT ImGuiPopupFlags_AnyPopup = 3072;
+    QUERY->add_svar(QUERY, "int", "AnyPopup", true, &ImGuiPopupFlags_AnyPopup);
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TableFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImGui::BeginTable().\n- Important! Sizing policies have "
+      "complex and subtle side effects, much more so than you would "
+      "expect..\nRead comments/demos carefully + experiment with live demos to "
+      "get acquainted with them..\n- The DEFAULT sizing policies are:.\n- "
+      "Default to ImGuiTableFlags_SizingFixedFit    if ScrollX is on, or if "
+      "host window has ImGuiWindowFlags_AlwaysAutoResize..\n- Default to "
+      "ImGuiTableFlags_SizingStretchSame if ScrollX is off..\n- When ScrollX "
+      "is off:.\n- Table defaults to ImGuiTableFlags_SizingStretchSame -> all "
+      "Columns defaults to ImGuiTableColumnFlags_WidthStretch with same "
+      "weight..\n- Columns sizing policy allowed: Stretch (default), "
+      "Fixed/Auto..\n- Fixed Columns (if any) will generally obtain their "
+      "requested width (unless the table cannot fit them all)..\n- Stretch "
+      "Columns will share the remaining width according to their respective "
+      "weight..\n- Mixed Fixed/Stretch columns is possible but has various "
+      "side-effects on resizing behaviors..\nThe typical use of mixing sizing "
+      "policies is: any number of LEADING Fixed columns, followed by one or "
+      "two TRAILING Stretch columns..\n(this is because the visible order of "
+      "columns have subtle but necessary effects on how they react to manual "
+      "resizing)..\n- When ScrollX is on:.\n- Table defaults to "
+      "ImGuiTableFlags_SizingFixedFit -> all Columns defaults to "
+      "ImGuiTableColumnFlags_WidthFixed.\n- Columns sizing policy allowed: "
+      "Fixed/Auto mostly..\n- Fixed Columns can be enlarged as needed. Table "
+      "will show a horizontal scrollbar if needed..\n- When using "
+      "auto-resizing (non-resizable) fixed columns, querying the content width "
+      "to use item right-alignment e.g. SetNextItemWidth(-FLT_MIN) doesn't "
+      "make sense, would create a feedback loop..\n- Using Stretch columns "
+      "OFTEN DOES NOT MAKE SENSE if ScrollX is on, UNLESS you have specified a "
+      "value for 'inner_width' in BeginTable()..\nIf you specify a value for "
+      "'inner_width' then effectively the scrolling space is known and Stretch "
+      "or mixed Fixed/Stretch columns become meaningful again..\n- Read on "
+      "documentation at the top of imgui_tables.cpp for details..\n");
+    static t_CKINT ImGuiTableFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableFlags_None);
+    static t_CKINT ImGuiTableFlags_Resizable = 1;
+    QUERY->add_svar(QUERY, "int", "Resizable", true,
+                    &ImGuiTableFlags_Resizable);
+    QUERY->doc_var(QUERY, "Enable resizing columns.");
+    static t_CKINT ImGuiTableFlags_Reorderable = 2;
+    QUERY->add_svar(QUERY, "int", "Reorderable", true,
+                    &ImGuiTableFlags_Reorderable);
+    QUERY->doc_var(
+      QUERY,
+      "Enable reordering columns in header row (need calling "
+      "TableSetupColumn() + TableHeadersRow() to display headers)");
+    static t_CKINT ImGuiTableFlags_Hideable = 4;
+    QUERY->add_svar(QUERY, "int", "Hideable", true, &ImGuiTableFlags_Hideable);
+    QUERY->doc_var(QUERY, "Enable hiding/disabling columns in context menu.");
+    static t_CKINT ImGuiTableFlags_Sortable = 8;
+    QUERY->add_svar(QUERY, "int", "Sortable", true, &ImGuiTableFlags_Sortable);
+    QUERY->doc_var(
+      QUERY,
+      "Enable sorting. Call TableGetSortSpecs() to obtain sort specs. Also see "
+      "ImGuiTableFlags_SortMulti and ImGuiTableFlags_SortTristate.");
+    static t_CKINT ImGuiTableFlags_NoSavedSettings = 16;
+    QUERY->add_svar(QUERY, "int", "NoSavedSettings", true,
+                    &ImGuiTableFlags_NoSavedSettings);
+    QUERY->doc_var(QUERY,
+                   "Disable persisting columns order, width and sort settings "
+                   "in the .ini file.");
+    static t_CKINT ImGuiTableFlags_ContextMenuInBody = 32;
+    QUERY->add_svar(QUERY, "int", "ContextMenuInBody", true,
+                    &ImGuiTableFlags_ContextMenuInBody);
+    QUERY->doc_var(
+      QUERY,
+      "Right-click on columns body/contents will display table context menu. "
+      "By default it is available in TableHeadersRow().");
+    static t_CKINT ImGuiTableFlags_RowBg = 64;
+    QUERY->add_svar(QUERY, "int", "RowBg", true, &ImGuiTableFlags_RowBg);
+    QUERY->doc_var(
+      QUERY,
+      "Set each RowBg color with ImGuiCol_TableRowBg or ImGuiCol_TableRowBgAlt "
+      "(equivalent of calling TableSetBgColor with ImGuiTableBgFlags_RowBg0 on "
+      "each row manually)");
+    static t_CKINT ImGuiTableFlags_BordersInnerH = 128;
+    QUERY->add_svar(QUERY, "int", "BordersInnerH", true,
+                    &ImGuiTableFlags_BordersInnerH);
+    QUERY->doc_var(QUERY, "Draw horizontal borders between rows.");
+    static t_CKINT ImGuiTableFlags_BordersOuterH = 256;
+    QUERY->add_svar(QUERY, "int", "BordersOuterH", true,
+                    &ImGuiTableFlags_BordersOuterH);
+    QUERY->doc_var(QUERY, "Draw horizontal borders at the top and bottom.");
+    static t_CKINT ImGuiTableFlags_BordersInnerV = 512;
+    QUERY->add_svar(QUERY, "int", "BordersInnerV", true,
+                    &ImGuiTableFlags_BordersInnerV);
+    QUERY->doc_var(QUERY, "Draw vertical borders between columns.");
+    static t_CKINT ImGuiTableFlags_BordersOuterV = 1024;
+    QUERY->add_svar(QUERY, "int", "BordersOuterV", true,
+                    &ImGuiTableFlags_BordersOuterV);
+    QUERY->doc_var(QUERY, "Draw vertical borders on the left and right sides.");
+    static t_CKINT ImGuiTableFlags_BordersH = 384;
+    QUERY->add_svar(QUERY, "int", "BordersH", true, &ImGuiTableFlags_BordersH);
+    QUERY->doc_var(QUERY, "Draw horizontal borders.");
+    static t_CKINT ImGuiTableFlags_BordersV = 1536;
+    QUERY->add_svar(QUERY, "int", "BordersV", true, &ImGuiTableFlags_BordersV);
+    QUERY->doc_var(QUERY, "Draw vertical borders.");
+    static t_CKINT ImGuiTableFlags_BordersInner = 640;
+    QUERY->add_svar(QUERY, "int", "BordersInner", true,
+                    &ImGuiTableFlags_BordersInner);
+    QUERY->doc_var(QUERY, "Draw inner borders.");
+    static t_CKINT ImGuiTableFlags_BordersOuter = 1280;
+    QUERY->add_svar(QUERY, "int", "BordersOuter", true,
+                    &ImGuiTableFlags_BordersOuter);
+    QUERY->doc_var(QUERY, "Draw outer borders.");
+    static t_CKINT ImGuiTableFlags_Borders = 1920;
+    QUERY->add_svar(QUERY, "int", "Borders", true, &ImGuiTableFlags_Borders);
+    QUERY->doc_var(QUERY, "Draw all borders.");
+    static t_CKINT ImGuiTableFlags_NoBordersInBody = 2048;
+    QUERY->add_svar(QUERY, "int", "NoBordersInBody", true,
+                    &ImGuiTableFlags_NoBordersInBody);
+    QUERY->doc_var(QUERY,
+                   "[ALPHA] Disable vertical borders in columns Body (borders "
+                   "will always appear in Headers). -> May move to style");
+    static t_CKINT ImGuiTableFlags_NoBordersInBodyUntilResize = 4096;
+    QUERY->add_svar(QUERY, "int", "NoBordersInBodyUntilResize", true,
+                    &ImGuiTableFlags_NoBordersInBodyUntilResize);
+    QUERY->doc_var(
+      QUERY,
+      "[ALPHA] Disable vertical borders in columns Body until hovered for "
+      "resize (borders will always appear in Headers). -> May move to style");
+    static t_CKINT ImGuiTableFlags_SizingFixedFit = 8192;
+    QUERY->add_svar(QUERY, "int", "SizingFixedFit", true,
+                    &ImGuiTableFlags_SizingFixedFit);
+    QUERY->doc_var(QUERY,
+                   "Columns default to _WidthFixed or _WidthAuto (if resizable "
+                   "or not resizable), matching contents width.");
+    static t_CKINT ImGuiTableFlags_SizingFixedSame = 16384;
+    QUERY->add_svar(QUERY, "int", "SizingFixedSame", true,
+                    &ImGuiTableFlags_SizingFixedSame);
+    QUERY->doc_var(
+      QUERY,
+      "Columns default to _WidthFixed or _WidthAuto (if resizable or not "
+      "resizable), matching the maximum contents width of all columns. "
+      "Implicitly enable ImGuiTableFlags_NoKeepColumnsVisible.");
+    static t_CKINT ImGuiTableFlags_SizingStretchProp = 24576;
+    QUERY->add_svar(QUERY, "int", "SizingStretchProp", true,
+                    &ImGuiTableFlags_SizingStretchProp);
+    QUERY->doc_var(QUERY,
+                   "Columns default to _WidthStretch with default weights "
+                   "proportional to each columns contents widths.");
+    static t_CKINT ImGuiTableFlags_SizingStretchSame = 32768;
+    QUERY->add_svar(QUERY, "int", "SizingStretchSame", true,
+                    &ImGuiTableFlags_SizingStretchSame);
+    QUERY->doc_var(QUERY,
+                   "Columns default to _WidthStretch with default weights all "
+                   "equal, unless overridden by TableSetupColumn().");
+    static t_CKINT ImGuiTableFlags_NoHostExtendX = 65536;
+    QUERY->add_svar(QUERY, "int", "NoHostExtendX", true,
+                    &ImGuiTableFlags_NoHostExtendX);
+    QUERY->doc_var(QUERY,
+                   "Make outer width auto-fit to columns, overriding "
+                   "outer_size.x value. Only available when ScrollX/ScrollY "
+                   "are disabled and Stretch columns are not used.");
+    static t_CKINT ImGuiTableFlags_NoHostExtendY = 131072;
+    QUERY->add_svar(QUERY, "int", "NoHostExtendY", true,
+                    &ImGuiTableFlags_NoHostExtendY);
+    QUERY->doc_var(
+      QUERY,
+      "Make outer height stop exactly at outer_size.y (prevent auto-extending "
+      "table past the limit). Only available when ScrollX/ScrollY are "
+      "disabled. Data below the limit will be clipped and not visible.");
+    static t_CKINT ImGuiTableFlags_NoKeepColumnsVisible = 262144;
+    QUERY->add_svar(QUERY, "int", "NoKeepColumnsVisible", true,
+                    &ImGuiTableFlags_NoKeepColumnsVisible);
+    QUERY->doc_var(
+      QUERY,
+      "Disable keeping column always minimally visible when ScrollX is off and "
+      "table gets too small. Not recommended if columns are resizable.");
+    static t_CKINT ImGuiTableFlags_PreciseWidths = 524288;
+    QUERY->add_svar(QUERY, "int", "PreciseWidths", true,
+                    &ImGuiTableFlags_PreciseWidths);
+    QUERY->doc_var(
+      QUERY,
+      "Disable distributing remainder width to stretched columns (width "
+      "allocation on a 100-wide table with 3 columns: Without this flag: "
+      "33,33,34. With this flag: 33,33,33). With larger number of columns, "
+      "resizing will appear to be less smooth.");
+    static t_CKINT ImGuiTableFlags_NoClip = 1048576;
+    QUERY->add_svar(QUERY, "int", "NoClip", true, &ImGuiTableFlags_NoClip);
+    QUERY->doc_var(
+      QUERY,
+      "Disable clipping rectangle for every individual columns (reduce draw "
+      "command count, items will be able to overflow into other columns). "
+      "Generally incompatible with TableSetupScrollFreeze().");
+    static t_CKINT ImGuiTableFlags_PadOuterX = 2097152;
+    QUERY->add_svar(QUERY, "int", "PadOuterX", true,
+                    &ImGuiTableFlags_PadOuterX);
+    QUERY->doc_var(QUERY,
+                   "Default if BordersOuterV is on. Enable outermost padding. "
+                   "Generally desirable if you have headers.");
+    static t_CKINT ImGuiTableFlags_NoPadOuterX = 4194304;
+    QUERY->add_svar(QUERY, "int", "NoPadOuterX", true,
+                    &ImGuiTableFlags_NoPadOuterX);
+    QUERY->doc_var(
+      QUERY, "Default if BordersOuterV is off. Disable outermost padding.");
+    static t_CKINT ImGuiTableFlags_NoPadInnerX = 8388608;
+    QUERY->add_svar(QUERY, "int", "NoPadInnerX", true,
+                    &ImGuiTableFlags_NoPadInnerX);
+    QUERY->doc_var(
+      QUERY,
+      "Disable inner padding between columns (double inner padding if "
+      "BordersOuterV is on, single inner padding if BordersOuterV is off).");
+    static t_CKINT ImGuiTableFlags_ScrollX = 16777216;
+    QUERY->add_svar(QUERY, "int", "ScrollX", true, &ImGuiTableFlags_ScrollX);
+    QUERY->doc_var(
+      QUERY,
+      "Enable horizontal scrolling. Require 'outer_size' parameter of "
+      "BeginTable() to specify the container size. Changes default sizing "
+      "policy. Because this creates a child window, ScrollY is currently "
+      "generally recommended when using ScrollX.");
+    static t_CKINT ImGuiTableFlags_ScrollY = 33554432;
+    QUERY->add_svar(QUERY, "int", "ScrollY", true, &ImGuiTableFlags_ScrollY);
+    QUERY->doc_var(QUERY,
+                   "Enable vertical scrolling. Require 'outer_size' parameter "
+                   "of BeginTable() to specify the container size.");
+    static t_CKINT ImGuiTableFlags_SortMulti = 67108864;
+    QUERY->add_svar(QUERY, "int", "SortMulti", true,
+                    &ImGuiTableFlags_SortMulti);
+    QUERY->doc_var(
+      QUERY,
+      "Hold shift when clicking headers to sort on multiple column. "
+      "TableGetSortSpecs() may return specs where (SpecsCount > 1).");
+    static t_CKINT ImGuiTableFlags_SortTristate = 134217728;
+    QUERY->add_svar(QUERY, "int", "SortTristate", true,
+                    &ImGuiTableFlags_SortTristate);
+    QUERY->doc_var(
+      QUERY,
+      "Allow no sorting, disable default sorting. TableGetSortSpecs() may "
+      "return specs where (SpecsCount == 0).");
+    static t_CKINT ImGuiTableFlags_HighlightHoveredColumn = 268435456;
+    QUERY->add_svar(QUERY, "int", "HighlightHoveredColumn", true,
+                    &ImGuiTableFlags_HighlightHoveredColumn);
+    QUERY->doc_var(QUERY,
+                   "Highlight column headers when hovered (may evolve into a "
+                   "fuller highlight)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TableRowFlags", "Object");
+    QUERY->doc_class(QUERY, "Flags for ImGui::TableNextRow().\n");
+    static t_CKINT ImGuiTableRowFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableRowFlags_None);
+    static t_CKINT ImGuiTableRowFlags_Headers = 1;
+    QUERY->add_svar(QUERY, "int", "Headers", true, &ImGuiTableRowFlags_Headers);
+    QUERY->doc_var(
+      QUERY,
+      "Identify header row (set default background color + width of its "
+      "contents accounted differently for auto column width)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TableColumnFlags", "Object");
+    QUERY->doc_class(QUERY, "Flags for ImGui::TableSetupColumn().\n");
+    static t_CKINT ImGuiTableColumnFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableColumnFlags_None);
+    static t_CKINT ImGuiTableColumnFlags_Disabled = 1;
+    QUERY->add_svar(QUERY, "int", "Disabled", true,
+                    &ImGuiTableColumnFlags_Disabled);
+    QUERY->doc_var(QUERY,
+                   "Overriding/master disable flag: hide column, won't show in "
+                   "context menu (unlike calling TableSetColumnEnabled() which "
+                   "manipulates the user accessible state)");
+    static t_CKINT ImGuiTableColumnFlags_DefaultHide = 2;
+    QUERY->add_svar(QUERY, "int", "DefaultHide", true,
+                    &ImGuiTableColumnFlags_DefaultHide);
+    QUERY->doc_var(QUERY, "Default as a hidden/disabled column.");
+    static t_CKINT ImGuiTableColumnFlags_DefaultSort = 4;
+    QUERY->add_svar(QUERY, "int", "DefaultSort", true,
+                    &ImGuiTableColumnFlags_DefaultSort);
+    QUERY->doc_var(QUERY, "Default as a sorting column.");
+    static t_CKINT ImGuiTableColumnFlags_WidthStretch = 8;
+    QUERY->add_svar(QUERY, "int", "WidthStretch", true,
+                    &ImGuiTableColumnFlags_WidthStretch);
+    QUERY->doc_var(QUERY,
+                   "Column will stretch. Preferable with horizontal scrolling "
+                   "disabled (default if table sizing policy is "
+                   "_SizingStretchSame or _SizingStretchProp).");
+    static t_CKINT ImGuiTableColumnFlags_WidthFixed = 16;
+    QUERY->add_svar(QUERY, "int", "WidthFixed", true,
+                    &ImGuiTableColumnFlags_WidthFixed);
+    QUERY->doc_var(QUERY,
+                   "Column will not stretch. Preferable with horizontal "
+                   "scrolling enabled (default if table sizing policy is "
+                   "_SizingFixedFit and table is resizable).");
+    static t_CKINT ImGuiTableColumnFlags_NoResize = 32;
+    QUERY->add_svar(QUERY, "int", "NoResize", true,
+                    &ImGuiTableColumnFlags_NoResize);
+    QUERY->doc_var(QUERY, "Disable manual resizing.");
+    static t_CKINT ImGuiTableColumnFlags_NoReorder = 64;
+    QUERY->add_svar(QUERY, "int", "NoReorder", true,
+                    &ImGuiTableColumnFlags_NoReorder);
+    QUERY->doc_var(QUERY,
+                   "Disable manual reordering this column, this will also "
+                   "prevent other columns from crossing over this column.");
+    static t_CKINT ImGuiTableColumnFlags_NoHide = 128;
+    QUERY->add_svar(QUERY, "int", "NoHide", true,
+                    &ImGuiTableColumnFlags_NoHide);
+    QUERY->doc_var(QUERY, "Disable ability to hide/disable this column.");
+    static t_CKINT ImGuiTableColumnFlags_NoClip = 256;
+    QUERY->add_svar(QUERY, "int", "NoClip", true,
+                    &ImGuiTableColumnFlags_NoClip);
+    QUERY->doc_var(QUERY,
+                   "Disable clipping for this column (all NoClip columns will "
+                   "render in a same draw command).");
+    static t_CKINT ImGuiTableColumnFlags_NoSort = 512;
+    QUERY->add_svar(QUERY, "int", "NoSort", true,
+                    &ImGuiTableColumnFlags_NoSort);
+    QUERY->doc_var(QUERY,
+                   "Disable ability to sort on this field (even if "
+                   "ImGuiTableFlags_Sortable is set on the table).");
+    static t_CKINT ImGuiTableColumnFlags_NoSortAscending = 1024;
+    QUERY->add_svar(QUERY, "int", "NoSortAscending", true,
+                    &ImGuiTableColumnFlags_NoSortAscending);
+    QUERY->doc_var(QUERY,
+                   "Disable ability to sort in the ascending direction.");
+    static t_CKINT ImGuiTableColumnFlags_NoSortDescending = 2048;
+    QUERY->add_svar(QUERY, "int", "NoSortDescending", true,
+                    &ImGuiTableColumnFlags_NoSortDescending);
+    QUERY->doc_var(QUERY,
+                   "Disable ability to sort in the descending direction.");
+    static t_CKINT ImGuiTableColumnFlags_NoHeaderLabel = 4096;
+    QUERY->add_svar(QUERY, "int", "NoHeaderLabel", true,
+                    &ImGuiTableColumnFlags_NoHeaderLabel);
+    QUERY->doc_var(QUERY,
+                   "TableHeadersRow() will not submit horizontal label for "
+                   "this column. Convenient for some small columns. Name will "
+                   "still appear in context menu or in angled headers.");
+    static t_CKINT ImGuiTableColumnFlags_NoHeaderWidth = 8192;
+    QUERY->add_svar(QUERY, "int", "NoHeaderWidth", true,
+                    &ImGuiTableColumnFlags_NoHeaderWidth);
+    QUERY->doc_var(
+      QUERY,
+      "Disable header text width contribution to automatic column width.");
+    static t_CKINT ImGuiTableColumnFlags_PreferSortAscending = 16384;
+    QUERY->add_svar(QUERY, "int", "PreferSortAscending", true,
+                    &ImGuiTableColumnFlags_PreferSortAscending);
+    QUERY->doc_var(QUERY,
+                   "Make the initial sort direction Ascending when first "
+                   "sorting on this column (default).");
+    static t_CKINT ImGuiTableColumnFlags_PreferSortDescending = 32768;
+    QUERY->add_svar(QUERY, "int", "PreferSortDescending", true,
+                    &ImGuiTableColumnFlags_PreferSortDescending);
+    QUERY->doc_var(QUERY,
+                   "Make the initial sort direction Descending when first "
+                   "sorting on this column.");
+    static t_CKINT ImGuiTableColumnFlags_IndentEnable = 65536;
+    QUERY->add_svar(QUERY, "int", "IndentEnable", true,
+                    &ImGuiTableColumnFlags_IndentEnable);
+    QUERY->doc_var(
+      QUERY,
+      "Use current Indent value when entering cell (default for column 0).");
+    static t_CKINT ImGuiTableColumnFlags_IndentDisable = 131072;
+    QUERY->add_svar(QUERY, "int", "IndentDisable", true,
+                    &ImGuiTableColumnFlags_IndentDisable);
+    QUERY->doc_var(
+      QUERY,
+      "Ignore current Indent value when entering cell (default for columns > "
+      "0). Indentation changes _within_ the cell will still be honored.");
+    static t_CKINT ImGuiTableColumnFlags_AngledHeader = 262144;
+    QUERY->add_svar(QUERY, "int", "AngledHeader", true,
+                    &ImGuiTableColumnFlags_AngledHeader);
+    QUERY->doc_var(QUERY,
+                   "TableHeadersRow() will submit an angled header row for "
+                   "this column. Note this will add an extra row.");
+    static t_CKINT ImGuiTableColumnFlags_IsEnabled = 16777216;
+    QUERY->add_svar(QUERY, "int", "IsEnabled", true,
+                    &ImGuiTableColumnFlags_IsEnabled);
+    QUERY->doc_var(QUERY,
+                   "Status: is enabled == not hidden by user/api (referred to "
+                   "as \"Hide\" in _DefaultHide and _NoHide) flags.");
+    static t_CKINT ImGuiTableColumnFlags_IsVisible = 33554432;
+    QUERY->add_svar(QUERY, "int", "IsVisible", true,
+                    &ImGuiTableColumnFlags_IsVisible);
+    QUERY->doc_var(
+      QUERY, "Status: is visible == is enabled AND not clipped by scrolling.");
+    static t_CKINT ImGuiTableColumnFlags_IsSorted = 67108864;
+    QUERY->add_svar(QUERY, "int", "IsSorted", true,
+                    &ImGuiTableColumnFlags_IsSorted);
+    QUERY->doc_var(QUERY, "Status: is currently part of the sort specs");
+    static t_CKINT ImGuiTableColumnFlags_IsHovered = 134217728;
+    QUERY->add_svar(QUERY, "int", "IsHovered", true,
+                    &ImGuiTableColumnFlags_IsHovered);
+    QUERY->doc_var(QUERY, "Status: is hovered by mouse");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TableBgTarget", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Enum for ImGui::TableSetBgColor().\nBackground colors are rendering in "
+      "3 layers:.\n- Layer 0: draw with RowBg0 color if set, otherwise draw "
+      "with ColumnBg0 if set..\n- Layer 1: draw with RowBg1 color if set, "
+      "otherwise draw with ColumnBg1 if set..\n- Layer 2: draw with CellBg "
+      "color if set..\nThe purpose of the two row/columns layers is to let you "
+      "decide if a background color change should override or blend with the "
+      "existing color..\nWhen using ImGuiTableFlags_RowBg on the table, each "
+      "row has the RowBg0 color automatically set for odd/even rows..\nIf you "
+      "set the color of RowBg0 target, your color will override the existing "
+      "RowBg0 color..\nIf you set the color of RowBg1 or ColumnBg1 target, "
+      "your color will blend over the RowBg0 color..\n");
+    static t_CKINT ImGuiTableBgTarget_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableBgTarget_None);
+    static t_CKINT ImGuiTableBgTarget_RowBg0 = 1;
+    QUERY->add_svar(QUERY, "int", "RowBg0", true, &ImGuiTableBgTarget_RowBg0);
+    QUERY->doc_var(QUERY,
+                   "Set row background color 0 (generally used for background, "
+                   "automatically set when ImGuiTableFlags_RowBg is used)");
+    static t_CKINT ImGuiTableBgTarget_RowBg1 = 2;
+    QUERY->add_svar(QUERY, "int", "RowBg1", true, &ImGuiTableBgTarget_RowBg1);
+    QUERY->doc_var(
+      QUERY,
+      "Set row background color 1 (generally used for selection marking)");
+    static t_CKINT ImGuiTableBgTarget_CellBg = 3;
+    QUERY->add_svar(QUERY, "int", "CellBg", true, &ImGuiTableBgTarget_CellBg);
+    QUERY->doc_var(QUERY, "Set cell background color (top-most color)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_TabBarFlags", "Object");
+    QUERY->doc_class(QUERY, "Flags for ImGui::BeginTabBar().\n");
+    static t_CKINT ImGuiTabBarFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTabBarFlags_None);
+    static t_CKINT ImGuiTabBarFlags_Reorderable = 1;
+    QUERY->add_svar(QUERY, "int", "Reorderable", true,
+                    &ImGuiTabBarFlags_Reorderable);
+    QUERY->doc_var(QUERY,
+                   "Allow manually dragging tabs to re-order them + New tabs "
+                   "are appended at the end of list");
+    static t_CKINT ImGuiTabBarFlags_AutoSelectNewTabs = 2;
+    QUERY->add_svar(QUERY, "int", "AutoSelectNewTabs", true,
+                    &ImGuiTabBarFlags_AutoSelectNewTabs);
+    QUERY->doc_var(QUERY, "Automatically select new tabs when they appear");
+    static t_CKINT ImGuiTabBarFlags_TabListPopupButton = 4;
+    QUERY->add_svar(QUERY, "int", "TabListPopupButton", true,
+                    &ImGuiTabBarFlags_TabListPopupButton);
+    QUERY->doc_var(QUERY, "Disable buttons to open the tab list popup");
+    static t_CKINT ImGuiTabBarFlags_NoCloseWithMiddleMouseButton = 8;
+    QUERY->add_svar(QUERY, "int", "NoCloseWithMiddleMouseButton", true,
+                    &ImGuiTabBarFlags_NoCloseWithMiddleMouseButton);
+    QUERY->doc_var(QUERY,
+                   "Disable behavior of closing tabs (that are submitted with "
+                   "p_open != NULL) with middle mouse button. You may handle "
+                   "this behavior manually on user's side with if "
+                   "(IsItemHovered() && IsMouseClicked(2)) *p_open = false.");
+    static t_CKINT ImGuiTabBarFlags_NoTabListScrollingButtons = 16;
+    QUERY->add_svar(QUERY, "int", "NoTabListScrollingButtons", true,
+                    &ImGuiTabBarFlags_NoTabListScrollingButtons);
+    QUERY->doc_var(QUERY,
+                   "Disable scrolling buttons (apply when fitting policy is "
+                   "ImGuiTabBarFlags_FittingPolicyScroll)");
+    static t_CKINT ImGuiTabBarFlags_NoTooltip = 32;
+    QUERY->add_svar(QUERY, "int", "NoTooltip", true,
+                    &ImGuiTabBarFlags_NoTooltip);
+    QUERY->doc_var(QUERY, "Disable tooltips when hovering a tab");
+    static t_CKINT ImGuiTabBarFlags_FittingPolicyResizeDown = 64;
+    QUERY->add_svar(QUERY, "int", "FittingPolicyResizeDown", true,
+                    &ImGuiTabBarFlags_FittingPolicyResizeDown);
+    QUERY->doc_var(QUERY, "Resize tabs when they don't fit");
+    static t_CKINT ImGuiTabBarFlags_FittingPolicyScroll = 128;
+    QUERY->add_svar(QUERY, "int", "FittingPolicyScroll", true,
+                    &ImGuiTabBarFlags_FittingPolicyScroll);
+    QUERY->doc_var(QUERY, "Add scroll buttons when tabs don't fit");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_HoveredFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImGui::IsItemHovered(), ImGui::IsWindowHovered().\nNote: if "
+      "you are trying to check whether your mouse should be dispatched to Dear "
+      "ImGui or to your app, you should use 'io.WantCaptureMouse' instead! "
+      "Please read the FAQ!.\nNote: windows with the ImGuiWindowFlags_NoInputs "
+      "flag are ignored by IsWindowHovered() calls..\n");
+    static t_CKINT ImGuiHoveredFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiHoveredFlags_None);
+    QUERY->doc_var(QUERY,
+                   "Return true if directly over the item/window, not "
+                   "obstructed by another window, not obstructed by an active "
+                   "popup or modal blocking inputs under them.");
+    static t_CKINT ImGuiHoveredFlags_ChildWindows = 1;
+    QUERY->add_svar(QUERY, "int", "ChildWindows", true,
+                    &ImGuiHoveredFlags_ChildWindows);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Return true if any children of the "
+                   "window is hovered");
+    static t_CKINT ImGuiHoveredFlags_RootWindow = 2;
+    QUERY->add_svar(QUERY, "int", "RootWindow", true,
+                    &ImGuiHoveredFlags_RootWindow);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Test from root window (top most "
+                   "parent of the current hierarchy)");
+    static t_CKINT ImGuiHoveredFlags_AnyWindow = 4;
+    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
+                    &ImGuiHoveredFlags_AnyWindow);
+    QUERY->doc_var(
+      QUERY, "IsWindowHovered() only: Return true if any window is hovered");
+    static t_CKINT ImGuiHoveredFlags_NoPopupHierarchy = 8;
+    QUERY->add_svar(QUERY, "int", "NoPopupHierarchy", true,
+                    &ImGuiHoveredFlags_NoPopupHierarchy);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Do not consider popup hierarchy "
+                   "(do not treat popup emitter as parent of popup) (when used "
+                   "with _ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiHoveredFlags_DockHierarchy = 16;
+    QUERY->add_svar(QUERY, "int", "DockHierarchy", true,
+                    &ImGuiHoveredFlags_DockHierarchy);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Consider docking hierarchy (treat "
+                   "dockspace host as parent of docked window) (when used with "
+                   "_ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByPopup = 32;
+    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByPopup", true,
+                    &ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+    QUERY->doc_var(QUERY,
+                   "Return true even if a popup window is normally blocking "
+                   "access to this item/window");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByActiveItem = 128;
+    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByActiveItem", true,
+                    &ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    QUERY->doc_var(QUERY,
+                   "Return true even if an active item is blocking access to "
+                   "this item/window. Useful for Drag and Drop patterns.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByItem = 256;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByItem", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlappedByItem);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true even if the item uses AllowOverlap "
+      "mode and is overlapped by another hoverable item.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByWindow = 512;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByWindow", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlappedByWindow);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Return true even if the position is "
+                   "obstructed or overlapped by another window.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenDisabled = 1024;
+    QUERY->add_svar(QUERY, "int", "AllowWhenDisabled", true,
+                    &ImGuiHoveredFlags_AllowWhenDisabled);
+    QUERY->doc_var(
+      QUERY, "IsItemHovered() only: Return true even if the item is disabled");
+    static t_CKINT ImGuiHoveredFlags_NoNavOverride = 2048;
+    QUERY->add_svar(QUERY, "int", "NoNavOverride", true,
+                    &ImGuiHoveredFlags_NoNavOverride);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Disable using gamepad/keyboard "
+                   "navigation state when active, always query mouse");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlapped = 768;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlapped", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlapped);
+    static t_CKINT ImGuiHoveredFlags_RectOnly = 928;
+    QUERY->add_svar(QUERY, "int", "RectOnly", true,
+                    &ImGuiHoveredFlags_RectOnly);
+    static t_CKINT ImGuiHoveredFlags_RootAndChildWindows = 3;
+    QUERY->add_svar(QUERY, "int", "RootAndChildWindows", true,
+                    &ImGuiHoveredFlags_RootAndChildWindows);
+    static t_CKINT ImGuiHoveredFlags_ForTooltip = 4096;
+    QUERY->add_svar(QUERY, "int", "ForTooltip", true,
+                    &ImGuiHoveredFlags_ForTooltip);
+    QUERY->doc_var(QUERY,
+                   "Shortcut for standard flags when using IsItemHovered() + "
+                   "SetTooltip() sequence.");
+    static t_CKINT ImGuiHoveredFlags_Stationary = 8192;
+    QUERY->add_svar(QUERY, "int", "Stationary", true,
+                    &ImGuiHoveredFlags_Stationary);
+    QUERY->doc_var(
+      QUERY,
+      "Require mouse to be stationary for style.HoverStationaryDelay (~0.15 "
+      "sec) _at least one time_. After this, can move on same item/window. "
+      "Using the stationary test tends to reduces the need for a long delay.");
+    static t_CKINT ImGuiHoveredFlags_DelayNone = 16384;
+    QUERY->add_svar(QUERY, "int", "DelayNone", true,
+                    &ImGuiHoveredFlags_DelayNone);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Return true immediately (default). "
+                   "As this is the default you generally ignore this.");
+    static t_CKINT ImGuiHoveredFlags_DelayShort = 32768;
+    QUERY->add_svar(QUERY, "int", "DelayShort", true,
+                    &ImGuiHoveredFlags_DelayShort);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true after style.HoverDelayShort elapsed "
+      "(~0.15 sec) (shared between items) + requires mouse to be stationary "
+      "for style.HoverStationaryDelay (once per item).");
+    static t_CKINT ImGuiHoveredFlags_DelayNormal = 65536;
+    QUERY->add_svar(QUERY, "int", "DelayNormal", true,
+                    &ImGuiHoveredFlags_DelayNormal);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true after style.HoverDelayNormal elapsed "
+      "(~0.40 sec) (shared between items) + requires mouse to be stationary "
+      "for style.HoverStationaryDelay (once per item).");
+    static t_CKINT ImGuiHoveredFlags_NoSharedDelay = 131072;
+    QUERY->add_svar(QUERY, "int", "NoSharedDelay", true,
+                    &ImGuiHoveredFlags_NoSharedDelay);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Disable shared delay system where "
+                   "moving from one item to the next keeps the previous timer "
+                   "for a short time (standard for tooltips with long delays)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_MouseButton", "Object");
+    QUERY->doc_class(QUERY,
+                     "Identify a mouse button..\nThose values are guaranteed "
+                     "to be stable and we frequently use 0/1 directly. Named "
+                     "enums provided for convenience..\n");
+    static t_CKINT ImGuiMouseButton_Left = 0;
+    QUERY->add_svar(QUERY, "int", "Left", true, &ImGuiMouseButton_Left);
+    static t_CKINT ImGuiMouseButton_Right = 1;
+    QUERY->add_svar(QUERY, "int", "Right", true, &ImGuiMouseButton_Right);
+    static t_CKINT ImGuiMouseButton_Middle = 2;
+    QUERY->add_svar(QUERY, "int", "Middle", true, &ImGuiMouseButton_Middle);
+    static t_CKINT ImGuiMouseButton_COUNT = 5;
+    QUERY->add_svar(QUERY, "int", "COUNT", true, &ImGuiMouseButton_COUNT);
+    QUERY->end_class(QUERY);
+
     // Callbacks ----------------------------------------------------------
 
     BEGIN_CLASS("UI_Callback", "Object");
@@ -1224,11 +2605,6 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // update() vt offset
     chugin_setVTableOffset(&ui_size_callback_vt_offset, "UI_SizeCallback",
                            "handler");
-    // Chuck_Type* ui_size_callback_t
-    //   = g_chuglAPI->type->lookup(g_chuglVM, "UI_SizeCallback");
-    // // find the offset for update
-    // ui_size_callback_vt_offset = g_chuglAPI->type->get_vtable_offset(
-    //   g_chuglVM, ui_size_callback_t, "handler");
 
     BEGIN_CLASS("UI_ComboCallback", "UI_Callback");
     MFUN(ui_combo_callback, "void", "handler");
@@ -1237,6 +2613,16 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     chugin_setVTableOffset(&ui_combo_callback_vt_offset, "UI_ComboCallback",
                            "handler");
+
+    // complex, not yet implemented
+    // BEGIN_CLASS("UI_InputTextCallback", "UI_Callback");
+    // MFUN(ui_input_text_callback, "void", "handler");
+    // ARG("UI_InputTextCallbackData", "data");
+    // END_CLASS();
+
+    // chugin_setVTableOffset(&ui_input_text_callback_vt_offset,
+    // "UI_InputTextCallback",
+    //                        "handler");
 
     // UI ---------------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI", "Object");
@@ -2208,7 +3594,731 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("int", "flags");
     DOC_FUNC("Parameter `flags` is an enum of type UI_SliderFlags");
 
-    // styles
+    // Widgets: Input --------------------------------------------------------
+
+    SFUN(ui_InputText, "int", "inputText");
+    ARG("string", "label");
+    ARG("UI_String", "buf");
+    DOC_FUNC(
+      "Implied max_input_length = 256, flags = 0, callback = NULL, user_data = "
+      "NULL. `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputTextEx, "int", "inputText");
+    ARG("string", "label");
+    ARG("UI_String", "buf");
+    ARG("int", "max_input_length");
+    ARG("int", "flags");
+    // ARG("UI_InputTextCallback", "callback");  // ignoring for now
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputTextMultiline, "int", "inputTextMultiline");
+    ARG("string", "label");
+    ARG("UI_String", "buf");
+    DOC_FUNC(
+      "Implied size = ImVec2(0, 0), flags = 0, callback = NULL, "
+      "user_data = NULL");
+
+    SFUN(ui_InputTextMultilineEx, "int", "inputTextMultiline");
+    ARG("string", "label");
+    ARG("UI_String", "buf");
+    ARG("int", "max_input_length");
+    ARG("vec2", "size");
+    ARG("int", "flags");
+    // ARG("UI_InputTextCallback", "callback");  // ignoring for now
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputTextWithHint, "int", "inputTextWithHint");
+    ARG("string", "label");
+    ARG("string", "hint");
+    ARG("UI_String", "buf");
+    DOC_FUNC(
+      "Implied max_input_length = 256, flags = 0, callback = NULL, user_data = "
+      "NULL.");
+
+    SFUN(ui_InputTextWithHintEx, "int", "inputTextWithHint");
+    ARG("string", "label");
+    ARG("string", "hint");
+    ARG("UI_String", "buf");
+    ARG("int", "max_input_length");
+    ARG("int", "flags");
+    // ARG("UI_InputTextCallback", "callback");  // ignoring for now
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputFloat, "int", "inputFloat");
+    ARG("string", "label");
+    ARG("UI_Float", "v");
+    DOC_FUNC(
+      "Implied step = 0.0f, step_fast = 0.0f, format = \"%.3f\", flags = "
+      "0");
+
+    SFUN(ui_InputFloatEx, "int", "inputFloat");
+    ARG("string", "label");
+    ARG("UI_Float", "v");
+    ARG("float", "step");
+    ARG("float", "step_fast");
+    ARG("string", "format");
+    ARG("int", "flags");
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputScalarN_CKFLOAT, "int", "inputFloat");
+    ARG("string", "label");
+    ARG("float[]", "data");
+    DOC_FUNC(
+      "Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
+
+    SFUN(ui_InputScalarNEx_CKFLOAT, "int", "inputFloat");
+    ARG("string", "label");
+    ARG("float[]", "data");
+    ARG("float", "step");
+    ARG("float", "step_fast");
+    ARG("string", "format");
+    ARG("int", "flags");
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputInt, "int", "inputInt");
+    ARG("string", "label");
+    ARG("UI_Int", "v");
+    DOC_FUNC("Implied step = 1, step_fast = 100, flags = 0");
+
+    SFUN(ui_InputIntEx, "int", "inputInt");
+    ARG("string", "label");
+    ARG("UI_Int", "v");
+    ARG("int", "step");
+    ARG("int", "step_fast");
+    ARG("int", "flags");
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    SFUN(ui_InputScalarN_CKINT, "int", "inputInt");
+    ARG("string", "label");
+    ARG("int[]", "data");
+    DOC_FUNC(
+      "Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
+
+    SFUN(ui_InputScalarNEx_CKINT, "int", "inputInt");
+    ARG("string", "label");
+    ARG("int[]", "data");
+    ARG("int", "step");
+    ARG("int", "step_fast");
+    ARG("string", "format");
+    ARG("int", "flags");
+    DOC_FUNC("Parameter `flags` is an enum of type UI_InputTextFlags");
+
+    // Widgets: Color --------------------------------------------------------
+
+    SFUN(ui_ColorEdit3, "int", "colorEdit");
+    ARG("string", "label");
+    ARG("UI_Float3", "col");
+    ARG("int", "flags");
+    DOC_FUNC("`flags` is an enum of type UI_ColorEditFlags");
+
+    SFUN(ui_ColorEdit4, "int", "colorEdit");
+    ARG("string", "label");
+    ARG("UI_Float4", "col");
+    ARG("int", "flags");
+    DOC_FUNC("`flags` is an enum of type UI_ColorEditFlags");
+
+    SFUN(ui_ColorPicker3, "int", "colorPicker");
+    ARG("string", "label");
+    ARG("UI_Float3", "col");
+    ARG("int", "flags");
+    DOC_FUNC("`flags` is an enum of type UI_ColorEditFlags");
+
+    SFUN(ui_ColorPicker4, "int", "colorPicker");
+    ARG("string", "label");
+    ARG("UI_Float4", "color");
+    ARG("int", "flags");
+    ARG("vec4", "reference_color");
+
+    SFUN(ui_ColorButton, "int", "colorButton");
+    ARG("string", "desc_id");
+    ARG("vec4", "col");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "Implied size = ImVec2(0, 0). `flags` is an enum of type "
+      "UI_ColorEditFlags");
+
+    SFUN(ui_ColorButtonEx, "int", "colorButton");
+    ARG("string", "desc_id");
+    ARG("vec4", "col");
+    ARG("int", "flags");
+    ARG("vec2", "size");
+    DOC_FUNC(
+      "`flags` is an enum of type UI_ColorEditFlags. display a color "
+      "square/button, hover for details, return true when pressed.");
+
+    SFUN(ui_SetColorEditOptions, "void", "setColorEditOptions");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "initialize current options (generally on application startup) if you "
+      "want to select a default format, picker type, etc. User will be able to "
+      "change many settings, unless you pass the _NoOptions flag to your "
+      "calls.");
+
+    // Widgets: Trees --------------------------------------------------------
+
+    SFUN(ui_TreeNode, "int", "treeNode");
+    ARG("string", "label");
+    DOC_FUNC(
+      "return true when the node is open, in which case you need to call "
+      "TreePop()");
+
+    SFUN(ui_TreeNodeStrUnformatted, "int", "treeNode");
+    ARG("string", "str_id");
+    ARG("string", "text");
+
+    SFUN(ui_TreeNodeEx, "int", "treeNode");
+    ARG("string", "label");
+    ARG("int", "flags");
+    DOC_FUNC("`flags` is an enum of type UI_TreeNodeFlags");
+
+    SFUN(ui_TreeNodeExStrUnformatted, "int", "treeNode");
+    ARG("string", "str_id");
+    ARG("int", "flags");
+    ARG("string", "text");
+
+    SFUN(ui_TreePush, "void", "treePush");
+    ARG("string", "str_id");
+    DOC_FUNC(
+      "Indent()+PushID(). Already called by TreeNode() when returning "
+      "true, but you can call TreePush/TreePop yourself if desired.");
+
+    SFUN(ui_TreePop, "void", "treePop");
+    DOC_FUNC("~ Unindent()+PopID()");
+
+    SFUN(ui_GetTreeNodeToLabelSpacing, "float", "getTreeNodeToLabelSpacing");
+    DOC_FUNC(
+      "horizontal distance preceding label when using TreeNode*() or Bullet() "
+      "== (g.FontSize + style.FramePadding.x*2) for a regular unframed "
+      "TreeNode");
+
+    SFUN(ui_CollapsingHeader, "int", "collapsingHeader");
+    ARG("string", "label");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "`flags` is an enum of type UI_TreeNodeFlags. if returning 'true' "
+      "the header is open. doesn't indent nor push on ID stack. user "
+      "doesn't have to call TreePop().");
+
+    SFUN(ui_CollapsingHeaderBoolPtr, "int", "collapsingHeader");
+    ARG("string", "label");
+    ARG("UI_Bool", "p_visible");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "when 'p_visible != NULL': if '*p_visible==true' display an additional "
+      "small close button on upper right of the header which will set the bool "
+      "to false when clicked, if '*p_visible==false' don't display the "
+      "header.");
+
+    SFUN(ui_SetNextItemOpen, "void", "setNextItemOpen");
+    ARG("int", "is_open");
+    ARG("int", "cond");
+    DOC_FUNC(
+      "set next TreeNode/CollapsingHeader open state. `Cond` is an enum of "
+      "type UI_Cond");
+
+    // Widgets: Selectable ---------------------------------------------------
+
+    SFUN(ui_Selectable, "int", "selectable");
+    ARG("string", "label");
+    DOC_FUNC("Implied selected = false, flags = 0, size = ImVec2(0, 0)");
+
+    SFUN(ui_SelectableEx, "int", "selectable");
+    ARG("string", "label");
+    ARG("int", "selected");
+    ARG("int", "flags");
+    ARG("vec2", "size");
+    DOC_FUNC(
+      "`selected` carry the selection state (read-only). Selectable() is "
+      "clicked is returns true so you can modify your selection state. "
+      "`size.x==0.0`: use remaining width, `size.x>0.0`: specify width. "
+      "`size.y==0.0`: use label height, `size.y>0.0`: specify height");
+
+    SFUN(ui_SelectableBoolPtr, "int", "selectable");
+    ARG("string", "label");
+    ARG("UI_Bool", "p_selected");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "`p_selected` points to the selection state (read-write), as a "
+      "convenient "
+      "helper. `flags` is an enum of type UI_SelectableFlags");
+
+    SFUN(ui_SelectableBoolPtrEx, "int", "selectable");
+    ARG("string", "label");
+    ARG("UI_Bool", "p_selected");
+    ARG("int", "flags");
+    ARG("vec2", "size");
+    DOC_FUNC(
+      "`p_selected` points to the selection state (read-write), as a "
+      "convenient helper. `flags` is an enum of type UI_SelectableFlags");
+
+    // Widgets: List Boxes ---------------------------------------------------
+
+    SFUN(ui_BeginListBox, "int", "beginListBox");
+    ARG("string", "label");
+    ARG("vec2", "size");
+    DOC_FUNC(
+      "This is essentially a thin wrapper to using BeginChild/EndChild with "
+      "the ImGuiChildFlags_FrameStyle flag for stylistic changes + displaying "
+      "a label.\n"
+      "You can submit contents and manage your selection state however you "
+      "want it, by creating e.g. Selectable() or any other items.\n"
+      "The simplified/old ListBox() api are helpers over "
+      "BeginListBox()/EndListBox() which are kept available for convenience "
+      "purpose. This is analoguous to how Combos are created.\n"
+      "Choose frame width:   size.x > 0.0f: custom  /  size.x < 0.0f or "
+      "-FLT_MIN: right-align   /  size.x = 0.0f (default): use current "
+      "ItemWidth\n"
+      "Choose frame height:  size.y > 0.0f: custom  /  size.y < 0.0f or "
+      "-FLT_MIN: bottom-align  /  size.y = 0.0f (default): arbitrary default "
+      "height which can fit ~7 items"
+      "This function opens a framed scrolling region.");
+
+    SFUN(ui_EndListBox, "void", "endListBox");
+    DOC_FUNC("only call EndListBox() if BeginListBox() returned true!");
+
+    SFUN(ui_ListBox, "int", "listBox");
+    ARG("string", "label");
+    ARG("UI_Int", "current_item");
+    ARG("string[]", "items");
+    ARG("int", "height_in_items");
+    DOC_FUNC("set `height_in_items` to -1 to use the default");
+
+    // Widgets: Data Plotting ------------------------------------------------
+
+    SFUN(ui_PlotLines, "void", "plotLines");
+    ARG("string", "label");
+    ARG("float[]", "values");
+    DOC_FUNC(
+      "Implied values_offset = 0, overlay_text = NULL, scale_min = FLT_MAX, "
+      "scale_max = FLT_MAX, graph_size = ImVec2(0, 0), stride = sizeof(float)");
+
+    SFUN(ui_PlotLinesEx, "void", "plotLines");
+    ARG("string", "label");
+    ARG("float[]", "values");
+    ARG("int", "values_offset");
+    ARG("string", "overlay_text");
+    ARG("float", "scale_min");
+    ARG("float", "scale_max");
+    ARG("vec2", "graph_size");
+
+    SFUN(ui_PlotHistogram, "void", "plotHistogram");
+    ARG("string", "label");
+    ARG("float[]", "values");
+    DOC_FUNC(
+      "Implied values_offset = 0, overlay_text = NULL, scale_min = FLT_MAX, "
+      "scale_max = FLT_MAX, graph_size = ImVec2(0, 0), stride = sizeof(float)");
+
+    SFUN(ui_PlotHistogramEx, "void", "plotHistogram");
+    ARG("string", "label");
+    ARG("float[]", "values");
+    ARG("int", "values_offset");
+    ARG("string", "overlay_text");
+    ARG("float", "scale_min");
+    ARG("float", "scale_max");
+    ARG("vec2", "graph_size");
+
+    // Widgets: Menus --------------------------------------------------------
+
+    SFUN(ui_BeginMenuBar, "int", "beginMenuBar");
+    DOC_FUNC(
+      "append to menu-bar of current window (requires ImGuiWindowFlags_MenuBar "
+      "flag set on parent window)");
+
+    SFUN(ui_EndMenuBar, "void", "endMenuBar");
+    DOC_FUNC("only call EndMenuBar() if BeginMenuBar() returns true!");
+
+    SFUN(ui_BeginMainMenuBar, "int", "beginMainMenuBar");
+    DOC_FUNC("create and append to a full screen menu-bar.");
+
+    SFUN(ui_EndMainMenuBar, "void", "endMainMenuBar");
+    DOC_FUNC("only call EndMainMenuBar() if BeginMainMenuBar() returns true!");
+
+    SFUN(ui_BeginMenu, "int", "beginMenu");
+    ARG("string", "label");
+    DOC_FUNC("Implied enabled = true");
+
+    SFUN(ui_BeginMenuEx, "int", "beginMenu");
+    ARG("string", "label");
+    ARG("int", "enabled");
+    DOC_FUNC(
+      "create a sub-menu entry. only call EndMenu() if this returns true!");
+
+    SFUN(ui_EndMenu, "void", "endMenu");
+    DOC_FUNC("only call EndMenu() if BeginMenu() returns true!");
+
+    SFUN(ui_MenuItem, "int", "menuItem");
+    ARG("string", "label");
+    DOC_FUNC("Implied shortcut = NULL, selected = false, enabled = true");
+
+    SFUN(ui_MenuItemBoolPtr, "int", "menuItem");
+    ARG("string", "label");
+    ARG("string", "shortcut");
+    ARG("UI_Bool", "p_selected");
+    ARG("int", "enabled");
+    DOC_FUNC(
+      "return true when activated + toggle (*p_selected) if p_selected != "
+      "NULL");
+
+    // Tooltips ---------------------------------------------------------------
+
+    SFUN(ui_BeginTooltip, "int", "beginTooltip");
+    DOC_FUNC("begin/append a tooltip window.");
+
+    SFUN(ui_EndTooltip, "void", "endTooltip");
+    DOC_FUNC(
+      "only call EndTooltip() if BeginTooltip()/BeginItemTooltip() returns "
+      "true!");
+
+    SFUN(ui_SetTooltipUnformatted, "void", "tooltip");
+    ARG("string", "text");
+    DOC_FUNC(
+      "set a text-only tooltip. Often used after a ImGui::IsItemHovered() "
+      "check. Override any previous call to SetTooltip().\n"
+      "SetTooltip() is more or less a shortcut for the 'if (BeginTooltip()) { "
+      "Text(...); EndTooltip(); }' idiom (with a subtlety that it discard any "
+      "previously submitted tooltip)");
+
+    SFUN(ui_SetItemTooltipUnformatted, "void", "itemTooltip");
+    ARG("string", "text");
+    DOC_FUNC(
+      "set a text-only tooltip if preceding item was hovered. override any "
+      "previous call to SetTooltip().\n"
+      "itemTooltip() is a shortcut for the 'if "
+      "(IsItemHovered(ImGuiHoveredFlags_ForTooltip)) { SetTooltip(...); }' "
+      "idiom.");
+
+    // Popups, Modals --------------------------------------------------------
+
+    SFUN(ui_BeginPopup, "int", "beginPopup");
+    ARG("string", "str_id");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "return true if the popup is open, and you can start outputting to "
+      "it. `flags` is an enum of type UI_WindowFlags\n"
+      "beginPopup(): query popup state, if open start appending into the "
+      "window. Call endPopup() afterwards if returned true. UI_WindowFlags "
+      "are forwarded to the window.");
+
+    SFUN(ui_BeginPopupModal, "int", "beginPopupModal");
+    ARG("string", "name");
+    ARG("UI_Bool", "p_open");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "return true if the modal is open, and you can start outputting to it. "
+      "`flags` is an enum of type UI_WindowFlags\n"
+      "beginPopupModal(): block every interaction behind the window, cannot be "
+      "closed by user, add a dimming background, has a title bar.");
+
+    SFUN(ui_EndPopup, "void", "endPopup");
+
+    SFUN(ui_OpenPopup, "void", "openPopup");
+    ARG("string", "str_id");
+    ARG("int", "popup_flags");
+    DOC_FUNC(
+      "call to mark popup as open (don't call every frame!). `popup_flags` is "
+      "an enum of type UI_PopupFlags");
+
+    SFUN(ui_OpenPopupOnItemClick, "void", "openPopupOnItemClick");
+    ARG("string", "str_id");
+    ARG("int", "popup_flags");
+    DOC_FUNC(
+      "helper to open popup when clicked on last item. Default to "
+      "UI_PopupFlags.MouseButtonRight == 1. (note: actually triggers on the "
+      "mouse _released_ event to be consistent with popup behaviors)\n"
+      "`popup_flags` is an enum of type UI_PopupFlags");
+
+    SFUN(ui_CloseCurrentPopup, "void", "closeCurrentPopup");
+    DOC_FUNC("manually close the popup we have begin-ed into.");
+
+    SFUN(ui_BeginPopupContextItem, "int", "beginPopupContextItem");
+    DOC_FUNC("Implied str_id = NULL, popup_flags = 1");
+
+    SFUN(ui_BeginPopupContextItemEx, "int", "beginPopupContextItem");
+    ARG("string", "str_id");
+    ARG("int", "popup_flags");
+    DOC_FUNC(
+      "open+begin popup when clicked on last item. Use str_id==NULL to "
+      "associate the popup to previous item. If you want to use that on a "
+      "non-interactive item such as Text() you need to pass in an explicit ID "
+      "here. read comments in .cpp!");
+
+    SFUN(ui_BeginPopupContextWindow, "int", "beginPopupContextWindow");
+    DOC_FUNC("Implied str_id = NULL, popup_flags = 1");
+
+    SFUN(ui_BeginPopupContextWindowEx, "int", "beginPopupContextWindow");
+    ARG("string", "str_id");
+    ARG("int", "popup_flags");
+    DOC_FUNC("open+begin popup when clicked on current window.");
+
+    SFUN(ui_BeginPopupContextVoid, "int", "beginPopupContextVoid");
+    DOC_FUNC("Implied str_id = NULL, popup_flags = 1");
+
+    SFUN(ui_BeginPopupContextVoidEx, "int", "beginPopupContextVoid");
+    ARG("string", "str_id");
+    ARG("int", "popup_flags");
+    DOC_FUNC(
+      "open+begin popup when clicked in void (where there are no windows).");
+
+    SFUN(ui_IsPopupOpen, "int", "isPopupOpen");
+    ARG("string", "str_id");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "return true if the popup is open. `flags` is an enum of type "
+      "UI_PopupFlags");
+
+    // Tables ----------------------------------------------------------------
+
+    SFUN(ui_BeginTable, "int", "beginTable");
+    ARG("string", "str_id");
+    ARG("int", "column");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "Implied outer_size = ImVec2(0.0f, 0.0f), inner_width = 0.0f\n"
+      "`flags` is an enum of type UI_TableFlags");
+
+    SFUN(ui_BeginTableEx, "int", "beginTable");
+    ARG("string", "str_id");
+    ARG("int", "column");
+    ARG("int", "flags");
+    ARG("vec2", "outer_size");
+    ARG("float", "inner_width");
+    DOC_FUNC("`flags` is an enum of type UI_TableFlags");
+
+    SFUN(ui_EndTable, "void", "endTable");
+    DOC_FUNC("only call EndTable() if BeginTable() returns true!");
+
+    SFUN(ui_TableNextRow, "void", "tableNextRow");
+    DOC_FUNC("Implied row_flags = 0, min_row_height = 0.0f");
+
+    SFUN(ui_TableNextRowEx, "void", "tableNextRow");
+    ARG("int", "row_flags");
+    ARG("float", "min_row_height");
+    DOC_FUNC("append into the first cell of a new row.");
+
+    SFUN(ui_TableNextColumn, "int", "tableNextColumn");
+    DOC_FUNC(
+      "append into the next column (or first column of next row if "
+      "currently in last column). Return true when column is visible.");
+
+    SFUN(ui_TableSetColumnIndex, "int", "tableSetColumnIndex");
+    ARG("int", "column_n");
+    DOC_FUNC(
+      "append into the specified column. Return true when column is "
+      "visible.");
+
+    SFUN(ui_TableSetupColumn, "void", "tableSetupColumn");
+    ARG("string", "label");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "Implied init_width_or_weight = 0.0f, user_id = 0\n"
+      "`flags` is an enum of type UI_TableColumnFlags");
+
+    SFUN(ui_TableSetupColumnEx, "void", "tableSetupColumn");
+    ARG("string", "label");
+    ARG("int", "flags");
+    ARG("float", "init_width_or_weight");
+    ARG("int", "user_id");
+
+    SFUN(ui_TableSetupScrollFreeze, "void", "tableSetupScrollFreeze");
+    ARG("int", "cols");
+    ARG("int", "rows");
+    DOC_FUNC("lock columns/rows so they stay visible when scrolled.");
+
+    SFUN(ui_TableHeader, "void", "tableHeader");
+    ARG("string", "label");
+    DOC_FUNC("submit one header cell manually (rarely used)");
+
+    SFUN(ui_TableHeadersRow, "void", "tableHeadersRow");
+    DOC_FUNC(
+      "submit a row with headers cells based on data provided to "
+      "TableSetupColumn() + submit context menu");
+
+    SFUN(ui_TableAngledHeadersRow, "void", "tableAngledHeadersRow");
+    DOC_FUNC(
+      "submit a row with angled headers for every column with the "
+      "ImGuiTableColumnFlags_AngledHeader flag. MUST BE FIRST ROW.");
+
+    SFUN(ui_TableGetColumnCount, "int", "tableGetColumnCount");
+    DOC_FUNC("return number of columns (value passed to BeginTable)");
+
+    SFUN(ui_TableGetColumnIndex, "int", "tableGetColumnIndex");
+    DOC_FUNC("return current column index.");
+
+    SFUN(ui_TableGetRowIndex, "int", "tableGetRowIndex");
+    DOC_FUNC("return current row index.");
+
+    SFUN(ui_TableGetColumnName, "string", "tableGetColumnName");
+    ARG("int", "column_n");
+    DOC_FUNC(
+      "return \"\" if column didn't have a name declared by "
+      "TableSetupColumn(). Pass -1 to use current column.");
+
+    SFUN(ui_TableGetColumnFlags, "int", "tableGetColumnFlags");
+    ARG("int", "column_n");
+    DOC_FUNC(
+      "return column flags so you can query their Enabled/Visible/Sorted/"
+      "Hovered status flags. Pass -1 to use current column.");
+
+    SFUN(ui_TableSetColumnEnabled, "void", "tableSetColumnEnabled");
+    ARG("int", "column_n");
+    ARG("int", "v");
+    DOC_FUNC(
+      "change user accessible enabled/disabled state of a column. Set to "
+      "false to hide the column. User can use the context menu to change "
+      "this themselves (right-click in headers, or right-click in columns "
+      "body with UI_TableFlags.ContextMenuInBody)");
+
+    SFUN(ui_TableSetBgColor, "void", "tableSetBgColor");
+    ARG("int", "ui_table_bg_target_flag");
+    ARG("vec4", "color");
+    ARG("int", "column_n");
+    DOC_FUNC(
+      "change the color of a cell, row, or column. UI_TableBgTarget "
+      "flags for details.");
+
+    // Tab Bars, Tabs --------------------------------------------------------
+
+    SFUN(ui_BeginTabBar, "int", "beginTabBar");
+    ARG("string", "str_id");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "`flags` is an enum of type UI_TabBarFlags\n"
+      "create and append into a TabBar");
+
+    SFUN(ui_EndTabBar, "void", "endTabBar");
+    DOC_FUNC("only call EndTabBar() if BeginTabBar() returns true!");
+
+    SFUN(ui_BeginTabItem, "int", "beginTabItem");
+    ARG("string", "label");
+    ARG("UI_Bool", "p_open");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "create a Tab. Returns true if the Tab is selected.\n"
+      "`flags` is an enum of type UI_TabItemFlags");
+
+    SFUN(ui_EndTabItem, "void", "endTabItem");
+    DOC_FUNC("only call EndTabItem() if BeginTabItem() returns true!");
+
+    SFUN(ui_TabItemButton, "int", "tabItemButton");
+    ARG("string", "label");
+    ARG("int", "flags");
+    DOC_FUNC(
+      "create a Tab behaving like a button. Returns true when clicked.\n"
+      "cannot be selected in the tab bar.\n"
+      "`flags` is an enum of type UI_TabItemFlags");
+
+    SFUN(ui_SetTabItemClosed, "void", "setTabItemClosed");
+    ARG("string", "tab_or_docked_window_label");
+    DOC_FUNC(
+      "notify TabBar or Docking system of a closed tab/window ahead (useful to "
+      "reduce visual flicker on reorderable tab bars). For tab-bar: call after "
+      "BeginTabBar() and before Tab submissions. Otherwise call with a window "
+      "name.");
+
+    // Overlapping Mode -------------------------------------------------------
+
+    SFUN(ui_SetNextItemAllowOverlap, "void", "nextItemAllowOverlap");
+    DOC_FUNC(
+      "allow next item to be overlapped by a subsequent item. Useful with "
+      "invisible buttons, selectable, treenode covering an area where "
+      "subsequent items may need to be added. Note that both Selectable() and "
+      "TreeNode() have dedicated flags doing this.");
+
+    // Item/Widgets Utilities and Query Functions
+    // --------------------------------
+
+    SFUN(ui_IsItemHovered, "int", "isItemHovered");
+    ARG("int", "ui_hovered_flags");
+    DOC_FUNC(
+      "is the last item hovered? (and usable, aka not blocked by a popup, "
+      "etc.). See UI_HoveredFlags for more options.");
+
+    SFUN(ui_IsItemActive, "int", "isItemActive");
+    DOC_FUNC(
+      "is the last item active? (e.g. button being held, text field being "
+      "edited. This will continuously return true while holding mouse button "
+      "on an item. Items that don't interact will always return false)");
+
+    SFUN(ui_IsItemFocused, "int", "isItemFocused");
+    DOC_FUNC("is the last item focused for keyboard/gamepad navigation?");
+
+    SFUN(ui_IsItemClicked, "int", "isItemClicked");
+    DOC_FUNC("Implied mouse_button = 0");
+
+    SFUN(ui_IsItemClickedEx, "int", "isItemClicked");
+    ARG("int", "mouse_button");
+    DOC_FUNC(
+      "is the last item hovered and mouse clicked on? (**)  == IsMouseClicked("
+      "mouse_button) && IsItemHovered(). Important. (**) this is NOT "
+      "equivalent "
+      "to the behavior of e.g. Button(). Read comments in function definition."
+      "mouse_button is an enum of type UI_MouseButton");
+
+    SFUN(ui_IsItemVisible, "int", "isItemVisible");
+    DOC_FUNC(
+      "is the last item visible? (items may be out of sight because of "
+      "clipping/scrolling)");
+
+    SFUN(ui_IsItemEdited, "int", "isItemEdited");
+    DOC_FUNC(
+      "did the last item modify its underlying value this frame? or was "
+      "pressed? This is generally the same as the 'bool' return value of many "
+      "widgets.");
+
+    SFUN(ui_IsItemActivated, "int", "isItemActivated");
+    DOC_FUNC(
+      "was the last item just made active (item was previously inactive).");
+
+    SFUN(ui_IsItemDeactivated, "int", "isItemDeactivated");
+    DOC_FUNC(
+      "was the last item just made inactive (item was previously active). "
+      "Useful for Undo/Redo patterns with widgets that require continuous "
+      "editing.");
+
+    SFUN(ui_IsItemDeactivatedAfterEdit, "int", "isItemDeactivatedAfterEdit");
+    DOC_FUNC(
+      "was the last item just made inactive and made a value change when it "
+      "was "
+      "active? (e.g. Slider/Drag moved). Useful for Undo/Redo patterns with "
+      "widgets that require continuous editing. Note that you may get false "
+      "positives (some widgets such as Combo()/ListBox()/Selectable() will "
+      "return true even when clicking an already selected item).");
+
+    SFUN(ui_IsItemToggledOpen, "int", "isItemToggledOpen");
+    DOC_FUNC("was the last item open state toggled? set by TreeNode().");
+
+    SFUN(ui_IsAnyItemHovered, "int", "isAnyItemHovered");
+    DOC_FUNC("is any item hovered?");
+
+    SFUN(ui_IsAnyItemActive, "int", "isAnyItemActive");
+    DOC_FUNC("is any item active?");
+
+    SFUN(ui_IsAnyItemFocused, "int", "isAnyItemFocused");
+    DOC_FUNC("is any item focused?");
+
+    SFUN(ui_GetItemID, "int", "getItemID");
+    DOC_FUNC(
+      "get ID of last item (~~ often same ImGui::GetID(label) beforehand)");
+
+    SFUN(ui_GetItemRectMin, "vec2", "getItemRectMin");
+    DOC_FUNC(
+      "get upper-left bounding rectangle of the last item (screen space)");
+
+    SFUN(ui_GetItemRectMax, "vec2", "getItemRectMax");
+    DOC_FUNC(
+      "get lower-right bounding rectangle of the last item (screen space)");
+
+    SFUN(ui_GetItemRectSize, "vec2", "getItemRectSize");
+    DOC_FUNC("get size of last item");
+
+    // Clipboard Utilities ---------------------------------------------------
+
+    SFUN(ui_GetClipboardText, "string", "clipboardText");
+
+    SFUN(ui_SetClipboardText, "void", "clipboardText");
+    ARG("string", "text");
+
+    // styles ----------------------------------------------------------------
     QUERY->add_sfun(QUERY, ui_styleColorsDark, "void", "styleColorsDark");
     QUERY->add_sfun(QUERY, ui_styleColorsLight, "void", "styleColorsLight");
     QUERY->add_sfun(QUERY, ui_styleColorsClassic, "void", "styleColorsClassic");
@@ -2274,6 +4384,52 @@ CK_DLL_MFUN(ui_bool_set_value)
     bool* b       = (bool*)OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset);
     *b            = (bool)GET_NEXT_INT(ARGS);
     RETURN->v_int = *b;
+}
+
+// UI_String -----------------------------------------------------------------
+
+#define UI_STRING_DEFAULT_SIZE 256
+
+CK_DLL_CTOR(ui_string_ctor)
+{
+    char* s = new char[UI_STRING_DEFAULT_SIZE];
+    OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = (t_CKUINT)s;
+    OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = UI_STRING_DEFAULT_SIZE;
+}
+
+CK_DLL_DTOR(ui_string_dtor)
+{
+    char* s = (char*)OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset);
+    delete[] s;
+    OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = 0;
+    OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = 0;
+}
+
+CK_DLL_MFUN(ui_string_get_value)
+{
+    char* s          = (char*)OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset);
+    RETURN->v_string = API->object->create_string(VM, s, false);
+}
+
+CK_DLL_MFUN(ui_string_set_value)
+{
+    // get current string + cap
+    char* ui_str = (char*)OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset);
+    t_CKUINT cap = OBJ_MEMBER_UINT(SELF, ui_string_cap_offset);
+
+    const char* ck_str = API->object->str(GET_NEXT_STRING(ARGS));
+    size_t ck_str_len  = strlen(ck_str);
+
+    // resize storage if needed
+    if (ck_str_len >= cap) {
+        size_t new_cap = MAX(cap * 2, ck_str_len + 1);
+        ui_str         = (char*)reallocate(ui_str, cap, new_cap);
+        OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = (t_CKUINT)ui_str;
+        OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = new_cap;
+    }
+
+    // copy string
+    strncpy(ui_str, ck_str, ck_str_len);
 }
 
 // UI_Int -------------------------------------------------------------------
@@ -3925,7 +6081,1032 @@ CK_DLL_SFUN(ui_VSliderIntEx)
 }
 
 // ============================================================================
-// Styles
+// Widgets: Input with Keyboard
+// ============================================================================
+
+static char* UI_String_ResizeBuffer(Chuck_Object* obj, size_t new_cap,
+                                    CK_DL_API API)
+{
+    char* buf      = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
+    size_t buf_cap = OBJ_MEMBER_UINT(obj, ui_string_cap_offset);
+
+    if (new_cap >= buf_cap) {
+        new_cap = MAX(new_cap + 1, buf_cap * 2);
+        buf     = (char*)reallocate(buf, buf_cap, new_cap);
+        OBJ_MEMBER_UINT(obj, ui_string_ptr_offset) = (t_CKUINT)buf;
+        OBJ_MEMBER_UINT(obj, ui_string_cap_offset) = new_cap;
+    }
+
+    return buf;
+}
+
+CK_DLL_SFUN(ui_InputText)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    char* buf         = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
+    int buf_size      = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
+
+    RETURN->v_int = cimgui::ImGui_InputText(label, buf, buf_size, 0);
+}
+
+CK_DLL_SFUN(ui_InputTextEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+
+    Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
+    size_t input_max_len = GET_NEXT_INT(ARGS);
+    int flags            = GET_NEXT_INT(ARGS);
+
+    char* buf = UI_String_ResizeBuffer(obj, input_max_len, API);
+
+    // RETURN->v_int = cimgui::ImGui_InputTextEx(label, buf, input_max_len,
+    // flags, NULL, NULL);
+    RETURN->v_int = cimgui::ImGui_InputText(label, buf, input_max_len, flags);
+}
+
+CK_DLL_SFUN(ui_InputTextMultiline)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    char* buf         = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
+    int buf_size      = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
+
+    RETURN->v_int = cimgui::ImGui_InputTextMultiline(label, buf, buf_size);
+}
+CK_DLL_SFUN(ui_InputTextMultilineEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+
+    Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
+    size_t input_max_len = GET_NEXT_INT(ARGS);
+    t_CKVEC2 size        = GET_NEXT_VEC2(ARGS);
+    int flags            = GET_NEXT_INT(ARGS);
+
+    char* buf = UI_String_ResizeBuffer(obj, input_max_len, API);
+
+    RETURN->v_int = cimgui::ImGui_InputTextMultilineEx(
+      label, buf, input_max_len, { (float)size.x, (float)size.y }, flags, NULL,
+      NULL);
+}
+CK_DLL_SFUN(ui_InputTextWithHint)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* hint  = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    char* buf         = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
+    int buf_size      = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
+
+    RETURN->v_int
+      = cimgui::ImGui_InputTextWithHint(label, hint, buf, buf_size, 0);
+}
+CK_DLL_SFUN(ui_InputTextWithHintEx)
+{
+    const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* hint     = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
+    size_t input_max_len = GET_NEXT_INT(ARGS);
+    int flags            = GET_NEXT_INT(ARGS);
+
+    char* buf = UI_String_ResizeBuffer(obj, input_max_len, API);
+
+    RETURN->v_int = cimgui::ImGui_InputTextWithHintEx(
+      label, hint, buf, input_max_len, flags, NULL, NULL);
+}
+
+CK_DLL_SFUN(ui_InputFloat)
+{
+    const char* label      = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_float = GET_NEXT_OBJECT(ARGS);
+    float* v = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
+
+    RETURN->v_int = cimgui::ImGui_InputFloat(label, v);
+}
+
+CK_DLL_SFUN(ui_InputFloatEx)
+{
+    const char* label      = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_float = GET_NEXT_OBJECT(ARGS);
+    float* v           = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
+    float step         = GET_NEXT_FLOAT(ARGS);
+    float step_fast    = GET_NEXT_FLOAT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int
+      = cimgui::ImGui_InputFloatEx(label, v, step, step_fast, format, flags);
+}
+
+CK_DLL_SFUN(ui_InputInt)
+{
+    const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_int = GET_NEXT_OBJECT(ARGS);
+    int* v               = (int*)OBJ_MEMBER_UINT(ui_int, ui_int_ptr_offset);
+
+    RETURN->v_int = cimgui::ImGui_InputInt(label, v);
+}
+
+CK_DLL_SFUN(ui_InputIntEx)
+{
+    const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_int = GET_NEXT_OBJECT(ARGS);
+    int* v               = (int*)OBJ_MEMBER_UINT(ui_int, ui_int_ptr_offset);
+    int step             = GET_NEXT_INT(ARGS);
+    int step_fast        = GET_NEXT_INT(ARGS);
+    int flags            = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_InputIntEx(label, v, step, step_fast, flags);
+}
+CK_DLL_SFUN(ui_InputScalarN_CKINT)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+    size_t num_components    = API->object->array_int_size(ck_array);
+
+    int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
+    for (size_t i = 0; i < num_components; ++i) {
+        v[i] = API->object->array_int_get_idx(ck_array, i);
+    }
+
+    RETURN->v_int = cimgui::ImGui_InputScalarN(label, cimgui::ImGuiDataType_S32,
+                                               v, num_components);
+
+    // copy back
+    API->object->array_int_clear(ck_array);
+    for (size_t i = 0; i < num_components; ++i) {
+        API->object->array_int_push_back(ck_array, v[i]);
+    }
+}
+
+CK_DLL_SFUN(ui_InputScalarNEx_CKINT)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+    size_t num_components    = API->object->array_int_size(ck_array);
+
+    int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
+    for (size_t i = 0; i < num_components; ++i) {
+        v[i] = API->object->array_int_get_idx(ck_array, i);
+    }
+
+    int step           = GET_NEXT_INT(ARGS);
+    int step_fast      = GET_NEXT_INT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_InputScalarNEx(
+      label, cimgui::ImGuiDataType_S32, v, num_components, &step, &step_fast,
+      format, flags);
+
+    // copy back
+    API->object->array_int_clear(ck_array);
+    for (size_t i = 0; i < num_components; ++i) {
+        API->object->array_int_push_back(ck_array, v[i]);
+    }
+}
+
+CK_DLL_SFUN(ui_InputScalarN_CKFLOAT)
+{
+    const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+    size_t num_components      = API->object->array_float_size(ck_array);
+
+    float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
+    for (size_t i = 0; i < num_components; ++i) {
+        v[i] = API->object->array_float_get_idx(ck_array, i);
+    }
+
+    RETURN->v_int = cimgui::ImGui_InputScalarN(
+      label, cimgui::ImGuiDataType_Float, v, num_components);
+
+    // copy back
+    API->object->array_float_clear(ck_array);
+    for (size_t i = 0; i < num_components; ++i) {
+        API->object->array_float_push_back(ck_array, v[i]);
+    }
+}
+
+CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT)
+{
+    const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+    size_t num_components      = API->object->array_float_size(ck_array);
+
+    float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
+    for (size_t i = 0; i < num_components; ++i) {
+        v[i] = API->object->array_float_get_idx(ck_array, i);
+    }
+
+    float step         = GET_NEXT_FLOAT(ARGS);
+    float step_fast    = GET_NEXT_FLOAT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_InputScalarNEx(
+      label, cimgui::ImGuiDataType_Float, v, num_components, &step, &step_fast,
+      format, flags);
+
+    // copy back
+    API->object->array_float_clear(ck_array);
+    for (size_t i = 0; i < num_components; ++i) {
+        API->object->array_float_push_back(ck_array, v[i]);
+    }
+}
+
+// ============================================================================
+// Widgets: Color Editor/Picker
+// ============================================================================
+
+CK_DLL_SFUN(ui_ColorEdit3)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* col        = (float*)OBJ_MEMBER_UINT(obj, ui_float3_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorEdit3(label, col, flags);
+}
+
+CK_DLL_SFUN(ui_ColorEdit4)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* col        = (float*)OBJ_MEMBER_UINT(obj, ui_float4_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorEdit4(label, col, flags);
+}
+
+CK_DLL_SFUN(ui_ColorPicker3)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* col        = (float*)OBJ_MEMBER_UINT(obj, ui_float3_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorPicker3(label, col, flags);
+}
+
+CK_DLL_SFUN(ui_ColorPicker4)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* col        = (float*)OBJ_MEMBER_UINT(obj, ui_float4_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+    t_CKVEC4 ref_col  = GET_NEXT_VEC4(ARGS);
+
+    float ref_color_arr[4] = { (float)ref_col.x, (float)ref_col.y,
+                               (float)ref_col.z, (float)ref_col.w };
+
+    RETURN->v_int
+      = cimgui::ImGui_ColorPicker4(label, col, flags, ref_color_arr);
+}
+
+CK_DLL_SFUN(ui_ColorButton)
+{
+    const char* desc = API->object->str(GET_NEXT_STRING(ARGS));
+    t_CKVEC4 color   = GET_NEXT_VEC4(ARGS);
+    int flags        = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorButton(
+      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w },
+      flags);
+}
+
+CK_DLL_SFUN(ui_ColorButtonEx)
+{
+    const char* desc = API->object->str(GET_NEXT_STRING(ARGS));
+    t_CKVEC4 color   = GET_NEXT_VEC4(ARGS);
+    int flags        = GET_NEXT_INT(ARGS);
+    t_CKVEC2 size    = GET_NEXT_VEC2(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorButtonEx(
+      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w },
+      flags, { (float)size.x, (float)size.y });
+}
+
+CK_DLL_SFUN(ui_SetColorEditOptions)
+{
+    cimgui::ImGui_SetColorEditOptions(GET_NEXT_INT(ARGS));
+}
+
+// ============================================================================
+// Widgets: Trees
+// ============================================================================
+
+CK_DLL_SFUN(ui_TreeNode)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int     = cimgui::ImGui_TreeNode(label);
+}
+
+CK_DLL_SFUN(ui_TreeNodeStrUnformatted)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* text   = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int      = cimgui::ImGui_TreeNodeStrUnformatted(str_id, text);
+}
+
+CK_DLL_SFUN(ui_TreeNodeEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags         = GET_NEXT_INT(ARGS);
+    RETURN->v_int     = cimgui::ImGui_TreeNodeEx(label, flags);
+}
+
+CK_DLL_SFUN(ui_TreeNodeExStrUnformatted)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+    const char* text   = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int = cimgui::ImGui_TreeNodeExStrUnformatted(str_id, flags, text);
+}
+
+CK_DLL_SFUN(ui_TreePush)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_TreePush(str_id);
+}
+
+CK_DLL_SFUN(ui_TreePop)
+{
+    cimgui::ImGui_TreePop();
+}
+
+CK_DLL_SFUN(ui_GetTreeNodeToLabelSpacing)
+{
+    RETURN->v_float = cimgui::ImGui_GetTreeNodeToLabelSpacing();
+}
+
+CK_DLL_SFUN(ui_CollapsingHeader)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags         = GET_NEXT_INT(ARGS);
+    RETURN->v_int     = cimgui::ImGui_CollapsingHeader(label, flags);
+}
+
+CK_DLL_SFUN(ui_CollapsingHeaderBoolPtr)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+    RETURN->v_int     = cimgui::ImGui_CollapsingHeaderBoolPtr(label, v, flags);
+}
+
+CK_DLL_SFUN(ui_SetNextItemOpen)
+{
+    bool is_open = GET_NEXT_INT(ARGS);
+    int cond     = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_SetNextItemOpen(is_open, cond);
+}
+
+// ============================================================================
+// Widgets: Selectable
+// ============================================================================
+
+CK_DLL_SFUN(ui_Selectable)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int     = cimgui::ImGui_Selectable(label);
+}
+
+CK_DLL_SFUN(ui_SelectableEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    bool selected     = GET_NEXT_INT(ARGS);
+    int flags         = GET_NEXT_INT(ARGS);
+    t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_SelectableEx(
+      label, selected, flags, { (float)size.x, (float)size.y });
+}
+
+CK_DLL_SFUN(ui_SelectableBoolPtr)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_SelectableBoolPtr(label, v, flags);
+}
+
+CK_DLL_SFUN(ui_SelectableBoolPtrEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+    t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_SelectableBoolPtrEx(
+      label, v, flags, { (float)size.x, (float)size.y });
+}
+
+// ============================================================================
+// Widgets: List Boxes
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginListBox)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_BeginListBox(label, { (float)size.x, (float)size.y });
+}
+
+CK_DLL_SFUN(ui_EndListBox)
+{
+    cimgui::ImGui_EndListBox();
+}
+
+CK_DLL_SFUN(ui_ListBox)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_int_obj = GET_NEXT_OBJECT(ARGS);
+    int* current_item = (int*)OBJ_MEMBER_UINT(ui_int_obj, ui_int_ptr_offset);
+    Chuck_ArrayInt* items = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+    int height_in_items   = GET_NEXT_INT(ARGS);
+
+    // copy chuck string array to arena
+    int num_items = API->object->array_int_size(items);
+    const char** items_arr
+      = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
+
+    for (int i = 0; i < num_items; ++i) {
+        items_arr[i] = API->object->str(
+          (Chuck_String*)API->object->array_int_get_idx(items, i));
+    }
+
+    RETURN->v_int = cimgui::ImGui_ListBox(label, current_item, items_arr,
+                                          num_items, height_in_items);
+}
+
+// ============================================================================
+// Widgets: Data Plotting
+// ============================================================================
+
+CK_DLL_SFUN(ui_PlotLines)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* values = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+
+    // copy chuck array to arena (Convert from double to float)
+    int num_values    = API->object->array_float_size(values);
+    float* values_arr = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_values);
+    for (int i = 0; i < num_values; ++i) {
+        values_arr[i] = API->object->array_float_get_idx(values, i);
+    }
+
+    cimgui::ImGui_PlotLines(label, values_arr, num_values);
+}
+
+CK_DLL_SFUN(ui_PlotLinesEx)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* values = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+    int values_offset        = GET_NEXT_INT(ARGS);
+    const char* overlay_text = API->object->str(GET_NEXT_STRING(ARGS));
+    float scale_min          = GET_NEXT_FLOAT(ARGS);
+    float scale_max          = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC2 graph_size      = GET_NEXT_VEC2(ARGS);
+
+    // copy chuck array to arena
+    int num_values    = API->object->array_float_size(values);
+    float* values_arr = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_values);
+    for (int i = 0; i < num_values; ++i) {
+        values_arr[i] = API->object->array_float_get_idx(values, i);
+    }
+
+    cimgui::ImGui_PlotLinesEx(
+      label, values_arr, num_values, values_offset, overlay_text, scale_min,
+      scale_max, { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
+}
+
+CK_DLL_SFUN(ui_PlotHistogram)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* values = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+
+    // copy chuck array to arena
+    int num_values    = API->object->array_float_size(values);
+    float* values_arr = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_values);
+    for (int i = 0; i < num_values; ++i) {
+        values_arr[i] = API->object->array_float_get_idx(values, i);
+    }
+
+    cimgui::ImGui_PlotHistogram(label, values_arr, num_values);
+}
+
+CK_DLL_SFUN(ui_PlotHistogramEx)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_ArrayFloat* values = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
+    int values_offset        = GET_NEXT_INT(ARGS);
+    const char* overlay_text = API->object->str(GET_NEXT_STRING(ARGS));
+    float scale_min          = GET_NEXT_FLOAT(ARGS);
+    float scale_max          = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC2 graph_size      = GET_NEXT_VEC2(ARGS);
+
+    // copy chuck array to arena
+    int num_values    = API->object->array_float_size(values);
+    float* values_arr = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_values);
+    for (int i = 0; i < num_values; ++i) {
+        values_arr[i] = API->object->array_float_get_idx(values, i);
+    }
+
+    cimgui::ImGui_PlotHistogramEx(
+      label, values_arr, num_values, values_offset, overlay_text, scale_min,
+      scale_max, { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
+}
+
+// ============================================================================
+// Widgets: Menus
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginMenuBar)
+{
+    RETURN->v_int = cimgui::ImGui_BeginMenuBar();
+}
+
+CK_DLL_SFUN(ui_EndMenuBar)
+{
+    cimgui::ImGui_EndMenuBar();
+}
+
+CK_DLL_SFUN(ui_BeginMainMenuBar)
+{
+    RETURN->v_int = cimgui::ImGui_BeginMainMenuBar();
+}
+
+CK_DLL_SFUN(ui_EndMainMenuBar)
+{
+    cimgui::ImGui_EndMainMenuBar();
+}
+
+CK_DLL_SFUN(ui_BeginMenu)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int     = cimgui::ImGui_BeginMenu(label);
+}
+
+CK_DLL_SFUN(ui_BeginMenuEx)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    bool enabled      = GET_NEXT_INT(ARGS);
+    RETURN->v_int     = cimgui::ImGui_BeginMenuEx(label, enabled);
+}
+
+CK_DLL_SFUN(ui_EndMenu)
+{
+    cimgui::ImGui_EndMenu();
+}
+
+CK_DLL_SFUN(ui_MenuItem)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int     = cimgui::ImGui_MenuItem(label);
+}
+
+CK_DLL_SFUN(ui_MenuItemBoolPtr)
+{
+    const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* shortcut = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
+    bool* selected       = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
+    bool enabled         = GET_NEXT_INT(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_MenuItemBoolPtr(label, shortcut, selected, enabled);
+}
+
+// ============================================================================
+// Tooltips
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginTooltip)
+{
+    RETURN->v_int = cimgui::ImGui_BeginTooltip();
+}
+CK_DLL_SFUN(ui_EndTooltip)
+{
+    cimgui::ImGui_EndTooltip();
+}
+
+CK_DLL_SFUN(ui_SetTooltipUnformatted)
+{
+    const char* text = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_SetTooltipUnformatted(text);
+}
+
+CK_DLL_SFUN(ui_SetItemTooltipUnformatted)
+{
+    const char* text = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_SetItemTooltipUnformatted(text);
+}
+
+// ============================================================================
+// Popups, Modals
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginPopup)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+    RETURN->v_int      = cimgui::ImGui_BeginPopup(str_id, flags);
+}
+
+CK_DLL_SFUN(ui_BeginPopupModal)
+{
+    const char* name = API->object->str(GET_NEXT_STRING(ARGS));
+    bool* p_open
+      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    int flags = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_BeginPopupModal(name, p_open, flags);
+}
+
+CK_DLL_SFUN(ui_EndPopup)
+{
+    cimgui::ImGui_EndPopup();
+}
+
+CK_DLL_SFUN(ui_OpenPopup)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_OpenPopup(str_id, flags);
+}
+
+CK_DLL_SFUN(ui_OpenPopupOnItemClick)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int popup_flags    = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_OpenPopupOnItemClick(str_id, popup_flags);
+}
+
+CK_DLL_SFUN(ui_CloseCurrentPopup)
+{
+    cimgui::ImGui_CloseCurrentPopup();
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextItem)
+{
+    RETURN->v_int = cimgui::ImGui_BeginPopupContextItem();
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextItemEx)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int popup_flags    = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_BeginPopupContextItemEx(str_id, popup_flags);
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextWindow)
+{
+    RETURN->v_int = cimgui::ImGui_BeginPopupContextWindow();
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextWindowEx)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int popup_flags    = GET_NEXT_INT(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_BeginPopupContextWindowEx(str_id, popup_flags);
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextVoid)
+{
+    RETURN->v_int = cimgui::ImGui_BeginPopupContextVoid();
+}
+
+CK_DLL_SFUN(ui_BeginPopupContextVoidEx)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int popup_flags    = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_BeginPopupContextVoidEx(str_id, popup_flags);
+}
+
+CK_DLL_SFUN(ui_IsPopupOpen)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+    RETURN->v_int      = cimgui::ImGui_IsPopupOpen(str_id, flags);
+}
+
+// ============================================================================
+// Tables
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginTable)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int column         = GET_NEXT_INT(ARGS);
+    int flags          = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_BeginTable(str_id, column, flags);
+}
+
+CK_DLL_SFUN(ui_BeginTableEx)
+{
+    const char* str_id  = API->object->str(GET_NEXT_STRING(ARGS));
+    int column          = GET_NEXT_INT(ARGS);
+    int flags           = GET_NEXT_INT(ARGS);
+    t_CKVEC2 outer_size = GET_NEXT_VEC2(ARGS);
+    float inner_width   = GET_NEXT_FLOAT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_BeginTableEx(
+      str_id, column, flags, { (float)outer_size.x, (float)outer_size.y },
+      inner_width);
+}
+
+CK_DLL_SFUN(ui_EndTable)
+{
+    cimgui::ImGui_EndTable();
+}
+
+CK_DLL_SFUN(ui_TableNextRow)
+{
+    cimgui::ImGui_TableNextRow();
+}
+
+CK_DLL_SFUN(ui_TableNextRowEx)
+{
+    int row_flags        = GET_NEXT_INT(ARGS);
+    float min_row_height = GET_NEXT_FLOAT(ARGS);
+    cimgui::ImGui_TableNextRowEx(row_flags, min_row_height);
+}
+
+CK_DLL_SFUN(ui_TableNextColumn)
+{
+    RETURN->v_int = cimgui::ImGui_TableNextColumn();
+}
+
+CK_DLL_SFUN(ui_TableSetColumnIndex)
+{
+    int column_n  = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_TableSetColumnIndex(column_n);
+}
+
+CK_DLL_SFUN(ui_TableSetupColumn)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags         = GET_NEXT_INT(ARGS);
+
+    cimgui::ImGui_TableSetupColumn(label, flags);
+}
+
+CK_DLL_SFUN(ui_TableSetupColumnEx)
+{
+    const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags                  = GET_NEXT_INT(ARGS);
+    float init_width_or_weight = GET_NEXT_FLOAT(ARGS);
+    int user_id                = GET_NEXT_INT(ARGS);
+
+    cimgui::ImGui_TableSetupColumnEx(label, flags, init_width_or_weight,
+                                     user_id);
+}
+
+CK_DLL_SFUN(ui_TableSetupScrollFreeze)
+{
+    int cols = GET_NEXT_INT(ARGS);
+    int rows = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_TableSetupScrollFreeze(cols, rows);
+}
+
+CK_DLL_SFUN(ui_TableHeader)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_TableHeader(label);
+}
+
+CK_DLL_SFUN(ui_TableHeadersRow)
+{
+    cimgui::ImGui_TableHeadersRow();
+}
+
+CK_DLL_SFUN(ui_TableAngledHeadersRow)
+{
+    cimgui::ImGui_TableAngledHeadersRow();
+}
+
+CK_DLL_SFUN(ui_TableGetColumnCount)
+{
+    RETURN->v_int = cimgui::ImGui_TableGetColumnCount();
+}
+
+CK_DLL_SFUN(ui_TableGetColumnIndex)
+{
+    RETURN->v_int = cimgui::ImGui_TableGetColumnIndex();
+}
+
+CK_DLL_SFUN(ui_TableGetRowIndex)
+{
+    RETURN->v_int = cimgui::ImGui_TableGetRowIndex();
+}
+
+CK_DLL_SFUN(ui_TableGetColumnName)
+{
+    RETURN->v_string = API->object->create_string(
+      VM, cimgui::ImGui_TableGetColumnName(GET_NEXT_INT(ARGS)), false);
+}
+
+CK_DLL_SFUN(ui_TableGetColumnFlags)
+{
+    RETURN->v_int = cimgui::ImGui_TableGetColumnFlags(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_TableSetColumnEnabled)
+{
+    int column_n = GET_NEXT_INT(ARGS);
+    bool enabled = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_TableSetColumnEnabled(column_n, enabled);
+}
+
+CK_DLL_SFUN(ui_TableSetBgColor)
+{
+    int target     = GET_NEXT_INT(ARGS);
+    t_CKVEC4 color = GET_NEXT_VEC4(ARGS);
+    int column_n   = GET_NEXT_INT(ARGS);
+
+    cimgui::ImU32 color_u32 = cimgui::ImGui_ColorConvertFloat4ToU32(
+      { (float)color.x, (float)color.y, (float)color.z, (float)color.w });
+
+    cimgui::ImGui_TableSetBgColor(target, color_u32, column_n);
+}
+
+// ============================================================================
+// Tab Bar, Tab Item
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginTabBar)
+{
+    const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags          = GET_NEXT_INT(ARGS);
+    RETURN->v_int      = cimgui::ImGui_BeginTabBar(str_id, flags);
+}
+
+CK_DLL_SFUN(ui_EndTabBar)
+{
+    cimgui::ImGui_EndTabBar();
+}
+
+CK_DLL_SFUN(ui_BeginTabItem)
+{
+    const char* label     = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
+    bool* p_open          = (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset);
+    int flags             = GET_NEXT_INT(ARGS);
+    RETURN->v_int         = cimgui::ImGui_BeginTabItem(label, p_open, flags);
+}
+
+CK_DLL_SFUN(ui_EndTabItem)
+{
+    cimgui::ImGui_EndTabItem();
+}
+
+CK_DLL_SFUN(ui_TabItemButton)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags         = GET_NEXT_INT(ARGS);
+    RETURN->v_int     = cimgui::ImGui_TabItemButton(label, flags);
+}
+
+CK_DLL_SFUN(ui_SetTabItemClosed)
+{
+    const char* tab_or_docked_window_label
+      = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_SetTabItemClosed(tab_or_docked_window_label);
+}
+
+// ============================================================================
+// Overlapping Mode
+// ============================================================================
+
+CK_DLL_SFUN(ui_SetNextItemAllowOverlap)
+{
+    cimgui::ImGui_SetNextItemAllowOverlap();
+}
+
+// ============================================================================
+// Item/Widgets Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_IsItemHovered)
+{
+    int flags     = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsItemHovered(flags);
+}
+
+CK_DLL_SFUN(ui_IsItemActive)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemActive();
+}
+
+CK_DLL_SFUN(ui_IsItemFocused)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemFocused();
+}
+
+CK_DLL_SFUN(ui_IsItemClicked)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemClicked();
+}
+
+CK_DLL_SFUN(ui_IsItemClickedEx)
+{
+    int button    = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsItemClickedEx(button);
+}
+
+CK_DLL_SFUN(ui_IsItemVisible)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemVisible();
+}
+
+CK_DLL_SFUN(ui_IsItemEdited)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemEdited();
+}
+
+CK_DLL_SFUN(ui_IsItemActivated)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemActivated();
+}
+
+CK_DLL_SFUN(ui_IsItemDeactivated)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemDeactivated();
+}
+
+CK_DLL_SFUN(ui_IsItemDeactivatedAfterEdit)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemDeactivatedAfterEdit();
+}
+
+CK_DLL_SFUN(ui_IsItemToggledOpen)
+{
+    RETURN->v_int = cimgui::ImGui_IsItemToggledOpen();
+}
+
+CK_DLL_SFUN(ui_IsAnyItemHovered)
+{
+    RETURN->v_int = cimgui::ImGui_IsAnyItemHovered();
+}
+
+CK_DLL_SFUN(ui_IsAnyItemActive)
+{
+    RETURN->v_int = cimgui::ImGui_IsAnyItemActive();
+}
+
+CK_DLL_SFUN(ui_IsAnyItemFocused)
+{
+    RETURN->v_int = cimgui::ImGui_IsAnyItemFocused();
+}
+
+CK_DLL_SFUN(ui_GetItemID)
+{
+    RETURN->v_int = cimgui::ImGui_GetItemID();
+}
+
+CK_DLL_SFUN(ui_GetItemRectMin)
+{
+    cimgui::ImVec2 v = cimgui::ImGui_GetItemRectMin();
+    RETURN->v_vec2   = { v.x, v.y };
+}
+
+CK_DLL_SFUN(ui_GetItemRectMax)
+{
+    cimgui::ImVec2 v = cimgui::ImGui_GetItemRectMax();
+    RETURN->v_vec2   = { v.x, v.y };
+}
+
+CK_DLL_SFUN(ui_GetItemRectSize)
+{
+    cimgui::ImVec2 v = cimgui::ImGui_GetItemRectSize();
+    RETURN->v_vec2   = { v.x, v.y };
+}
+
+// ============================================================================
+// Clipboard Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_GetClipboardText)
+{
+    RETURN->v_string
+      = API->object->create_string(VM, cimgui::ImGui_GetClipboardText(), false);
+}
+
+CK_DLL_SFUN(ui_SetClipboardText)
+{
+    const char* text = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_SetClipboardText(text);
+}
+
+// ============================================================================
+// styles
 // ============================================================================
 CK_DLL_SFUN(ui_styleColorsDark)
 {

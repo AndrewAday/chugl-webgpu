@@ -11,6 +11,22 @@ UI_Int combo_char_current_item;
 UI_Int2 drag_int2;
 UI_Int vslider_int;
 
+UI_String input_string;
+"hello chugl" => input_string.val;
+UI_String input_string_multi;
+
+UI_Float input_float;
+
+UI_Float3 color_edit;
+UI_Float4 color_picker;
+
+
+[1, 2, 3, 4, 5] @=> int input_int_arr[];
+[1.0, 2.0, 3.0, 4.0, 5.0] @=> float input_float_arr[];
+
+[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 2.0] @=> float line_plot_arr[];
+[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 2.0] @=> float histogram_plot_arr[];
+
 class SizeCallback extends UI_SizeCallback {
     fun void handler(UI_SizeCallbackData data) {
         // <<< "pos:", data.getPos() >>>;
@@ -22,6 +38,11 @@ class SizeCallback extends UI_SizeCallback {
 
 [0, 1, 2, 3, 4, 5] @=> int drag_arr[];
 [0.1, 0.2, 0.3, 0.4, 0.5] @=> float drag_arr_f[];
+
+UI_Bool selectable_bool;
+
+UI_Int listbox_int;
+["hello", "this", "is", "a", "test"] @=> string listbox_item_arr[];
 
 // <<< UI_Key.Backslash >>>;
 0 => int fc;
@@ -73,6 +94,59 @@ while (1) {
                 <<< "vslider:", vslider_int.val() >>>;
             }
 
+            if (UI.inputText("input string", input_string, 12, 0)) {
+                <<< "input string:", input_string.val() >>>;
+            }
+
+            if (UI.inputTextMultiline("input multi", input_string_multi)) {
+                <<< "input string:", input_string_multi.val() >>>;
+            }
+
+            if (UI.inputFloat("input float", input_float)) {
+                <<< "input float:", input_float.val() >>>;
+            }
+
+            if (UI.inputFloat("input float", input_float_arr)) {
+                <<< "input float arr:" >>>;
+                for (auto i : input_float_arr) <<< i >>>;
+            }
+
+            if (UI.inputInt("input int", input_int_arr)) {
+                <<< "input int arr:" >>>;
+                for (auto i : input_int_arr) <<< i >>>;
+            }
+
+            if (UI.colorButton("what", @(0.0, 1.0, 0.0, 1.0), UI_ColorEditFlags.None, @(100, 100))) {
+                <<< "color button" >>>;
+            }
+
+            if (UI.colorEdit("color edit", color_edit, 0)) {
+                color_edit.val() => vec3 color_edit_val;
+                <<< "color edit:", color_edit_val >>>;
+            }
+
+                if (UI.colorPicker("color picker", color_picker, 0, @(1.0, 0.0, 0.0, 0.0))) {
+                color_picker.val() => vec4 color_picker_val;
+                <<< "color picker:", color_picker_val >>>;
+            }
+
+            if (UI.treeNode("tree node")) {
+                UI.text("tree node text");
+                UI.treePop();
+            }
+
+            if (UI.selectable("selectable", selectable_bool, UI_SelectableFlags.None)) {
+                <<< "selectable" >>>;
+            }
+
+            if (UI.listBox("listbox", listbox_int, listbox_item_arr, -1)) {
+                <<< "listbox:", listbox_item_arr[listbox_int.val()] >>>;
+            }
+
+            UI.plotLines("line plot", line_plot_arr);
+
+            UI.plotHistogram("histogram plot", histogram_plot_arr);
+
             // doesn't work
             // if ( 
             //     UI.combo("combo", combo_char_current_item, "one\0two\0three\0\0")
@@ -80,6 +154,8 @@ while (1) {
             //     <<< "combo separated by zeros:", combo_char_current_item.val() >>>;
             // }
             // UI.popButtonRepeat();
+
+            <<< UI.clipboardText() >>>;
         }
         UI.showStyleEditor();
 

@@ -32,6 +32,7 @@ E.g. this would cause a bug if chuck expected an i64, not i32. (when reading wra
 ```
 
 - chugin needs to support `f32` floats. halves memory pressure for all chugl graphics data movement
+  - also makes a lot of library binding easier, don't have to copy doubles --> floats for many operations
 
 - `  void (CK_DLL_CALL * const callback_on_instantiate)( f_callback_on_instantiate callback, Type base_type, Chuck_VM * vm, t_CKBOOL shouldSetShredOrigin );`
   - why use this over DLL_CTOR?
@@ -42,4 +43,10 @@ E.g. this would cause a bug if chuck expected an i64, not i32. (when reading wra
 - A better way to pass pointers to data (maybe pass by `ref`?)
 - default function parameters
 - function pointers! removes need to wrap callback handlers with a custom class with vtable base handler() function, and override that function. See `UI_SizeCallback` chugin type for example
+- supported '\0' null character in chuck strings gotten from API->object->str()
 
+- Better chugin array API
+  - array_set_idx. would greatly improve efficiency of Imgui_SetScalarN impl for drag sliders
+    - currently to modify array, we have to clear *Everything* and re-push the new values. wasteful when only 1 element is changed in a frame, as in a drag slider
+  - way to get readonly const* to contiguous array data (so that we don't have to copy into arena)
+    - this also requires a floats / ints rather than long / double
