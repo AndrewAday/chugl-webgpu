@@ -441,23 +441,15 @@ CK_DLL_SFUN(ui_EndTabItem);
 CK_DLL_SFUN(ui_TabItemButton);
 CK_DLL_SFUN(ui_SetTabItemClosed);
 
-// Docking TODO
-// CIMGUI_API ImGuiID ImGui_DockSpace(ImGuiID dockspace_id); // Implied size =
-// ImVec2(0, 0), flags = 0, window_class = NULL CIMGUI_API ImGuiID
-// ImGui_DockSpaceEx(ImGuiID dockspace_id, ImVec2 size /* = ImVec2(0, 0) */,
-// ImGuiDockNodeFlags flags /* = 0 */, const ImGuiWindowClass* window_class /* =
-// NULL */); CIMGUI_API ImGuiID ImGui_DockSpaceOverViewport(void); // Implied
-// dockspace_id = 0, viewport = NULL, flags = 0, window_class = NULL CIMGUI_API
-// ImGuiID ImGui_DockSpaceOverViewportEx(ImGuiID dockspace_id /* = 0 */, const
-// ImGuiViewport* viewport /* = NULL */, ImGuiDockNodeFlags flags /* = 0 */,
-// const ImGuiWindowClass* window_class /* = NULL */); CIMGUI_API void
-// ImGui_SetNextWindowDockID(ImGuiID dock_id, ImGuiCond cond /* = 0 */);  // set
-// next window dock id CIMGUI_API void    ImGui_SetNextWindowClass(const
-// ImGuiWindowClass* window_class);        // set next window class (control
-// docking compatibility + provide hints to platform backend via custom viewport
-// flags and platform parent/child relationship) CIMGUI_API ImGuiID
-// ImGui_GetWindowDockID(void); CIMGUI_API bool    ImGui_IsWindowDocked(void);
-// // is current window docked into another window?
+// Docking
+// CK_DLL_SFUN(ui_DockSpace);
+// CK_DLL_SFUN(ui_DockSpaceEx);
+CK_DLL_SFUN(ui_DockSpaceOverViewport);
+// CK_DLL_SFUN(ui_DockSpaceOverViewportEx);
+// CK_DLL_SFUN(ui_SetNextWindowDockID);
+// CK_DLL_SFUN(ui_SetNextWindowClass);
+// CK_DLL_SFUN(ui_GetWindowDockID);
+// CK_DLL_SFUN(ui_IsWindowDocked);
 
 // Logging/Capture TODO
 // - All text output from the interface can be captured into tty/file/clipboard.
@@ -499,33 +491,18 @@ CK_DLL_SFUN(ui_SetTabItemClosed);
 // from anywhere. returns NULL when drag and drop is finished or inactive. use
 // ImGuiPayload::IsDataType() to test for the payload type.
 
-// Disabling [BETA API] TODO
-// - Disable all user interactions and dim items visuals (applying
-// style.DisabledAlpha over current colors)
-// - Those can be nested but it cannot be used to enable an already disabled
-// section (a single BeginDisabled(true) in the stack is enough to keep
-// everything disabled)
-// - BeginDisabled(false) essentially does nothing useful but is provided to
-// facilitate use of boolean expressions. If you can avoid calling
-// BeginDisabled(False)/EndDisabled() best to avoid it. CIMGUI_API void
-// ImGui_BeginDisabled(bool disabled /* = true */); CIMGUI_API void
-// ImGui_EndDisabled(void);
+// Disabling [BETA API]
+CK_DLL_SFUN(ui_BeginDisabled);
+CK_DLL_SFUN(ui_EndDisabled);
 
-// Clipping TODO
-// - Mouse hovering is affected by ImGui::PushClipRect() calls, unlike direct
-// calls to ImDrawList::PushClipRect() which are render only. CIMGUI_API void
-// ImGui_PushClipRect(ImVec2 clip_rect_min, ImVec2 clip_rect_max, bool
-// intersect_with_current_clip_rect); CIMGUI_API void ImGui_PopClipRect(void);
+// Clipping
+CK_DLL_SFUN(ui_PushClipRect);
+CK_DLL_SFUN(ui_PopClipRect);
 
-// Focus, Activation TODO
-// - Prefer using "SetItemDefaultFocus()" over "if (IsWindowAppearing())
-// SetScrollHereY()" when applicable to signify "this is the default item"
-// CIMGUI_API void ImGui_SetItemDefaultFocus(void);                     // make
-// last item the default focused item of a window. CIMGUI_API void
-// ImGui_SetKeyboardFocusHere(void);                    // Implied offset = 0
-// CIMGUI_API void ImGui_SetKeyboardFocusHereEx(int offset /* = 0 */);  // focus
-// keyboard on the next widget. Use positive 'offset' to access sub components
-// of a multiple component widget. Use -1 to access previous widget.
+// Focus, Activation
+CK_DLL_SFUN(ui_SetItemDefaultFocus);
+CK_DLL_SFUN(ui_SetKeyboardFocusHere);
+CK_DLL_SFUN(ui_SetKeyboardFocusHereEx);
 
 // Overlapping mode
 CK_DLL_SFUN(ui_SetNextItemAllowOverlap);
@@ -553,6 +530,61 @@ CK_DLL_SFUN(ui_GetItemID);
 CK_DLL_SFUN(ui_GetItemRectMin);
 CK_DLL_SFUN(ui_GetItemRectMax);
 CK_DLL_SFUN(ui_GetItemRectSize);
+
+// Text Utilities
+CK_DLL_SFUN(ui_CalcTextSize);
+CK_DLL_SFUN(ui_CalcTextSizeEx);
+
+// Color Utilities
+CK_DLL_SFUN(ui_ColorConvertRGBtoHSV);
+CK_DLL_SFUN(ui_ColorConvertHSVtoRGB);
+
+// Inputs Utilities: Keyboard/Mouse/Gamepad
+// - the ImGuiKey enum contains all possible keyboard, mouse and gamepad inputs
+// (e.g. ImGuiKey_A, ImGuiKey_MouseLeft, ImGuiKey_GamepadDpadUp...).
+// - before v1.87, we used ImGuiKey to carry native/user indices as defined by
+// each backends. About use of those legacy ImGuiKey values:
+//  - without IMGUI_DISABLE_OBSOLETE_KEYIO (legacy support): you can still use
+//  your legacy native/user indices (< 512) according to how your backend/engine
+//  stored them in io.KeysDown[], but need to cast them to ImGuiKey.
+//  - with    IMGUI_DISABLE_OBSOLETE_KEYIO (this is the way forward): any use of
+//  ImGuiKey will assert with key < 512. GetKeyIndex() is pass-through and
+//  therefore deprecated (gone if IMGUI_DISABLE_OBSOLETE_KEYIO is defined).
+CK_DLL_SFUN(ui_IsKeyDown);
+CK_DLL_SFUN(ui_IsKeyPressed);
+CK_DLL_SFUN(ui_IsKeyPressedEx);
+CK_DLL_SFUN(ui_IsKeyReleased);
+CK_DLL_SFUN(ui_IsKeyChordPressed);
+CK_DLL_SFUN(ui_GetKeyPressedAmount);
+CK_DLL_SFUN(ui_GetKeyName);
+CK_DLL_SFUN(ui_SetNextFrameWantCaptureKeyboard);
+
+// Inputs Utilities: Mouse specific
+// - To refer to a mouse button, you may use named enums in your code e.g.
+// ImGuiMouseButton_Left, ImGuiMouseButton_Right.
+// - You can also use regular integer: it is forever guaranteed that 0=Left,
+// 1=Right, 2=Middle.
+// - Dragging operations are only reported after mouse has moved a certain
+// distance away from the initial clicking position (see 'lock_threshold' and
+// 'io.MouseDraggingThreshold')
+CK_DLL_SFUN(ui_IsMouseDown);
+CK_DLL_SFUN(ui_IsMouseClicked);
+CK_DLL_SFUN(ui_IsMouseClickedEx);
+CK_DLL_SFUN(ui_IsMouseReleased);
+CK_DLL_SFUN(ui_IsMouseDoubleClicked);
+CK_DLL_SFUN(ui_GetMouseClickedCount);
+CK_DLL_SFUN(ui_IsMouseHoveringRect);
+CK_DLL_SFUN(ui_IsMouseHoveringRectEx);
+CK_DLL_SFUN(ui_IsMousePosValid);
+CK_DLL_SFUN(ui_GetMousePos);
+CK_DLL_SFUN(ui_GetMousePosOnOpeningCurrentPopup);
+CK_DLL_SFUN(ui_IsMouseDragging);
+CK_DLL_SFUN(ui_GetMouseDragDelta);
+CK_DLL_SFUN(ui_ResetMouseDragDelta);
+CK_DLL_SFUN(ui_ResetMouseDragDeltaEx);
+CK_DLL_SFUN(ui_GetMouseCursor);
+CK_DLL_SFUN(ui_SetMouseCursor);
+CK_DLL_SFUN(ui_SetNextFrameWantCaptureMouse);
 
 // Clipboard Utilities
 // - Also see the LogToClipboard() function to capture GUI into clipboard, or
@@ -2562,6 +2594,485 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "COUNT", true, &ImGuiMouseButton_COUNT);
     QUERY->end_class(QUERY);
 
+    QUERY->begin_class(QUERY, "UI_Key", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "A key identifier (ImGuiKey_XXX or ImGuiMod_XXX value): can represent "
+      "Keyboard, Mouse and Gamepad values..\nAll our named keys are >= 512. "
+      "Keys value 0 to 511 are left unused as legacy native/opaque key values "
+      "(< 1.87)..\nSince >= 1.89 we increased typing (went from int to enum), "
+      "some legacy code may need a cast to ImGuiKey..\nRead details about the "
+      "1.87 and 1.89 transition : "
+      "https:github.com/ocornut/imgui/issues/4921.\nNote that \"Keys\" related "
+      "to physical keys and are not the same concept as input \"Characters\", "
+      "the later are submitted via io.AddInputCharacter()..\nThe keyboard key "
+      "enum values are named after the keys on a standard US keyboard, and on "
+      "other keyboard types the keys reported may not match the "
+      "keycaps..\nForward declared enum type ImGuiKey");
+    static t_CKINT ImGuiKey_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiKey_None);
+    static t_CKINT ImGuiKey_Tab = 512;
+    QUERY->add_svar(QUERY, "int", "Tab", true, &ImGuiKey_Tab);
+    QUERY->doc_var(QUERY, "== ImGuiKey_NamedKey_BEGIN");
+    static t_CKINT ImGuiKey_LeftArrow = 513;
+    QUERY->add_svar(QUERY, "int", "LeftArrow", true, &ImGuiKey_LeftArrow);
+    static t_CKINT ImGuiKey_RightArrow = 514;
+    QUERY->add_svar(QUERY, "int", "RightArrow", true, &ImGuiKey_RightArrow);
+    static t_CKINT ImGuiKey_UpArrow = 515;
+    QUERY->add_svar(QUERY, "int", "UpArrow", true, &ImGuiKey_UpArrow);
+    static t_CKINT ImGuiKey_DownArrow = 516;
+    QUERY->add_svar(QUERY, "int", "DownArrow", true, &ImGuiKey_DownArrow);
+    static t_CKINT ImGuiKey_PageUp = 517;
+    QUERY->add_svar(QUERY, "int", "PageUp", true, &ImGuiKey_PageUp);
+    static t_CKINT ImGuiKey_PageDown = 518;
+    QUERY->add_svar(QUERY, "int", "PageDown", true, &ImGuiKey_PageDown);
+    static t_CKINT ImGuiKey_Home = 519;
+    QUERY->add_svar(QUERY, "int", "Home", true, &ImGuiKey_Home);
+    static t_CKINT ImGuiKey_End = 520;
+    QUERY->add_svar(QUERY, "int", "End", true, &ImGuiKey_End);
+    static t_CKINT ImGuiKey_Insert = 521;
+    QUERY->add_svar(QUERY, "int", "Insert", true, &ImGuiKey_Insert);
+    static t_CKINT ImGuiKey_Delete = 522;
+    QUERY->add_svar(QUERY, "int", "Delete", true, &ImGuiKey_Delete);
+    static t_CKINT ImGuiKey_Backspace = 523;
+    QUERY->add_svar(QUERY, "int", "Backspace", true, &ImGuiKey_Backspace);
+    static t_CKINT ImGuiKey_Space = 524;
+    QUERY->add_svar(QUERY, "int", "Space", true, &ImGuiKey_Space);
+    static t_CKINT ImGuiKey_Enter = 525;
+    QUERY->add_svar(QUERY, "int", "Enter", true, &ImGuiKey_Enter);
+    static t_CKINT ImGuiKey_Escape = 526;
+    QUERY->add_svar(QUERY, "int", "Escape", true, &ImGuiKey_Escape);
+    static t_CKINT ImGuiKey_LeftCtrl = 527;
+    QUERY->add_svar(QUERY, "int", "LeftCtrl", true, &ImGuiKey_LeftCtrl);
+    static t_CKINT ImGuiKey_LeftShift = 528;
+    QUERY->add_svar(QUERY, "int", "LeftShift", true, &ImGuiKey_LeftShift);
+    static t_CKINT ImGuiKey_LeftAlt = 529;
+    QUERY->add_svar(QUERY, "int", "LeftAlt", true, &ImGuiKey_LeftAlt);
+    static t_CKINT ImGuiKey_LeftSuper = 530;
+    QUERY->add_svar(QUERY, "int", "LeftSuper", true, &ImGuiKey_LeftSuper);
+    static t_CKINT ImGuiKey_RightCtrl = 531;
+    QUERY->add_svar(QUERY, "int", "RightCtrl", true, &ImGuiKey_RightCtrl);
+    static t_CKINT ImGuiKey_RightShift = 532;
+    QUERY->add_svar(QUERY, "int", "RightShift", true, &ImGuiKey_RightShift);
+    static t_CKINT ImGuiKey_RightAlt = 533;
+    QUERY->add_svar(QUERY, "int", "RightAlt", true, &ImGuiKey_RightAlt);
+    static t_CKINT ImGuiKey_RightSuper = 534;
+    QUERY->add_svar(QUERY, "int", "RightSuper", true, &ImGuiKey_RightSuper);
+    static t_CKINT ImGuiKey_Menu = 535;
+    QUERY->add_svar(QUERY, "int", "Menu", true, &ImGuiKey_Menu);
+    static t_CKINT ImGuiKey_0 = 536;
+    QUERY->add_svar(QUERY, "int", "0", true, &ImGuiKey_0);
+    static t_CKINT ImGuiKey_1 = 537;
+    QUERY->add_svar(QUERY, "int", "1", true, &ImGuiKey_1);
+    static t_CKINT ImGuiKey_2 = 538;
+    QUERY->add_svar(QUERY, "int", "2", true, &ImGuiKey_2);
+    static t_CKINT ImGuiKey_3 = 539;
+    QUERY->add_svar(QUERY, "int", "3", true, &ImGuiKey_3);
+    static t_CKINT ImGuiKey_4 = 540;
+    QUERY->add_svar(QUERY, "int", "4", true, &ImGuiKey_4);
+    static t_CKINT ImGuiKey_5 = 541;
+    QUERY->add_svar(QUERY, "int", "5", true, &ImGuiKey_5);
+    static t_CKINT ImGuiKey_6 = 542;
+    QUERY->add_svar(QUERY, "int", "6", true, &ImGuiKey_6);
+    static t_CKINT ImGuiKey_7 = 543;
+    QUERY->add_svar(QUERY, "int", "7", true, &ImGuiKey_7);
+    static t_CKINT ImGuiKey_8 = 544;
+    QUERY->add_svar(QUERY, "int", "8", true, &ImGuiKey_8);
+    static t_CKINT ImGuiKey_9 = 545;
+    QUERY->add_svar(QUERY, "int", "9", true, &ImGuiKey_9);
+    static t_CKINT ImGuiKey_A = 546;
+    QUERY->add_svar(QUERY, "int", "A", true, &ImGuiKey_A);
+    static t_CKINT ImGuiKey_B = 547;
+    QUERY->add_svar(QUERY, "int", "B", true, &ImGuiKey_B);
+    static t_CKINT ImGuiKey_C = 548;
+    QUERY->add_svar(QUERY, "int", "C", true, &ImGuiKey_C);
+    static t_CKINT ImGuiKey_D = 549;
+    QUERY->add_svar(QUERY, "int", "D", true, &ImGuiKey_D);
+    static t_CKINT ImGuiKey_E = 550;
+    QUERY->add_svar(QUERY, "int", "E", true, &ImGuiKey_E);
+    static t_CKINT ImGuiKey_F = 551;
+    QUERY->add_svar(QUERY, "int", "F", true, &ImGuiKey_F);
+    static t_CKINT ImGuiKey_G = 552;
+    QUERY->add_svar(QUERY, "int", "G", true, &ImGuiKey_G);
+    static t_CKINT ImGuiKey_H = 553;
+    QUERY->add_svar(QUERY, "int", "H", true, &ImGuiKey_H);
+    static t_CKINT ImGuiKey_I = 554;
+    QUERY->add_svar(QUERY, "int", "I", true, &ImGuiKey_I);
+    static t_CKINT ImGuiKey_J = 555;
+    QUERY->add_svar(QUERY, "int", "J", true, &ImGuiKey_J);
+    static t_CKINT ImGuiKey_K = 556;
+    QUERY->add_svar(QUERY, "int", "K", true, &ImGuiKey_K);
+    static t_CKINT ImGuiKey_L = 557;
+    QUERY->add_svar(QUERY, "int", "L", true, &ImGuiKey_L);
+    static t_CKINT ImGuiKey_M = 558;
+    QUERY->add_svar(QUERY, "int", "M", true, &ImGuiKey_M);
+    static t_CKINT ImGuiKey_N = 559;
+    QUERY->add_svar(QUERY, "int", "N", true, &ImGuiKey_N);
+    static t_CKINT ImGuiKey_O = 560;
+    QUERY->add_svar(QUERY, "int", "O", true, &ImGuiKey_O);
+    static t_CKINT ImGuiKey_P = 561;
+    QUERY->add_svar(QUERY, "int", "P", true, &ImGuiKey_P);
+    static t_CKINT ImGuiKey_Q = 562;
+    QUERY->add_svar(QUERY, "int", "Q", true, &ImGuiKey_Q);
+    static t_CKINT ImGuiKey_R = 563;
+    QUERY->add_svar(QUERY, "int", "R", true, &ImGuiKey_R);
+    static t_CKINT ImGuiKey_S = 564;
+    QUERY->add_svar(QUERY, "int", "S", true, &ImGuiKey_S);
+    static t_CKINT ImGuiKey_T = 565;
+    QUERY->add_svar(QUERY, "int", "T", true, &ImGuiKey_T);
+    static t_CKINT ImGuiKey_U = 566;
+    QUERY->add_svar(QUERY, "int", "U", true, &ImGuiKey_U);
+    static t_CKINT ImGuiKey_V = 567;
+    QUERY->add_svar(QUERY, "int", "V", true, &ImGuiKey_V);
+    static t_CKINT ImGuiKey_W = 568;
+    QUERY->add_svar(QUERY, "int", "W", true, &ImGuiKey_W);
+    static t_CKINT ImGuiKey_X = 569;
+    QUERY->add_svar(QUERY, "int", "X", true, &ImGuiKey_X);
+    static t_CKINT ImGuiKey_Y = 570;
+    QUERY->add_svar(QUERY, "int", "Y", true, &ImGuiKey_Y);
+    static t_CKINT ImGuiKey_Z = 571;
+    QUERY->add_svar(QUERY, "int", "Z", true, &ImGuiKey_Z);
+    static t_CKINT ImGuiKey_F1 = 572;
+    QUERY->add_svar(QUERY, "int", "F1", true, &ImGuiKey_F1);
+    static t_CKINT ImGuiKey_F2 = 573;
+    QUERY->add_svar(QUERY, "int", "F2", true, &ImGuiKey_F2);
+    static t_CKINT ImGuiKey_F3 = 574;
+    QUERY->add_svar(QUERY, "int", "F3", true, &ImGuiKey_F3);
+    static t_CKINT ImGuiKey_F4 = 575;
+    QUERY->add_svar(QUERY, "int", "F4", true, &ImGuiKey_F4);
+    static t_CKINT ImGuiKey_F5 = 576;
+    QUERY->add_svar(QUERY, "int", "F5", true, &ImGuiKey_F5);
+    static t_CKINT ImGuiKey_F6 = 577;
+    QUERY->add_svar(QUERY, "int", "F6", true, &ImGuiKey_F6);
+    static t_CKINT ImGuiKey_F7 = 578;
+    QUERY->add_svar(QUERY, "int", "F7", true, &ImGuiKey_F7);
+    static t_CKINT ImGuiKey_F8 = 579;
+    QUERY->add_svar(QUERY, "int", "F8", true, &ImGuiKey_F8);
+    static t_CKINT ImGuiKey_F9 = 580;
+    QUERY->add_svar(QUERY, "int", "F9", true, &ImGuiKey_F9);
+    static t_CKINT ImGuiKey_F10 = 581;
+    QUERY->add_svar(QUERY, "int", "F10", true, &ImGuiKey_F10);
+    static t_CKINT ImGuiKey_F11 = 582;
+    QUERY->add_svar(QUERY, "int", "F11", true, &ImGuiKey_F11);
+    static t_CKINT ImGuiKey_F12 = 583;
+    QUERY->add_svar(QUERY, "int", "F12", true, &ImGuiKey_F12);
+    static t_CKINT ImGuiKey_F13 = 584;
+    QUERY->add_svar(QUERY, "int", "F13", true, &ImGuiKey_F13);
+    static t_CKINT ImGuiKey_F14 = 585;
+    QUERY->add_svar(QUERY, "int", "F14", true, &ImGuiKey_F14);
+    static t_CKINT ImGuiKey_F15 = 586;
+    QUERY->add_svar(QUERY, "int", "F15", true, &ImGuiKey_F15);
+    static t_CKINT ImGuiKey_F16 = 587;
+    QUERY->add_svar(QUERY, "int", "F16", true, &ImGuiKey_F16);
+    static t_CKINT ImGuiKey_F17 = 588;
+    QUERY->add_svar(QUERY, "int", "F17", true, &ImGuiKey_F17);
+    static t_CKINT ImGuiKey_F18 = 589;
+    QUERY->add_svar(QUERY, "int", "F18", true, &ImGuiKey_F18);
+    static t_CKINT ImGuiKey_F19 = 590;
+    QUERY->add_svar(QUERY, "int", "F19", true, &ImGuiKey_F19);
+    static t_CKINT ImGuiKey_F20 = 591;
+    QUERY->add_svar(QUERY, "int", "F20", true, &ImGuiKey_F20);
+    static t_CKINT ImGuiKey_F21 = 592;
+    QUERY->add_svar(QUERY, "int", "F21", true, &ImGuiKey_F21);
+    static t_CKINT ImGuiKey_F22 = 593;
+    QUERY->add_svar(QUERY, "int", "F22", true, &ImGuiKey_F22);
+    static t_CKINT ImGuiKey_F23 = 594;
+    QUERY->add_svar(QUERY, "int", "F23", true, &ImGuiKey_F23);
+    static t_CKINT ImGuiKey_F24 = 595;
+    QUERY->add_svar(QUERY, "int", "F24", true, &ImGuiKey_F24);
+    static t_CKINT ImGuiKey_Apostrophe = 596;
+    QUERY->add_svar(QUERY, "int", "Apostrophe", true, &ImGuiKey_Apostrophe);
+    QUERY->doc_var(QUERY, "'");
+    static t_CKINT ImGuiKey_Comma = 597;
+    QUERY->add_svar(QUERY, "int", "Comma", true, &ImGuiKey_Comma);
+    QUERY->doc_var(QUERY, ",");
+    static t_CKINT ImGuiKey_Minus = 598;
+    QUERY->add_svar(QUERY, "int", "Minus", true, &ImGuiKey_Minus);
+    QUERY->doc_var(QUERY, "-");
+    static t_CKINT ImGuiKey_Period = 599;
+    QUERY->add_svar(QUERY, "int", "Period", true, &ImGuiKey_Period);
+    QUERY->doc_var(QUERY, ".");
+    static t_CKINT ImGuiKey_Slash = 600;
+    QUERY->add_svar(QUERY, "int", "Slash", true, &ImGuiKey_Slash);
+    QUERY->doc_var(QUERY, "/");
+    static t_CKINT ImGuiKey_Semicolon = 601;
+    QUERY->add_svar(QUERY, "int", "Semicolon", true, &ImGuiKey_Semicolon);
+    QUERY->doc_var(QUERY, ";");
+    static t_CKINT ImGuiKey_Equal = 602;
+    QUERY->add_svar(QUERY, "int", "Equal", true, &ImGuiKey_Equal);
+    QUERY->doc_var(QUERY, "=");
+    static t_CKINT ImGuiKey_LeftBracket = 603;
+    QUERY->add_svar(QUERY, "int", "LeftBracket", true, &ImGuiKey_LeftBracket);
+    QUERY->doc_var(QUERY, "[");
+    static t_CKINT ImGuiKey_Backslash = 604;
+    QUERY->add_svar(QUERY, "int", "Backslash", true, &ImGuiKey_Backslash);
+    QUERY->doc_var(
+      QUERY, "\\ (this text inhibit multiline comment caused by backslash)");
+    static t_CKINT ImGuiKey_RightBracket = 605;
+    QUERY->add_svar(QUERY, "int", "RightBracket", true, &ImGuiKey_RightBracket);
+    QUERY->doc_var(QUERY, "]");
+    static t_CKINT ImGuiKey_GraveAccent = 606;
+    QUERY->add_svar(QUERY, "int", "GraveAccent", true, &ImGuiKey_GraveAccent);
+    QUERY->doc_var(QUERY, "`");
+    static t_CKINT ImGuiKey_CapsLock = 607;
+    QUERY->add_svar(QUERY, "int", "CapsLock", true, &ImGuiKey_CapsLock);
+    static t_CKINT ImGuiKey_ScrollLock = 608;
+    QUERY->add_svar(QUERY, "int", "ScrollLock", true, &ImGuiKey_ScrollLock);
+    static t_CKINT ImGuiKey_NumLock = 609;
+    QUERY->add_svar(QUERY, "int", "NumLock", true, &ImGuiKey_NumLock);
+    static t_CKINT ImGuiKey_PrintScreen = 610;
+    QUERY->add_svar(QUERY, "int", "PrintScreen", true, &ImGuiKey_PrintScreen);
+    static t_CKINT ImGuiKey_Pause = 611;
+    QUERY->add_svar(QUERY, "int", "Pause", true, &ImGuiKey_Pause);
+    static t_CKINT ImGuiKey_Keypad0 = 612;
+    QUERY->add_svar(QUERY, "int", "Keypad0", true, &ImGuiKey_Keypad0);
+    static t_CKINT ImGuiKey_Keypad1 = 613;
+    QUERY->add_svar(QUERY, "int", "Keypad1", true, &ImGuiKey_Keypad1);
+    static t_CKINT ImGuiKey_Keypad2 = 614;
+    QUERY->add_svar(QUERY, "int", "Keypad2", true, &ImGuiKey_Keypad2);
+    static t_CKINT ImGuiKey_Keypad3 = 615;
+    QUERY->add_svar(QUERY, "int", "Keypad3", true, &ImGuiKey_Keypad3);
+    static t_CKINT ImGuiKey_Keypad4 = 616;
+    QUERY->add_svar(QUERY, "int", "Keypad4", true, &ImGuiKey_Keypad4);
+    static t_CKINT ImGuiKey_Keypad5 = 617;
+    QUERY->add_svar(QUERY, "int", "Keypad5", true, &ImGuiKey_Keypad5);
+    static t_CKINT ImGuiKey_Keypad6 = 618;
+    QUERY->add_svar(QUERY, "int", "Keypad6", true, &ImGuiKey_Keypad6);
+    static t_CKINT ImGuiKey_Keypad7 = 619;
+    QUERY->add_svar(QUERY, "int", "Keypad7", true, &ImGuiKey_Keypad7);
+    static t_CKINT ImGuiKey_Keypad8 = 620;
+    QUERY->add_svar(QUERY, "int", "Keypad8", true, &ImGuiKey_Keypad8);
+    static t_CKINT ImGuiKey_Keypad9 = 621;
+    QUERY->add_svar(QUERY, "int", "Keypad9", true, &ImGuiKey_Keypad9);
+    static t_CKINT ImGuiKey_KeypadDecimal = 622;
+    QUERY->add_svar(QUERY, "int", "KeypadDecimal", true,
+                    &ImGuiKey_KeypadDecimal);
+    static t_CKINT ImGuiKey_KeypadDivide = 623;
+    QUERY->add_svar(QUERY, "int", "KeypadDivide", true, &ImGuiKey_KeypadDivide);
+    static t_CKINT ImGuiKey_KeypadMultiply = 624;
+    QUERY->add_svar(QUERY, "int", "KeypadMultiply", true,
+                    &ImGuiKey_KeypadMultiply);
+    static t_CKINT ImGuiKey_KeypadSubtract = 625;
+    QUERY->add_svar(QUERY, "int", "KeypadSubtract", true,
+                    &ImGuiKey_KeypadSubtract);
+    static t_CKINT ImGuiKey_KeypadAdd = 626;
+    QUERY->add_svar(QUERY, "int", "KeypadAdd", true, &ImGuiKey_KeypadAdd);
+    static t_CKINT ImGuiKey_KeypadEnter = 627;
+    QUERY->add_svar(QUERY, "int", "KeypadEnter", true, &ImGuiKey_KeypadEnter);
+    static t_CKINT ImGuiKey_KeypadEqual = 628;
+    QUERY->add_svar(QUERY, "int", "KeypadEqual", true, &ImGuiKey_KeypadEqual);
+    static t_CKINT ImGuiKey_AppBack = 629;
+    QUERY->add_svar(QUERY, "int", "AppBack", true, &ImGuiKey_AppBack);
+    QUERY->doc_var(
+      QUERY,
+      "Available on some keyboard/mouses. Often referred as \"Browser Back\"");
+    static t_CKINT ImGuiKey_AppForward = 630;
+    QUERY->add_svar(QUERY, "int", "AppForward", true, &ImGuiKey_AppForward);
+    static t_CKINT ImGuiKey_GamepadStart = 631;
+    QUERY->add_svar(QUERY, "int", "GamepadStart", true, &ImGuiKey_GamepadStart);
+    QUERY->doc_var(QUERY, "Menu (Xbox)      + (Switch)   Start/Options (PS)");
+    static t_CKINT ImGuiKey_GamepadBack = 632;
+    QUERY->add_svar(QUERY, "int", "GamepadBack", true, &ImGuiKey_GamepadBack);
+    QUERY->doc_var(QUERY, "View (Xbox)      - (Switch)   Share (PS)");
+    static t_CKINT ImGuiKey_GamepadFaceLeft = 633;
+    QUERY->add_svar(QUERY, "int", "GamepadFaceLeft", true,
+                    &ImGuiKey_GamepadFaceLeft);
+    QUERY->doc_var(
+      QUERY,
+      "X (Xbox)         Y (Switch)   Square (PS)         Tap: Toggle Menu. "
+      "Hold: Windowing mode (Focus/Move/Resize windows)");
+    static t_CKINT ImGuiKey_GamepadFaceRight = 634;
+    QUERY->add_svar(QUERY, "int", "GamepadFaceRight", true,
+                    &ImGuiKey_GamepadFaceRight);
+    QUERY->doc_var(QUERY,
+                   "B (Xbox)         A (Switch)   Circle (PS)         Cancel / "
+                   "Close / Exit");
+    static t_CKINT ImGuiKey_GamepadFaceUp = 635;
+    QUERY->add_svar(QUERY, "int", "GamepadFaceUp", true,
+                    &ImGuiKey_GamepadFaceUp);
+    QUERY->doc_var(QUERY,
+                   "Y (Xbox)         X (Switch)   Triangle (PS)       Text "
+                   "Input / On-screen Keyboard");
+    static t_CKINT ImGuiKey_GamepadFaceDown = 636;
+    QUERY->add_svar(QUERY, "int", "GamepadFaceDown", true,
+                    &ImGuiKey_GamepadFaceDown);
+    QUERY->doc_var(QUERY,
+                   "A (Xbox)         B (Switch)   Cross (PS)          Activate "
+                   "/ Open / Toggle / Tweak");
+    static t_CKINT ImGuiKey_GamepadDpadLeft = 637;
+    QUERY->add_svar(QUERY, "int", "GamepadDpadLeft", true,
+                    &ImGuiKey_GamepadDpadLeft);
+    QUERY->doc_var(QUERY,
+                   "D-pad Left                                        Move / "
+                   "Tweak / Resize Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadDpadRight = 638;
+    QUERY->add_svar(QUERY, "int", "GamepadDpadRight", true,
+                    &ImGuiKey_GamepadDpadRight);
+    QUERY->doc_var(QUERY,
+                   "D-pad Right                                       Move / "
+                   "Tweak / Resize Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadDpadUp = 639;
+    QUERY->add_svar(QUERY, "int", "GamepadDpadUp", true,
+                    &ImGuiKey_GamepadDpadUp);
+    QUERY->doc_var(QUERY,
+                   "D-pad Up                                          Move / "
+                   "Tweak / Resize Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadDpadDown = 640;
+    QUERY->add_svar(QUERY, "int", "GamepadDpadDown", true,
+                    &ImGuiKey_GamepadDpadDown);
+    QUERY->doc_var(QUERY,
+                   "D-pad Down                                        Move / "
+                   "Tweak / Resize Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadL1 = 641;
+    QUERY->add_svar(QUERY, "int", "GamepadL1", true, &ImGuiKey_GamepadL1);
+    QUERY->doc_var(QUERY,
+                   "L Bumper (Xbox)  L (Switch)   L1 (PS)             Tweak "
+                   "Slower / Focus Previous (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadR1 = 642;
+    QUERY->add_svar(QUERY, "int", "GamepadR1", true, &ImGuiKey_GamepadR1);
+    QUERY->doc_var(QUERY,
+                   "R Bumper (Xbox)  R (Switch)   R1 (PS)             Tweak "
+                   "Faster / Focus Next (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadL2 = 643;
+    QUERY->add_svar(QUERY, "int", "GamepadL2", true, &ImGuiKey_GamepadL2);
+    QUERY->doc_var(QUERY, "L Trig. (Xbox)   ZL (Switch)  L2 (PS) [Analog]");
+    static t_CKINT ImGuiKey_GamepadR2 = 644;
+    QUERY->add_svar(QUERY, "int", "GamepadR2", true, &ImGuiKey_GamepadR2);
+    QUERY->doc_var(QUERY, "R Trig. (Xbox)   ZR (Switch)  R2 (PS) [Analog]");
+    static t_CKINT ImGuiKey_GamepadL3 = 645;
+    QUERY->add_svar(QUERY, "int", "GamepadL3", true, &ImGuiKey_GamepadL3);
+    QUERY->doc_var(QUERY, "L Stick (Xbox)   L3 (Switch)  L3 (PS)");
+    static t_CKINT ImGuiKey_GamepadR3 = 646;
+    QUERY->add_svar(QUERY, "int", "GamepadR3", true, &ImGuiKey_GamepadR3);
+    QUERY->doc_var(QUERY, "R Stick (Xbox)   R3 (Switch)  R3 (PS)");
+    static t_CKINT ImGuiKey_GamepadLStickLeft = 647;
+    QUERY->add_svar(QUERY, "int", "GamepadLStickLeft", true,
+                    &ImGuiKey_GamepadLStickLeft);
+    QUERY->doc_var(QUERY,
+                   "[Analog]                                          Move "
+                   "Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadLStickRight = 648;
+    QUERY->add_svar(QUERY, "int", "GamepadLStickRight", true,
+                    &ImGuiKey_GamepadLStickRight);
+    QUERY->doc_var(QUERY,
+                   "[Analog]                                          Move "
+                   "Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadLStickUp = 649;
+    QUERY->add_svar(QUERY, "int", "GamepadLStickUp", true,
+                    &ImGuiKey_GamepadLStickUp);
+    QUERY->doc_var(QUERY,
+                   "[Analog]                                          Move "
+                   "Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadLStickDown = 650;
+    QUERY->add_svar(QUERY, "int", "GamepadLStickDown", true,
+                    &ImGuiKey_GamepadLStickDown);
+    QUERY->doc_var(QUERY,
+                   "[Analog]                                          Move "
+                   "Window (in Windowing mode)");
+    static t_CKINT ImGuiKey_GamepadRStickLeft = 651;
+    QUERY->add_svar(QUERY, "int", "GamepadRStickLeft", true,
+                    &ImGuiKey_GamepadRStickLeft);
+    QUERY->doc_var(QUERY, "[Analog]");
+    static t_CKINT ImGuiKey_GamepadRStickRight = 652;
+    QUERY->add_svar(QUERY, "int", "GamepadRStickRight", true,
+                    &ImGuiKey_GamepadRStickRight);
+    QUERY->doc_var(QUERY, "[Analog]");
+    static t_CKINT ImGuiKey_GamepadRStickUp = 653;
+    QUERY->add_svar(QUERY, "int", "GamepadRStickUp", true,
+                    &ImGuiKey_GamepadRStickUp);
+    QUERY->doc_var(QUERY, "[Analog]");
+    static t_CKINT ImGuiKey_GamepadRStickDown = 654;
+    QUERY->add_svar(QUERY, "int", "GamepadRStickDown", true,
+                    &ImGuiKey_GamepadRStickDown);
+    QUERY->doc_var(QUERY, "[Analog]");
+    static t_CKINT ImGuiKey_MouseLeft = 655;
+    QUERY->add_svar(QUERY, "int", "MouseLeft", true, &ImGuiKey_MouseLeft);
+    static t_CKINT ImGuiKey_MouseRight = 656;
+    QUERY->add_svar(QUERY, "int", "MouseRight", true, &ImGuiKey_MouseRight);
+    static t_CKINT ImGuiKey_MouseMiddle = 657;
+    QUERY->add_svar(QUERY, "int", "MouseMiddle", true, &ImGuiKey_MouseMiddle);
+    static t_CKINT ImGuiKey_MouseX1 = 658;
+    QUERY->add_svar(QUERY, "int", "MouseX1", true, &ImGuiKey_MouseX1);
+    static t_CKINT ImGuiKey_MouseX2 = 659;
+    QUERY->add_svar(QUERY, "int", "MouseX2", true, &ImGuiKey_MouseX2);
+    static t_CKINT ImGuiKey_MouseWheelX = 660;
+    QUERY->add_svar(QUERY, "int", "MouseWheelX", true, &ImGuiKey_MouseWheelX);
+    static t_CKINT ImGuiKey_MouseWheelY = 661;
+    QUERY->add_svar(QUERY, "int", "MouseWheelY", true, &ImGuiKey_MouseWheelY);
+    static t_CKINT ImGuiMod_None = 0;
+    QUERY->add_svar(QUERY, "int", "Mod_None", true, &ImGuiMod_None);
+    static t_CKINT ImGuiMod_Ctrl = 4096;
+    QUERY->add_svar(QUERY, "int", "Mod_Ctrl", true, &ImGuiMod_Ctrl);
+    QUERY->doc_var(QUERY, "Ctrl (non-macOS), Cmd (macOS)");
+    static t_CKINT ImGuiMod_Shift = 8192;
+    QUERY->add_svar(QUERY, "int", "Mod_Shift", true, &ImGuiMod_Shift);
+    QUERY->doc_var(QUERY, "Shift");
+    static t_CKINT ImGuiMod_Alt = 16384;
+    QUERY->add_svar(QUERY, "int", "Mod_Alt", true, &ImGuiMod_Alt);
+    QUERY->doc_var(QUERY, "Option/Menu");
+    static t_CKINT ImGuiMod_Super = 32768;
+    QUERY->add_svar(QUERY, "int", "Mod_Super", true, &ImGuiMod_Super);
+    QUERY->doc_var(QUERY, "Windows/Super (non-macOS), Ctrl (macOS)");
+    static t_CKINT ImGuiKey_KeysData_SIZE = 154;
+    QUERY->add_svar(QUERY, "int", "KeysData_SIZE", true,
+                    &ImGuiKey_KeysData_SIZE);
+    QUERY->doc_var(QUERY, "Size of KeysData[]: only hold named keys");
+    static t_CKINT ImGuiKey_KeysData_OFFSET = 512;
+    QUERY->add_svar(QUERY, "int", "KeysData_OFFSET", true,
+                    &ImGuiKey_KeysData_OFFSET);
+    QUERY->doc_var(QUERY,
+                   "Accesses to io.KeysData[] must use (key - "
+                   "ImGuiKey_KeysData_OFFSET) index.");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_MouseCursor", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Enumeration for GetMouseCursor().\nUser code may request backend to "
+      "display given cursor by calling SetMouseCursor(), which is why we have "
+      "some cursors that are marked unused here.\n");
+    static t_CKINT ImGuiMouseCursor_None = -1;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiMouseCursor_None);
+    static t_CKINT ImGuiMouseCursor_Arrow = 0;
+    QUERY->add_svar(QUERY, "int", "Arrow", true, &ImGuiMouseCursor_Arrow);
+    static t_CKINT ImGuiMouseCursor_TextInput = 1;
+    QUERY->add_svar(QUERY, "int", "TextInput", true,
+                    &ImGuiMouseCursor_TextInput);
+    QUERY->doc_var(QUERY, "When hovering over InputText, etc.");
+    static t_CKINT ImGuiMouseCursor_ResizeAll = 2;
+    QUERY->add_svar(QUERY, "int", "ResizeAll", true,
+                    &ImGuiMouseCursor_ResizeAll);
+    QUERY->doc_var(QUERY, "(Unused by Dear ImGui functions)");
+    static t_CKINT ImGuiMouseCursor_ResizeNS = 3;
+    QUERY->add_svar(QUERY, "int", "ResizeNS", true, &ImGuiMouseCursor_ResizeNS);
+    QUERY->doc_var(QUERY, "When hovering over a horizontal border");
+    static t_CKINT ImGuiMouseCursor_ResizeEW = 4;
+    QUERY->add_svar(QUERY, "int", "ResizeEW", true, &ImGuiMouseCursor_ResizeEW);
+    QUERY->doc_var(QUERY, "When hovering over a vertical border or a column");
+    static t_CKINT ImGuiMouseCursor_ResizeNESW = 5;
+    QUERY->add_svar(QUERY, "int", "ResizeNESW", true,
+                    &ImGuiMouseCursor_ResizeNESW);
+    QUERY->doc_var(QUERY,
+                   "When hovering over the bottom-left corner of a window");
+    static t_CKINT ImGuiMouseCursor_ResizeNWSE = 6;
+    QUERY->add_svar(QUERY, "int", "ResizeNWSE", true,
+                    &ImGuiMouseCursor_ResizeNWSE);
+    QUERY->doc_var(QUERY,
+                   "When hovering over the bottom-right corner of a window");
+    static t_CKINT ImGuiMouseCursor_Hand = 7;
+    QUERY->add_svar(QUERY, "int", "Hand", true, &ImGuiMouseCursor_Hand);
+    QUERY->doc_var(QUERY,
+                   "(Unused by Dear ImGui functions. Use for e.g. hyperlinks)");
+    static t_CKINT ImGuiMouseCursor_NotAllowed = 8;
+    QUERY->add_svar(QUERY, "int", "NotAllowed", true,
+                    &ImGuiMouseCursor_NotAllowed);
+    QUERY->doc_var(QUERY,
+                   "When hovering something with disallowed interaction. "
+                   "Usually a crossed circle.");
+    static t_CKINT ImGuiMouseCursor_COUNT = 9;
+    QUERY->add_svar(QUERY, "int", "COUNT", true, &ImGuiMouseCursor_COUNT);
+    QUERY->end_class(QUERY);
+
     // Callbacks ----------------------------------------------------------
 
     BEGIN_CLASS("UI_Callback", "Object");
@@ -4215,6 +4726,54 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "BeginTabBar() and before Tab submissions. Otherwise call with a window "
       "name.");
 
+    // Docking -------------------------------------------------------------
+
+    SFUN(ui_DockSpaceOverViewport, "int", "dockSpaceOverViewport");
+    DOC_FUNC("Implied dockspace_id = 0, viewport = NULL, flags = 0");
+
+    // Disabling -------------------------------------------------------------
+
+    SFUN(ui_BeginDisabled, "void", "beginDisabled");
+    ARG("int", "disabled");
+    DOC_FUNC(
+      "Disable all user interactions and dim items visuals (applying "
+      "style.DisabledAlpha over current colors)\n"
+      "Those can be nested but it cannot be used to enable an already disabled "
+      "section (a single BeginDisabled(true) in the stack is enough to keep "
+      "everything disabled)\n"
+      "BeginDisabled(false) essentially does nothing useful but is provided to "
+      "facilitate use of boolean expressions. If you can avoid calling "
+      "BeginDisabled(False)/EndDisabled() best to avoid it.");
+
+    SFUN(ui_EndDisabled, "void", "endDisabled");
+
+    // Clipping --------------------------------------------------------------
+
+    SFUN(ui_PushClipRect, "void", "pushClipRect");
+    ARG("vec2", "clip_rect_min");
+    ARG("vec2", "clip_rect_max");
+    ARG("int", "intersect_with_current_clip_rect");
+    DOC_FUNC(
+      "Mouse hovering is affected by ImGui::PushClipRect() calls, unlike "
+      "direct calls to ImDrawList::PushClipRect() which are render only.");
+
+    SFUN(ui_PopClipRect, "void", "popClipRect");
+
+    // Focus, Activation -----------------------------------------------------
+
+    SFUN(ui_SetItemDefaultFocus, "void", "setItemDefaultFocus");
+    DOC_FUNC("make last item the default focused item of a window.");
+
+    SFUN(ui_SetKeyboardFocusHere, "void", "setKeyboardFocusHere");
+    DOC_FUNC("Implied offset = 0");
+
+    SFUN(ui_SetKeyboardFocusHereEx, "void", "setKeyboardFocusHere");
+    ARG("int", "offset");
+    DOC_FUNC(
+      "focus keyboard on the next widget. Use positive 'offset' to access sub "
+      "components of a multiple component widget. Use -1 to access previous "
+      "widget.");
+
     // Overlapping Mode -------------------------------------------------------
 
     SFUN(ui_SetNextItemAllowOverlap, "void", "nextItemAllowOverlap");
@@ -4310,6 +4869,202 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     SFUN(ui_GetItemRectSize, "vec2", "getItemRectSize");
     DOC_FUNC("get size of last item");
+
+    // Text Utilities ---------------------------------------------------------
+
+    SFUN(ui_CalcTextSize, "vec2", "calcTextSize");
+    ARG("string", "text");
+    DOC_FUNC(
+      "Implied text_end = NULL, hide_text_after_double_hash = false, "
+      "wrap_width = -1.0f");
+
+    SFUN(ui_CalcTextSizeEx, "vec2", "calcTextSize");
+    ARG("string", "text");
+    ARG("string", "text_end");
+    ARG("int", "hide_text_after_double_hash");
+    ARG("float", "wrap_width");
+    DOC_FUNC("default hide_text_after_double_hash = false, wrap_width = -1.0f");
+
+    // Color Utilities --------------------------------------------------------
+
+    SFUN(ui_ColorConvertRGBtoHSV, "vec3", "convertRGBtoHSV");
+    ARG("vec3", "rgb");
+
+    SFUN(ui_ColorConvertHSVtoRGB, "vec3", "convertHSVtoRGB");
+    ARG("vec3", "hsv");
+
+    // Inputs Utilities: Keyboard/Mouse/Gamepad --------------------------------
+
+    SFUN(ui_IsKeyDown, "int", "isKeyDown");
+    ARG("int", "key");
+    DOC_FUNC("is key being held. `key` is an enum of type UI_Key");
+
+    SFUN(ui_IsKeyPressed, "int", "isKeyPressed");
+    ARG("int", "key");
+    DOC_FUNC("Implied repeat = true. `key` is an enum of type UI_Key");
+
+    SFUN(ui_IsKeyPressedEx, "int", "isKeyPressed");
+    ARG("int", "key");
+    ARG("int", "repeat");
+    DOC_FUNC(
+      "was key pressed (went from !Down to Down)? if repeat=true, uses "
+      "io.KeyRepeatDelay / KeyRepeatRate. `key` is an enum of type UI_Key");
+
+    SFUN(ui_IsKeyReleased, "int", "isKeyReleased");
+    ARG("int", "key");
+    DOC_FUNC(
+      "was key released (went from Down to !Down)? `key` is an enum of type "
+      "UI_Key");
+
+    SFUN(ui_IsKeyChordPressed, "int", "isKeyChordPressed");
+    ARG("int", "key_chord");
+    DOC_FUNC(
+      "was key chord (UI_Key.Mod* + UI_Key) pressed, e.g. you can pass "
+      "'UI_Key.Mod_Ctrl | UI_Key.S' as a key-chord. This doesn't do any "
+      "routing or "
+      "focus check, please consider using Shortcut() function instead.");
+
+    SFUN(ui_GetKeyPressedAmount, "int", "keyPressedAmount");
+    ARG("int", "key");
+    ARG("float", "repeat_delay");
+    ARG("float", "rate");
+    DOC_FUNC(
+      "uses provided repeat rate/delay. return a count, most often 0 or 1 but "
+      "might be >1 if "
+      "RepeatRate is small enough that DeltaTime > RepeatRate. `key` is an "
+      "enum of type UI_Key");
+
+    SFUN(ui_GetKeyName, "string", "keyName");
+    ARG("int", "key");
+    DOC_FUNC(
+      "returns English name of the key. Those names a provided for debugging "
+      "purpose and are not meant to be saved persistently not compared.");
+
+    SFUN(ui_SetNextFrameWantCaptureKeyboard, "void",
+         "setNextFrameWantCaptureKeyboard");
+    ARG("int", "want_capture_keyboard");
+    DOC_FUNC(
+      "Override io.WantCaptureKeyboard flag next frame (said flag is left for "
+      "your application to handle, typically when true it instructs your app "
+      "to ignore inputs). e.g. force capture keyboard when your widget is "
+      "being hovered. This is equivalent to setting \"io.WantCaptureKeyboard = "
+      "want_capture_keyboard\"; after the next NewFrame() call.");
+
+    // Inputs Utilities: Mouse specific ---------------------------------------
+
+    SFUN(ui_IsMouseDown, "int", "isMouseDown");
+    ARG("int", "button");
+    DOC_FUNC(
+      "is mouse button held. `button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_IsMouseClicked, "int", "isMouseClicked");
+    ARG("int", "button");
+    DOC_FUNC(
+      "Implied repeat = false. `button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_IsMouseClickedEx, "int", "isMouseClicked");
+    ARG("int", "button");
+    ARG("int", "repeat");
+    DOC_FUNC(
+      "did mouse button clicked? (went from !Down to Down). Same as "
+      "GetMouseClickedCount() == 1. `button` is an enum of type "
+      "UI_MouseButton");
+
+    SFUN(ui_IsMouseReleased, "int", "isMouseReleased");
+    ARG("int", "button");
+    DOC_FUNC(
+      "did mouse button released? (went from Down to !Down). `button` is an "
+      "enum of type UI_MouseButton");
+
+    SFUN(ui_IsMouseDoubleClicked, "int", "isMouseDoubleClicked");
+    ARG("int", "button");
+    DOC_FUNC(
+      "did mouse button double-clicked? Same as GetMouseClickedCount() == 2. "
+      "`button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_GetMouseClickedCount, "int", "getMouseClickedCount");
+    ARG("int", "button");
+    DOC_FUNC(
+      "return the number of successive mouse-clicks at the time where a click "
+      "happen (otherwise 0). `button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_IsMouseHoveringRect, "int", "isMouseHoveringRect");
+    ARG("vec2", "r_min");
+    ARG("vec2", "r_max");
+    DOC_FUNC("Implied clip = true");
+
+    SFUN(ui_IsMouseHoveringRectEx, "int", "isMouseHoveringRect");
+    ARG("vec2", "r_min");
+    ARG("vec2", "r_max");
+    ARG("int", "clip");
+    DOC_FUNC(
+      "is mouse hovering given bounding rect (in screen space). clipped by "
+      "current clipping settings, but disregarding of other consideration of "
+      "focus/window ordering/popup-block.");
+
+    SFUN(ui_IsMousePosValid, "int", "isMousePosValid");
+    // ARG("vec2", "mouse_pos");
+    DOC_FUNC(
+      "by convention we use (-FLT_MAX,-FLT_MAX) to denote that there is no "
+      "mouse available");
+
+    SFUN(ui_GetMousePos, "vec2", "getMousePos");
+    DOC_FUNC(
+      "shortcut to ImGui::GetIO().MousePos provided by user, to be "
+      "consistent with other calls");
+
+    SFUN(ui_GetMousePosOnOpeningCurrentPopup, "vec2",
+         "getMousePosOnOpeningCurrentPopup");
+    DOC_FUNC(
+      "retrieve mouse position at the time of opening popup we have "
+      "BeginPopup() into "
+      "(helper to avoid user backing that value themselves)");
+
+    SFUN(ui_IsMouseDragging, "int", "isMouseDragging");
+    ARG("int", "button");
+    ARG("float", "lock_threshold");
+    DOC_FUNC(
+      "is mouse dragging? (uses io.MouseDraggingThreshold if lock_threshold < "
+      "0.0f). `button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_GetMouseDragDelta, "vec2", "getMouseDragDelta");
+    ARG("int", "button");
+    ARG("float", "lock_threshold");
+    DOC_FUNC(
+      "return the delta from the initial clicking position while the mouse "
+      "button is pressed or was just released. This is locked and return "
+      "0.0f until the mouse moves past a distance threshold at least once "
+      "(uses io.MouseDraggingThreshold if lock_threshold < 0.0f)\n"
+      "`button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_ResetMouseDragDelta, "void", "resetMouseDragDelta");
+    DOC_FUNC("Implied button = 0");
+
+    SFUN(ui_ResetMouseDragDeltaEx, "void", "resetMouseDragDelta");
+    ARG("int", "button");
+    DOC_FUNC("`button` is an enum of type UI_MouseButton");
+
+    SFUN(ui_GetMouseCursor, "int", "mouseCursor");
+    DOC_FUNC(
+      "get desired mouse cursor shape. Important: reset in ImGui::NewFrame(), "
+      "this is updated during the frame. valid before Render(). If you use "
+      "software rendering by setting io.MouseDrawCursor ImGui will render "
+      "those for you");
+
+    SFUN(ui_SetMouseCursor, "void", "setMouseCursor");
+    ARG("int", "cursor_type");
+    DOC_FUNC(
+      "set desired mouse cursor shape. `cursor_type` is an enum of type "
+      "UI_MouseCursor");
+
+    SFUN(ui_SetNextFrameWantCaptureMouse, "void",
+         "setNextFrameWantCaptureMouse");
+    ARG("int", "want_capture_mouse");
+    DOC_FUNC(
+      "Override io.WantCaptureMouse flag next frame (said flag is left for "
+      "your application to handle, typical when true it instucts your app to "
+      "ignore inputs). This is equivalent to setting \"io.WantCaptureMouse = "
+      "want_capture_mouse;\" after the next NewFrame() call.");
 
     // Clipboard Utilities ---------------------------------------------------
 
@@ -6982,6 +7737,70 @@ CK_DLL_SFUN(ui_SetTabItemClosed)
 }
 
 // ============================================================================
+// Docking
+// ============================================================================
+
+CK_DLL_SFUN(ui_DockSpaceOverViewport)
+{
+    RETURN->v_int = cimgui::ImGui_DockSpaceOverViewport();
+}
+
+// ============================================================================
+// Disabling
+// ============================================================================
+
+CK_DLL_SFUN(ui_BeginDisabled)
+{
+    int disabled = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_BeginDisabled(disabled);
+}
+
+CK_DLL_SFUN(ui_EndDisabled)
+{
+    cimgui::ImGui_EndDisabled();
+}
+
+// ============================================================================
+// Clipping
+// ============================================================================
+
+CK_DLL_SFUN(ui_PushClipRect)
+{
+    t_CKVEC2 clip_rect_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 clip_rect_max                = GET_NEXT_VEC2(ARGS);
+    bool intersect_with_current_clip_rect = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_PushClipRect(
+      { (float)clip_rect_min.x, (float)clip_rect_min.y },
+      { (float)clip_rect_max.x, (float)clip_rect_max.y },
+      intersect_with_current_clip_rect);
+}
+
+CK_DLL_SFUN(ui_PopClipRect)
+{
+    cimgui::ImGui_PopClipRect();
+}
+
+// ============================================================================
+// Focus, Activation
+// ============================================================================
+
+CK_DLL_SFUN(ui_SetItemDefaultFocus)
+{
+    cimgui::ImGui_SetItemDefaultFocus();
+}
+
+CK_DLL_SFUN(ui_SetKeyboardFocusHere)
+{
+    cimgui::ImGui_SetKeyboardFocusHere();
+}
+
+CK_DLL_SFUN(ui_SetKeyboardFocusHereEx)
+{
+    int offset = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_SetKeyboardFocusHereEx(offset);
+}
+
+// ============================================================================
 // Overlapping Mode
 // ============================================================================
 
@@ -7087,6 +7906,217 @@ CK_DLL_SFUN(ui_GetItemRectSize)
 {
     cimgui::ImVec2 v = cimgui::ImGui_GetItemRectSize();
     RETURN->v_vec2   = { v.x, v.y };
+}
+
+// ============================================================================
+// Text Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_CalcTextSize)
+{
+    const char* text    = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImVec2 size = cimgui::ImGui_CalcTextSize(text);
+    RETURN->v_vec2      = { size.x, size.y };
+}
+
+CK_DLL_SFUN(ui_CalcTextSizeEx)
+{
+    const char* text                 = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* text_end             = API->object->str(GET_NEXT_STRING(ARGS));
+    bool hide_text_after_double_hash = GET_NEXT_INT(ARGS);
+    float wrap_width                 = GET_NEXT_FLOAT(ARGS);
+    cimgui::ImVec2 size              = cimgui::ImGui_CalcTextSizeEx(
+      text, text_end, hide_text_after_double_hash, wrap_width);
+    RETURN->v_vec2 = { size.x, size.y };
+}
+
+// ============================================================================
+// Color Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_ColorConvertRGBtoHSV)
+{
+    t_CKVEC3 rgb = GET_NEXT_VEC3(ARGS);
+    float h, s, v;
+    cimgui::ImGui_ColorConvertRGBtoHSV((float)rgb.x, (float)rgb.y, (float)rgb.z,
+                                       &h, &s, &v);
+
+    RETURN->v_vec3 = { h, s, v };
+}
+
+CK_DLL_SFUN(ui_ColorConvertHSVtoRGB)
+{
+    t_CKVEC3 hsv = GET_NEXT_VEC3(ARGS);
+    float r, g, b;
+    cimgui::ImGui_ColorConvertHSVtoRGB((float)hsv.x, (float)hsv.y, (float)hsv.z,
+                                       &r, &g, &b);
+
+    RETURN->v_vec3 = { r, g, b };
+}
+
+// ============================================================================
+// Inputs Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_IsKeyDown)
+{
+    RETURN->v_int = cimgui::ImGui_IsKeyDown(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsKeyPressed)
+{
+    RETURN->v_int = cimgui::ImGui_IsKeyPressed(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsKeyPressedEx)
+{
+    int key       = GET_NEXT_INT(ARGS);
+    int repeat    = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsKeyPressedEx(key, repeat);
+}
+
+CK_DLL_SFUN(ui_IsKeyReleased)
+{
+    RETURN->v_int = cimgui::ImGui_IsKeyReleased(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsKeyChordPressed)
+{
+    int keychord  = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsKeyChordPressed(keychord);
+}
+
+CK_DLL_SFUN(ui_GetKeyPressedAmount)
+{
+    int key            = GET_NEXT_INT(ARGS);
+    float repeat_delay = GET_NEXT_FLOAT(ARGS);
+    float rate         = GET_NEXT_FLOAT(ARGS);
+    RETURN->v_int = cimgui::ImGui_GetKeyPressedAmount(key, repeat_delay, rate);
+}
+
+CK_DLL_SFUN(ui_GetKeyName)
+{
+    RETURN->v_string = API->object->create_string(
+      VM, cimgui::ImGui_GetKeyName(GET_NEXT_INT(ARGS)), false);
+}
+
+CK_DLL_SFUN(ui_SetNextFrameWantCaptureKeyboard)
+{
+    cimgui::ImGui_SetNextFrameWantCaptureKeyboard(GET_NEXT_INT(ARGS));
+}
+
+// ============================================================================
+// Mouse Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_IsMouseDown)
+{
+    RETURN->v_int = cimgui::ImGui_IsMouseDown(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsMouseClicked)
+{
+    RETURN->v_int = cimgui::ImGui_IsMouseClicked(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsMouseClickedEx)
+{
+    int button    = GET_NEXT_INT(ARGS);
+    bool repeat   = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsMouseClickedEx(button, repeat);
+}
+
+CK_DLL_SFUN(ui_IsMouseReleased)
+{
+    RETURN->v_int = cimgui::ImGui_IsMouseReleased(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsMouseDoubleClicked)
+{
+    RETURN->v_int = cimgui::ImGui_IsMouseDoubleClicked(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_GetMouseClickedCount)
+{
+    RETURN->v_int = cimgui::ImGui_GetMouseClickedCount(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsMouseHoveringRect)
+{
+    t_CKVEC2 r_min = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 r_max = GET_NEXT_VEC2(ARGS);
+    RETURN->v_int  = cimgui::ImGui_IsMouseHoveringRect(
+      { (float)r_min.x, (float)r_min.y }, { (float)r_max.x, (float)r_max.y });
+}
+
+CK_DLL_SFUN(ui_IsMouseHoveringRectEx)
+{
+    t_CKVEC2 r_min = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 r_max = GET_NEXT_VEC2(ARGS);
+    bool clip      = GET_NEXT_INT(ARGS);
+    RETURN->v_int  = cimgui::ImGui_IsMouseHoveringRectEx(
+      { (float)r_min.x, (float)r_min.y }, { (float)r_max.x, (float)r_max.y },
+      clip);
+}
+
+CK_DLL_SFUN(ui_IsMousePosValid)
+{
+    RETURN->v_int = cimgui::ImGui_IsMousePosValid(NULL);
+}
+
+CK_DLL_SFUN(ui_GetMousePos)
+{
+    cimgui::ImVec2 pos = cimgui::ImGui_GetMousePos();
+    RETURN->v_vec2     = { pos.x, pos.y };
+}
+
+CK_DLL_SFUN(ui_GetMousePosOnOpeningCurrentPopup)
+{
+    cimgui::ImVec2 pos = cimgui::ImGui_GetMousePosOnOpeningCurrentPopup();
+    RETURN->v_vec2     = { pos.x, pos.y };
+}
+
+CK_DLL_SFUN(ui_IsMouseDragging)
+{
+    int button           = GET_NEXT_INT(ARGS);
+    float lock_threshold = GET_NEXT_FLOAT(ARGS);
+    RETURN->v_int = cimgui::ImGui_IsMouseDragging(button, lock_threshold);
+}
+
+CK_DLL_SFUN(ui_GetMouseDragDelta)
+{
+    int button           = GET_NEXT_INT(ARGS);
+    float lock_threshold = GET_NEXT_FLOAT(ARGS);
+    cimgui::ImVec2 delta
+      = cimgui::ImGui_GetMouseDragDelta(button, lock_threshold);
+    RETURN->v_vec2 = { delta.x, delta.y };
+}
+
+CK_DLL_SFUN(ui_ResetMouseDragDelta)
+{
+    cimgui::ImGui_ResetMouseDragDelta();
+}
+
+CK_DLL_SFUN(ui_ResetMouseDragDeltaEx)
+{
+    int button = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_ResetMouseDragDeltaEx(button);
+}
+
+CK_DLL_SFUN(ui_GetMouseCursor)
+{
+    RETURN->v_int = cimgui::ImGui_GetMouseCursor();
+}
+
+CK_DLL_SFUN(ui_SetMouseCursor)
+{
+    int cursor_type = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_SetMouseCursor(cursor_type);
+}
+
+CK_DLL_SFUN(ui_SetNextFrameWantCaptureMouse)
+{
+    cimgui::ImGui_SetNextFrameWantCaptureMouse(GET_NEXT_INT(ARGS));
 }
 
 // ============================================================================
