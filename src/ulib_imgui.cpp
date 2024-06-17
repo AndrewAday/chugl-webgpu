@@ -1,9 +1,6 @@
 // exploratory handwritten binding for dear imgui
 // hopefully can figure out how to generate this automatically
 
-#include <iostream>
-#include <unordered_map>
-
 // Wrap this in a namespace to keep it separate from the C++ API
 namespace cimgui
 {
@@ -20,6 +17,13 @@ namespace cimgui
 CK_DLL_SFUN(ui_ShowDemoWindow);
 CK_DLL_SFUN(ui_ShowMetricsWindow);
 CK_DLL_SFUN(ui_ShowDebugLogWindow);
+CK_DLL_SFUN(ui_showStyleEditor);
+CK_DLL_SFUN(ui_ShowIDStackToolWindowEx);
+CK_DLL_SFUN(ui_ShowAboutWindow);
+CK_DLL_SFUN(ui_ShowStyleSelector);
+CK_DLL_SFUN(ui_ShowFontSelector);
+CK_DLL_SFUN(ui_ShowUserGuide);
+CK_DLL_SFUN(ui_GetVersion);
 
 // Windows
 CK_DLL_SFUN(ui_begin);
@@ -93,6 +97,15 @@ CK_DLL_SFUN(ui_PushTabStop);
 CK_DLL_SFUN(ui_PopTabStop);
 CK_DLL_SFUN(ui_PushButtonRepeat);
 CK_DLL_SFUN(ui_PopButtonRepeat);
+
+// Parameters stacks (current window)
+CK_DLL_SFUN(ui_PushItemWidth);
+CK_DLL_SFUN(ui_PopItemWidth);
+CK_DLL_SFUN(ui_SetNextItemWidth);
+CK_DLL_SFUN(ui_CalcItemWidth);
+CK_DLL_SFUN(ui_PushTextWrapPos);
+CK_DLL_SFUN(ui_PopTextWrapPos);
+
 
 // Style read access
 // - Use the ShowStyleEditor() function to interactively see/edit the colors.
@@ -596,7 +609,6 @@ CK_DLL_SFUN(ui_SetClipboardText);
 CK_DLL_SFUN(ui_styleColorsDark);
 CK_DLL_SFUN(ui_styleColorsLight);
 CK_DLL_SFUN(ui_styleColorsClassic);
-CK_DLL_SFUN(ui_showStyleEditor);
 
 // Callbacks -----------------------------------------------------------------
 
@@ -3161,6 +3173,35 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     "add style selector block (not a window), essentially a "
                     "combo listing the default styles.");
 
+    SFUN(ui_ShowIDStackToolWindowEx, "void", "showIDStackToolWindow");
+    ARG("UI_Bool", "p_open");
+    DOC_FUNC("create Stack Tool window. hover items with mouse to query "
+             "information about the source of their unique ID.");
+
+    SFUN(ui_ShowAboutWindow, "void", "showAboutWindow");
+    ARG("UI_Bool", "p_open");
+    DOC_FUNC("create About window. display Dear ImGui version, credits and "
+             "build/system information.");
+            
+    SFUN(ui_ShowStyleSelector, "int", "showStyleSelector");
+    ARG("string", "label");
+    DOC_FUNC("add style selector block (not a window), essentially a combo "
+             "listing the default styles.");
+
+    SFUN(ui_ShowFontSelector, "void", "showFontSelector");
+    ARG("string", "label");
+    DOC_FUNC("add font selector block (not a window), essentially a combo "
+             "listing the loaded fonts.");
+
+    SFUN(ui_ShowUserGuide, "void", "showUserGuide");
+    DOC_FUNC("add basic help/info block (not a window): how to manipulate ImGui "
+             "as an end-user (mouse/keyboard controls).");
+
+    SFUN(ui_GetVersion, "string", "getVersion");
+    DOC_FUNC("get the compiled version string e.g. \"1.80 WIP\" (essentially "
+             "the value for IMGUI_VERSION from the compiled version of "
+             "imgui.cpp)");
+
     // Windows
     QUERY->add_sfun(QUERY, ui_begin, "int", "begin");
     QUERY->add_arg(QUERY, "string", "name");
@@ -3394,6 +3435,36 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     "the button is held in the current frame.");
 
     QUERY->add_sfun(QUERY, ui_PopButtonRepeat, "void", "popButtonRepeat");
+
+    // Parameters stacks (current window) -----------------------------------
+    SFUN(ui_PushItemWidth, "void", "pushItemWidth");
+    ARG("float", "item_width");
+    DOC_FUNC("push width of items for common large \"item+label\" widgets. "
+             ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
+             "window (so -FLT_MIN always align width to the right side).");
+    
+    SFUN(ui_PopItemWidth, "void", "popItemWidth");
+    DOC_FUNC("pop width of items for common large \"item+label\" widgets.");
+
+    SFUN(ui_SetNextItemWidth, "void", "setNextItemWidth");
+    ARG("float", "item_width");
+    DOC_FUNC("set width of the _next_ common large \"item+label\" widget. "
+             ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
+             "window (so -FLT_MIN always align width to the right side)");
+
+    SFUN(ui_CalcItemWidth, "float", "calcItemWidth");
+    DOC_FUNC("width of item given pushed settings and current cursor position. "
+             "NOT necessarily the width of last item unlike most 'Item' "
+             "functions.");
+        
+    SFUN(ui_PushTextWrapPos, "void", "pushTextWrapPos");
+    ARG("float", "wrap_local_pos_x");
+    DOC_FUNC("push word-wrapping position for Text*() commands. < 0.0f: no "
+             "wrapping; 0.0f: wrap to end of window (or column); > 0.0f: wrap "
+             "at 'wrap_pos_x' position in window local space");
+    
+    SFUN(ui_PopTextWrapPos, "void", "popTextWrapPos");
+    DOC_FUNC("pop word-wrapping position for Text*() commands.");
 
     // Style read access ----------------------------------------------------
     QUERY->add_sfun(QUERY, ui_GetFontSize, "float", "getFontSize");
@@ -5110,6 +5181,43 @@ CK_DLL_SFUN(ui_showStyleEditor)
     cimgui::ImGui_ShowStyleEditor(NULL);
 }
 
+CK_DLL_SFUN(ui_ShowIDStackToolWindowEx)
+{
+    bool* p_open
+      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    cimgui::ImGui_ShowIDStackToolWindowEx(p_open);
+}
+
+CK_DLL_SFUN(ui_ShowAboutWindow)
+{
+    bool* p_open
+      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    cimgui::ImGui_ShowAboutWindow(p_open);
+}
+
+CK_DLL_SFUN(ui_ShowStyleSelector)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int = cimgui::ImGui_ShowStyleSelector(label);
+}
+
+CK_DLL_SFUN(ui_ShowFontSelector)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    cimgui::ImGui_ShowFontSelector(label);
+}
+
+CK_DLL_SFUN(ui_ShowUserGuide)
+{
+    cimgui::ImGui_ShowUserGuide();
+}
+
+CK_DLL_SFUN(ui_GetVersion)
+{
+    RETURN->v_string = API->object->create_string(VM, cimgui::ImGui_GetVersion(), false);
+}
+
+
 // ============================================================================
 // structs
 // ============================================================================
@@ -5734,6 +5842,41 @@ CK_DLL_SFUN(ui_PopButtonRepeat)
 {
     cimgui::ImGui_PopButtonRepeat();
 }
+
+// ============================================================================
+// Parameters stacks (current window)
+// ============================================================================
+
+CK_DLL_SFUN(ui_PushItemWidth)
+{
+    cimgui::ImGui_PushItemWidth((float)GET_NEXT_FLOAT(ARGS));
+}
+
+CK_DLL_SFUN(ui_PopItemWidth)
+{
+    cimgui::ImGui_PopItemWidth();
+}
+
+CK_DLL_SFUN(ui_SetNextItemWidth)
+{
+    cimgui::ImGui_SetNextItemWidth((float)GET_NEXT_FLOAT(ARGS));
+}
+
+CK_DLL_SFUN(ui_CalcItemWidth)
+{
+    RETURN->v_float = cimgui::ImGui_CalcItemWidth();
+}
+
+CK_DLL_SFUN(ui_PushTextWrapPos)
+{
+    cimgui::ImGui_PushTextWrapPos((float)GET_NEXT_FLOAT(ARGS));
+}
+
+CK_DLL_SFUN(ui_PopTextWrapPos)
+{
+    cimgui::ImGui_PopTextWrapPos();
+}
+
 
 // ============================================================================
 // Style read access

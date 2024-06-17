@@ -155,7 +155,7 @@ while (1) {
             // }
             // UI.popButtonRepeat();
 
-            <<< UI.clipboardText() >>>;
+            // <<< UI.clipboardText() >>>;
         }
         UI.showStyleEditor();
 
