@@ -21,6 +21,10 @@
 #define DOC_CLASS(doc) QUERY->doc_class(QUERY, doc)
 #define DOC_VAR(doc) QUERY->doc_var(QUERY, doc)
 
+#define CK_LOG(level, text) g_chuglAPI->vm->em_log(level, text)
+#define CK_THROW(exception, desc, shred)                                       \
+    g_chuglAPI->vm->throw_exception(exception, desc, shred)
+
 // references to VM and API
 Chuck_VM* g_chuglVM  = NULL;
 CK_DL_API g_chuglAPI = NULL;
@@ -75,4 +79,11 @@ Chuck_VM_Shred* chugin_removeFromOriginShredMap(Chuck_Object* ckobj)
     Chuck_VM_Shred* shred = chugin_getOriginShred(ckobj);
     ckobj_2_OriginShred.erase(ckobj);
     return shred;
+}
+
+Chuck_Object* chugin_createCkObj(const char* type_name, bool add_ref,
+                                 Chuck_VM_Shred* shred)
+{
+    Chuck_DL_Api::Type cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
+    return g_chuglAPI->object->create(shred, cktype, add_ref);
 }

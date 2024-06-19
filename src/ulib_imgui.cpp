@@ -13,6 +13,9 @@ namespace cimgui
 // Declarations
 // ============================================================================
 
+// Main
+CK_DLL_SFUN(ui_get_style);
+
 // Demo, Debug, Information
 CK_DLL_SFUN(ui_ShowDemoWindow);
 CK_DLL_SFUN(ui_ShowMetricsWindow);
@@ -33,6 +36,23 @@ CK_DLL_SFUN(ui_end);
 CK_DLL_SFUN(ui_BeginChild);
 CK_DLL_SFUN(ui_BeginChildID);
 CK_DLL_SFUN(ui_EndChild);
+
+// Windows Utilities
+// - 'current window' = the window we are appending into while inside a
+// Begin()/End() block. 'next window' = next window we will Begin() into.
+CK_DLL_SFUN(ui_IsWindowAppearing);
+CK_DLL_SFUN(ui_IsWindowCollapsed);
+CK_DLL_SFUN(ui_IsWindowFocused);
+CK_DLL_SFUN(ui_IsWindowHovered);
+// CK_DLL_SFUN(ui_GetWindowDrawList);
+CK_DLL_SFUN(ui_GetWindowDpiScale);
+CK_DLL_SFUN(ui_GetWindowPos);
+CK_DLL_SFUN(ui_GetWindowSize);
+CK_DLL_SFUN(ui_GetWindowWidth);
+CK_DLL_SFUN(ui_GetWindowHeight);
+CK_DLL_SFUN(ui_GetWindowViewport);
+
+// TODO add dock builder, viewport
 
 // Window manipulation
 CK_DLL_SFUN(ui_SetNextWindowPos);
@@ -105,7 +125,6 @@ CK_DLL_SFUN(ui_SetNextItemWidth);
 CK_DLL_SFUN(ui_CalcItemWidth);
 CK_DLL_SFUN(ui_PushTextWrapPos);
 CK_DLL_SFUN(ui_PopTextWrapPos);
-
 
 // Style read access
 // - Use the ShowStyleEditor() function to interactively see/edit the colors.
@@ -544,6 +563,9 @@ CK_DLL_SFUN(ui_GetItemRectMin);
 CK_DLL_SFUN(ui_GetItemRectMax);
 CK_DLL_SFUN(ui_GetItemRectSize);
 
+// Viewports
+CK_DLL_SFUN(ui_GetMainViewport);
+
 // Text Utilities
 CK_DLL_SFUN(ui_CalcTextSize);
 CK_DLL_SFUN(ui_CalcTextSizeEx);
@@ -722,6 +744,136 @@ CK_DLL_DTOR(ui_float4_dtor);
 CK_DLL_MFUN(ui_float4_get_value);
 CK_DLL_MFUN(ui_float4_set_value);
 
+// UI_Viewport
+static t_CKUINT ui_viewport_ptr_offset = 0;
+CK_DLL_MFUN(ui_viewport_get_id);
+CK_DLL_MFUN(ui_viewport_get_flags);
+CK_DLL_MFUN(ui_viewport_get_pos);
+CK_DLL_MFUN(ui_viewport_get_size);
+CK_DLL_MFUN(ui_viewport_get_work_pos);
+CK_DLL_MFUN(ui_viewport_get_work_size);
+CK_DLL_MFUN(ui_viewport_get_dpi_scale);
+CK_DLL_MFUN(ui_viewport_get_parent_viewport_id);
+// CK_DLL_MFUN(ui_viewport_get_draw_data); TODO drawdata
+CK_DLL_MFUN(ui_viewport_get_center);
+CK_DLL_MFUN(ui_viewport_get_work_center);
+
+// UI_Style
+static t_CKUINT ui_style_ptr_offset = 0;
+CK_DLL_MFUN(ui_style_get_alpha);
+CK_DLL_MFUN(ui_style_get_disabled_alpha);
+CK_DLL_MFUN(ui_style_get_window_padding);
+CK_DLL_MFUN(ui_style_get_window_rounding);
+CK_DLL_MFUN(ui_style_get_window_border_size);
+CK_DLL_MFUN(ui_style_get_window_min_size);
+CK_DLL_MFUN(ui_style_get_window_title_align);
+CK_DLL_MFUN(ui_style_get_window_menu_button_position);
+CK_DLL_MFUN(ui_style_get_child_rounding);
+CK_DLL_MFUN(ui_style_get_child_border_size);
+CK_DLL_MFUN(ui_style_get_popup_rounding);
+CK_DLL_MFUN(ui_style_get_popup_border_size);
+CK_DLL_MFUN(ui_style_get_frame_padding);
+CK_DLL_MFUN(ui_style_get_frame_rounding);
+CK_DLL_MFUN(ui_style_get_frame_border_size);
+CK_DLL_MFUN(ui_style_get_item_spacing);
+CK_DLL_MFUN(ui_style_get_item_inner_spacing);
+CK_DLL_MFUN(ui_style_get_cell_padding);
+CK_DLL_MFUN(ui_style_get_touch_extra_padding);
+CK_DLL_MFUN(ui_style_get_indent_spacing);
+CK_DLL_MFUN(ui_style_get_columns_min_spacing);
+CK_DLL_MFUN(ui_style_get_scrollbar_size);
+CK_DLL_MFUN(ui_style_get_scrollbar_rounding);
+CK_DLL_MFUN(ui_style_get_grab_min_size);
+CK_DLL_MFUN(ui_style_get_grab_rounding);
+CK_DLL_MFUN(ui_style_get_log_slider_deadzone);
+CK_DLL_MFUN(ui_style_get_tab_rounding);
+CK_DLL_MFUN(ui_style_get_tab_border_size);
+CK_DLL_MFUN(ui_style_get_tab_min_width_for_close_button);
+CK_DLL_MFUN(ui_style_get_tab_bar_border_size);
+CK_DLL_MFUN(ui_style_get_table_angled_headers_angle);
+CK_DLL_MFUN(ui_style_get_table_angled_headers_text_align);
+CK_DLL_MFUN(ui_style_get_color_button_position);
+CK_DLL_MFUN(ui_style_get_button_text_align);
+CK_DLL_MFUN(ui_style_get_selectable_text_align);
+CK_DLL_MFUN(ui_style_get_separator_text_border_size);
+CK_DLL_MFUN(ui_style_get_separator_text_align);
+CK_DLL_MFUN(ui_style_get_separator_text_padding);
+CK_DLL_MFUN(ui_style_get_display_window_padding);
+CK_DLL_MFUN(ui_style_get_display_safe_area_padding);
+CK_DLL_MFUN(ui_style_get_docking_separator_size);
+CK_DLL_MFUN(ui_style_get_mouse_cursor_scale);
+CK_DLL_MFUN(ui_style_get_anti_aliased_lines);
+CK_DLL_MFUN(ui_style_get_anti_aliased_lines_use_tex);
+CK_DLL_MFUN(ui_style_get_anti_aliased_fill);
+CK_DLL_MFUN(ui_style_get_curve_tessellation_tol);
+CK_DLL_MFUN(ui_style_get_circle_tessellation_max_error);
+CK_DLL_MFUN(ui_style_get_color);
+CK_DLL_MFUN(ui_style_get_hover_stationary_delay);
+CK_DLL_MFUN(ui_style_get_hover_delay_short);
+CK_DLL_MFUN(ui_style_get_hover_delay_normal);
+CK_DLL_MFUN(ui_style_get_hover_flags_for_tooltip_mouse);
+CK_DLL_MFUN(ui_style_get_hover_flags_for_tooltip_nav);
+
+CK_DLL_MFUN(ui_style_set_alpha);
+CK_DLL_MFUN(ui_style_set_disabled_alpha);
+CK_DLL_MFUN(ui_style_set_window_padding);
+CK_DLL_MFUN(ui_style_set_window_rounding);
+CK_DLL_MFUN(ui_style_set_window_border_size);
+CK_DLL_MFUN(ui_style_set_window_min_size);
+CK_DLL_MFUN(ui_style_set_window_title_align);
+CK_DLL_MFUN(ui_style_set_window_menu_button_position);
+CK_DLL_MFUN(ui_style_set_child_rounding);
+CK_DLL_MFUN(ui_style_set_child_border_size);
+CK_DLL_MFUN(ui_style_set_popup_rounding);
+CK_DLL_MFUN(ui_style_set_popup_border_size);
+CK_DLL_MFUN(ui_style_set_frame_padding);
+CK_DLL_MFUN(ui_style_set_frame_rounding);
+CK_DLL_MFUN(ui_style_set_frame_border_size);
+CK_DLL_MFUN(ui_style_set_item_spacing);
+CK_DLL_MFUN(ui_style_set_item_inner_spacing);
+CK_DLL_MFUN(ui_style_set_cell_padding);
+CK_DLL_MFUN(ui_style_set_touch_extra_padding);
+CK_DLL_MFUN(ui_style_set_indent_spacing);
+CK_DLL_MFUN(ui_style_set_columns_min_spacing);
+CK_DLL_MFUN(ui_style_set_scrollbar_size);
+CK_DLL_MFUN(ui_style_set_scrollbar_rounding);
+CK_DLL_MFUN(ui_style_set_grab_min_size);
+CK_DLL_MFUN(ui_style_set_grab_rounding);
+CK_DLL_MFUN(ui_style_set_log_slider_deadzone);
+CK_DLL_MFUN(ui_style_set_tab_rounding);
+CK_DLL_MFUN(ui_style_set_tab_border_size);
+CK_DLL_MFUN(ui_style_set_tab_min_width_for_close_button);
+CK_DLL_MFUN(ui_style_set_tab_bar_border_size);
+CK_DLL_MFUN(ui_style_set_table_angled_headers_angle);
+CK_DLL_MFUN(ui_style_set_table_angled_headers_text_align);
+CK_DLL_MFUN(ui_style_set_color_button_position);
+CK_DLL_MFUN(ui_style_set_button_text_align);
+CK_DLL_MFUN(ui_style_set_selectable_text_align);
+CK_DLL_MFUN(ui_style_set_separator_text_border_size);
+CK_DLL_MFUN(ui_style_set_separator_text_align);
+CK_DLL_MFUN(ui_style_set_separator_text_padding);
+CK_DLL_MFUN(ui_style_set_display_window_padding);
+CK_DLL_MFUN(ui_style_set_display_safe_area_padding);
+CK_DLL_MFUN(ui_style_set_docking_separator_size);
+CK_DLL_MFUN(ui_style_set_mouse_cursor_scale);
+CK_DLL_MFUN(ui_style_set_anti_aliased_lines);
+CK_DLL_MFUN(ui_style_set_anti_aliased_lines_use_tex);
+CK_DLL_MFUN(ui_style_set_anti_aliased_fill);
+CK_DLL_MFUN(ui_style_set_curve_tessellation_tol);
+CK_DLL_MFUN(ui_style_set_circle_tessellation_max_error);
+CK_DLL_MFUN(ui_style_set_color);
+CK_DLL_MFUN(ui_style_set_hover_stationary_delay);
+CK_DLL_MFUN(ui_style_set_hover_delay_short);
+CK_DLL_MFUN(ui_style_set_hover_delay_normal);
+CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_mouse);
+CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_nav);
+
+// Helpers -------------------------------------------------------------------
+
+// clang-format off
+#define CHUGL_UI_BOOL_PTR(a) a ? (bool*) OBJ_MEMBER_UINT(a, ui_bool_ptr_offset) : NULL
+// clang-format on
+
 void ulib_imgui_query(Chuck_DL_Query* QUERY)
 {
     // UI_Bool ---------------------------------------------------------------
@@ -839,6 +991,519 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_float4_set_value, "vec4", "val");
     ARG("vec4", "val");
     END_CLASS(); // UI_Float4
+
+    // UI_Viewport
+    // ---------------------------------------------------------------
+    BEGIN_CLASS("UI_Viewport", "Object");
+    DOC_CLASS(
+      "Internal class used by ImGui. DO NOT INSTANTIATE DIRECTLY\n"
+      "Currently represents the Platform Window created by the application "
+      "which is hosting our Dear ImGui windows.\n"
+      "With multi-viewport enabled, we extend this concept to have multiple "
+      "active viewports.\n"
+      "In the future we will extend this concept further to also represent "
+      "Platform Monitor and support a 'no main platform window' operation "
+      "mode.\n"
+      "About Main Area vs Work Area:\n"
+      "  - Main Area = entire viewport.\n"
+      "  - Work Area = entire viewport minus sections used by main menu bars "
+      "(for platform windows), or by task bar (for platform monitor).\n"
+      "  - Windows are generally trying to stay within the Work Area of their "
+      "host viewport.\n");
+    ui_viewport_ptr_offset = MVAR("int", "@ui_viewport_ptr", false);
+    MFUN(ui_viewport_get_id, "int", "id");
+    DOC_FUNC("Returns the unique identifier for the viewport.");
+    MFUN(ui_viewport_get_flags, "int", "flags");
+    DOC_FUNC("Returns the UI_ViewportFlags for the viewport.");
+    MFUN(ui_viewport_get_pos, "vec2", "pos");
+    DOC_FUNC(
+      "Main Area: Position of the viewport (Dear ImGui coordinates are the "
+      "same as OS desktop/native coordinates).");
+    MFUN(ui_viewport_get_size, "vec2", "size");
+    DOC_FUNC("Main Area: Size of the viewport.");
+    MFUN(ui_viewport_get_work_pos, "vec2", "workPos");
+    DOC_FUNC(
+      "Work Area: Position of the viewport minus task bars, menus bars, status "
+      "bars (>= Pos).");
+    MFUN(ui_viewport_get_work_size, "vec2", "workSize");
+    DOC_FUNC(
+      "Work Area: Size of the viewport minus task bars, menu bars, status bars "
+      "(<= Size).");
+    MFUN(ui_viewport_get_dpi_scale, "float", "dpiScale");
+    DOC_FUNC("DPI scale: 1.0f = 96 DPI = No extra scale.");
+    MFUN(ui_viewport_get_parent_viewport_id, "int", "parentID");
+    DOC_FUNC(
+      "(Advanced) 0: no parent. Instruct the platform backend to setup a "
+      "parent/child relationship between platform windows.");
+    // MFUN(ui_viewport_get_draw_data, "void*", "drawData");
+    // DOC_FUNC("Draw data to render the viewport.");
+    MFUN(ui_viewport_get_center, "vec2", "center");
+    DOC_FUNC("Main Area: Center position of the viewport.");
+    MFUN(ui_viewport_get_work_center, "vec2", "workCenter");
+    DOC_FUNC("Work Area: Center position of the viewport.");
+    END_CLASS(); // UI_Viewport
+
+    // UI_Style ---------------------------------------------------------------
+    BEGIN_CLASS("UI_Style", "Object");
+    DOC_CLASS(
+      "Internal class. Do not instantiate directly. Use UI.getStyle() "
+      "instead.\n"
+      "You may modify the ImGui::GetStyle() main instance during "
+      "initialization and before NewFrame()."
+      "During the frame, use "
+      "UI.pushStyleVar(UI_StyleVar.XXXX)/popStyleVar() to alter the main "
+      "style values,"
+      "and UI.pushStyleColor(UI_Color.XXX)/popStyleColor() for colors.");
+    ui_style_ptr_offset = MVAR("int", "@ui_style_ptr", false);
+    MFUN(ui_style_get_alpha, "float", "alpha");
+    DOC_FUNC("Global alpha applies to everything in ImGui.");
+
+    MFUN(ui_style_get_disabled_alpha, "float", "disabledAlpha");
+    DOC_FUNC(
+      "Additional alpha multiplier applied by BeginDisabled(). Multiply over "
+      "current value of Alpha.");
+
+    MFUN(ui_style_get_window_padding, "vec2", "windowPadding");
+    DOC_FUNC("Padding within a window.");
+
+    MFUN(ui_style_get_window_rounding, "float", "windowRounding");
+    DOC_FUNC(
+      "Radius of window corners rounding. Set to 0.0f to have rectangular "
+      "windows. Large values tend to lead to variety of artifacts and are not "
+      "recommended.");
+
+    MFUN(ui_style_get_window_border_size, "float", "windowBorderSize");
+    DOC_FUNC(
+      "Thickness of border around windows. Generally set to 0.0f or 1.0f. "
+      "(Other values are not well tested and more CPU/GPU costly).");
+
+    MFUN(ui_style_get_window_min_size, "vec2", "windowMinSize");
+    DOC_FUNC(
+      "Minimum window size. This is a global setting. If you want to "
+      "constrain individual windows, use SetNextWindowSizeConstraints().");
+
+    MFUN(ui_style_get_window_title_align, "vec2", "windowTitleAlign");
+    DOC_FUNC(
+      "Alignment for title bar text. Defaults to (0.0f,0.5f) for "
+      "left-aligned,vertically centered.");
+
+    MFUN(ui_style_get_window_menu_button_position, "int",
+         "windowMenuButtonPosition");
+    DOC_FUNC(
+      "Side of the collapsing/docking button in the title bar "
+      "(None/Left/Right). "
+      "Defaults to UI_Direction.Left.");
+
+    MFUN(ui_style_get_child_rounding, "float", "childRounding");
+    DOC_FUNC(
+      "Radius of child window corners rounding. Set to 0.0f to have "
+      "rectangular "
+      "windows.");
+
+    MFUN(ui_style_get_child_border_size, "float", "childBorderSize");
+    DOC_FUNC(
+      "Thickness of border around child windows. Generally set to 0.0f or "
+      "1.0f. "
+      "(Other values are not well tested and more CPU/GPU costly).");
+
+    MFUN(ui_style_get_popup_rounding, "float", "popupRounding");
+    DOC_FUNC(
+      "Radius of popup window corners rounding. (Note that tooltip windows "
+      "use WindowRounding)");
+
+    MFUN(ui_style_get_popup_border_size, "float", "popupBorderSize");
+    DOC_FUNC(
+      "Thickness of border around popup/tooltip windows. Generally set to 0.0f "
+      "or 1.0f. (Other values are not well tested and more CPU/GPU costly).");
+
+    MFUN(ui_style_get_frame_padding, "vec2", "framePadding");
+    DOC_FUNC("Padding within a framed rectangle (used by most widgets).");
+
+    MFUN(ui_style_get_frame_rounding, "float", "frameRounding");
+    DOC_FUNC(
+      "Radius of frame corners rounding. Set to 0.0f to have rectangular frame "
+      "(used by most widgets).");
+
+    MFUN(ui_style_get_frame_border_size, "float", "frameBorderSize");
+    DOC_FUNC(
+      "Thickness of border around frames. Generally set to 0.0f or 1.0f. "
+      "(Other "
+      "values are not well tested and more CPU/GPU costly).");
+
+    MFUN(ui_style_get_item_spacing, "vec2", "itemSpacing");
+    DOC_FUNC("Horizontal and vertical spacing between widgets/lines.");
+
+    MFUN(ui_style_get_item_inner_spacing, "vec2", "itemInnerSpacing");
+    DOC_FUNC(
+      "Horizontal and vertical spacing between within elements of a composed "
+      "widget (e.g. a slider and its label).");
+
+    MFUN(ui_style_get_cell_padding, "vec2", "cellPadding");
+    DOC_FUNC(
+      "Padding within a table cell. Cellpadding.x is locked for entire "
+      "table. CellPadding.y may be altered between different rows.");
+
+    MFUN(ui_style_get_touch_extra_padding, "vec2", "touchExtraPadding");
+    DOC_FUNC(
+      "Expand reactive bounding box for touch-based system where touch "
+      "position "
+      "is not accurate enough. Unfortunately we don't sort widgets so priority "
+      "on overlap will always be given to the first widget. So don't grow this "
+      "too much!");
+
+    MFUN(ui_style_get_indent_spacing, "float", "indentSpacing");
+    DOC_FUNC(
+      "Horizontal indentation when e.g. entering a tree node. Generally == "
+      "(FontSize + FramePadding.x*2).");
+
+    MFUN(ui_style_get_columns_min_spacing, "float", "columnsMinSpacing");
+    DOC_FUNC(
+      "Minimum horizontal spacing between two columns. Preferably > "
+      "(FramePadding.x + 1).");
+
+    MFUN(ui_style_get_scrollbar_size, "float", "scrollbarSize");
+    DOC_FUNC(
+      "Width of the vertical scrollbar, Height of the horizontal scrollbar.");
+
+    MFUN(ui_style_get_scrollbar_rounding, "float", "scrollbarRounding");
+    DOC_FUNC("Radius of grab corners for scrollbar.");
+
+    MFUN(ui_style_get_grab_min_size, "float", "grabMinSize");
+    DOC_FUNC("Minimum width/height of a grab box for slider/scrollbar.");
+
+    MFUN(ui_style_get_grab_rounding, "float", "grabRounding");
+    DOC_FUNC(
+      "Radius of grabs corners rounding. Set to 0.0f to have rectangular "
+      "slider "
+      "grabs.");
+
+    MFUN(ui_style_get_log_slider_deadzone, "float", "logSliderDeadzone");
+    DOC_FUNC(
+      "The size in pixels of the dead-zone around zero on logarithmic sliders "
+      "that cross zero.");
+
+    MFUN(ui_style_get_tab_rounding, "float", "tabRounding");
+    DOC_FUNC(
+      "Radius of upper corners of a tab. Set to 0.0f to have rectangular "
+      "tabs.");
+
+    MFUN(ui_style_get_tab_border_size, "float", "tabBorderSize");
+    DOC_FUNC("Thickness of border around tabs.");
+
+    MFUN(ui_style_get_tab_min_width_for_close_button, "float",
+         "tabMinWidthForCloseButton");
+    DOC_FUNC(
+      "Minimum width for close button to appear on an unselected tab when "
+      "hovered. Set to 0.0f to always show when hovering, set to FLT_MAX to "
+      "never show close button unless selected.");
+
+    MFUN(ui_style_get_tab_bar_border_size, "float", "tabBarBorderSize");
+    DOC_FUNC(
+      "Thickness of tab-bar separator, which takes on the tab active color to "
+      "denote focus.");
+
+    MFUN(ui_style_get_table_angled_headers_angle, "float",
+         "tableAngledHeadersAngle");
+    DOC_FUNC(
+      "Angle of angled headers (supported values range from -50.0f degrees to "
+      "+50.0f degrees).");
+
+    MFUN(ui_style_get_table_angled_headers_text_align, "vec2",
+         "tableAngledHeadersTextAlign");
+    DOC_FUNC("Alignment of angled headers within the cell");
+
+    MFUN(ui_style_get_color_button_position, "int", "colorButtonPosition");
+    DOC_FUNC(
+      "Side of the color button in the ColorEdit4 widget (left/right). "
+      "Defaults "
+      "to UI_Direction.Right.");
+
+    MFUN(ui_style_get_button_text_align, "vec2", "buttonTextAlign");
+    DOC_FUNC(
+      "Alignment of button text when button is larger than text. Defaults to "
+      "(0.5f, 0.5f) (centered).");
+
+    MFUN(ui_style_get_selectable_text_align, "vec2", "selectableTextAlign");
+    DOC_FUNC(
+      "Alignment of selectable text. Defaults to (0.0f, 0.0f) (top-left "
+      "aligned). "
+      "It's generally important to keep this left-aligned if you want to lay "
+      "multiple items on a same line.");
+
+    MFUN(ui_style_get_separator_text_border_size, "float",
+         "separatorTextBorderSize");
+    DOC_FUNC("Thickkness of border in SeparatorText()");
+
+    MFUN(ui_style_get_separator_text_align, "vec2", "separatorTextAlign");
+    DOC_FUNC(
+      "Alignment of text within the separator. Defaults to (0.0f, 0.5f) (left "
+      "aligned, center).");
+
+    MFUN(ui_style_get_separator_text_padding, "vec2", "separatorTextPadding");
+    DOC_FUNC(
+      "Horizontal offset of text from each edge of the separator + spacing on "
+      "other axis. Generally small values. .y is recommended to be == "
+      "FramePadding.y.");
+
+    MFUN(ui_style_get_display_window_padding, "vec2", "displayWindowPadding");
+    DOC_FUNC(
+      "Window position are clamped to be visible within the display area or "
+      "monitors by at least this amount. Only applies to regular windows.");
+
+    MFUN(ui_style_get_display_safe_area_padding, "vec2",
+         "displaySafeAreaPadding");
+    DOC_FUNC(
+      "If you cannot see the edges of your screen (e.g. on a TV) increase the "
+      "safe area padding. Apply to popups/tooltips as well regular windows. "
+      "NB: "
+      "Prefer configuring your TV sets correctly!");
+
+    MFUN(ui_style_get_docking_separator_size, "float", "dockingSeparatorSize");
+    DOC_FUNC("Thickness of resizing border between docked windows");
+
+    MFUN(ui_style_get_mouse_cursor_scale, "float", "mouseCursorScale");
+    DOC_FUNC(
+      "Scale software rendered mouse cursor (when io.MouseDrawCursor is "
+      "enabled). "
+      "We apply per-monitor DPI scaling over this scale. May be removed "
+      "later.");
+
+    MFUN(ui_style_get_anti_aliased_lines, "int", "antiAliasedLines");
+    DOC_FUNC(
+      "Enable anti-aliased lines/borders. Disable if you are really tight on "
+      "CPU/GPU. Latched at the beginning of the frame (copied to ImDrawList).");
+
+    MFUN(ui_style_get_anti_aliased_lines_use_tex, "int",
+         "antiAliasedLinesUseTex");
+    DOC_FUNC(
+      "Enable anti-aliased lines/borders using textures where possible. "
+      "Require "
+      "backend to render with bilinear filtering (NOT point/nearest "
+      "filtering). "
+      "Latched at the beginning of the frame (copied to ImDrawList).");
+
+    MFUN(ui_style_get_anti_aliased_fill, "int", "antiAliasedFill");
+    DOC_FUNC(
+      "Enable anti-aliased edges around filled shapes (rounded rectangles, "
+      "circles, etc.). Disable if you are really tight on CPU/GPU. Latched at "
+      "the beginning of the frame (copied to ImDrawList).");
+
+    MFUN(ui_style_get_curve_tessellation_tol, "float", "curveTessellationTol");
+    DOC_FUNC(
+      "Tessellation tolerance when using PathBezierCurveTo() without a "
+      "specific "
+      "number of segments. Decrease for highly tessellated curves (higher "
+      "quality, more polygons), increase to reduce quality.");
+
+    MFUN(ui_style_get_circle_tessellation_max_error, "float",
+         "circleTessellationMaxError");
+    DOC_FUNC(
+      "Maximum error (in pixels) allowed when using "
+      "AddCircle()/AddCircleFilled() "
+      "or drawing rounded corner rectangles with no explicit segment count "
+      "specified. Decrease for higher quality but more geometry.");
+
+    MFUN(ui_style_get_color, "vec4", "color");
+    ARG("int", "ui_color_flag");
+    DOC_FUNC("Get the color for a specific UI_Color flag.");
+
+    MFUN(ui_style_get_hover_stationary_delay, "float", "hoverStationaryDelay");
+    DOC_FUNC(
+      "Delay for IsItemHovered(ImGuiHoveredFlags_Stationary). Time required to "
+      "consider mouse stationary.");
+
+    MFUN(ui_style_get_hover_delay_short, "float", "hoverDelayShort");
+    DOC_FUNC(
+      "Delay for IsItemHovered(ImGuiHoveredFlags_DelayShort). Usually used "
+      "along with HoverStationaryDelay.");
+
+    MFUN(ui_style_get_hover_delay_normal, "float", "hoverDelayNormal");
+    DOC_FUNC("Delay for IsItemHovered(ImGuiHoveredFlags_DelayNormal). ");
+
+    MFUN(ui_style_get_hover_flags_for_tooltip_mouse, "int",
+         "hoverFlagsForTooltipMouse");
+    DOC_FUNC(
+      "Default flags when using IsItemHovered(ImGuiHoveredFlags_ForTooltip) or "
+      "BeginItemTooltip()/SetItemTooltip() while using mouse.");
+
+    MFUN(ui_style_get_hover_flags_for_tooltip_nav, "int",
+         "hoverFlagsForTooltipNav");
+    DOC_FUNC(
+      "Default flags when using IsItemHovered(ImGuiHoveredFlags_ForTooltip) or "
+      "BeginItemTooltip()/SetItemTooltip() while using keyboard/gamepad.");
+
+    MFUN(ui_style_set_alpha, "void", "alpha");
+    ARG("float", "alpha");
+
+    MFUN(ui_style_set_disabled_alpha, "void", "disabledAlpha");
+    ARG("float", "disabledAlpha");
+
+    MFUN(ui_style_set_window_padding, "void", "windowPadding");
+    ARG("vec2", "windowPadding");
+
+    MFUN(ui_style_set_window_rounding, "void", "windowRounding");
+    ARG("float", "windowRounding");
+
+    MFUN(ui_style_set_window_border_size, "void", "windowBorderSize");
+    ARG("float", "windowBorderSize");
+
+    MFUN(ui_style_set_window_min_size, "void", "windowMinSize");
+    ARG("vec2", "windowMinSize");
+
+    MFUN(ui_style_set_window_title_align, "void", "windowTitleAlign");
+    ARG("vec2", "windowTitleAlign");
+
+    MFUN(ui_style_set_window_menu_button_position, "void",
+         "windowMenuButtonPosition");
+    ARG("int", "ui_direction");
+    DOC_FUNC("ui_direction is enum UI_Direction");
+
+    MFUN(ui_style_set_child_rounding, "void", "childRounding");
+    ARG("float", "childRounding");
+
+    MFUN(ui_style_set_child_border_size, "void", "childBorderSize");
+    ARG("float", "childBorderSize");
+
+    MFUN(ui_style_set_popup_rounding, "void", "popupRounding");
+    ARG("float", "popupRounding");
+
+    MFUN(ui_style_set_popup_border_size, "void", "popupBorderSize");
+    ARG("float", "popupBorderSize");
+
+    MFUN(ui_style_set_frame_padding, "void", "framePadding");
+    ARG("vec2", "framePadding");
+
+    MFUN(ui_style_set_frame_rounding, "void", "frameRounding");
+    ARG("float", "frameRounding");
+
+    MFUN(ui_style_set_frame_border_size, "void", "frameBorderSize");
+    ARG("float", "frameBorderSize");
+
+    MFUN(ui_style_set_item_spacing, "void", "itemSpacing");
+    ARG("vec2", "itemSpacing");
+
+    MFUN(ui_style_set_item_inner_spacing, "void", "itemInnerSpacing");
+    ARG("vec2", "itemInnerSpacing");
+
+    MFUN(ui_style_set_cell_padding, "void", "cellPadding");
+    ARG("vec2", "cellPadding");
+
+    MFUN(ui_style_set_touch_extra_padding, "void", "touchExtraPadding");
+    ARG("vec2", "touchExtraPadding");
+
+    MFUN(ui_style_set_indent_spacing, "void", "indentSpacing");
+    ARG("float", "indentSpacing");
+
+    MFUN(ui_style_set_columns_min_spacing, "void", "columnsMinSpacing");
+    ARG("float", "columnsMinSpacing");
+
+    MFUN(ui_style_set_scrollbar_size, "void", "scrollbarSize");
+    ARG("float", "scrollbarSize");
+
+    MFUN(ui_style_set_scrollbar_rounding, "void", "scrollbarRounding");
+    ARG("float", "scrollbarRounding");
+
+    MFUN(ui_style_set_grab_min_size, "void", "grabMinSize");
+    ARG("float", "grabMinSize");
+
+    MFUN(ui_style_set_grab_rounding, "void", "grabRounding");
+    ARG("float", "grabRounding");
+
+    MFUN(ui_style_set_log_slider_deadzone, "void", "logSliderDeadzone");
+    ARG("float", "logSliderDeadzone");
+
+    MFUN(ui_style_set_tab_rounding, "void", "tabRounding");
+    ARG("float", "tabRounding");
+
+    MFUN(ui_style_set_tab_border_size, "void", "tabBorderSize");
+    ARG("float", "tabBorderSize");
+
+    MFUN(ui_style_set_tab_min_width_for_close_button, "void",
+         "tabMinWidthForCloseButton");
+    ARG("float", "tabMinWidthForCloseButton");
+
+    MFUN(ui_style_set_tab_bar_border_size, "void", "tabBarBorderSize");
+    ARG("float", "tabBarBorderSize");
+
+    MFUN(ui_style_set_table_angled_headers_angle, "void",
+         "tableAngledHeadersAngle");
+    ARG("float", "tableAngledHeadersAngle");
+
+    MFUN(ui_style_set_table_angled_headers_text_align, "void",
+         "tableAngledHeadersTextAlign");
+    ARG("vec2", "tableAngledHeadersTextAlign");
+
+    MFUN(ui_style_set_color_button_position, "void", "colorButtonPosition");
+    ARG("int", "ui_direction");
+
+    MFUN(ui_style_set_button_text_align, "void", "buttonTextAlign");
+    ARG("vec2", "buttonTextAlign");
+
+    MFUN(ui_style_set_selectable_text_align, "void", "selectableTextAlign");
+    ARG("vec2", "selectableTextAlign");
+
+    MFUN(ui_style_set_separator_text_border_size, "void",
+         "separatorTextBorderSize");
+    ARG("float", "separatorTextBorderSize");
+
+    MFUN(ui_style_set_separator_text_align, "void", "separatorTextAlign");
+    ARG("vec2", "separatorTextAlign");
+
+    MFUN(ui_style_set_separator_text_padding, "void", "separatorTextPadding");
+    ARG("vec2", "separatorTextPadding");
+
+    MFUN(ui_style_set_display_window_padding, "void", "displayWindowPadding");
+    ARG("vec2", "displayWindowPadding");
+
+    MFUN(ui_style_set_display_safe_area_padding, "void",
+         "displaySafeAreaPadding");
+    ARG("vec2", "displaySafeAreaPadding");
+
+    MFUN(ui_style_set_docking_separator_size, "void", "dockingSeparatorSize");
+    ARG("float", "dockingSeparatorSize");
+
+    MFUN(ui_style_set_mouse_cursor_scale, "void", "mouseCursorScale");
+    ARG("float", "mouseCursorScale");
+
+    MFUN(ui_style_set_anti_aliased_lines, "void", "antiAliasedLines");
+    ARG("int", "antiAliasedLines");
+
+    MFUN(ui_style_set_anti_aliased_lines_use_tex, "void",
+         "antiAliasedLinesUseTex");
+    ARG("int", "antiAliasedLinesUseTex");
+
+    MFUN(ui_style_set_anti_aliased_fill, "void", "antiAliasedFill");
+    ARG("int", "antiAliasedFill");
+
+    MFUN(ui_style_set_curve_tessellation_tol, "void", "curveTessellationTol");
+    ARG("float", "curveTessellationTol");
+
+    MFUN(ui_style_set_circle_tessellation_max_error, "void",
+         "circleTessellationMaxError");
+    ARG("float", "circleTessellationMaxError");
+
+    MFUN(ui_style_set_color, "void", "color");
+    ARG("int", "ui_color_flag");
+    ARG("vec4", "color");
+
+    MFUN(ui_style_set_hover_stationary_delay, "void", "hoverStationaryDelay");
+    ARG("float", "hoverStationaryDelay");
+
+    MFUN(ui_style_set_hover_delay_short, "void", "hoverDelayShort");
+    ARG("float", "hoverDelayShort");
+
+    MFUN(ui_style_set_hover_delay_normal, "void", "hoverDelayNormal");
+    ARG("float", "hoverDelayNormal");
+
+    MFUN(ui_style_set_hover_flags_for_tooltip_mouse, "void",
+         "hoverFlagsForTooltipMouse");
+    ARG("int", "hoverFlagsForTooltipMouse");
+
+    MFUN(ui_style_set_hover_flags_for_tooltip_nav, "void",
+         "hoverFlagsForTooltipNav");
+    ARG("int", "hoverFlagsForTooltipNav");
+
+    END_CLASS(); // UI_Style
 
     // enums
     QUERY->begin_class(QUERY, "UI_WindowFlags", "Object");
@@ -2456,141 +3121,6 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->doc_var(QUERY, "Add scroll buttons when tabs don't fit");
     QUERY->end_class(QUERY);
 
-    QUERY->begin_class(QUERY, "UI_HoveredFlags", "Object");
-    QUERY->doc_class(
-      QUERY,
-      "Flags for ImGui::IsItemHovered(), ImGui::IsWindowHovered().\nNote: if "
-      "you are trying to check whether your mouse should be dispatched to Dear "
-      "ImGui or to your app, you should use 'io.WantCaptureMouse' instead! "
-      "Please read the FAQ!.\nNote: windows with the ImGuiWindowFlags_NoInputs "
-      "flag are ignored by IsWindowHovered() calls..\n");
-    static t_CKINT ImGuiHoveredFlags_None = 0;
-    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiHoveredFlags_None);
-    QUERY->doc_var(QUERY,
-                   "Return true if directly over the item/window, not "
-                   "obstructed by another window, not obstructed by an active "
-                   "popup or modal blocking inputs under them.");
-    static t_CKINT ImGuiHoveredFlags_ChildWindows = 1;
-    QUERY->add_svar(QUERY, "int", "ChildWindows", true,
-                    &ImGuiHoveredFlags_ChildWindows);
-    QUERY->doc_var(QUERY,
-                   "IsWindowHovered() only: Return true if any children of the "
-                   "window is hovered");
-    static t_CKINT ImGuiHoveredFlags_RootWindow = 2;
-    QUERY->add_svar(QUERY, "int", "RootWindow", true,
-                    &ImGuiHoveredFlags_RootWindow);
-    QUERY->doc_var(QUERY,
-                   "IsWindowHovered() only: Test from root window (top most "
-                   "parent of the current hierarchy)");
-    static t_CKINT ImGuiHoveredFlags_AnyWindow = 4;
-    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
-                    &ImGuiHoveredFlags_AnyWindow);
-    QUERY->doc_var(
-      QUERY, "IsWindowHovered() only: Return true if any window is hovered");
-    static t_CKINT ImGuiHoveredFlags_NoPopupHierarchy = 8;
-    QUERY->add_svar(QUERY, "int", "NoPopupHierarchy", true,
-                    &ImGuiHoveredFlags_NoPopupHierarchy);
-    QUERY->doc_var(QUERY,
-                   "IsWindowHovered() only: Do not consider popup hierarchy "
-                   "(do not treat popup emitter as parent of popup) (when used "
-                   "with _ChildWindows or _RootWindow)");
-    static t_CKINT ImGuiHoveredFlags_DockHierarchy = 16;
-    QUERY->add_svar(QUERY, "int", "DockHierarchy", true,
-                    &ImGuiHoveredFlags_DockHierarchy);
-    QUERY->doc_var(QUERY,
-                   "IsWindowHovered() only: Consider docking hierarchy (treat "
-                   "dockspace host as parent of docked window) (when used with "
-                   "_ChildWindows or _RootWindow)");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByPopup = 32;
-    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByPopup", true,
-                    &ImGuiHoveredFlags_AllowWhenBlockedByPopup);
-    QUERY->doc_var(QUERY,
-                   "Return true even if a popup window is normally blocking "
-                   "access to this item/window");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByActiveItem = 128;
-    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByActiveItem", true,
-                    &ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    QUERY->doc_var(QUERY,
-                   "Return true even if an active item is blocking access to "
-                   "this item/window. Useful for Drag and Drop patterns.");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByItem = 256;
-    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByItem", true,
-                    &ImGuiHoveredFlags_AllowWhenOverlappedByItem);
-    QUERY->doc_var(
-      QUERY,
-      "IsItemHovered() only: Return true even if the item uses AllowOverlap "
-      "mode and is overlapped by another hoverable item.");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByWindow = 512;
-    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByWindow", true,
-                    &ImGuiHoveredFlags_AllowWhenOverlappedByWindow);
-    QUERY->doc_var(QUERY,
-                   "IsItemHovered() only: Return true even if the position is "
-                   "obstructed or overlapped by another window.");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenDisabled = 1024;
-    QUERY->add_svar(QUERY, "int", "AllowWhenDisabled", true,
-                    &ImGuiHoveredFlags_AllowWhenDisabled);
-    QUERY->doc_var(
-      QUERY, "IsItemHovered() only: Return true even if the item is disabled");
-    static t_CKINT ImGuiHoveredFlags_NoNavOverride = 2048;
-    QUERY->add_svar(QUERY, "int", "NoNavOverride", true,
-                    &ImGuiHoveredFlags_NoNavOverride);
-    QUERY->doc_var(QUERY,
-                   "IsItemHovered() only: Disable using gamepad/keyboard "
-                   "navigation state when active, always query mouse");
-    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlapped = 768;
-    QUERY->add_svar(QUERY, "int", "AllowWhenOverlapped", true,
-                    &ImGuiHoveredFlags_AllowWhenOverlapped);
-    static t_CKINT ImGuiHoveredFlags_RectOnly = 928;
-    QUERY->add_svar(QUERY, "int", "RectOnly", true,
-                    &ImGuiHoveredFlags_RectOnly);
-    static t_CKINT ImGuiHoveredFlags_RootAndChildWindows = 3;
-    QUERY->add_svar(QUERY, "int", "RootAndChildWindows", true,
-                    &ImGuiHoveredFlags_RootAndChildWindows);
-    static t_CKINT ImGuiHoveredFlags_ForTooltip = 4096;
-    QUERY->add_svar(QUERY, "int", "ForTooltip", true,
-                    &ImGuiHoveredFlags_ForTooltip);
-    QUERY->doc_var(QUERY,
-                   "Shortcut for standard flags when using IsItemHovered() + "
-                   "SetTooltip() sequence.");
-    static t_CKINT ImGuiHoveredFlags_Stationary = 8192;
-    QUERY->add_svar(QUERY, "int", "Stationary", true,
-                    &ImGuiHoveredFlags_Stationary);
-    QUERY->doc_var(
-      QUERY,
-      "Require mouse to be stationary for style.HoverStationaryDelay (~0.15 "
-      "sec) _at least one time_. After this, can move on same item/window. "
-      "Using the stationary test tends to reduces the need for a long delay.");
-    static t_CKINT ImGuiHoveredFlags_DelayNone = 16384;
-    QUERY->add_svar(QUERY, "int", "DelayNone", true,
-                    &ImGuiHoveredFlags_DelayNone);
-    QUERY->doc_var(QUERY,
-                   "IsItemHovered() only: Return true immediately (default). "
-                   "As this is the default you generally ignore this.");
-    static t_CKINT ImGuiHoveredFlags_DelayShort = 32768;
-    QUERY->add_svar(QUERY, "int", "DelayShort", true,
-                    &ImGuiHoveredFlags_DelayShort);
-    QUERY->doc_var(
-      QUERY,
-      "IsItemHovered() only: Return true after style.HoverDelayShort elapsed "
-      "(~0.15 sec) (shared between items) + requires mouse to be stationary "
-      "for style.HoverStationaryDelay (once per item).");
-    static t_CKINT ImGuiHoveredFlags_DelayNormal = 65536;
-    QUERY->add_svar(QUERY, "int", "DelayNormal", true,
-                    &ImGuiHoveredFlags_DelayNormal);
-    QUERY->doc_var(
-      QUERY,
-      "IsItemHovered() only: Return true after style.HoverDelayNormal elapsed "
-      "(~0.40 sec) (shared between items) + requires mouse to be stationary "
-      "for style.HoverStationaryDelay (once per item).");
-    static t_CKINT ImGuiHoveredFlags_NoSharedDelay = 131072;
-    QUERY->add_svar(QUERY, "int", "NoSharedDelay", true,
-                    &ImGuiHoveredFlags_NoSharedDelay);
-    QUERY->doc_var(QUERY,
-                   "IsItemHovered() only: Disable shared delay system where "
-                   "moving from one item to the next keeps the previous timer "
-                   "for a short time (standard for tooltips with long delays)");
-    QUERY->end_class(QUERY);
-
     QUERY->begin_class(QUERY, "UI_MouseButton", "Object");
     QUERY->doc_class(QUERY,
                      "Identify a mouse button..\nThose values are guaranteed "
@@ -3085,6 +3615,332 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "COUNT", true, &ImGuiMouseCursor_COUNT);
     QUERY->end_class(QUERY);
 
+    QUERY->begin_class(QUERY, "UI_ViewportFlags", "Object");
+    QUERY->doc_class(QUERY,
+                     "Flags stored in ImGuiViewport::Flags, giving indications "
+                     "to the platform backends..\n");
+    static t_CKINT ImGuiViewportFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiViewportFlags_None);
+    static t_CKINT ImGuiViewportFlags_IsPlatformWindow = 1;
+    QUERY->add_svar(QUERY, "int", "IsPlatformWindow", true,
+                    &ImGuiViewportFlags_IsPlatformWindow);
+    QUERY->doc_var(QUERY, "Represent a Platform Window");
+    static t_CKINT ImGuiViewportFlags_IsPlatformMonitor = 2;
+    QUERY->add_svar(QUERY, "int", "IsPlatformMonitor", true,
+                    &ImGuiViewportFlags_IsPlatformMonitor);
+    QUERY->doc_var(QUERY, "Represent a Platform Monitor (unused yet)");
+    static t_CKINT ImGuiViewportFlags_OwnedByApp = 4;
+    QUERY->add_svar(QUERY, "int", "OwnedByApp", true,
+                    &ImGuiViewportFlags_OwnedByApp);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Was created/managed by the user "
+                   "application? (rather than our backend)");
+    static t_CKINT ImGuiViewportFlags_NoDecoration = 8;
+    QUERY->add_svar(QUERY, "int", "NoDecoration", true,
+                    &ImGuiViewportFlags_NoDecoration);
+    QUERY->doc_var(
+      QUERY,
+      "Platform Window: Disable platform decorations: title bar, borders, etc. "
+      "(generally set all windows, but if ImGuiConfigFlags_ViewportsDecoration "
+      "is set we only set this on popups/tooltips)");
+    static t_CKINT ImGuiViewportFlags_NoTaskBarIcon = 16;
+    QUERY->add_svar(QUERY, "int", "NoTaskBarIcon", true,
+                    &ImGuiViewportFlags_NoTaskBarIcon);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Disable platform task bar icon (generally "
+                   "set on popups/tooltips, or all windows if "
+                   "ImGuiConfigFlags_ViewportsNoTaskBarIcon is set)");
+    static t_CKINT ImGuiViewportFlags_NoFocusOnAppearing = 32;
+    QUERY->add_svar(QUERY, "int", "NoFocusOnAppearing", true,
+                    &ImGuiViewportFlags_NoFocusOnAppearing);
+    QUERY->doc_var(QUERY, "Platform Window: Don't take focus when created.");
+    static t_CKINT ImGuiViewportFlags_NoFocusOnClick = 64;
+    QUERY->add_svar(QUERY, "int", "NoFocusOnClick", true,
+                    &ImGuiViewportFlags_NoFocusOnClick);
+    QUERY->doc_var(QUERY, "Platform Window: Don't take focus when clicked on.");
+    static t_CKINT ImGuiViewportFlags_NoInputs = 128;
+    QUERY->add_svar(QUERY, "int", "NoInputs", true,
+                    &ImGuiViewportFlags_NoInputs);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Make mouse pass through so we can drag "
+                   "this window while peaking behind it.");
+    static t_CKINT ImGuiViewportFlags_NoRendererClear = 256;
+    QUERY->add_svar(QUERY, "int", "NoRendererClear", true,
+                    &ImGuiViewportFlags_NoRendererClear);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Renderer doesn't need to clear the "
+                   "framebuffer ahead (because we will fill it entirely).");
+    static t_CKINT ImGuiViewportFlags_NoAutoMerge = 512;
+    QUERY->add_svar(QUERY, "int", "NoAutoMerge", true,
+                    &ImGuiViewportFlags_NoAutoMerge);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Avoid merging this window into another "
+                   "host window. This can only be set via ImGuiWindowClass "
+                   "viewport flags override (because we need to now ahead if "
+                   "we are going to create a viewport in the first place!).");
+    static t_CKINT ImGuiViewportFlags_TopMost = 1024;
+    QUERY->add_svar(QUERY, "int", "TopMost", true, &ImGuiViewportFlags_TopMost);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Display on top (for tooltips only).");
+    static t_CKINT ImGuiViewportFlags_CanHostOtherWindows = 2048;
+    QUERY->add_svar(QUERY, "int", "CanHostOtherWindows", true,
+                    &ImGuiViewportFlags_CanHostOtherWindows);
+    QUERY->doc_var(
+      QUERY,
+      "Viewport can host multiple imgui windows (secondary viewports are "
+      "associated to a single window).  FIXME: In practice there's still "
+      "probably code making the assumption that this is always and only on the "
+      "MainViewport. Will fix once we add support for \"no main viewport\".");
+    static t_CKINT ImGuiViewportFlags_IsMinimized = 4096;
+    QUERY->add_svar(QUERY, "int", "IsMinimized", true,
+                    &ImGuiViewportFlags_IsMinimized);
+    QUERY->doc_var(
+      QUERY,
+      "Platform Window: Window is minimized, can skip render. When minimized "
+      "we tend to avoid using the viewport pos/size for clipping window or "
+      "testing if they are contained in the viewport.");
+    static t_CKINT ImGuiViewportFlags_IsFocused = 8192;
+    QUERY->add_svar(QUERY, "int", "IsFocused", true,
+                    &ImGuiViewportFlags_IsFocused);
+    QUERY->doc_var(QUERY,
+                   "Platform Window: Window is focused (last call to "
+                   "Platform_GetWindowFocus() returned true)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_FocusedFlags", "Object");
+    QUERY->doc_class(QUERY, "Flags for ImGui::IsWindowFocused().\n");
+    static t_CKINT ImGuiFocusedFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiFocusedFlags_None);
+    static t_CKINT ImGuiFocusedFlags_ChildWindows = 1;
+    QUERY->add_svar(QUERY, "int", "ChildWindows", true,
+                    &ImGuiFocusedFlags_ChildWindows);
+    QUERY->doc_var(QUERY,
+                   "Return true if any children of the window is focused");
+    static t_CKINT ImGuiFocusedFlags_RootWindow = 2;
+    QUERY->add_svar(QUERY, "int", "RootWindow", true,
+                    &ImGuiFocusedFlags_RootWindow);
+    QUERY->doc_var(
+      QUERY,
+      "Test from root window (top most parent of the current hierarchy)");
+    static t_CKINT ImGuiFocusedFlags_AnyWindow = 4;
+    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
+                    &ImGuiFocusedFlags_AnyWindow);
+    QUERY->doc_var(
+      QUERY,
+      "Return true if any window is focused. Important: If you are trying to "
+      "tell how to dispatch your low-level inputs, do NOT use this. Use "
+      "'io.WantCaptureMouse' instead! Please read the FAQ!");
+    static t_CKINT ImGuiFocusedFlags_NoPopupHierarchy = 8;
+    QUERY->add_svar(QUERY, "int", "NoPopupHierarchy", true,
+                    &ImGuiFocusedFlags_NoPopupHierarchy);
+    QUERY->doc_var(
+      QUERY,
+      "Do not consider popup hierarchy (do not treat popup emitter as parent "
+      "of popup) (when used with _ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiFocusedFlags_DockHierarchy = 16;
+    QUERY->add_svar(QUERY, "int", "DockHierarchy", true,
+                    &ImGuiFocusedFlags_DockHierarchy);
+    QUERY->doc_var(
+      QUERY,
+      "Consider docking hierarchy (treat dockspace host as parent of docked "
+      "window) (when used with _ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiFocusedFlags_RootAndChildWindows = 3;
+    QUERY->add_svar(QUERY, "int", "RootAndChildWindows", true,
+                    &ImGuiFocusedFlags_RootAndChildWindows);
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_HoveredFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImGui::IsItemHovered(), ImGui::IsWindowHovered().\nNote: if "
+      "you are trying to check whether your mouse should be dispatched to Dear "
+      "ImGui or to your app, you should use 'io.WantCaptureMouse' instead! "
+      "Please read the FAQ!.\nNote: windows with the ImGuiWindowFlags_NoInputs "
+      "flag are ignored by IsWindowHovered() calls..\n");
+    static t_CKINT ImGuiHoveredFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiHoveredFlags_None);
+    QUERY->doc_var(QUERY,
+                   "Return true if directly over the item/window, not "
+                   "obstructed by another window, not obstructed by an active "
+                   "popup or modal blocking inputs under them.");
+    static t_CKINT ImGuiHoveredFlags_ChildWindows = 1;
+    QUERY->add_svar(QUERY, "int", "ChildWindows", true,
+                    &ImGuiHoveredFlags_ChildWindows);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Return true if any children of the "
+                   "window is hovered");
+    static t_CKINT ImGuiHoveredFlags_RootWindow = 2;
+    QUERY->add_svar(QUERY, "int", "RootWindow", true,
+                    &ImGuiHoveredFlags_RootWindow);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Test from root window (top most "
+                   "parent of the current hierarchy)");
+    static t_CKINT ImGuiHoveredFlags_AnyWindow = 4;
+    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
+                    &ImGuiHoveredFlags_AnyWindow);
+    QUERY->doc_var(
+      QUERY, "IsWindowHovered() only: Return true if any window is hovered");
+    static t_CKINT ImGuiHoveredFlags_NoPopupHierarchy = 8;
+    QUERY->add_svar(QUERY, "int", "NoPopupHierarchy", true,
+                    &ImGuiHoveredFlags_NoPopupHierarchy);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Do not consider popup hierarchy "
+                   "(do not treat popup emitter as parent of popup) (when used "
+                   "with _ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiHoveredFlags_DockHierarchy = 16;
+    QUERY->add_svar(QUERY, "int", "DockHierarchy", true,
+                    &ImGuiHoveredFlags_DockHierarchy);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Consider docking hierarchy (treat "
+                   "dockspace host as parent of docked window) (when used with "
+                   "_ChildWindows or _RootWindow)");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByPopup = 32;
+    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByPopup", true,
+                    &ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+    QUERY->doc_var(QUERY,
+                   "Return true even if a popup window is normally blocking "
+                   "access to this item/window");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenBlockedByActiveItem = 128;
+    QUERY->add_svar(QUERY, "int", "AllowWhenBlockedByActiveItem", true,
+                    &ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    QUERY->doc_var(QUERY,
+                   "Return true even if an active item is blocking access to "
+                   "this item/window. Useful for Drag and Drop patterns.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByItem = 256;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByItem", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlappedByItem);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true even if the item uses AllowOverlap "
+      "mode and is overlapped by another hoverable item.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlappedByWindow = 512;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlappedByWindow", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlappedByWindow);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Return true even if the position is "
+                   "obstructed or overlapped by another window.");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenDisabled = 1024;
+    QUERY->add_svar(QUERY, "int", "AllowWhenDisabled", true,
+                    &ImGuiHoveredFlags_AllowWhenDisabled);
+    QUERY->doc_var(
+      QUERY, "IsItemHovered() only: Return true even if the item is disabled");
+    static t_CKINT ImGuiHoveredFlags_NoNavOverride = 2048;
+    QUERY->add_svar(QUERY, "int", "NoNavOverride", true,
+                    &ImGuiHoveredFlags_NoNavOverride);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Disable using gamepad/keyboard "
+                   "navigation state when active, always query mouse");
+    static t_CKINT ImGuiHoveredFlags_AllowWhenOverlapped = 768;
+    QUERY->add_svar(QUERY, "int", "AllowWhenOverlapped", true,
+                    &ImGuiHoveredFlags_AllowWhenOverlapped);
+    static t_CKINT ImGuiHoveredFlags_RectOnly = 928;
+    QUERY->add_svar(QUERY, "int", "RectOnly", true,
+                    &ImGuiHoveredFlags_RectOnly);
+    static t_CKINT ImGuiHoveredFlags_RootAndChildWindows = 3;
+    QUERY->add_svar(QUERY, "int", "RootAndChildWindows", true,
+                    &ImGuiHoveredFlags_RootAndChildWindows);
+    static t_CKINT ImGuiHoveredFlags_ForTooltip = 4096;
+    QUERY->add_svar(QUERY, "int", "ForTooltip", true,
+                    &ImGuiHoveredFlags_ForTooltip);
+    QUERY->doc_var(QUERY,
+                   "Shortcut for standard flags when using IsItemHovered() + "
+                   "SetTooltip() sequence.");
+    static t_CKINT ImGuiHoveredFlags_Stationary = 8192;
+    QUERY->add_svar(QUERY, "int", "Stationary", true,
+                    &ImGuiHoveredFlags_Stationary);
+    QUERY->doc_var(
+      QUERY,
+      "Require mouse to be stationary for style.HoverStationaryDelay (~0.15 "
+      "sec) _at least one time_. After this, can move on same item/window. "
+      "Using the stationary test tends to reduces the need for a long delay.");
+    static t_CKINT ImGuiHoveredFlags_DelayNone = 16384;
+    QUERY->add_svar(QUERY, "int", "DelayNone", true,
+                    &ImGuiHoveredFlags_DelayNone);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Return true immediately (default). "
+                   "As this is the default you generally ignore this.");
+    static t_CKINT ImGuiHoveredFlags_DelayShort = 32768;
+    QUERY->add_svar(QUERY, "int", "DelayShort", true,
+                    &ImGuiHoveredFlags_DelayShort);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true after style.HoverDelayShort elapsed "
+      "(~0.15 sec) (shared between items) + requires mouse to be stationary "
+      "for style.HoverStationaryDelay (once per item).");
+    static t_CKINT ImGuiHoveredFlags_DelayNormal = 65536;
+    QUERY->add_svar(QUERY, "int", "DelayNormal", true,
+                    &ImGuiHoveredFlags_DelayNormal);
+    QUERY->doc_var(
+      QUERY,
+      "IsItemHovered() only: Return true after style.HoverDelayNormal elapsed "
+      "(~0.40 sec) (shared between items) + requires mouse to be stationary "
+      "for style.HoverStationaryDelay (once per item).");
+    static t_CKINT ImGuiHoveredFlags_NoSharedDelay = 131072;
+    QUERY->add_svar(QUERY, "int", "NoSharedDelay", true,
+                    &ImGuiHoveredFlags_NoSharedDelay);
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Disable shared delay system where "
+                   "moving from one item to the next keeps the previous timer "
+                   "for a short time (standard for tooltips with long delays)");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_DockNodeFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImGui::DockSpace(), shared/inherited by child nodes..\n(Some "
+      "flags can be applied to individual nodes directly).\nFIXME-DOCK: Also "
+      "see ImGuiDockNodeFlagsPrivate_ which may involve using the WIP and "
+      "internal DockBuilder api..\n");
+    static t_CKINT ImGuiDockNodeFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImGuiDockNodeFlags_None);
+    static t_CKINT ImGuiDockNodeFlags_KeepAliveOnly = 1;
+    QUERY->add_svar(QUERY, "int", "KeepAliveOnly", true,
+                    &ImGuiDockNodeFlags_KeepAliveOnly);
+    QUERY->doc_var(
+      QUERY,
+      "Don't display the dockspace node but keep it alive. Windows docked into "
+      "this dockspace node won't be undocked.");
+    static t_CKINT ImGuiDockNodeFlags_NoDockingOverCentralNode = 4;
+    QUERY->add_svar(QUERY, "int", "NoDockingOverCentralNode", true,
+                    &ImGuiDockNodeFlags_NoDockingOverCentralNode);
+    QUERY->doc_var(QUERY,
+                   "Disable docking over the Central Node, which will be "
+                   "always kept empty.");
+    static t_CKINT ImGuiDockNodeFlags_PassthruCentralNode = 8;
+    QUERY->add_svar(QUERY, "int", "PassthruCentralNode", true,
+                    &ImGuiDockNodeFlags_PassthruCentralNode);
+    QUERY->doc_var(
+      QUERY,
+      "Enable passthru dockspace: 1) DockSpace() will render a "
+      "ImGuiCol_WindowBg background covering everything excepted the Central "
+      "Node when empty. Meaning the host window should probably use "
+      "SetNextWindowBgAlpha(0.0f) prior to Begin() when using this. 2) When "
+      "Central Node is empty: let inputs pass-through + won't display a "
+      "DockingEmptyBg background. See demo for details.");
+    static t_CKINT ImGuiDockNodeFlags_NoDockingSplit = 16;
+    QUERY->add_svar(QUERY, "int", "NoDockingSplit", true,
+                    &ImGuiDockNodeFlags_NoDockingSplit);
+    QUERY->doc_var(QUERY,
+                   "Disable other windows/nodes from splitting this node.");
+    static t_CKINT ImGuiDockNodeFlags_NoResize = 32;
+    QUERY->add_svar(QUERY, "int", "NoResize", true,
+                    &ImGuiDockNodeFlags_NoResize);
+    QUERY->doc_var(
+      QUERY,
+      "Saved  Disable resizing node using the splitter/separators. Useful with "
+      "programmatically setup dockspaces.");
+    static t_CKINT ImGuiDockNodeFlags_AutoHideTabBar = 64;
+    QUERY->add_svar(QUERY, "int", "AutoHideTabBar", true,
+                    &ImGuiDockNodeFlags_AutoHideTabBar);
+    QUERY->doc_var(QUERY,
+                   "Tab bar will automatically hide when there is a single "
+                   "window in the dock node.");
+    static t_CKINT ImGuiDockNodeFlags_NoUndocking = 128;
+    QUERY->add_svar(QUERY, "int", "NoUndocking", true,
+                    &ImGuiDockNodeFlags_NoUndocking);
+    QUERY->doc_var(QUERY, "Disable undocking this node.");
+    QUERY->end_class(QUERY);
+
     // Callbacks ----------------------------------------------------------
 
     BEGIN_CLASS("UI_Callback", "Object");
@@ -3150,6 +4006,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // UI ---------------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI", "Object");
 
+    // Main
+    SFUN(ui_get_style, "UI_Style", "getStyle");
+    DOC_FUNC(
+      "access the Style structure (colors, sizes). Always use "
+      "PushStyleColor(), PushStyleVar() to modify style mid-frame!");
+
     // Demo, Debug, Information
     QUERY->add_sfun(QUERY, ui_ShowDemoWindow, "void", "showDemoWindow");
     QUERY->add_arg(QUERY, "UI_Bool", "p_open");
@@ -3175,32 +4037,38 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     SFUN(ui_ShowIDStackToolWindowEx, "void", "showIDStackToolWindow");
     ARG("UI_Bool", "p_open");
-    DOC_FUNC("create Stack Tool window. hover items with mouse to query "
-             "information about the source of their unique ID.");
+    DOC_FUNC(
+      "create Stack Tool window. hover items with mouse to query "
+      "information about the source of their unique ID.");
 
     SFUN(ui_ShowAboutWindow, "void", "showAboutWindow");
     ARG("UI_Bool", "p_open");
-    DOC_FUNC("create About window. display Dear ImGui version, credits and "
-             "build/system information.");
-            
+    DOC_FUNC(
+      "create About window. display Dear ImGui version, credits and "
+      "build/system information.");
+
     SFUN(ui_ShowStyleSelector, "int", "showStyleSelector");
     ARG("string", "label");
-    DOC_FUNC("add style selector block (not a window), essentially a combo "
-             "listing the default styles.");
+    DOC_FUNC(
+      "add style selector block (not a window), essentially a combo "
+      "listing the default styles.");
 
     SFUN(ui_ShowFontSelector, "void", "showFontSelector");
     ARG("string", "label");
-    DOC_FUNC("add font selector block (not a window), essentially a combo "
-             "listing the loaded fonts.");
+    DOC_FUNC(
+      "add font selector block (not a window), essentially a combo "
+      "listing the loaded fonts.");
 
     SFUN(ui_ShowUserGuide, "void", "showUserGuide");
-    DOC_FUNC("add basic help/info block (not a window): how to manipulate ImGui "
-             "as an end-user (mouse/keyboard controls).");
+    DOC_FUNC(
+      "add basic help/info block (not a window): how to manipulate ImGui "
+      "as an end-user (mouse/keyboard controls).");
 
     SFUN(ui_GetVersion, "string", "getVersion");
-    DOC_FUNC("get the compiled version string e.g. \"1.80 WIP\" (essentially "
-             "the value for IMGUI_VERSION from the compiled version of "
-             "imgui.cpp)");
+    DOC_FUNC(
+      "get the compiled version string e.g. \"1.80 WIP\" (essentially "
+      "the value for IMGUI_VERSION from the compiled version of "
+      "imgui.cpp)");
 
     // Windows
     QUERY->add_sfun(QUERY, ui_begin, "int", "begin");
@@ -3216,8 +4084,66 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "vec2", "size");        // map ImVec2 --> vec2
     QUERY->add_arg(QUERY, "int", "child_flags");  // ImGuiChildFlags
     QUERY->add_arg(QUERY, "int", "window_flags"); // ImGuiWindowFlags
+    DOC_FUNC(
+      "Manual sizing (each axis can use a different setting e.g. ImVec2(0.0f, "
+      "400.0f)):\n"
+      "  == 0.0f: use remaining parent window size for this axis.\n"
+      "  > 0.0f: use specified size for this axis.\n"
+      "  < 0.0f: right/bottom-align to specified distance from available "
+      "content boundaries.\n"
+      "Specifying UI_ChildFlags.AutoResizeX or UI_ChildFlags.AutoResizeY"
+      "makes the sizing automatic based on child contents.\n"
+      "Combining both UI_ChildFlags.AutoResizeX _and_ "
+      "UI_ChildFlags.AutoResizeY defeats purpose of a scrolling region and is "
+      "NOT recommended.\n"
+      "BeginChild() returns false to indicate the window is collapsed or fully "
+      "clipped, so you may early out and omit submitting anything to the "
+      "window. Always call a matching EndChild() for each BeginChild() call, "
+      "regardless of its return value.");
 
     QUERY->add_sfun(QUERY, ui_EndChild, "void", "endChild");
+
+    // Windows utilities
+    SFUN(ui_IsWindowAppearing, "int", "isWindowAppearing");
+
+    SFUN(ui_IsWindowCollapsed, "int", "isWindowCollapsed");
+
+    SFUN(ui_IsWindowFocused, "int", "isWindowFocused");
+    ARG("int", "ui_focused_flags");
+    DOC_FUNC(
+      "is current window focused? or its root/child, depending on flags. "
+      "flags are of type UI_FocusedFlags.");
+
+    SFUN(ui_IsWindowHovered, "int", "isWindowHovered");
+    ARG("int", "ui_hovered_flags");
+    DOC_FUNC(
+      "is current window hovered and hoverable (e.g. not blocked by a "
+      "popup/modal)? flags are of type UI_HoveredFlags.");
+
+    SFUN(ui_GetWindowDpiScale, "float", "getWindowDpiScale");
+    DOC_FUNC(
+      "get DPI scale currently associated to the current window's viewport.");
+
+    SFUN(ui_GetWindowPos, "vec2", "getWindowPos");
+    DOC_FUNC(
+      "get current window position in screen space (note: it is unlikely you "
+      "need to use this. Consider using current layout pos instead, "
+      "GetCursorScreenPos())");
+
+    SFUN(ui_GetWindowSize, "vec2", "getWindowSize");
+    DOC_FUNC(
+      "get current window size (note: it is unlikely you need to use this. "
+      "Consider using GetCursorScreenPos() and e.g. GetContentRegionAvail() "
+      "instead)");
+
+    SFUN(ui_GetWindowWidth, "float", "getWindowWidth");
+    DOC_FUNC("get current window width (shortcut for GetWindowSize().x)");
+
+    SFUN(ui_GetWindowHeight, "float", "getWindowHeight");
+    DOC_FUNC("get current window height (shortcut for GetWindowSize().y)");
+
+    SFUN(ui_GetWindowViewport, "UI_Viewport", "getWindowViewport");
+    DOC_FUNC("get viewport currently associated to the current window.");
 
     // Window manipulation
     QUERY->add_sfun(QUERY, ui_SetNextWindowPos, "void", "setNextWindowPos");
@@ -3439,30 +4365,34 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // Parameters stacks (current window) -----------------------------------
     SFUN(ui_PushItemWidth, "void", "pushItemWidth");
     ARG("float", "item_width");
-    DOC_FUNC("push width of items for common large \"item+label\" widgets. "
-             ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
-             "window (so -FLT_MIN always align width to the right side).");
-    
+    DOC_FUNC(
+      "push width of items for common large \"item+label\" widgets. "
+      ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
+      "window (so -FLT_MIN always align width to the right side).");
+
     SFUN(ui_PopItemWidth, "void", "popItemWidth");
     DOC_FUNC("pop width of items for common large \"item+label\" widgets.");
 
     SFUN(ui_SetNextItemWidth, "void", "setNextItemWidth");
     ARG("float", "item_width");
-    DOC_FUNC("set width of the _next_ common large \"item+label\" widget. "
-             ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
-             "window (so -FLT_MIN always align width to the right side)");
+    DOC_FUNC(
+      "set width of the _next_ common large \"item+label\" widget. "
+      ">0.0f: width in pixels, <0.0f align xx pixels to the right of "
+      "window (so -FLT_MIN always align width to the right side)");
 
     SFUN(ui_CalcItemWidth, "float", "calcItemWidth");
-    DOC_FUNC("width of item given pushed settings and current cursor position. "
-             "NOT necessarily the width of last item unlike most 'Item' "
-             "functions.");
-        
+    DOC_FUNC(
+      "width of item given pushed settings and current cursor position. "
+      "NOT necessarily the width of last item unlike most 'Item' "
+      "functions.");
+
     SFUN(ui_PushTextWrapPos, "void", "pushTextWrapPos");
     ARG("float", "wrap_local_pos_x");
-    DOC_FUNC("push word-wrapping position for Text*() commands. < 0.0f: no "
-             "wrapping; 0.0f: wrap to end of window (or column); > 0.0f: wrap "
-             "at 'wrap_pos_x' position in window local space");
-    
+    DOC_FUNC(
+      "push word-wrapping position for Text*() commands. < 0.0f: no "
+      "wrapping; 0.0f: wrap to end of window (or column); > 0.0f: wrap "
+      "at 'wrap_pos_x' position in window local space");
+
     SFUN(ui_PopTextWrapPos, "void", "popTextWrapPos");
     DOC_FUNC("pop word-wrapping position for Text*() commands.");
 
@@ -3526,9 +4456,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     "cursor position in window coordinates (relative to window "
                     "position)");
 
-    QUERY->add_sfun(QUERY, ui_GetCursorPosX, "vec2", "getCursorPosX");
+    QUERY->add_sfun(QUERY, ui_GetCursorPosX, "float", "getCursorPosX");
 
-    QUERY->add_sfun(QUERY, ui_GetCursorPosY, "vec2", "getCursorPosY");
+    QUERY->add_sfun(QUERY, ui_GetCursorPosY, "float", "getCursorPosY");
 
     QUERY->add_sfun(QUERY, ui_SetCursorPos, "void", "setCursorPos");
     QUERY->add_arg(QUERY, "vec2", "local_pos");
@@ -4941,6 +5871,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_GetItemRectSize, "vec2", "getItemRectSize");
     DOC_FUNC("get size of last item");
 
+    // Viewports ------------------------------------------------------------
+
+    SFUN(ui_GetMainViewport, "UI_Viewport", "getMainViewport");
+    DOC_FUNC("Return primary/default viewport. This can never be NULL.");
+
     // Text Utilities ---------------------------------------------------------
 
     SFUN(ui_CalcTextSize, "vec2", "calcTextSize");
@@ -5153,26 +6088,38 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 }
 
 // ============================================================================
+// Main
+// ============================================================================
+
+CK_DLL_SFUN(ui_get_style)
+{
+    Chuck_Object* style_obj = chugin_createCkObj("UI_Style", false, SHRED);
+    OBJ_MEMBER_UINT(style_obj, ui_style_ptr_offset)
+      = (t_CKUINT)cimgui::ImGui_GetStyle();
+    RETURN->v_object = style_obj;
+}
+
+// ============================================================================
 // Demo, Debug, Information
 // ============================================================================
 CK_DLL_SFUN(ui_ShowDemoWindow)
 {
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    Chuck_Object* ck_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ck_obj);
     cimgui::ImGui_ShowDemoWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowMetricsWindow)
 {
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
     cimgui::ImGui_ShowMetricsWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowDebugLogWindow)
 {
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
     cimgui::ImGui_ShowDebugLogWindow(p_open);
 }
 
@@ -5183,22 +6130,22 @@ CK_DLL_SFUN(ui_showStyleEditor)
 
 CK_DLL_SFUN(ui_ShowIDStackToolWindowEx)
 {
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
     cimgui::ImGui_ShowIDStackToolWindowEx(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowAboutWindow)
 {
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
+    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
     cimgui::ImGui_ShowAboutWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowStyleSelector)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-    RETURN->v_int = cimgui::ImGui_ShowStyleSelector(label);
+    RETURN->v_int     = cimgui::ImGui_ShowStyleSelector(label);
 }
 
 CK_DLL_SFUN(ui_ShowFontSelector)
@@ -5214,9 +6161,9 @@ CK_DLL_SFUN(ui_ShowUserGuide)
 
 CK_DLL_SFUN(ui_GetVersion)
 {
-    RETURN->v_string = API->object->create_string(VM, cimgui::ImGui_GetVersion(), false);
+    RETURN->v_string
+      = API->object->create_string(VM, cimgui::ImGui_GetVersion(), false);
 }
-
 
 // ============================================================================
 // structs
@@ -5472,18 +6419,6 @@ CK_DLL_MFUN(ui_float_set_value)
     RETURN->v_float = *f;
 }
 
-CK_DLL_SFUN(ui_begin)
-{
-    const char* name      = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
-    bool* p_open
-      = ui_bool ? (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset) : NULL;
-    int flags = GET_NEXT_INT(ARGS);
-
-    bool ret      = cimgui::ImGui_Begin(name, p_open, flags);
-    RETURN->v_int = ret;
-}
-
 // UI_Float2 -----------------------------------------------------------------
 
 CK_DLL_CTOR(ui_float2_ctor)
@@ -5577,6 +6512,884 @@ CK_DLL_MFUN(ui_float4_set_value)
     RETURN->v_vec4 = v;
 }
 
+// ============================================================================
+// UI_Vieport
+// ============================================================================
+
+CK_DLL_MFUN(ui_viewport_get_id)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_int = vp->ID;
+}
+
+CK_DLL_MFUN(ui_viewport_get_flags)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_int = vp->Flags;
+}
+
+CK_DLL_MFUN(ui_viewport_get_pos)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_vec2 = { vp->Pos.x, vp->Pos.y };
+}
+
+CK_DLL_MFUN(ui_viewport_get_size)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_vec2 = { vp->Size.x, vp->Size.y };
+}
+
+CK_DLL_MFUN(ui_viewport_get_work_pos)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_vec2 = { vp->WorkPos.x, vp->WorkPos.y };
+}
+
+CK_DLL_MFUN(ui_viewport_get_work_size)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_vec2 = { vp->WorkSize.x, vp->WorkSize.y };
+}
+
+CK_DLL_MFUN(ui_viewport_get_dpi_scale)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_float = vp->DpiScale;
+}
+
+CK_DLL_MFUN(ui_viewport_get_parent_viewport_id)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    RETURN->v_int = vp->ParentViewportId;
+}
+
+CK_DLL_MFUN(ui_viewport_get_center)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    cimgui::ImVec2 center = cimgui::ImGuiViewport_GetCenter(vp);
+    RETURN->v_vec2        = { center.x, center.y };
+}
+
+CK_DLL_MFUN(ui_viewport_get_work_center)
+{
+    cimgui::ImGuiViewport* vp
+      = (cimgui::ImGuiViewport*)OBJ_MEMBER_UINT(SELF, ui_viewport_ptr_offset);
+    cimgui::ImVec2 center = cimgui::ImGuiViewport_GetWorkCenter(vp);
+    RETURN->v_vec2        = { center.x, center.y };
+}
+
+// ============================================================================
+// UI_Style
+// ============================================================================
+
+CK_DLL_MFUN(ui_style_get_alpha)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->Alpha;
+}
+
+CK_DLL_MFUN(ui_style_get_disabled_alpha)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->DisabledAlpha;
+}
+
+CK_DLL_MFUN(ui_style_get_window_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->WindowPadding.x, style->WindowPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_window_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->WindowRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_window_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->WindowBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_window_min_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->WindowMinSize.x, style->WindowMinSize.y };
+}
+
+CK_DLL_MFUN(ui_style_get_window_title_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->WindowTitleAlign.x, style->WindowTitleAlign.y };
+}
+
+CK_DLL_MFUN(ui_style_get_window_menu_button_position)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->WindowMenuButtonPosition;
+}
+
+CK_DLL_MFUN(ui_style_get_child_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->ChildRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_child_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->ChildBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_popup_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->PopupRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_popup_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->PopupBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_frame_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->FramePadding.x, style->FramePadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_frame_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->FrameRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_frame_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->FrameBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_item_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->ItemSpacing.x, style->ItemSpacing.y };
+}
+
+CK_DLL_MFUN(ui_style_get_item_inner_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->ItemInnerSpacing.x, style->ItemInnerSpacing.y };
+}
+
+CK_DLL_MFUN(ui_style_get_cell_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->CellPadding.x, style->CellPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_touch_extra_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->TouchExtraPadding.x, style->TouchExtraPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_indent_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->IndentSpacing;
+}
+
+CK_DLL_MFUN(ui_style_get_columns_min_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->ColumnsMinSpacing;
+}
+
+CK_DLL_MFUN(ui_style_get_scrollbar_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->ScrollbarSize;
+}
+
+CK_DLL_MFUN(ui_style_get_scrollbar_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->ScrollbarRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_grab_min_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->GrabMinSize;
+}
+
+CK_DLL_MFUN(ui_style_get_grab_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->GrabRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_log_slider_deadzone)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->LogSliderDeadzone;
+}
+
+CK_DLL_MFUN(ui_style_get_tab_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->TabRounding;
+}
+
+CK_DLL_MFUN(ui_style_get_tab_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->TabBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_tab_min_width_for_close_button)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->TabMinWidthForCloseButton;
+}
+
+CK_DLL_MFUN(ui_style_get_tab_bar_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->TabBarBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_table_angled_headers_angle)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->TableAngledHeadersAngle;
+}
+
+CK_DLL_MFUN(ui_style_get_table_angled_headers_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->TableAngledHeadersTextAlign.x,
+                       style->TableAngledHeadersTextAlign.y };
+}
+
+CK_DLL_MFUN(ui_style_get_color_button_position)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->ColorButtonPosition;
+}
+
+CK_DLL_MFUN(ui_style_get_button_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2 = { style->ButtonTextAlign.x, style->ButtonTextAlign.y };
+}
+
+CK_DLL_MFUN(ui_style_get_selectable_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2
+      = { style->SelectableTextAlign.x, style->SelectableTextAlign.y };
+}
+
+CK_DLL_MFUN(ui_style_get_separator_text_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->SeparatorTextBorderSize;
+}
+
+CK_DLL_MFUN(ui_style_get_separator_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2
+      = { style->SeparatorTextAlign.x, style->SeparatorTextAlign.y };
+}
+
+CK_DLL_MFUN(ui_style_get_separator_text_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2
+      = { style->SeparatorTextPadding.x, style->SeparatorTextPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_display_window_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2
+      = { style->DisplayWindowPadding.x, style->DisplayWindowPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_display_safe_area_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_vec2
+      = { style->DisplaySafeAreaPadding.x, style->DisplaySafeAreaPadding.y };
+}
+
+CK_DLL_MFUN(ui_style_get_docking_separator_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->DockingSeparatorSize;
+}
+
+CK_DLL_MFUN(ui_style_get_mouse_cursor_scale)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->MouseCursorScale;
+}
+
+CK_DLL_MFUN(ui_style_get_anti_aliased_lines)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->AntiAliasedLines;
+}
+
+CK_DLL_MFUN(ui_style_get_anti_aliased_lines_use_tex)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->AntiAliasedLinesUseTex;
+}
+
+CK_DLL_MFUN(ui_style_get_anti_aliased_fill)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->AntiAliasedFill;
+}
+
+CK_DLL_MFUN(ui_style_get_curve_tessellation_tol)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->CurveTessellationTol;
+}
+
+CK_DLL_MFUN(ui_style_get_circle_tessellation_max_error)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->CircleTessellationMaxError;
+}
+
+CK_DLL_MFUN(ui_style_get_color)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    int idx        = GET_NEXT_INT(ARGS);
+    RETURN->v_vec4 = { style->Colors[idx].x, style->Colors[idx].y,
+                       style->Colors[idx].z, style->Colors[idx].w };
+}
+
+CK_DLL_MFUN(ui_style_get_hover_stationary_delay)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->HoverStationaryDelay;
+}
+
+CK_DLL_MFUN(ui_style_get_hover_delay_short)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->HoverDelayShort;
+}
+
+CK_DLL_MFUN(ui_style_get_hover_delay_normal)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_float = style->HoverDelayNormal;
+}
+
+CK_DLL_MFUN(ui_style_get_hover_flags_for_tooltip_mouse)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->HoverFlagsForTooltipMouse;
+}
+
+CK_DLL_MFUN(ui_style_get_hover_flags_for_tooltip_nav)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    RETURN->v_int = style->HoverFlagsForTooltipNav;
+}
+
+CK_DLL_MFUN(ui_style_set_alpha)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->Alpha = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_disabled_alpha)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->DisabledAlpha = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_window_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v             = GET_NEXT_VEC2(ARGS);
+    style->WindowPadding.x = v.x;
+    style->WindowPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_window_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->WindowRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_window_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->WindowBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_window_min_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v             = GET_NEXT_VEC2(ARGS);
+    style->WindowMinSize.x = v.x;
+    style->WindowMinSize.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_window_title_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                = GET_NEXT_VEC2(ARGS);
+    style->WindowTitleAlign.x = v.x;
+    style->WindowTitleAlign.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_window_menu_button_position)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->WindowMenuButtonPosition = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_child_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ChildRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_child_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ChildBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_popup_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->PopupRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_popup_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->PopupBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_frame_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v            = GET_NEXT_VEC2(ARGS);
+    style->FramePadding.x = v.x;
+    style->FramePadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_frame_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->FrameRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_frame_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->FrameBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_item_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v           = GET_NEXT_VEC2(ARGS);
+    style->ItemSpacing.x = v.x;
+    style->ItemSpacing.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_item_inner_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                = GET_NEXT_VEC2(ARGS);
+    style->ItemInnerSpacing.x = v.x;
+    style->ItemInnerSpacing.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_cell_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v           = GET_NEXT_VEC2(ARGS);
+    style->CellPadding.x = v.x;
+    style->CellPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_touch_extra_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                 = GET_NEXT_VEC2(ARGS);
+    style->TouchExtraPadding.x = v.x;
+    style->TouchExtraPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_indent_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->IndentSpacing = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_columns_min_spacing)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ColumnsMinSpacing = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_scrollbar_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ScrollbarSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_scrollbar_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ScrollbarRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_grab_min_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->GrabMinSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_grab_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->GrabRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_log_slider_deadzone)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->LogSliderDeadzone = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_tab_rounding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->TabRounding = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_tab_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->TabBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_tab_min_width_for_close_button)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->TabMinWidthForCloseButton = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_tab_bar_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->TabBarBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_table_angled_headers_angle)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->TableAngledHeadersAngle = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_table_angled_headers_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                           = GET_NEXT_VEC2(ARGS);
+    style->TableAngledHeadersTextAlign.x = v.x;
+    style->TableAngledHeadersTextAlign.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_color_button_position)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->ColorButtonPosition = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_button_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v               = GET_NEXT_VEC2(ARGS);
+    style->ButtonTextAlign.x = v.x;
+    style->ButtonTextAlign.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_selectable_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                   = GET_NEXT_VEC2(ARGS);
+    style->SelectableTextAlign.x = v.x;
+    style->SelectableTextAlign.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_separator_text_border_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->SeparatorTextBorderSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_separator_text_align)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                  = GET_NEXT_VEC2(ARGS);
+    style->SeparatorTextAlign.x = v.x;
+    style->SeparatorTextAlign.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_separator_text_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                    = GET_NEXT_VEC2(ARGS);
+    style->SeparatorTextPadding.x = v.x;
+    style->SeparatorTextPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_display_window_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                    = GET_NEXT_VEC2(ARGS);
+    style->DisplayWindowPadding.x = v.x;
+    style->DisplayWindowPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_display_safe_area_padding)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    t_CKVEC2 v                      = GET_NEXT_VEC2(ARGS);
+    style->DisplaySafeAreaPadding.x = v.x;
+    style->DisplaySafeAreaPadding.y = v.y;
+}
+
+CK_DLL_MFUN(ui_style_set_docking_separator_size)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->DockingSeparatorSize = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_mouse_cursor_scale)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->MouseCursorScale = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_anti_aliased_lines)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->AntiAliasedLines = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_anti_aliased_lines_use_tex)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->AntiAliasedLinesUseTex = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_anti_aliased_fill)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->AntiAliasedFill = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_curve_tessellation_tol)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->CurveTessellationTol = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_circle_tessellation_max_error)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->CircleTessellationMaxError = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_color)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    int idx            = GET_NEXT_INT(ARGS);
+    t_CKVEC4 v         = GET_NEXT_VEC4(ARGS);
+    style->Colors[idx] = { (float)v.x, (float)v.y, (float)v.z, (float)v.w };
+}
+
+CK_DLL_MFUN(ui_style_set_hover_stationary_delay)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->HoverStationaryDelay = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_hover_delay_short)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->HoverDelayShort = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_hover_delay_normal)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->HoverDelayNormal = (float)GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_mouse)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->HoverFlagsForTooltipMouse = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_nav)
+{
+    cimgui::ImGuiStyle* style
+      = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
+    style->HoverFlagsForTooltipNav = GET_NEXT_INT(ARGS);
+}
+
+// ============================================================================
+// Windows
+// ============================================================================
+
+CK_DLL_SFUN(ui_begin)
+{
+    const char* name      = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
+    bool* p_open
+      = ui_bool ? (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset) : NULL;
+    int flags = GET_NEXT_INT(ARGS);
+
+    bool ret      = cimgui::ImGui_Begin(name, p_open, flags);
+    RETURN->v_int = ret;
+}
+
 CK_DLL_SFUN(ui_end)
 {
     cimgui::ImGui_End();
@@ -5600,6 +7413,69 @@ CK_DLL_SFUN(ui_BeginChild)
 CK_DLL_SFUN(ui_EndChild)
 {
     cimgui::ImGui_EndChild();
+}
+
+// ============================================================================
+// Windows Utilities
+// ============================================================================
+
+CK_DLL_SFUN(ui_IsWindowAppearing)
+{
+    RETURN->v_int = cimgui::ImGui_IsWindowAppearing();
+}
+
+CK_DLL_SFUN(ui_IsWindowCollapsed)
+{
+    RETURN->v_int = cimgui::ImGui_IsWindowCollapsed();
+}
+
+CK_DLL_SFUN(ui_IsWindowFocused)
+{
+    RETURN->v_int = cimgui::ImGui_IsWindowFocused(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_IsWindowHovered)
+{
+    RETURN->v_int = cimgui::ImGui_IsWindowHovered(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(ui_GetWindowDpiScale)
+{
+    RETURN->v_float = cimgui::ImGui_GetWindowDpiScale();
+}
+
+CK_DLL_SFUN(ui_GetWindowPos)
+{
+    cimgui::ImVec2 pos = cimgui::ImGui_GetWindowPos();
+    RETURN->v_vec2     = { pos.x, pos.y };
+}
+
+CK_DLL_SFUN(ui_GetWindowSize)
+{
+    cimgui::ImVec2 size = cimgui::ImGui_GetWindowSize();
+    RETURN->v_vec2      = { size.x, size.y };
+}
+
+CK_DLL_SFUN(ui_GetWindowWidth)
+{
+    RETURN->v_float = cimgui::ImGui_GetWindowWidth();
+}
+
+CK_DLL_SFUN(ui_GetWindowHeight)
+{
+    RETURN->v_float = cimgui::ImGui_GetWindowHeight();
+}
+
+CK_DLL_SFUN(ui_GetWindowViewport)
+{
+    cimgui::ImGuiViewport* vp = cimgui::ImGui_GetWindowViewport();
+    if (vp) {
+        Chuck_Object* ui_vp = chugin_createCkObj("UI_Viewport", false, SHRED);
+        OBJ_MEMBER_UINT(ui_vp, ui_viewport_ptr_offset) = (t_CKUINT)vp;
+        RETURN->v_object                               = ui_vp;
+    } else {
+        RETURN->v_object = NULL;
+    }
 }
 
 // ============================
@@ -5876,7 +7752,6 @@ CK_DLL_SFUN(ui_PopTextWrapPos)
 {
     cimgui::ImGui_PopTextWrapPos();
 }
-
 
 // ============================================================================
 // Style read access
@@ -6263,7 +8138,7 @@ CK_DLL_SFUN(ui_Checkbox)
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
 
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* b           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
+    bool* b = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
 
     RETURN->v_int = cimgui::ImGui_Checkbox(label, b);
 }
@@ -7349,9 +9224,9 @@ CK_DLL_SFUN(ui_CollapsingHeaderBoolPtr)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
-    int flags         = GET_NEXT_INT(ARGS);
-    RETURN->v_int     = cimgui::ImGui_CollapsingHeaderBoolPtr(label, v, flags);
+    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+    int flags = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_CollapsingHeaderBoolPtr(label, v, flags);
 }
 
 CK_DLL_SFUN(ui_SetNextItemOpen)
@@ -7386,8 +9261,8 @@ CK_DLL_SFUN(ui_SelectableBoolPtr)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
-    int flags         = GET_NEXT_INT(ARGS);
+    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+    int flags = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_SelectableBoolPtr(label, v, flags);
 }
@@ -7396,9 +9271,9 @@ CK_DLL_SFUN(ui_SelectableBoolPtrEx)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v           = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
-    int flags         = GET_NEXT_INT(ARGS);
-    t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
+    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+    int flags = GET_NEXT_INT(ARGS);
+    t_CKVEC2 size = GET_NEXT_VEC2(ARGS);
 
     RETURN->v_int = cimgui::ImGui_SelectableBoolPtrEx(
       label, v, flags, { (float)size.x, (float)size.y });
@@ -7574,8 +9449,9 @@ CK_DLL_SFUN(ui_MenuItemBoolPtr)
     const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
     const char* shortcut = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
-    bool* selected       = (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset);
-    bool enabled         = GET_NEXT_INT(ARGS);
+    bool* selected
+      = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+    bool enabled = GET_NEXT_INT(ARGS);
     RETURN->v_int
       = cimgui::ImGui_MenuItemBoolPtr(label, shortcut, selected, enabled);
 }
@@ -7618,10 +9494,10 @@ CK_DLL_SFUN(ui_BeginPopup)
 
 CK_DLL_SFUN(ui_BeginPopupModal)
 {
-    const char* name = API->object->str(GET_NEXT_STRING(ARGS));
-    bool* p_open
-      = (bool*)OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), ui_bool_ptr_offset);
-    int flags = GET_NEXT_INT(ARGS);
+    const char* name     = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
+    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
+    int flags            = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_BeginPopupModal(name, p_open, flags);
 }
@@ -7855,9 +9731,10 @@ CK_DLL_SFUN(ui_BeginTabItem)
 {
     const char* label     = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
-    bool* p_open          = (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset);
-    int flags             = GET_NEXT_INT(ARGS);
-    RETURN->v_int         = cimgui::ImGui_BeginTabItem(label, p_open, flags);
+    bool* p_open
+      = ui_bool ? (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset) : NULL;
+    int flags     = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_BeginTabItem(label, p_open, flags);
 }
 
 CK_DLL_SFUN(ui_EndTabItem)
@@ -8049,6 +9926,18 @@ CK_DLL_SFUN(ui_GetItemRectSize)
 {
     cimgui::ImVec2 v = cimgui::ImGui_GetItemRectSize();
     RETURN->v_vec2   = { v.x, v.y };
+}
+
+// ============================================================================
+// Viewport
+// ============================================================================
+
+CK_DLL_SFUN(ui_GetMainViewport)
+{
+    Chuck_Object* vp_obj = chugin_createCkObj("UI_Viewport", false, SHRED);
+    OBJ_MEMBER_UINT(vp_obj, ui_viewport_ptr_offset)
+      = (t_CKUINT)cimgui::ImGui_GetMainViewport();
+    RETURN->v_object = vp_obj;
 }
 
 // ============================================================================

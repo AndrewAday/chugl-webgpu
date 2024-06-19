@@ -6,19 +6,13 @@ date: June 2024
 */
 
 /*
-*/
-
-/*
 Audio Graph
 Design so that the ckfxr synth is reusable, *without* UI controls
 
-[sin|saw|square|noise] -> LP Filter --> HP Filter --> Phaser --> ADSR
-
-
-
+[sin|saw|square|noise] -> LP Filter --> HP Filter --> Phasor --> ADSR
 */
 
-// UGen for delay-based effects including flange, chorus, doubling
+// Delay-based effects including flange, chorus, doubling
 // https://github.com/ccrma/music220a/blob/main/07-time-and-space/delay-based-efx/script.js
 // https://ccrma.stanford.edu/~dattorro/EffectDesignPart2.pdf
 class DelayFX extends Chugraph
@@ -388,21 +382,228 @@ class CKFXR extends Chugraph
 
 CKFXR ckfxr => dac;
 
-// while (1::second => now)
-// {
-//     // spork ~ ckfxr.pickupCoin();
-//     spork ~ ckfxr.shootLaser();
-// }
+class CKFXR_Params
+{
+    0 => int waveform;
+
+    UI_Float attack_dur_ms;
+    UI_Float release_dur_ms;
+    UI_Float sustain_dur_ms;
+    UI_Float sustain_level;
+
+    UI_Float freq_base_midi;    
+    UI_Float freq_limit_midi;   
+    UI_Float freq_ramp;  // semitones / sec
+    UI_Float freq_dramp; // semitones / sec
+
+    UI_Float vib_depth;
+    UI_Float vib_freq; // hz
+
+    UI_Float arp_mod_midi; 
+    UI_Float arp_time_ms;       
+
+    UI_Float pwm_depth;         
+    UI_Float pwm_freq;          
+
+    UI_Float feedback_gain; 
+    UI_Float delay_base_dur_ms;
+    UI_Float delay_mod_freq;
+    UI_Float delay_mod_depth;
+
+    UI_Float lpf_freq;     
+    UI_Float lpf_ramp;     
+    UI_Float lpf_resonance;
+
+    UI_Float hpf_freq;     
+    UI_Float hpf_ramp;
+
+    UI_Float main_gain;
+    UI_String export_wav_path;
+}
+
+fun void centerNext(float item_width)
+{
+    UI.getContentRegionAvail().x => float avail_width;
+    UI.setCursorPosX(UI.getCursorPosX() + (avail_width - item_width) * .5);
+}
 
 fun void ui()
 {
-    while (1) {
-        GG.nextFrame() => now;
-        if (UI.begin("CKFXR", null, 0)) {
 
-        }
-        UI.end();
+CKFXR_Params p;
+["square", "saw", "sin", "noise"] @=> string waveforms[];
+
+while (1) {
+GG.nextFrame() => now;
+
+UI.showDemoWindow(null);
+
+if (UI.begin("CKFXR", null, 0)) {
+    UI.getWindowSize() => vec2 size;
+    // Left Pane ---------------------------------------
+    UI.beginChild(
+        "Left Generator",
+        @(size.x * .2, 0), 
+        UI_ChildFlags.Border,
+        0
+    );
+    for (int i; i < 100; i++)
+    {
+        // FIXME: Good candidate to use ImGuiSelectableFlags_SelectOnNav
+        // char label[128];
+        // sprintf(label, "MyObject %d", i);
+        // if (UI.Selectable(label, selected == i))
+        //     selected = i;
     }
+    UI.endChild(); // "Left Generator"
+
+    UI.sameLine();
+
+    // Middle Pane ---------------------------------------
+    // UI.beginGroup();
+    UI.beginChild(
+        "item view", 
+        @(size.x * .6, -UI.getFrameHeightWithSpacing()),
+        // UI_ChildFlags.Border,
+        0,
+        0
+    ); // Leave room for 1 line below us
+    UI.text("Manual Settings");
+
+    UI.getWindowWidth() => float middle_width;
+
+    // waveform selection
+    UI.separatorText("Waveform");
+    for (int n; n < waveforms.size(); n++) {
+        if (UI.selectable(waveforms[n], p.waveform == n, 0, 
+            @(middle_width / waveforms.size(), 0))
+        )
+            n => p.waveform;
+        if (n < waveforms.size() - 1) UI.sameLine();
+    }
+
+    UI.separatorText("Envelope");
+    UI.itemTooltip("ctrl+click a slider to input a specific value");
+
+    UI.slider("Attack (ms)", p.attack_dur_ms, 1, 1000);
+    UI.slider("Release (ms)", p.release_dur_ms, 1, 1000);
+    UI.slider("Sustain (ms)", p.sustain_dur_ms, 1, 1000);
+    UI.slider("Sustain Level", p.sustain_level, 0, 1);
+
+    UI.separatorText("Frequency");
+    UI.slider("Base (MIDI)", p.freq_base_midi, 0, 127);
+    UI.slider("Limit (MIDI)", p.freq_limit_midi, 0, 127);
+    UI.slider("Ramp (semitones/s)", p.freq_ramp, -127, 127);
+    UI.slider("Ramp Delta (semitones/s^2)", p.freq_dramp, -127, 127);
+
+    UI.separatorText("Vibrato");
+    UI.slider("Vibrato Depth", p.vib_depth, 0, 1);
+    UI.slider("Vibrato Frequency (Hz)", p.vib_freq, 0, 20);
+
+    UI.separatorText("Interval (changes base freq)");
+    UI.slider("Size (MIDI)", p.arp_mod_midi, -127, 127);
+    UI.slider("Onset (ms)", p.arp_time_ms, 0, 1000);
+
+    UI.separatorText("Pulse-Width Modulation");
+    UI.slider("PWM Depth", p.pwm_depth, 0, 1);
+    UI.slider("PWM Frequency (Hz)", p.pwm_freq, 0, 20);
+
+    UI.separatorText("Delay");
+    UI.slider("Feedback Gain", p.feedback_gain, 0, .99);
+    UI.slider("Base Delay (ms)", p.delay_base_dur_ms, 0, 100);
+    UI.slider("Delay Mod Frequency (Hz)", p.delay_mod_freq, 0, 20);
+    UI.slider("Delay Mod Depth", p.delay_mod_depth, 0, 1);
+
+    UI.separatorText("Lowpass Filter");
+    UI.slider("LPF Frequency (Hz)", p.lpf_freq, 0, 20000);
+    UI.slider("LPF Ramp (semitones/s)", p.lpf_ramp, -127, 127);
+    UI.slider("LPF Resonance", p.lpf_resonance, 0, 10);
+
+    UI.separatorText("Highpass Filter");
+    UI.slider("HPF Frequency (Hz)", p.hpf_freq, 0, 20000);
+    UI.slider("HPF Ramp (semitones/s)", p.hpf_ramp, -127, 127);
+
+    UI.separator();
+    UI.endChild();
+
+    // if (UI.button("Revert")) {}
+    // UI.sameLine();
+    // if (UI.button("Save")) {}
+    // UI.endGroup();
+
+    UI.sameLine();
+
+    // Right Pane ---------------------------------------
+
+    UI.pushStyleVar(UI_StyleVar.WindowPadding, @(0, 10));
+    UI.beginChild(
+        "right pane", @(0, 0), UI_ChildFlags.Border, 0
+    );
+    // UI.getWindowSize() => vec2 right_size;
+    UI.getContentRegionAvail() => vec2 right_size;
+
+    centerNext(UI.calcTextSize("Volume").x);
+    UI.text("Volume");
+    centerNext(right_size.x * .4);
+    UI.vslider("##v", @(right_size.x * .4, right_size.y * .2), p.main_gain, 0, 1);
+
+    centerNext(right_size.x * .8);
+    UI.convertHSVtoRGB(@(2.0/7, 0.6, 0.6)) => vec3 g;
+    UI.convertHSVtoRGB(@(2.0/7, 0.7, 0.7)) => vec3 g1;
+    UI.convertHSVtoRGB(@(2.0/7, 0.8, 0.8)) => vec3 g2;
+    UI.pushStyleColor(UI_Color.Button, @(g.x, g.y, g.z, 1));
+    UI.pushStyleColor(UI_Color.ButtonHovered, @(g1.x, g1.y, g1.z, 1));
+    UI.pushStyleColor(UI_Color.ButtonActive, @(g2.x, g2.y, g2.z, 1));
+    UI.button("Play Sound", @(right_size.x * .8, right_size.y * .1));
+    UI.popStyleColor(3);
+
+    UI.inputText("##", p.export_wav_path);
+    UI.button("Export WAV");
+
+
+
+
+    UI.endChild();
+    UI.popStyleVar();
+
+}
+UI.end(); // CKFXR
+}
 } spork ~ ui();
 
 1::eon => now;
+
+/*
+Adjustable child windows
+
+UI.BeginChild("left pane", ImVec2(150, 0), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX);
+for (int i = 0; i < 100; i++)
+{
+    char label[128];
+    sprintf(label, "MyObject %d", i);
+    if (UI.Selectable(label, selected == i))
+        selected = i;
+}
+UI.EndChild();
+UI.SameLine();
+....
+UI.BeginChild("item view", ....);
+
+*/
+
+/*
+fullscreen window
+
+ImGuiViewport* viewport = UI.GetMainViewport();
+UI.SetNextWindowPos(viewport->GetWorkPos());
+UI.SetNextWindowSize(viewport->GetWorkSize());
+UI.SetNextWindowViewport(viewport->ID);
+
+UI.PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+UI.Begin(..., ..., ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
+
+[...]
+
+UI.End();
+UI.PopStyleVar(2);
+*/

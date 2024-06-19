@@ -43,10 +43,14 @@ E.g. this would cause a bug if chuck expected an i64, not i32. (when reading wra
 - A better way to pass pointers to data (maybe pass by `ref`?)
 - default function parameters
 - function pointers! removes need to wrap callback handlers with a custom class with vtable base handler() function, and override that function. See `UI_SizeCallback` chugin type for example
-- supported '\0' null character in chuck strings gotten from API->object->str()
+- support '\0' null character in chuck strings gotten from API->object->str()
+  - not able to do "one\0two\0\three\0\0" for UI item list
 
 - Better chugin array API
   - array_set_idx. would greatly improve efficiency of Imgui_SetScalarN impl for drag sliders
     - currently to modify array, we have to clear *Everything* and re-push the new values. wasteful when only 1 element is changed in a frame, as in a drag slider
   - way to get readonly const* to contiguous array data (so that we don't have to copy into arena)
     - this also requires a floats / ints rather than long / double
+
+- ckdocs enable preserving order, don't sort alphabetically
+  - also allow setting subgroup like QUERY->doc_section("section A") within a class. Would allow better organization of ulib_imgui module
