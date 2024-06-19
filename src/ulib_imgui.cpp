@@ -3210,25 +3210,25 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiKey_Menu = 535;
     QUERY->add_svar(QUERY, "int", "Menu", true, &ImGuiKey_Menu);
     static t_CKINT ImGuiKey_0 = 536;
-    QUERY->add_svar(QUERY, "int", "0", true, &ImGuiKey_0);
+    QUERY->add_svar(QUERY, "int", "Num0", true, &ImGuiKey_0);
     static t_CKINT ImGuiKey_1 = 537;
-    QUERY->add_svar(QUERY, "int", "1", true, &ImGuiKey_1);
+    QUERY->add_svar(QUERY, "int", "Num1", true, &ImGuiKey_1);
     static t_CKINT ImGuiKey_2 = 538;
-    QUERY->add_svar(QUERY, "int", "2", true, &ImGuiKey_2);
+    QUERY->add_svar(QUERY, "int", "Num2", true, &ImGuiKey_2);
     static t_CKINT ImGuiKey_3 = 539;
-    QUERY->add_svar(QUERY, "int", "3", true, &ImGuiKey_3);
+    QUERY->add_svar(QUERY, "int", "Num3", true, &ImGuiKey_3);
     static t_CKINT ImGuiKey_4 = 540;
-    QUERY->add_svar(QUERY, "int", "4", true, &ImGuiKey_4);
+    QUERY->add_svar(QUERY, "int", "Num4", true, &ImGuiKey_4);
     static t_CKINT ImGuiKey_5 = 541;
-    QUERY->add_svar(QUERY, "int", "5", true, &ImGuiKey_5);
+    QUERY->add_svar(QUERY, "int", "Num5", true, &ImGuiKey_5);
     static t_CKINT ImGuiKey_6 = 542;
-    QUERY->add_svar(QUERY, "int", "6", true, &ImGuiKey_6);
+    QUERY->add_svar(QUERY, "int", "Num6", true, &ImGuiKey_6);
     static t_CKINT ImGuiKey_7 = 543;
-    QUERY->add_svar(QUERY, "int", "7", true, &ImGuiKey_7);
+    QUERY->add_svar(QUERY, "int", "Num7", true, &ImGuiKey_7);
     static t_CKINT ImGuiKey_8 = 544;
-    QUERY->add_svar(QUERY, "int", "8", true, &ImGuiKey_8);
+    QUERY->add_svar(QUERY, "int", "Num8", true, &ImGuiKey_8);
     static t_CKINT ImGuiKey_9 = 545;
-    QUERY->add_svar(QUERY, "int", "9", true, &ImGuiKey_9);
+    QUERY->add_svar(QUERY, "int", "Num9", true, &ImGuiKey_9);
     static t_CKINT ImGuiKey_A = 546;
     QUERY->add_svar(QUERY, "int", "A", true, &ImGuiKey_A);
     static t_CKINT ImGuiKey_B = 547;
@@ -7522,9 +7522,18 @@ CK_DLL_SFUN(ui_SetNextWindowPos)
 
 CK_DLL_SFUN(ui_SetNextWindowPosEx)
 {
+    t_CKVEC2 pos   = GET_NEXT_VEC2(ARGS);
+    t_CKINT cond   = GET_NEXT_INT(ARGS);
+    t_CKVEC2 pivot = GET_NEXT_VEC2(ARGS);
+    cimgui::ImGui_SetNextWindowPosEx({ (float)pos.x, (float)pos.y }, cond,
+                                     { (float)pivot.x, (float)pivot.y });
 }
+
 CK_DLL_SFUN(ui_SetNextWindowSize)
 {
+    t_CKVEC2 size = GET_NEXT_VEC2(ARGS);
+    t_CKINT cond  = GET_NEXT_INT(ARGS);
+    cimgui::ImGui_SetNextWindowSize({ (float)size.x, (float)size.y }, cond);
 }
 
 static void uiSizeCallbackHandler(cimgui::ImGuiSizeCallbackData* data)

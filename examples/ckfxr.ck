@@ -3,12 +3,8 @@ name: ckfxr
 desc: ChucK/ChuGL port of DrPetter's sfxr (https://www.drpetter.se/project_sfxr.html)
 author: Andrew Zhu Aday (https://ccrma.stanford.edu/~azaday/)
 date: June 2024
-*/
 
-/*
 Audio Graph
-Design so that the ckfxr synth is reusable, *without* UI controls
-
 [sin|saw|square|noise] -> LP Filter --> HP Filter --> Phasor --> ADSR
 */
 
@@ -20,6 +16,8 @@ class DelayFX extends Chugraph
     // audio signal
     inlet => DelayL delay => outlet;
     delay => Gain feedback => delay;
+
+    delay.max(1::second); // max delay time
 
     // control signal
     SinOsc lfo_delay_mod => Range range_delay_mod => Patch patch_delay_mod(delay, "delay") => blackhole;
@@ -34,10 +32,6 @@ class DelayFX extends Chugraph
     // delay_mod_depth (delay_base is modulated between [delay_base*(1 - depth), delay_base * (1 + depth)])
 
     // public API ---------------------------------------------
-
-    // Defaults
-    // TODO: add vibrato, echo presets
-
     fun void flange() {
         // typical range: 1~10ms
         delayBase(5::ms);
@@ -80,12 +74,6 @@ class DelayFX extends Chugraph
     fun float delayModDepth() { return lfo_delay_mod.gain(); }
 }
 
-/*
-keyboard controls
-- use UI library only (not chuck HID) to test
-- <space> and <return> play sound
-- z for undo
-*/
 class CKFXR extends Chugraph
 {
     LPF lpf => HPF hpf => DelayFX delayfx => ADSR adsr => outlet;
@@ -207,10 +195,13 @@ class CKFXR extends Chugraph
     // map user params to synthesis 
     fun void _assign()
     {
+        // reset lfo phase
+        0 => lfo_vibrato.phase;
+        0 => lfo_pwm.phase;
+
         // waveform
         for (auto ugen : waveforms) ugen =< lpf;
         waveforms[p_wave_type] => lpf;
-        <<< "assigning", p_wave_type >>>;
 
         // envelope
         adsr.set(p_attack_dur, 1::ms, p_sustain_level, p_release_dur);
@@ -249,13 +240,11 @@ class CKFXR extends Chugraph
         spork ~ _playArp(pc);
         spork ~_playMod(pc);
 
-        <<< "keyon" >>>;
         adsr.keyOn();
         adsr.attackTime() + adsr.decayTime() + p_sustain_dur => now;
 
         if (pc != this._play_count) return;
 
-        <<< "keyoff" >>>;
         this.adsr.keyOff();
         this.adsr.releaseTime() => now;
 
@@ -319,6 +308,7 @@ class CKFXR extends Chugraph
 }
 
 CKFXR ckfxr => dac;
+ckfxr => WvOut wvout => blackhole;
 CKFXR_Params p;
 
 class CKFXR_Params
@@ -465,10 +455,130 @@ class CKFXR_Params
         frnd(.6, .9) => sustain_level.val;
     }
 
+    fun void explosion(CKFXR@ ckfxr)
+    {
+        reset();
+
+        CKFXR.WaveType_NOISE => waveform;
+
+        frnd(0.01, 0.1) * 1000 => sustain_dur_ms.val;
+        frnd(0.1, 0.7) * 1000 => release_dur_ms.val;
+
+        if (rnd(1)) {
+            frnd(5,65) => delay_base_dur_ms.val;
+            frnd(0.1, 15) => delay_mod_freq.val;
+            frnd(0.1, 0.5) => delay_mod_depth.val;
+            frnd(0.1, 0.9) => feedback_gain.val;
+        }
+
+        frnd(2000, 10000) => lpf_freq.val;
+        frnd(-48, 0) => lpf_ramp.val;
+        frnd(.1, 4) => lpf_resonance.val;
+    }
+
+    fun void powerup(CKFXR@ ckfxr)
+    {
+        reset();
+        if (rnd(1)) {
+            CKFXR.WaveType_SAW => waveform;
+        } else {
+            CKFXR.WaveType_SQUARE => waveform;
+        }
+
+        frnd(50, 70) => freq_base_midi.val;
+
+        if (rnd(1)) {
+            frnd(10, 60) => freq_ramp.val;
+        } else {
+            frnd(2, 15) => freq_ramp.val;
+            frnd(2, 15) => freq_dramp.val;
+        }
+
+        if (rnd(1)) {
+            frnd(0.2) => vib_depth.val;
+            frnd(7,20) => vib_freq.val;
+        }
+
+        frnd(100, 400) => sustain_dur_ms.val;
+        frnd(100, 500) => release_dur_ms.val;
+    }
+
+    fun void hitHurt(CKFXR@ ckfxr)
+    {
+        reset();
+
+        rnd(2) => waveform;
+        if (waveform == CKFXR.WaveType_SIN) CKFXR.WaveType_NOISE => waveform;
+
+        if (waveform == CKFXR.WaveType_SQUARE) {
+            frnd(0.2) => pwm_depth.val;
+            frnd(30) => pwm_freq.val;
+        }
+
+        frnd(20, 80) => freq_base_midi.val;
+        frnd(-55, -5) => freq_ramp.val;
+
+        frnd(10, 100) => sustain_dur_ms.val;
+        frnd(100, 300) => release_dur_ms.val;
+
+        if (rnd(1))
+           frnd(30, 3000) => hpf_freq.val;
+    }
+
+    fun void jump(CKFXR@ ckfxr)
+    {
+        reset();
+
+        CKFXR.WaveType_SQUARE => waveform;
+
+        if (rnd(1)) {
+            frnd(0.1, 0.6) => pwm_depth.val;
+            frnd(2, 20) => pwm_freq.val;
+        }
+
+        frnd(40, 80) => freq_base_midi.val;
+        frnd(12, 48) => freq_ramp.val;
+        frnd(12, 48) => freq_dramp.val;
+
+        frnd(100, 300) => sustain_dur_ms.val;
+        frnd(100, 300) => release_dur_ms.val;
+
+        if (rnd(1))
+            frnd(30, 3000) => hpf_freq.val;
+        if (rnd(1))
+            frnd(hpf_freq.val(), 18000) => lpf_freq.val;
+    }
+
+    fun void blipSelect(CKFXR@ ckfxr)
+    {
+        reset();
+
+        rnd(1) => waveform;
+        if (waveform == CKFXR.WaveType_SQUARE) {
+            frnd(0.2) => pwm_depth.val;
+            frnd(20) => pwm_freq.val;
+        }
+
+        frnd(36, 96) => freq_base_midi.val;
+
+        frnd(50, 100) => sustain_dur_ms.val;
+        frnd(10, 100) => release_dur_ms.val;
+
+        frnd(100, 200) => hpf_freq.val;
+    }
+
     fun void play(CKFXR@ ckfxr)
     {
         copyToSynth(ckfxr);
         spork ~ ckfxr.play();
+    }
+
+    fun void record(CKFXR@ ckfxr)
+    {
+        copyToSynth(ckfxr);
+        wvout.wavFilename(me.dir() + export_wav_path.val());
+        ckfxr.play();
+        wvout.closeFile();
     }
 
     // return random float in range [0, range]
@@ -516,9 +626,11 @@ fun void ui()
 while (1) {
 GG.nextFrame() => now;
 
-UI.showDemoWindow(null);
-
-if (UI.begin("CKFXR", null, 0)) {
+UI.getMainViewport() @=> UI_Viewport @ viewport;
+UI.setNextWindowPos(viewport.workPos(), UI_Cond.Always);
+UI.setNextWindowSize(viewport.workSize(), UI_Cond.Always);
+UI.pushStyleVar(UI_StyleVar.WindowRounding, 0.0);
+if (UI.begin("CKFXR", null, UI_WindowFlags.NoDecoration | UI_WindowFlags.NoResize | UI_WindowFlags.NoMove)) {
     UI.getWindowSize() => vec2 size;
 
     // Left Pane ---------------------------------------
@@ -545,6 +657,11 @@ if (UI.begin("CKFXR", null, 0)) {
         if (centerButton(presets[i], @(left_size.x * .8, 40))) {
             if (i == 0) p.pickupCoin(ckfxr);
             else if (i == 1) p.shootLaser(ckfxr);
+            else if (i == 2) p.explosion(ckfxr);
+            else if (i == 3) p.powerup(ckfxr);
+            else if (i == 4) p.hitHurt(ckfxr);
+            else if (i == 5) p.jump(ckfxr);
+            else if (i == 6) p.blipSelect(ckfxr);
             p.play(ckfxr);
         }
         UI.popStyleColor(3);
@@ -657,16 +774,17 @@ if (UI.begin("CKFXR", null, 0)) {
     UI.setNextItemWidth(right_size.x * .8);
     UI.inputText("##export_wav_path", p.export_wav_path);
     centerNext(right_size.x * .8);
-    UI.button("Export WAV", @(right_size.x * .8, 20));
+    if (UI.button("Export WAV", @(right_size.x * .8, 20))) {
+        <<< "Exporting to", me.dir() + p.export_wav_path.val() >>>;
+        spork ~ p.record(ckfxr);
+    }
 
     UI.endChild();
     UI.popStyleVar();
+
 }
 UI.end(); // CKFXR
-
-// copy UI params to synth
-
-
+UI.popStyleVar(1); // WindowRounding = 0.0
 }
 } spork ~ ui();
 
@@ -677,41 +795,39 @@ fun void kb()
         GG.nextFrame() => now;
         if (UI.isKeyPressed(UI_Key.Space, false) || UI.isKeyPressed(UI_Key.Enter, false))
             p.play(ckfxr);
+        // generator presets
+        if (UI.isKeyPressed(UI_Key.Num1)) {
+            p.pickupCoin(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num2)) {
+            p.shootLaser(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num3)) {
+            p.explosion(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num4)) {
+            p.powerup(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num5)) {
+            p.hitHurt(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num6)) {
+            p.jump(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Num7)) {
+            p.blipSelect(ckfxr);
+            p.play(ckfxr);
+        }
+        if (UI.isKeyPressed(UI_Key.Z, false)) {
+            p.reset();
+        }
     }
 } spork ~ kb();
 
 1::eon => now;
-
-/*
-Adjustable child windows
-
-UI.BeginChild("left pane", ImVec2(150, 0), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX);
-for (int i = 0; i < 100; i++)
-{
-    char label[128];
-    sprintf(label, "MyObject %d", i);
-    if (UI.Selectable(label, selected == i))
-        selected = i;
-}
-UI.EndChild();
-UI.SameLine();
-....
-UI.BeginChild("item view", ....);
-*/
-
-/*
-fullscreen window
-
-ImGuiViewport* viewport = UI.GetMainViewport();
-UI.SetNextWindowPos(viewport->GetWorkPos());
-UI.SetNextWindowSize(viewport->GetWorkSize());
-UI.SetNextWindowViewport(viewport->ID);
-
-UI.PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-UI.Begin(..., ..., ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
-
-[...]
-
-UI.End();
-UI.PopStyleVar(2);
-*/
