@@ -107,6 +107,7 @@ CK_DLL_SFUN(ui_SetScrollFromPosY);
 // ImGui_PopFont(void);
 // CK_DLL_SFUN(ui_PushStyleColor);  // ignoring in favor of vec4 version
 CK_DLL_SFUN(ui_PushStyleColorImVec4);
+CK_DLL_SFUN(ui_PushStyleColorImVec3);
 CK_DLL_SFUN(ui_PopStyleColor);
 CK_DLL_SFUN(ui_PopStyleColorEx);
 CK_DLL_SFUN(ui_PushStyleVar);
@@ -678,6 +679,7 @@ CK_DLL_MFUN(ui_bool_set_value);
 static t_CKUINT ui_string_ptr_offset = 0;
 static t_CKUINT ui_string_cap_offset = 0;
 CK_DLL_CTOR(ui_string_ctor);
+CK_DLL_CTOR(ui_string_ctor_str);
 CK_DLL_DTOR(ui_string_dtor);
 CK_DLL_MFUN(ui_string_get_value);
 CK_DLL_MFUN(ui_string_set_value);
@@ -719,6 +721,7 @@ CK_DLL_MFUN(ui_int4_set);
 // UI_Float
 static t_CKUINT ui_float_ptr_offset = 0;
 CK_DLL_CTOR(ui_float_ctor);
+CK_DLL_CTOR(ui_float_ctor_float);
 CK_DLL_DTOR(ui_float_dtor);
 CK_DLL_MFUN(ui_float_get_value);
 CK_DLL_MFUN(ui_float_set_value);
@@ -893,6 +896,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ui_string_ptr_offset = MVAR("int", "@ui_string_ptr", false);
     ui_string_cap_offset = MVAR("int", "@ui_string_cap", false);
     CTOR(ui_string_ctor);
+    CTOR(ui_string_ctor_str);
+    ARG("string", "str");
     DTOR(ui_string_dtor);
     MFUN(ui_string_get_value, "string", "val");
     MFUN(ui_string_set_value, "void", "val");
@@ -956,6 +961,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS("UI_Float", "Object");
     ui_float_ptr_offset = MVAR("int", "@ui_float_ptr", false);
     CTOR(ui_float_ctor);
+    CTOR(ui_float_ctor_float);
+    ARG("float", "val");
     DTOR(ui_float_dtor);
     MFUN(ui_float_get_value, "float", "val");
     MFUN(ui_float_set_value, "float", "val");
@@ -4315,6 +4322,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "vec4", "color");
     QUERY->doc_func(QUERY, "parameter idx an enum of type UI_Color");
 
+    SFUN(ui_PushStyleColorImVec3, "void", "pushStyleColor");
+    ARG("int", "idx" /*ImGuiCol*/);
+    ARG("vec3", "color");
+    DOC_FUNC("parameter idx an enum of type UI_Color");
+
     QUERY->add_sfun(QUERY, ui_PopStyleColor, "void", "popStyleColor");
     QUERY->doc_func(QUERY, "implied count = 1");
 
@@ -6207,6 +6219,20 @@ CK_DLL_CTOR(ui_string_ctor)
     OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = UI_STRING_DEFAULT_SIZE;
 }
 
+CK_DLL_CTOR(ui_string_ctor_str)
+{
+    const char* ck_str = API->object->str(GET_NEXT_STRING(ARGS));
+    size_t ck_str_len  = strlen(ck_str);
+    size_t str_cap     = MAX(UI_STRING_DEFAULT_SIZE, ck_str_len + 1);
+
+    char* s = new char[str_cap];
+    strncpy(s, ck_str, ck_str_len);
+    s[ck_str_len] = '\0';
+
+    OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = (t_CKUINT)s;
+    OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = str_cap;
+}
+
 CK_DLL_DTOR(ui_string_dtor)
 {
     char* s = (char*)OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset);
@@ -6396,6 +6422,12 @@ CK_DLL_MFUN(ui_int4_set)
 CK_DLL_CTOR(ui_float_ctor)
 {
     float* f                                   = new float(0.0f);
+    OBJ_MEMBER_UINT(SELF, ui_float_ptr_offset) = (t_CKUINT)f;
+}
+
+CK_DLL_CTOR(ui_float_ctor_float)
+{
+    float* f = new float(GET_NEXT_FLOAT(ARGS));
     OBJ_MEMBER_UINT(SELF, ui_float_ptr_offset) = (t_CKUINT)f;
 }
 
@@ -7667,6 +7699,15 @@ CK_DLL_SFUN(ui_PushStyleColorImVec4)
     cimgui::ImGui_PushStyleColorImVec4(
       idx, { (float)color.x, (float)color.y, (float)color.z, (float)color.w });
 }
+
+CK_DLL_SFUN(ui_PushStyleColorImVec3)
+{
+    int idx        = GET_NEXT_INT(ARGS);
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    cimgui::ImGui_PushStyleColorImVec4(
+      idx, { (float)color.x, (float)color.y, (float)color.z, 1.0f });
+}
+
 CK_DLL_SFUN(ui_PopStyleColor)
 {
     cimgui::ImGui_PopStyleColor();

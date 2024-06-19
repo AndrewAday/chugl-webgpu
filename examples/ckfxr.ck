@@ -198,43 +198,6 @@ class CKFXR extends Chugraph
         _play(++_play_count);
     }
 
-    fun void pickupCoin()
-    {
-        resetParams();
-
-        if (rnd(1)) WaveType_SAW => p_wave_type;
-        else WaveType_SQUARE => p_wave_type;
-
-        Math.random2f(60, 84) => p_freq_base_midi;
-
-        frnd(0.05, 0.15)::second => p_sustain_dur;
-        frnd(0.15, 0.3)::second => p_release_dur;
-        frnd(.6, .9) => p_sustain_level;
-
-        drnd(p_sustain_dur*.6, p_sustain_dur * 1.2) => p_arp_time;
-        // p_sustain_dur  => p_arp_time;
-        Math.random2f(2, 24) $ int => p_arp_mod_midi;
-        
-        play();
-    }
-
-    fun void shootLaser()
-    {
-        resetParams();
-
-        rnd(2) => p_wave_type;
-        
-        frnd(-120, -12) => p_freq_ramp;
-        frnd(-80, -12) => p_freq_dramp;
-        frnd(60, 127) => p_freq_base_midi;
-
-        frnd(0.05, 0.2)::second => p_sustain_dur;
-        frnd(0.05, 0.3)::second => p_release_dur;
-        frnd(.6, .9) => p_sustain_level;
-
-        play();
-    }
-
     // Internal -----------------------------------------------------------------
     // used to prevent overlapping play calls so that the synth can be 
     // retriggered before a previous shred ends. 
@@ -292,7 +255,6 @@ class CKFXR extends Chugraph
 
         if (pc != this._play_count) return;
 
-
         <<< "keyoff" >>>;
         this.adsr.keyOff();
         this.adsr.releaseTime() => now;
@@ -322,7 +284,6 @@ class CKFXR extends Chugraph
         if (pc != _play_count) return;
 
         // adjust frequency
-        <<< "playArp", p_arp_time / second, p_arp_mod_midi >>>;
         p_arp_mod_midi +=> p_freq_base_midi;
     }
 
@@ -349,38 +310,16 @@ class CKFXR extends Chugraph
             _setFreq(freq_midi);
             
             // lpf ramp
-            (dt * p_lpf_ramp) + lpf.freq() => lpf.freq;
+            Std.mtof((dt * p_lpf_ramp) + Std.ftom(lpf.freq())) => lpf.freq;
 
             // hpf ramp
-            (dt * p_hpf_ramp) + hpf.freq() => hpf.freq;
+            Std.mtof((dt * p_hpf_ramp) + Std.ftom(hpf.freq())) => hpf.freq;
         }
-    }
-
-    // return random float in range [0, range]
-    fun float frnd(float range)
-    {
-        return range * Math.randomf();
-    }
-
-    fun float frnd(float l, float h)
-    {
-        return Math.random2f(l, h);
-    }
-
-    // return random duration
-    fun dur drnd(dur a, dur b) 
-    {
-        return Math.random2f(a/samp, b/samp)::samp;
-    }
-
-    // return random int in range [0, n]
-    fun int rnd(int n)
-    {
-        return Math.random() % (n + 1);
     }
 }
 
 CKFXR ckfxr => dac;
+CKFXR_Params p;
 
 class CKFXR_Params
 {
@@ -417,8 +356,137 @@ class CKFXR_Params
     UI_Float hpf_freq;     
     UI_Float hpf_ramp;
 
-    UI_Float main_gain;
-    UI_String export_wav_path;
+    UI_Float main_gain(.5);
+    UI_String export_wav_path("output.wav");
+
+    reset();
+
+    fun void copyToSynth(CKFXR@ ckfxr)
+    {
+        waveform => ckfxr.p_wave_type;
+
+        attack_dur_ms.val()::ms => ckfxr.p_attack_dur;
+        release_dur_ms.val()::ms => ckfxr.p_release_dur;
+        sustain_dur_ms.val()::ms => ckfxr.p_sustain_dur;
+        sustain_level.val() => ckfxr.p_sustain_level;
+
+        freq_base_midi.val() => ckfxr.p_freq_base_midi;
+        freq_limit_midi.val() => ckfxr.p_freq_limit_midi;
+        freq_ramp.val() => ckfxr.p_freq_ramp;
+        freq_dramp.val() => ckfxr.p_freq_dramp;
+
+        vib_depth.val() => ckfxr.p_vib_depth;
+        vib_freq.val() => ckfxr.p_vib_freq;
+
+        arp_mod_midi.val() => ckfxr.p_arp_mod_midi;
+        arp_time_ms.val()::ms => ckfxr.p_arp_time;
+
+        pwm_depth.val() => ckfxr.p_pwm_depth;
+        pwm_freq.val() => ckfxr.p_pwm_freq;
+
+        feedback_gain.val() => ckfxr.p_feedback_gain;
+        delay_base_dur_ms.val()::ms => ckfxr.p_delay_base_dur;
+        delay_mod_freq.val() => ckfxr.p_delay_mod_freq;
+        delay_mod_depth.val() => ckfxr.p_delay_mod_depth;
+
+        lpf_freq.val() => ckfxr.p_lpf_freq;
+        lpf_ramp.val() => ckfxr.p_lpf_ramp;
+        lpf_resonance.val() => ckfxr.p_lpf_resonance;
+
+        hpf_freq.val() => ckfxr.p_hpf_freq;
+        hpf_ramp.val() => ckfxr.p_hpf_ramp;
+    }
+
+    fun void reset()
+    {
+        0 => waveform;
+
+        1 => attack_dur_ms.val;
+        1 => release_dur_ms.val;
+        1000 => sustain_dur_ms.val;
+        1 => sustain_level.val;
+
+        60 => freq_base_midi.val;
+        0 => freq_limit_midi.val;
+        0 => freq_ramp.val;
+        0 => freq_dramp.val;
+
+        0 => vib_depth.val;
+        0 => vib_freq.val;
+
+        0 => arp_mod_midi.val;
+        0 => arp_time_ms.val;
+
+        0 => pwm_depth.val;
+        0 => pwm_freq.val;
+
+        0 => feedback_gain.val;
+        0 => delay_base_dur_ms.val;
+        0 => delay_mod_freq.val;
+        0 => delay_mod_depth.val;
+
+        20000 => lpf_freq.val;
+        0 => lpf_ramp.val;
+        1 => lpf_resonance.val;
+
+        20 => hpf_freq.val;
+        0 => hpf_ramp.val;
+    }
+
+    fun void pickupCoin(CKFXR@ ckfxr)
+    {
+        reset();
+
+        if (rnd(1)) CKFXR.WaveType_SAW => waveform;
+        else CKFXR.WaveType_SQUARE => waveform;
+
+        Math.random2f(60, 84) => freq_base_midi.val;
+
+        frnd(0.05, 0.15) * 1000 => sustain_dur_ms.val;
+        frnd(0.15, 0.3) * 1000 => release_dur_ms.val;
+        frnd(.6, .9) => sustain_level.val;
+
+        frnd(sustain_dur_ms.val()*.6, sustain_dur_ms.val() * 1.2) => arp_time_ms.val;
+        Math.random2f(2, 24) $ int => arp_mod_midi.val;
+    }
+
+    fun void shootLaser(CKFXR@ ckfxr)
+    {
+        reset();
+
+        rnd(2) => waveform;
+        
+        frnd(-120, -12) => freq_ramp.val;
+        frnd(-80, -12) => freq_dramp.val;
+        frnd(60, 127) => freq_base_midi.val;
+
+        frnd(0.05, 0.2) * 1000 => sustain_dur_ms.val;
+        frnd(0.05, 0.3) * 1000 => release_dur_ms.val;
+        frnd(.6, .9) => sustain_level.val;
+    }
+
+    fun void play(CKFXR@ ckfxr)
+    {
+        copyToSynth(ckfxr);
+        spork ~ ckfxr.play();
+    }
+
+    // return random float in range [0, range]
+    fun float frnd(float range)
+    {
+        return range * Math.randomf();
+    }
+
+    fun float frnd(float l, float h)
+    {
+        return Math.random2f(l, h);
+    }
+
+    // return random int in range [0, n]
+    fun int rnd(int n)
+    {
+        return Math.random() % (n + 1);
+    }
 }
 
 fun void centerNext(float item_width)
@@ -427,11 +495,23 @@ fun void centerNext(float item_width)
     UI.setCursorPosX(UI.getCursorPosX() + (avail_width - item_width) * .5);
 }
 
+fun void centerText(string t)
+{
+    centerNext(UI.calcTextSize(t).x);
+    UI.text(t);
+}
+
+fun int centerButton(string t, vec2 size)
+{
+    centerNext(size.x);
+    return UI.button(t, size);
+}
+
 fun void ui()
 {
 
-CKFXR_Params p;
 ["square", "saw", "sin", "noise"] @=> string waveforms[];
+["Pickup Coin", "Laser", "Explosion", "Powerup", "Hit/Hurt", "Jump", "Blip/Select"] @=> string presets[];
 
 while (1) {
 GG.nextFrame() => now;
@@ -440,35 +520,51 @@ UI.showDemoWindow(null);
 
 if (UI.begin("CKFXR", null, 0)) {
     UI.getWindowSize() => vec2 size;
+
     // Left Pane ---------------------------------------
+    UI.pushStyleVar(UI_StyleVar.WindowPadding, @(0, 10));
     UI.beginChild(
         "Left Generator",
         @(size.x * .2, 0), 
         UI_ChildFlags.Border,
         0
     );
-    for (int i; i < 100; i++)
-    {
-        // FIXME: Good candidate to use ImGuiSelectableFlags_SelectOnNav
-        // char label[128];
-        // sprintf(label, "MyObject %d", i);
-        // if (UI.Selectable(label, selected == i))
-        //     selected = i;
+
+    UI.getWindowSize() => vec2 left_size;
+
+    centerText("Presets");
+
+    UI.dummy(@(0.0, 10.0)); // vertical spacing
+
+    presets.size() $ float => float num_presets;
+    for (int i; i < presets.size(); i++) {
+        UI.pushStyleColor(UI_Color.Button, UI.convertHSVtoRGB(@(i / num_presets, 0.6f, 0.6f)));
+        UI.pushStyleColor(UI_Color.ButtonHovered, UI.convertHSVtoRGB(@(i / num_presets, 0.7f, 0.7f)));
+        UI.pushStyleColor(UI_Color.ButtonActive, UI.convertHSVtoRGB(@(i / num_presets, 0.8f, 0.8f)));
+
+        if (centerButton(presets[i], @(left_size.x * .8, 40))) {
+            if (i == 0) p.pickupCoin(ckfxr);
+            else if (i == 1) p.shootLaser(ckfxr);
+            p.play(ckfxr);
+        }
+        UI.popStyleColor(3);
+
+        UI.dummy(@(0.0, 10.0)); // vertical spacing
     }
+
     UI.endChild(); // "Left Generator"
+    UI.popStyleVar(); // WindowPadding = 0, 10
 
     UI.sameLine();
 
     // Middle Pane ---------------------------------------
-    // UI.beginGroup();
     UI.beginChild(
         "item view", 
-        @(size.x * .6, -UI.getFrameHeightWithSpacing()),
-        // UI_ChildFlags.Border,
-        0,
-        0
-    ); // Leave room for 1 line below us
-    UI.text("Manual Settings");
+        @(size.x * .6, 0),
+        0, 0
+    ); 
+
+    centerText("Manual Settings");
 
     UI.getWindowWidth() => float middle_width;
 
@@ -526,11 +622,6 @@ if (UI.begin("CKFXR", null, 0)) {
     UI.separator();
     UI.endChild();
 
-    // if (UI.button("Revert")) {}
-    // UI.sameLine();
-    // if (UI.button("Save")) {}
-    // UI.endGroup();
-
     UI.sameLine();
 
     // Right Pane ---------------------------------------
@@ -545,31 +636,49 @@ if (UI.begin("CKFXR", null, 0)) {
     centerNext(UI.calcTextSize("Volume").x);
     UI.text("Volume");
     centerNext(right_size.x * .4);
-    UI.vslider("##v", @(right_size.x * .4, right_size.y * .2), p.main_gain, 0, 1);
+    // ## hidden label + id. See https://github.com/ocornut/imgui/blob/master/docs/FAQ.md#q-how-can-i-have-multiple-windows-with-the-same-label
+    if (UI.vslider("##volume", @(right_size.x * .4, right_size.y * .2), p.main_gain, 0, 1)) {
+        p.main_gain.val() => ckfxr.gain;
+    }
 
-    centerNext(right_size.x * .8);
-    UI.convertHSVtoRGB(@(2.0/7, 0.6, 0.6)) => vec3 g;
-    UI.convertHSVtoRGB(@(2.0/7, 0.7, 0.7)) => vec3 g1;
-    UI.convertHSVtoRGB(@(2.0/7, 0.8, 0.8)) => vec3 g2;
-    UI.pushStyleColor(UI_Color.Button, @(g.x, g.y, g.z, 1));
-    UI.pushStyleColor(UI_Color.ButtonHovered, @(g1.x, g1.y, g1.z, 1));
-    UI.pushStyleColor(UI_Color.ButtonActive, @(g2.x, g2.y, g2.z, 1));
-    UI.button("Play Sound", @(right_size.x * .8, right_size.y * .1));
+    UI.dummy(@(0.0f, 20.0f)); // vertical spacing
+
+    UI.pushStyleColor(UI_Color.Button, UI.convertHSVtoRGB(@(2.0/7, 0.6, 0.6)));
+    UI.pushStyleColor(UI_Color.ButtonHovered, UI.convertHSVtoRGB(@(2.0/7, 0.7, 0.7)));
+    UI.pushStyleColor(UI_Color.ButtonActive, UI.convertHSVtoRGB(@(2.0/7, 0.8, 0.8)));
+    if (centerButton("Play Sound", @(right_size.x * .8, 40)))
+        p.play(ckfxr);
+    UI.itemTooltip("Press space or return to play sound");
     UI.popStyleColor(3);
 
-    UI.inputText("##", p.export_wav_path);
-    UI.button("Export WAV");
+    UI.dummy(@(0.0f, 20.0f)); // vertical spacing
 
-
-
+    centerNext(right_size.x * .8);
+    UI.setNextItemWidth(right_size.x * .8);
+    UI.inputText("##export_wav_path", p.export_wav_path);
+    centerNext(right_size.x * .8);
+    UI.button("Export WAV", @(right_size.x * .8, 20));
 
     UI.endChild();
     UI.popStyleVar();
-
 }
 UI.end(); // CKFXR
+
+// copy UI params to synth
+
+
 }
 } spork ~ ui();
+
+// keyboard controls
+fun void kb()
+{
+    while (1) {
+        GG.nextFrame() => now;
+        if (UI.isKeyPressed(UI_Key.Space, false) || UI.isKeyPressed(UI_Key.Enter, false))
+            p.play(ckfxr);
+    }
+} spork ~ kb();
 
 1::eon => now;
 
@@ -588,7 +697,6 @@ UI.EndChild();
 UI.SameLine();
 ....
 UI.BeginChild("item view", ....);
-
 */
 
 /*
