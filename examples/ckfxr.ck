@@ -12,6 +12,46 @@ CKFXR ckfxr => dac;
 ckfxr => WvOut wvout => blackhole;
 CKFXR_Params p;
 
+512 => int WINDOW_SIZE;
+
+ckfxr => Flip accum => blackhole;
+ckfxr => PoleZero dcbloke => FFT fft => blackhole;
+.95 => dcbloke.blockZero;
+WINDOW_SIZE => accum.size;
+Windowing.hann(WINDOW_SIZE) => fft.window;
+WINDOW_SIZE*2 => fft.size;
+Windowing.hann(WINDOW_SIZE) @=> float window[];
+
+float samples[0];
+complex response[0];
+float spectrum_hist_positions[WINDOW_SIZE];
+
+// map audio buffer to 3D positions
+fun void map2waveform(float in[])
+{
+    for( int i; i < in.size(); i++ )
+        window[i] *=> in[i];
+}
+
+// map FFT output to 3D positions
+fun void map2spectrum( complex in[], float out[] )
+{
+    for(int i; i < in.size(); i++)
+        5 * Math.sqrt( (in[i]$polar).mag * 25 ) => out[i];
+}
+
+fun void audioAnalyzerShred()
+{
+    while( true ) {
+        accum.upchuck();
+        accum.output( samples );
+        fft.upchuck();
+        fft.spectrum( response );
+        WINDOW_SIZE::samp/2 => now;
+    }
+} spork ~ audioAnalyzerShred();
+
+
 // Delay-based effects including flange, chorus, doubling
 // https://github.com/ccrma/music220a/blob/main/07-time-and-space/delay-based-efx/script.js
 // https://ccrma.stanford.edu/~dattorro/EffectDesignPart2.pdf
@@ -626,6 +666,9 @@ fun void ui()
 while (1) {
 GG.nextFrame() => now;
 
+
+UI.showDemoWindow(null);
+
 UI.getMainViewport() @=> UI_Viewport @ viewport;
 UI.setNextWindowPos(viewport.workPos(), UI_Cond.Always);
 UI.setNextWindowSize(viewport.workSize(), UI_Cond.Always);
@@ -774,10 +817,24 @@ if (UI.begin("CKFXR", null, UI_WindowFlags.NoDecoration | UI_WindowFlags.NoResiz
     UI.setNextItemWidth(right_size.x * .8);
     UI.inputText("##export_wav_path", p.export_wav_path);
     centerNext(right_size.x * .8);
-    if (UI.button("Export WAV", @(right_size.x * .8, 20))) {
+    if (UI.button("Export WAV", @(right_size.x * .8, 40))) {
         <<< "Exporting to", me.dir() + p.export_wav_path.val() >>>;
         spork ~ p.record(ckfxr);
     }
+
+    UI.dummy(@(0.0f, 20.0f)); // vertical spacing
+
+    // plot waveform as line
+    map2waveform( samples );
+    centerNext(right_size.x * .8);
+    UI.plotLines("##Waveform", samples, 0, "512 samples", -1, 1, @(right_size.x * .8, 100));
+
+    UI.dummy(@(0.0f, 20.0f)); // vertical spacing
+
+    // plot spectrum as histogram
+    centerNext(right_size.x * .8);
+    map2spectrum( response, spectrum_hist_positions );
+    UI.plotHistogram("##Spectrum", spectrum_hist_positions, 0, "512 bins", 0, 8, @(right_size.x * .8, 100));
 
     UI.endChild();
     UI.popStyleVar();

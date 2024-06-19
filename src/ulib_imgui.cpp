@@ -871,6 +871,78 @@ CK_DLL_MFUN(ui_style_set_hover_delay_normal);
 CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_mouse);
 CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_nav);
 
+// UI_DrawList
+// always defaulting to imgui.igGetWindowDrawList() for now
+CK_DLL_SFUN(ui_DrawList_PushClipRect);
+CK_DLL_SFUN(ui_DrawList_PushClipRectFullScreen);
+CK_DLL_SFUN(ui_DrawList_PopClipRect);
+// CK_DLL_SFUN(ui_DrawList_PushTextureID);
+// CK_DLL_SFUN(ui_DrawList_PopTextureID);
+CK_DLL_SFUN(ui_DrawList_GetClipRectMin);
+CK_DLL_SFUN(ui_DrawList_GetClipRectMax);
+CK_DLL_SFUN(ui_DrawList_AddLine);
+CK_DLL_SFUN(ui_DrawList_AddLineEx);
+CK_DLL_SFUN(ui_DrawList_AddRect);
+CK_DLL_SFUN(ui_DrawList_AddRectEx);
+CK_DLL_SFUN(ui_DrawList_AddRectFilled);
+CK_DLL_SFUN(ui_DrawList_AddRectFilledEx);
+CK_DLL_SFUN(ui_DrawList_AddRectFilledMultiColor);
+CK_DLL_SFUN(ui_DrawList_AddQuad);
+CK_DLL_SFUN(ui_DrawList_AddQuadEx);
+CK_DLL_SFUN(ui_DrawList_AddQuadFilled);
+CK_DLL_SFUN(ui_DrawList_AddTriangle);
+CK_DLL_SFUN(ui_DrawList_AddTriangleEx);
+CK_DLL_SFUN(ui_DrawList_AddTriangleFilled);
+CK_DLL_SFUN(ui_DrawList_AddCircle);
+CK_DLL_SFUN(ui_DrawList_AddCircleEx);
+CK_DLL_SFUN(ui_DrawList_AddCircleFilled);
+CK_DLL_SFUN(ui_DrawList_AddNgon);
+CK_DLL_SFUN(ui_DrawList_AddNgonEx);
+CK_DLL_SFUN(ui_DrawList_AddNgonFilled);
+CK_DLL_SFUN(ui_DrawList_AddEllipse);
+CK_DLL_SFUN(ui_DrawList_AddEllipseEx);
+CK_DLL_SFUN(ui_DrawList_AddEllipseFilled);
+CK_DLL_SFUN(ui_DrawList_AddEllipseFilledEx);
+CK_DLL_SFUN(ui_DrawList_AddText);
+CK_DLL_SFUN(ui_DrawList_AddTextEx);
+// CK_DLL_SFUN(ui_DrawList_AddTextImFontPtr);
+// CK_DLL_SFUN(ui_DrawList_AddTextImFontPtrEx);
+CK_DLL_SFUN(ui_DrawList_AddBezierCubic);
+CK_DLL_SFUN(ui_DrawList_AddBezierQuadratic);
+CK_DLL_SFUN(ui_DrawList_AddPolyline);
+CK_DLL_SFUN(ui_DrawList_AddConvexPolyFilled);
+CK_DLL_SFUN(ui_DrawList_AddConcavePolyFilled);
+CK_DLL_SFUN(ui_DrawList_PathClear);
+CK_DLL_SFUN(ui_DrawList_PathLineTo);
+CK_DLL_SFUN(ui_DrawList_PathLineToMergeDuplicate);
+CK_DLL_SFUN(ui_DrawList_PathFillConvex);
+CK_DLL_SFUN(ui_DrawList_PathFillConcave);
+CK_DLL_SFUN(ui_DrawList_PathStroke);
+CK_DLL_SFUN(ui_DrawList_PathArcTo);
+CK_DLL_SFUN(ui_DrawList_PathArcToFast);
+CK_DLL_SFUN(ui_DrawList_PathEllipticalArcTo);
+CK_DLL_SFUN(ui_DrawList_PathEllipticalArcToEx);
+CK_DLL_SFUN(ui_DrawList_PathBezierCubicCurveTo);
+CK_DLL_SFUN(ui_DrawList_PathBezierQuadraticCurveTo);
+CK_DLL_SFUN(ui_DrawList_PathRect);
+// TODO image support after we get textures in chugl
+// CIMGUI_API void        ImDrawList_AddImage(ImDrawList* self, ImTextureID
+// user_texture_id, ImVec2 p_min, ImVec2 p_max); // Implied uv_min = ImVec2(0,
+// 0), uv_max = ImVec2(1, 1), col = IM_COL32_WHITE CIMGUI_API void
+// ImDrawList_AddImageEx(ImDrawList* self, ImTextureID user_texture_id, ImVec2
+// p_min, ImVec2 p_max, ImVec2 uv_min /* = ImVec2(0, 0) */, ImVec2 uv_max /* =
+// ImVec2(1, 1) */, ImU32 col /* = IM_COL32_WHITE */); CIMGUI_API void
+// ImDrawList_AddImageQuad(ImDrawList* self, ImTextureID user_texture_id, ImVec2
+// p1, ImVec2 p2, ImVec2 p3, ImVec2 p4);                        // Implied uv1 =
+// ImVec2(0, 0), uv2 = ImVec2(1, 0), uv3 = ImVec2(1, 1), uv4 = ImVec2(0, 1), col
+// = IM_COL32_WHITE CIMGUI_API void        ImDrawList_AddImageQuadEx(ImDrawList*
+// self, ImTextureID user_texture_id, ImVec2 p1, ImVec2 p2, ImVec2 p3, ImVec2
+// p4, ImVec2 uv1 /* = ImVec2(0, 0) */, ImVec2 uv2 /* = ImVec2(1, 0) */, ImVec2
+// uv3 /* = ImVec2(1, 1) */, ImVec2 uv4 /* = ImVec2(0, 1) */, ImU32 col /* =
+// IM_COL32_WHITE */); CIMGUI_API void ImDrawList_AddImageRounded(ImDrawList*
+// self, ImTextureID user_texture_id, ImVec2 p_min, ImVec2 p_max, ImVec2 uv_min,
+// ImVec2 uv_max, ImU32 col, float rounding, ImDrawFlags flags /* = 0 */);
+
 // Helpers -------------------------------------------------------------------
 
 // clang-format off
@@ -1511,6 +1583,337 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("int", "hoverFlagsForTooltipNav");
 
     END_CLASS(); // UI_Style
+
+    BEGIN_CLASS("UI_DrawList", "Object");
+    DOC_CLASS(
+      "All methods add to the current window draw list (igGetWindowDrawList())."
+      "This is the low-level list of polygons that ImGui:: functions are "
+      "filling. At the end of the frame,"
+      "all command lists are passed to your ImGuiIO::RenderDrawListFn function "
+      "for rendering."
+      "Each dear imgui window contains its own ImDrawList."
+      "You can interleave normal ImGui:: calls and adding primitives to the "
+      "current draw list."
+      "In single viewport mode, top-left is == GetMainViewport()->Pos "
+      "(generally 0,0), bottom-right is == GetMainViewport()->Pos+Size "
+      "(generally io.DisplaySize)."
+      "You are totally free to apply whatever transformation matrix to want to "
+      "the data (depending on the use of the transformation you may want to "
+      "apply it to ClipRect as well!)"
+      "Important: Primitives are always added to the list and not culled "
+      "(culling is done at higher-level by ImGui:: functions), if you use this "
+      "API a lot consider coarse culling your drawn objects."
+      "Filled shapes must always use clockwise winding order. The "
+      "anti-aliasing fringe depends on it. Counter-clockwise shapes will "
+      "have inward anti-aliasing."
+      "For rectangular primitives, \"p_min\" and \"p_max\" represent the "
+      "upper-left and lower-right corners."
+      "For circle primitives, use \"num_segments == 0\" to automatically "
+      "calculate tessellation (preferred)."
+      "In older versions (until Dear ImGui 1.77) the AddCircle functions "
+      "defaulted to num_segments == 12."
+      "In future versions we will use textures to provide cheaper and "
+      "higher-quality circles."
+      "Use AddNgon() and AddNgonFilled() functions if you need to guarantee a "
+      "specific number of sides.");
+
+    SFUN(ui_DrawList_PushClipRect, "void", "pushClipRect");
+    ARG("vec2", "clip_rect_min");
+    ARG("vec2", "clip_rect_max");
+    ARG("int", "intersect_with_current_clip_rect");
+    DOC_FUNC(
+      "Render-level scissoring. This is passed down to your render function "
+      "but not used for CPU-side coarse clipping. Prefer using higher-level "
+      "ImGui::PushClipRect() to affect logic (hit-testing and widget culling)");
+
+    SFUN(ui_DrawList_PushClipRectFullScreen, "void", "pushClipRectFullScreen");
+    SFUN(ui_DrawList_PopClipRect, "void", "popClipRect");
+    SFUN(ui_DrawList_GetClipRectMin, "vec2", "getClipRectMin");
+    SFUN(ui_DrawList_GetClipRectMax, "vec2", "getClipRectMax");
+
+    // primitives
+    SFUN(ui_DrawList_AddLine, "void", "addLine");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddLineEx, "void", "addLineEx");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec4", "col");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddRect, "void", "addRect");
+    ARG("vec2", "p_min");
+    ARG("vec2", "p_max");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddRectEx, "void", "addRectEx");
+    ARG("vec2", "p_min");
+    ARG("vec2", "p_max");
+    ARG("vec4", "col");
+    ARG("float", "rounding");
+    ARG("int", "UI_DrawFlags");
+    ARG("float", "thickness");
+    DOC_FUNC("a: upper-left, b: lower-right (== upper-left + size)");
+
+    SFUN(ui_DrawList_AddRectFilled, "void", "addRectFilled");
+    ARG("vec2", "p_min");
+    ARG("vec2", "p_max");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddRectFilledEx, "void", "addRectFilledEx");
+    ARG("vec2", "p_min");
+    ARG("vec2", "p_max");
+    ARG("vec4", "col");
+    ARG("float", "rounding");
+    ARG("int", "UI_DrawFlags");
+    DOC_FUNC("a: upper-left, b: lower-right (== upper-left + size)");
+
+    SFUN(ui_DrawList_AddRectFilledMultiColor, "void",
+         "addRectFilledMultiColor");
+    ARG("vec2", "p_min");
+    ARG("vec2", "p_max");
+    ARG("vec4", "col_upr_left");
+    ARG("vec4", "col_upr_right");
+    ARG("vec4", "col_bot_right");
+    ARG("vec4", "col_bot_left");
+
+    SFUN(ui_DrawList_AddQuad, "void", "addQuad");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec2", "p4");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddQuadEx, "void", "addQuadEx");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec2", "p4");
+    ARG("vec4", "col");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddQuadFilled, "void", "addQuadFilled");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec2", "p4");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddTriangle, "void", "addTriangle");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddTriangleEx, "void", "addTriangleEx");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec4", "col");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddTriangleFilled, "void", "addTriangleFilled");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddCircle, "void", "addCircle");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddCircleEx, "void", "addCircleEx");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+    ARG("int", "num_segments");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddCircleFilled, "void", "addCircleFilled");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_AddNgon, "void", "addNgon");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_AddNgonEx, "void", "addNgonEx");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+    ARG("int", "num_segments");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddNgonFilled, "void", "addNgonFilled");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("vec4", "col");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_AddEllipse, "void", "addEllipse");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddEllipseEx, "void", "addEllipseEx");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("vec4", "col");
+    ARG("float", "rot");
+    ARG("int", "num_segments");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddEllipseFilled, "void", "addEllipseFilled");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddEllipseFilledEx, "void", "addEllipseFilledEx");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("vec4", "col");
+    ARG("float", "rot");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_AddText, "void", "addText");
+    ARG("vec2", "pos");
+    ARG("vec4", "col");
+    ARG("string", "text_begin");
+
+    SFUN(ui_DrawList_AddTextEx, "void", "addTextEx");
+    ARG("vec2", "pos");
+    ARG("vec4", "col");
+    ARG("string", "text_begin");
+    ARG("string", "text_end");
+
+    // SFUN(ui_DrawList_AddTextImFontPtr, "void", "addTextImFontPtr");
+    // ARG("ImFont", "font");
+    // ARG("float", "font_size");
+    // ARG("vec2", "pos");
+    // ARG("vec4", "col");
+    // ARG("string", "text_begin");
+    // DOC_FUNC(
+    //   "Implied text_end = NULL, wrap_width = 0.0f, cpu_fine_clip_rect = "
+    //   "NULL");
+
+    // SFUN(ui_DrawList_AddTextImFontPtrEx, "void", "addTextImFontPtrEx");
+    // ARG("ImFont", "font");
+    // ARG("float", "font_size");
+    // ARG("vec2", "pos");
+    // ARG("vec4", "col");
+    // ARG("string", "text_begin");
+    // ARG("string", "text_end");
+    // ARG("float", "wrap_width");
+    // ARG("vec4", "cpu_fine_clip_rect");
+
+    SFUN(ui_DrawList_AddBezierCubic, "void", "addBezierCubic");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec2", "p4");
+    ARG("vec4", "col");
+    ARG("float", "thickness");
+    ARG("int", "num_segments");
+    DOC_FUNC("Cubic Bezier (4 control points)");
+
+    SFUN(ui_DrawList_AddBezierQuadratic, "void", "addBezierQuadratic");
+    ARG("vec2", "p1");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec4", "col");
+    ARG("float", "thickness");
+    ARG("int", "num_segments");
+    DOC_FUNC("Quadratic Bezier (3 control points)");
+
+    SFUN(ui_DrawList_AddPolyline, "void", "addPolyline");
+    ARG("vec2[]", "points");
+    ARG("vec4", "col");
+    ARG("int", "UI_DrawFlags");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_AddConvexPolyFilled, "void", "addConvexPolyFilled");
+    ARG("vec2[]", "points");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_AddConcavePolyFilled, "void", "addConcavePolyFilled");
+    ARG("vec2[]", "points");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_PathClear, "void", "pathClear");
+
+    SFUN(ui_DrawList_PathLineTo, "void", "pathLineTo");
+    ARG("vec2", "pos");
+
+    SFUN(ui_DrawList_PathLineToMergeDuplicate, "void",
+         "pathLineToMergeDuplicate");
+    ARG("vec2", "pos");
+
+    SFUN(ui_DrawList_PathFillConvex, "void", "pathFillConvex");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_PathFillConcave, "void", "pathFillConcave");
+    ARG("vec4", "col");
+
+    SFUN(ui_DrawList_PathStroke, "void", "pathStroke");
+    ARG("vec4", "col");
+    ARG("int", "UI_DrawFlags");
+    ARG("float", "thickness");
+
+    SFUN(ui_DrawList_PathArcTo, "void", "pathArcTo");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("float", "a_min");
+    ARG("float", "a_max");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_PathArcToFast, "void", "pathArcToFast");
+    ARG("vec2", "center");
+    ARG("float", "radius");
+    ARG("int", "a_min_of_12");
+    ARG("int", "a_max_of_12");
+    DOC_FUNC("Use precomputed angles for a 12 steps circle");
+
+    SFUN(ui_DrawList_PathEllipticalArcTo, "void", "pathEllipticalArcTo");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("float", "rot");
+    ARG("float", "a_min");
+    ARG("float", "a_max");
+
+    SFUN(ui_DrawList_PathEllipticalArcToEx, "void", "pathEllipticalArcToEx");
+    ARG("vec2", "center");
+    ARG("vec2", "radius");
+    ARG("float", "rot");
+    ARG("int", "a_min");
+    ARG("int", "a_max");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_PathBezierCubicCurveTo, "void", "pathBezierCubicCurveTo");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("vec2", "p4");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_PathBezierQuadraticCurveTo, "void",
+         "pathBezierQuadraticCurveTo");
+    ARG("vec2", "p2");
+    ARG("vec2", "p3");
+    ARG("int", "num_segments");
+
+    SFUN(ui_DrawList_PathRect, "void", "pathRect");
+    ARG("vec2", "rect_min");
+    ARG("vec2", "rect_max");
+    ARG("float", "rounding");
+    ARG("int", "UI_DrawFlags");
+
+    END_CLASS(); // UI_DrawList
 
     // enums
     QUERY->begin_class(QUERY, "UI_WindowFlags", "Object");
@@ -3946,6 +4349,109 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "NoUndocking", true,
                     &ImGuiDockNodeFlags_NoUndocking);
     QUERY->doc_var(QUERY, "Disable undocking this node.");
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_DrawFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImDrawList functions.\n(Legacy: bit 0 must always correspond "
+      "to ImDrawFlags_Closed to be backward compatible with old API using a "
+      "bool. Bits 1..3 must be unused).\n");
+    static t_CKINT ImDrawFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImDrawFlags_None);
+    static t_CKINT ImDrawFlags_Closed = 1;
+    QUERY->add_svar(QUERY, "int", "Closed", true, &ImDrawFlags_Closed);
+    QUERY->doc_var(QUERY,
+                   "PathStroke(), AddPolyline(): specify that shape should be "
+                   "closed (Important: this is always == 1 for legacy reason)");
+    static t_CKINT ImDrawFlags_RoundCornersTopLeft = 16;
+    QUERY->add_svar(QUERY, "int", "RoundCornersTopLeft", true,
+                    &ImDrawFlags_RoundCornersTopLeft);
+    QUERY->doc_var(
+      QUERY,
+      "AddRect(), AddRectFilled(), PathRect(): enable rounding top-left corner "
+      "only (when rounding > 0.0f, we default to all corners). Was 0x01.");
+    static t_CKINT ImDrawFlags_RoundCornersTopRight = 32;
+    QUERY->add_svar(QUERY, "int", "RoundCornersTopRight", true,
+                    &ImDrawFlags_RoundCornersTopRight);
+    QUERY->doc_var(QUERY,
+                   "AddRect(), AddRectFilled(), PathRect(): enable rounding "
+                   "top-right corner only (when rounding > 0.0f, we default to "
+                   "all corners). Was 0x02.");
+    static t_CKINT ImDrawFlags_RoundCornersBottomLeft = 64;
+    QUERY->add_svar(QUERY, "int", "RoundCornersBottomLeft", true,
+                    &ImDrawFlags_RoundCornersBottomLeft);
+    QUERY->doc_var(QUERY,
+                   "AddRect(), AddRectFilled(), PathRect(): enable rounding "
+                   "bottom-left corner only (when rounding > 0.0f, we default "
+                   "to all corners). Was 0x04.");
+    static t_CKINT ImDrawFlags_RoundCornersBottomRight = 128;
+    QUERY->add_svar(QUERY, "int", "RoundCornersBottomRight", true,
+                    &ImDrawFlags_RoundCornersBottomRight);
+    QUERY->doc_var(QUERY,
+                   "AddRect(), AddRectFilled(), PathRect(): enable rounding "
+                   "bottom-right corner only (when rounding > 0.0f, we default "
+                   "to all corners). Wax 0x08.");
+    static t_CKINT ImDrawFlags_RoundCornersNone = 256;
+    QUERY->add_svar(QUERY, "int", "RoundCornersNone", true,
+                    &ImDrawFlags_RoundCornersNone);
+    QUERY->doc_var(
+      QUERY,
+      "AddRect(), AddRectFilled(), PathRect(): disable rounding on all corners "
+      "(when rounding > 0.0f). This is NOT zero, NOT an implicit flag!");
+    static t_CKINT ImDrawFlags_RoundCornersTop = 48;
+    QUERY->add_svar(QUERY, "int", "RoundCornersTop", true,
+                    &ImDrawFlags_RoundCornersTop);
+    static t_CKINT ImDrawFlags_RoundCornersBottom = 192;
+    QUERY->add_svar(QUERY, "int", "RoundCornersBottom", true,
+                    &ImDrawFlags_RoundCornersBottom);
+    static t_CKINT ImDrawFlags_RoundCornersLeft = 80;
+    QUERY->add_svar(QUERY, "int", "RoundCornersLeft", true,
+                    &ImDrawFlags_RoundCornersLeft);
+    static t_CKINT ImDrawFlags_RoundCornersRight = 160;
+    QUERY->add_svar(QUERY, "int", "RoundCornersRight", true,
+                    &ImDrawFlags_RoundCornersRight);
+    static t_CKINT ImDrawFlags_RoundCornersAll = 240;
+    QUERY->add_svar(QUERY, "int", "RoundCornersAll", true,
+                    &ImDrawFlags_RoundCornersAll);
+    QUERY->end_class(QUERY);
+
+    QUERY->begin_class(QUERY, "UI_DrawListFlags", "Object");
+    QUERY->doc_class(
+      QUERY,
+      "Flags for ImDrawList instance. Those are set automatically by ImGui:: "
+      "functions from ImGuiIO settings, and generally not manipulated "
+      "directly..\nIt is however possible to temporarily alter flags between "
+      "calls to ImDrawList:: functions..\n");
+    static t_CKINT ImDrawListFlags_None = 0;
+    QUERY->add_svar(QUERY, "int", "None", true, &ImDrawListFlags_None);
+    static t_CKINT ImDrawListFlags_AntiAliasedLines = 1;
+    QUERY->add_svar(QUERY, "int", "AntiAliasedLines", true,
+                    &ImDrawListFlags_AntiAliasedLines);
+    QUERY->doc_var(
+      QUERY,
+      "Enable anti-aliased lines/borders (*2 the number of triangles for 1.0f "
+      "wide line or lines thin enough to be drawn using textures, otherwise *3 "
+      "the number of triangles)");
+    static t_CKINT ImDrawListFlags_AntiAliasedLinesUseTex = 2;
+    QUERY->add_svar(QUERY, "int", "AntiAliasedLinesUseTex", true,
+                    &ImDrawListFlags_AntiAliasedLinesUseTex);
+    QUERY->doc_var(QUERY,
+                   "Enable anti-aliased lines/borders using textures when "
+                   "possible. Require backend to render with bilinear "
+                   "filtering (NOT point/nearest filtering).");
+    static t_CKINT ImDrawListFlags_AntiAliasedFill = 4;
+    QUERY->add_svar(QUERY, "int", "AntiAliasedFill", true,
+                    &ImDrawListFlags_AntiAliasedFill);
+    QUERY->doc_var(QUERY,
+                   "Enable anti-aliased edge around filled shapes (rounded "
+                   "rectangles, circles).");
+    static t_CKINT ImDrawListFlags_AllowVtxOffset = 8;
+    QUERY->add_svar(QUERY, "int", "AllowVtxOffset", true,
+                    &ImDrawListFlags_AllowVtxOffset);
+    QUERY->doc_var(QUERY,
+                   "Can emit 'VtxOffset > 0' to allow large meshes. Set when "
+                   "'ImGuiBackendFlags_RendererHasVtxOffset' is enabled.");
     QUERY->end_class(QUERY);
 
     // Callbacks ----------------------------------------------------------
@@ -7404,6 +7910,631 @@ CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_nav)
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
     style->HoverFlagsForTooltipNav = GET_NEXT_INT(ARGS);
+}
+
+// ============================================================================
+// UI_DrawList
+// ============================================================================
+
+#define CKVEC2_TO_IMVEC2(v)                                                    \
+    {                                                                          \
+        (float)v.x, (float)v.y                                                 \
+    }
+#define CKVEC3_TO_IMVEC3(v)                                                    \
+    {                                                                          \
+        (float)v.x, (float)v.y, (float)v.z                                     \
+    }
+#define CKVEC4_TO_IMVEC4(v)                                                    \
+    {                                                                          \
+        (float)v.x, (float)v.y, (float)v.z, (float)v.w                         \
+    }
+#define CKVEC4_TO_IMU32(v)                                                     \
+    (cimgui::ImGui_ColorConvertFloat4ToU32(CKVEC4_TO_IMVEC4(v)))
+
+CK_DLL_SFUN(ui_DrawList_PushClipRect)
+{
+    cimgui::ImDrawList* draw_list         = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 clip_rect_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 clip_rect_max                = GET_NEXT_VEC2(ARGS);
+    bool intersect_with_current_clip_rect = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PushClipRect(draw_list, CKVEC2_TO_IMVEC2(clip_rect_min),
+                                    CKVEC2_TO_IMVEC2(clip_rect_max),
+                                    intersect_with_current_clip_rect);
+}
+
+CK_DLL_SFUN(ui_DrawList_PushClipRectFullScreen)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    cimgui::ImDrawList_PushClipRectFullScreen(draw_list);
+}
+
+CK_DLL_SFUN(ui_DrawList_PopClipRect)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    cimgui::ImDrawList_PopClipRect(draw_list);
+}
+
+CK_DLL_SFUN(ui_DrawList_GetClipRectMin)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    cimgui::ImVec2 clip_rect_min = cimgui::ImDrawList_GetClipRectMin(draw_list);
+    RETURN->v_vec2               = { clip_rect_min.x, clip_rect_min.y };
+}
+
+CK_DLL_SFUN(ui_DrawList_GetClipRectMax)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    cimgui::ImVec2 clip_rect_max = cimgui::ImDrawList_GetClipRectMax(draw_list);
+    RETURN->v_vec2               = { clip_rect_max.x, clip_rect_max.y };
+}
+
+CK_DLL_SFUN(ui_DrawList_AddLine)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddLine(draw_list, CKVEC2_TO_IMVEC2(p1),
+                               CKVEC2_TO_IMVEC2(p2), CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddLineEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddLineEx(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                 CKVEC2_TO_IMVEC2(p2), CKVEC4_TO_IMU32(col),
+                                 thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddRect)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p_max                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddRect(draw_list, CKVEC2_TO_IMVEC2(p_min),
+                               CKVEC2_TO_IMVEC2(p_max), CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddRectEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p_max                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float rounding                = GET_NEXT_FLOAT(ARGS);
+    int rounding_corners_flags    = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddRectEx(draw_list, CKVEC2_TO_IMVEC2(p_min),
+                                 CKVEC2_TO_IMVEC2(p_max), CKVEC4_TO_IMU32(col),
+                                 rounding, rounding_corners_flags, thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddRectFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p_max                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddRectFilled(draw_list, CKVEC2_TO_IMVEC2(p_min),
+                                     CKVEC2_TO_IMVEC2(p_max),
+                                     CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddRectFilledEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p_max                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float rounding                = GET_NEXT_FLOAT(ARGS);
+    int rounding_corners_flags    = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddRectFilledEx(
+      draw_list, CKVEC2_TO_IMVEC2(p_min), CKVEC2_TO_IMVEC2(p_max),
+      CKVEC4_TO_IMU32(col), rounding, rounding_corners_flags);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddRectFilledMultiColor)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p_min                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p_max                = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col_up_left          = GET_NEXT_VEC4(ARGS);
+    t_CKVEC4 col_up_right         = GET_NEXT_VEC4(ARGS);
+    t_CKVEC4 col_down_right       = GET_NEXT_VEC4(ARGS);
+    t_CKVEC4 col_down_left        = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddRectFilledMultiColor(
+      draw_list, CKVEC2_TO_IMVEC2(p_min), CKVEC2_TO_IMVEC2(p_max),
+      CKVEC4_TO_IMU32(col_up_left), CKVEC4_TO_IMU32(col_up_right),
+      CKVEC4_TO_IMU32(col_down_right), CKVEC4_TO_IMU32(col_down_left));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddQuad)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddQuad(draw_list, CKVEC2_TO_IMVEC2(p1),
+                               CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                               CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddQuadEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddQuadEx(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                 CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                                 CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col),
+                                 thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddQuadFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddQuadFilled(
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+      CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddTriangle)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddTriangle(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                   CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                                   CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddTriangleEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddTriangleEx(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                     CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                                     CKVEC4_TO_IMU32(col), thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddTriangleFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddTriangleFilled(
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+      CKVEC2_TO_IMVEC2(p3), CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddCircle)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddCircle(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                 CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddCircleEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddCircleEx(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                   CKVEC4_TO_IMU32(col), num_segments,
+                                   thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddCircleFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    t_CKINT num_segments          = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddCircleFilled(draw_list, CKVEC2_TO_IMVEC2(center),
+                                       radius, CKVEC4_TO_IMU32(col),
+                                       num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddNgon)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddNgon(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                               CKVEC4_TO_IMU32(col), num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddNgonEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddNgonEx(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                 CKVEC4_TO_IMU32(col), num_segments, thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddNgonFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddNgonFilled(draw_list, CKVEC2_TO_IMVEC2(center),
+                                     radius, CKVEC4_TO_IMU32(col),
+                                     num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddEllipse)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddEllipse(draw_list, CKVEC2_TO_IMVEC2(center),
+                                  CKVEC2_TO_IMVEC2(radius),
+                                  CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddEllipseEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    t_CKFLOAT rot                 = GET_NEXT_FLOAT(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_AddEllipseEx(
+      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius),
+      CKVEC4_TO_IMU32(col), rot, num_segments, thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddEllipseFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_AddEllipseFilled(draw_list, CKVEC2_TO_IMVEC2(center),
+                                        CKVEC2_TO_IMVEC2(radius),
+                                        CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddEllipseFilledEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    t_CKFLOAT rot                 = GET_NEXT_FLOAT(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddEllipseFilledEx(
+      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius),
+      CKVEC4_TO_IMU32(col), rot, num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddText)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 pos                  = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    const char* text              = API->object->str(GET_NEXT_STRING(ARGS));
+
+    cimgui::ImDrawList_AddText(draw_list, CKVEC2_TO_IMVEC2(pos),
+                               CKVEC4_TO_IMU32(col), text);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddTextEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 pos                  = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    const char* text              = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* text_end          = API->object->str(GET_NEXT_STRING(ARGS));
+
+    cimgui::ImDrawList_AddTextEx(draw_list, CKVEC2_TO_IMVEC2(pos),
+                                 CKVEC4_TO_IMU32(col), text, text_end);
+}
+
+// CK_DLL_SFUN(ui_DrawList_AddTextImFontPtr)
+// {
+// }
+
+// CK_DLL_SFUN(ui_DrawList_AddTextImFontPtrEx)
+// {
+// }
+
+CK_DLL_SFUN(ui_DrawList_AddBezierCubic)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddBezierCubic(
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+      CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col),
+      thickness, num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddBezierQuadratic)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p1                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_AddBezierQuadratic(
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+      CKVEC2_TO_IMVEC2(p3), CKVEC4_TO_IMU32(col), thickness, num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddPolyline)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    Chuck_ArrayVec2* points       = (Chuck_ArrayVec2*)GET_NEXT_OBJECT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int flags                     = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    int num_items = API->object->array_vec2_size(points);
+
+    cimgui::ImVec2* items
+      = ARENA_PUSH_COUNT(&audio_frame_arena, cimgui::ImVec2, num_items);
+
+    for (int i = 0; i < num_items; i++) {
+        items[i] = CKVEC2_TO_IMVEC2(API->object->array_vec2_get_idx(points, i));
+    }
+
+    cimgui::ImDrawList_AddPolyline(draw_list, items, num_items,
+                                   CKVEC4_TO_IMU32(col), flags, thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_AddConvexPolyFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    Chuck_ArrayVec2* points       = (Chuck_ArrayVec2*)GET_NEXT_OBJECT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    int num_items = API->object->array_vec2_size(points);
+
+    cimgui::ImVec2* items
+      = ARENA_PUSH_COUNT(&audio_frame_arena, cimgui::ImVec2, num_items);
+
+    for (int i = 0; i < num_items; i++) {
+        items[i] = CKVEC2_TO_IMVEC2(API->object->array_vec2_get_idx(points, i));
+    }
+
+    cimgui::ImDrawList_AddConvexPolyFilled(draw_list, items, num_items,
+                                           CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_AddConcavePolyFilled)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    Chuck_ArrayVec2* points       = (Chuck_ArrayVec2*)GET_NEXT_OBJECT(ARGS);
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    int num_items = API->object->array_vec2_size(points);
+
+    cimgui::ImVec2* items
+      = ARENA_PUSH_COUNT(&audio_frame_arena, cimgui::ImVec2, num_items);
+
+    for (int i = 0; i < num_items; i++) {
+        items[i] = CKVEC2_TO_IMVEC2(API->object->array_vec2_get_idx(points, i));
+    }
+
+    cimgui::ImDrawList_AddConcavePolyFilled(draw_list, items, num_items,
+                                            CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_PathClear)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    cimgui::ImDrawList_PathClear(draw_list);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathLineTo)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 pos                  = GET_NEXT_VEC2(ARGS);
+
+    cimgui::ImDrawList_PathLineTo(draw_list, CKVEC2_TO_IMVEC2(pos));
+}
+
+CK_DLL_SFUN(ui_DrawList_PathLineToMergeDuplicate)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 pos                  = GET_NEXT_VEC2(ARGS);
+
+    cimgui::ImDrawList_PathLineToMergeDuplicate(draw_list,
+                                                CKVEC2_TO_IMVEC2(pos));
+}
+
+CK_DLL_SFUN(ui_DrawList_PathFillConvex)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_PathFillConvex(draw_list, CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_PathFillConcave)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+
+    cimgui::ImDrawList_PathFillConcave(draw_list, CKVEC4_TO_IMU32(col));
+}
+
+CK_DLL_SFUN(ui_DrawList_PathStroke)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
+    int flags                     = GET_NEXT_INT(ARGS);
+    float thickness               = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_PathStroke(draw_list, CKVEC4_TO_IMU32(col), flags,
+                                  thickness);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathArcTo)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    float a_min                   = GET_NEXT_FLOAT(ARGS);
+    float a_max                   = GET_NEXT_FLOAT(ARGS);
+    t_CKINT num_segments          = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathArcTo(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                 a_min, a_max, num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathArcToFast)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    float radius                  = GET_NEXT_FLOAT(ARGS);
+    t_CKINT a_min                 = GET_NEXT_INT(ARGS);
+    t_CKINT a_max                 = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathArcToFast(draw_list, CKVEC2_TO_IMVEC2(center),
+                                     radius, a_min, a_max);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathEllipticalArcTo)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    float angle                   = GET_NEXT_FLOAT(ARGS);
+    float a_min                   = GET_NEXT_FLOAT(ARGS);
+    float a_max                   = GET_NEXT_FLOAT(ARGS);
+
+    cimgui::ImDrawList_PathEllipticalArcTo(draw_list, CKVEC2_TO_IMVEC2(center),
+                                           CKVEC2_TO_IMVEC2(radius), angle,
+                                           a_min, a_max);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathEllipticalArcToEx)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 center               = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 radius               = GET_NEXT_VEC2(ARGS);
+    float angle                   = GET_NEXT_FLOAT(ARGS);
+    float a_min                   = GET_NEXT_FLOAT(ARGS);
+    float a_max                   = GET_NEXT_FLOAT(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathEllipticalArcToEx(
+      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius), angle,
+      a_min, a_max, num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathBezierCubicCurveTo)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathBezierCubicCurveTo(
+      draw_list, CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+      CKVEC2_TO_IMVEC2(p4), num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathBezierQuadraticCurveTo)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
+    int num_segments              = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathBezierQuadraticCurveTo(
+      draw_list, CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3), num_segments);
+}
+
+CK_DLL_SFUN(ui_DrawList_PathRect)
+{
+    cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
+    t_CKVEC2 rect_min             = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 rect_max             = GET_NEXT_VEC2(ARGS);
+    float rounding                = GET_NEXT_FLOAT(ARGS);
+    int rounding_corners_flags    = GET_NEXT_INT(ARGS);
+
+    cimgui::ImDrawList_PathRect(draw_list, CKVEC2_TO_IMVEC2(rect_min),
+                                CKVEC2_TO_IMVEC2(rect_max), rounding,
+                                rounding_corners_flags);
 }
 
 // ============================================================================
