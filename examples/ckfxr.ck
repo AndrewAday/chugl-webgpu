@@ -8,6 +8,10 @@ Audio Graph
 [sin|saw|square|noise] -> LP Filter --> HP Filter --> Phasor --> ADSR
 */
 
+CKFXR ckfxr => dac;
+ckfxr => WvOut wvout => blackhole;
+CKFXR_Params p;
+
 // Delay-based effects including flange, chorus, doubling
 // https://github.com/ccrma/music220a/blob/main/07-time-and-space/delay-based-efx/script.js
 // https://ccrma.stanford.edu/~dattorro/EffectDesignPart2.pdf
@@ -306,10 +310,6 @@ class CKFXR extends Chugraph
         }
     }
 }
-
-CKFXR ckfxr => dac;
-ckfxr => WvOut wvout => blackhole;
-CKFXR_Params p;
 
 class CKFXR_Params
 {
