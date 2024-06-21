@@ -8,6 +8,15 @@
 #include "core/memory.h"
 #include "core/spinlock.h"
 
+static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
+// static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
+static spinlock waitingShredsLock;
+static u64 waitingShreds = 0;
+
+static std::mutex gameLoopLock;
+static std::condition_variable gameLoopConditionVar;
+static bool shouldRender = false;
+
 // ============================================================================
 // ChuGL Event API
 // ============================================================================
@@ -37,7 +46,6 @@ const char* Event_GetName(CHUGL_EventType type);
 // Thread Synchronization API
 // ============================================================================
 
-bool Sync_MarkShredWaited(Chuck_VM_Shred* shred);
 bool Sync_HasShredWaited(Chuck_VM_Shred* shred);
 void Sync_RegisterShred(Chuck_VM_Shred* shred);
 void Sync_WaitOnUpdateDone();
@@ -67,7 +75,10 @@ static void Event_Init(CK_DL_API api, Chuck_VM* vm)
 void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
 {
     if (events[type] == NULL) Event_Init(api, vm);
+    spinlock::lock(&waitingShredsLock);
+    waitingShreds = 0; // all current shreds will be woken, so reset counter
     api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
+    spinlock::unlock(&waitingShredsLock);
 }
 
 Chuck_Event* Event_Get(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
@@ -87,14 +98,6 @@ const char* Event_GetName(CHUGL_EventType type)
 
 // TODO: prob want to put syncer and SG_component managers into single
 // ChuGL_Context struct
-
-static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
-// static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
-static u64 waitingShreds = 0;
-
-static std::mutex gameLoopLock;
-static std::condition_variable gameLoopConditionVar;
-static bool shouldRender = false;
 
 static bool Sync_IsShredRegistered(Chuck_VM_Shred* shred)
 {
@@ -117,6 +120,7 @@ void Sync_WaitOnUpdateDone()
     std::unique_lock<std::mutex> lock(gameLoopLock);
     gameLoopConditionVar.wait(lock, []() { return shouldRender; });
     shouldRender = false;
+    // log_error("graphics thread: graphics thread woke up");
 }
 
 void Sync_SignalUpdateDone()
@@ -125,17 +129,4 @@ void Sync_SignalUpdateDone()
     shouldRender = true;
     lock.unlock();
     gameLoopConditionVar.notify_all();
-}
-
-// returns true if all shreds have waited
-bool Sync_MarkShredWaited(Chuck_VM_Shred* shred)
-{
-    // mark shred as waited
-    ASSERT(registeredShreds.find(shred) != registeredShreds.end());
-    registeredShreds[shred] = true;
-
-    // add to waiting set
-    ++waitingShreds;
-
-    return waitingShreds >= registeredShreds.size();
 }

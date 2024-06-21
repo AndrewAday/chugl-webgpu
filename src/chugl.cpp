@@ -104,7 +104,8 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
     *(ARENA_PUSH_TYPE(arena, SG_ID)) = main_scene_id;
 
     // BFS through graph
-    // TODO: scene and
+    // TODO: can just walk linearly through entity arenas instead?
+    // but then how do we know if something is part of the active scene graph?
     while (Arena::top(arena) != arena_orig_top) {
         ARENA_POP_TYPE(arena, SG_ID);
         SG_ID sg_id = *(SG_ID*)Arena::top(arena);
@@ -135,65 +136,12 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
     }
 }
 
-//-----------------------------------------------------------------------------
-// this is called by chuck VM at the earliest point when a shred begins to wait
-// on an Event used to catch GG.nextFrame() => now; on one or more shreds once
-// all expected shreds are waiting on GG.nextFrame(), this function signals the
-// graphics-side
-//-----------------------------------------------------------------------------
-CK_DLL_MFUN(event_next_frame_waiting_on)
-{
-    // THIS IS A VERY IMPORTANT FUNCTION. See
-    // https://trello.com/c/Gddnu21j/6-chuglrender-refactor-possible-deadlock-between-cglupdate-and-render
-    // and
-    // https://github.com/ccrma/chugl/blob/2023-chugl-int/design/multishred-render-1.ck
-    // for further context
-
-    // activate hook only on GG.nextFrame();
-    if (!hookActivated) {
-        hookActivated = true;
-        hook->activate(hook);
-    }
-
-    if (Sync_MarkShredWaited(SHRED)) {
-        // if #waiting == #registered, all chugl shreds have finished work, and
-        // we are safe to wakeup the renderer
-        // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
-        // i.e. does nextFrame() once and then goes on to say process audio,
-        // this code will stay be expecting that shred to call nextFrame() again
-        // and waitingShreds will never == registeredShreds.size() thus hanging
-        // the renderer
-
-        // traverse scenegraph and call chuck-defined update() on all GGens
-        autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
-                             g_chuglAPI, ggen_update_vt_offset);
-
-        // clear thread waitlist; all expected shreds are now waiting on
-        // GG.nextFrame()
-        waitingShreds = 0;
-
-        // signal the graphics-side that audio-side is done processing for
-        // this frame
-        Sync_SignalUpdateDone();
-
-        // Garbage collect (TODO add API function to control this via GG
-        // config) SG_GC();
-
-        // clear audio frame arena
-        Arena::clear(&audio_frame_arena);
-    }
-}
-
 CK_DLL_SFUN(chugl_next_frame)
 {
     // extract CglEvent from obj
     // TODO: workaround bug where create() object API is not calling
     // preconstructors
     // https://trello.com/c/JwhVQEpv/48-cglnextframe-now-not-calling-preconstructor-of-cglupdate
-
-    // initialize ckobj for mainScene
-    // CGL::GetMainScene(SHRED, API, VM);
-    // TODO: init should happen at start of main hook
 
     if (!Sync_HasShredWaited(SHRED))
         API->vm->throw_exception(
@@ -209,6 +157,67 @@ CK_DLL_SFUN(chugl_next_frame)
 
     // register shred and set has-waited flag to false
     Sync_RegisterShred(SHRED);
+
+    // bugfix: grabbing this lock prevents race with render thread
+    // broadcasting nextFrameEvent and setting waitingShreds to 0.
+    // Unlocked in event_next_frame_waiting_on after shred has
+    // been added to the nextFrameEvent waiting queue.
+    // Render thread holds this lock when broadcasting + setting waitingShreds
+    // to 0
+    spinlock::lock(&waitingShredsLock);
+}
+
+//-----------------------------------------------------------------------------
+// this is called by chuck VM at the earliest point when a shred begins to wait
+// on an Event used to catch GG.nextFrame() => now; on one or more shreds once
+// all expected shreds are waiting on GG.nextFrame(), this function signals the
+// graphics-side
+//-----------------------------------------------------------------------------
+CK_DLL_MFUN(event_next_frame_waiting_on)
+{
+    // see comment in chugl_next_frame
+    ++waitingShreds;
+    bool allShredsWaiting = waitingShreds == registeredShreds.size();
+    spinlock::unlock(&waitingShredsLock);
+
+    ASSERT(registeredShreds.find(SHRED) != registeredShreds.end());
+    registeredShreds[SHRED] = true; // mark shred waited
+
+    // THIS IS A VERY IMPORTANT FUNCTION. See
+    // https://trello.com/c/Gddnu21j/6-chuglrender-refactor-possible-deadlock-between-cglupdate-and-render
+    // and
+    // https://github.com/ccrma/chugl/blob/2023-chugl-int/design/multishred-render-1.ck
+    // for further context
+
+    // activate hook only on GG.nextFrame();
+    if (!hookActivated) {
+        hookActivated = true;
+        hook->activate(hook);
+    }
+
+    if (allShredsWaiting) {
+        // if #waiting == #registered, all chugl shreds have finished work, and
+        // we are safe to wakeup the renderer
+        // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
+        // i.e. does nextFrame() once and then goes on to say process audio,
+        // this code will stay be expecting that shred to call nextFrame() again
+        // and waitingShreds will never == registeredShreds.size() thus hanging
+        // the renderer
+
+        // traverse scenegraph and call chuck-defined update() on all GGens
+        autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
+                             g_chuglAPI, ggen_update_vt_offset);
+
+        // signal the graphics-side that audio-side is done processing for
+        // this frame
+        Sync_SignalUpdateDone();
+
+        // Garbage collect (TODO add API function to control this via GG
+        // config) SG_GC();
+
+        // clear audio frame arena
+        Arena::clear(&audio_frame_arena);
+    }
 }
 
 CK_DLL_SFUN(chugl_gc)
@@ -322,7 +331,6 @@ CK_DLL_QUERY(ChuGL)
           "correct behavior, i.e. GG.nextFrame() => now;"
           "See the ChuGL tutorial and examples for more information.");
 
-        // TODO: refcount on GG.scene()
         QUERY->add_sfun(QUERY, chugl_get_scene, SG_CKNames[SG_COMPONENT_SCENE],
                         "scene");
         QUERY->add_sfun(QUERY, chugl_set_scene, SG_CKNames[SG_COMPONENT_SCENE],

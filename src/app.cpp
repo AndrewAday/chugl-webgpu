@@ -462,6 +462,7 @@ struct App {
         // (i.e., when all registered GG.nextFrame() are called on their
         // respective shreds)
         Sync_WaitOnUpdateDone();
+        // log_error("graphics thread: all shreds have waited");
 
         // question: why does putting this AFTER time calculation cause
         // everything to be so choppy at high FPS? hypothesis: puts time
@@ -496,11 +497,14 @@ struct App {
             // u64 critical_start = stm_now();
             CQ_SwapQueues(); // ~ .0001ms
 
+            // log_error("graphics thread: frame: %d", app->fc);
+
             // static bool show_demo_window = false;
             // ImGui::ShowDemoWindow(&show_demo_window);
 
             // Rendering
             ImGui::Render();
+            // log_error("graphics thread: imgui render");
 
             // copy imgui draw data for rendering later
             snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
@@ -525,6 +529,9 @@ struct App {
         // done swapping the double buffer, let chuck know it's good to continue
         // pushing commands this wakes all shreds currently waiting on
         // GG.nextFrame()
+        // log_error("graphics thread: waking up shreds");
+
+        // grabs waitingShredsLock
         Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app->ckapi, app->ckvm);
 
         // ====================
@@ -640,7 +647,7 @@ struct App {
     static void _mouseButtonCallback(GLFWwindow* window, int button, int action,
                                      int mods)
     {
-        log_debug("mouse button callback");
+        // log_debug("mouse button callback");
 
         ImGuiIO& io = ImGui::GetIO();
         if (io.WantCaptureMouse) return;
