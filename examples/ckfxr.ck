@@ -666,9 +666,6 @@ fun void ui()
 while (1) {
 GG.nextFrame() => now;
 
-
-UI.showDemoWindow(null);
-
 UI.getMainViewport() @=> UI_Viewport @ viewport;
 UI.setNextWindowPos(viewport.workPos(), UI_Cond.Always);
 UI.setNextWindowSize(viewport.workSize(), UI_Cond.Always);

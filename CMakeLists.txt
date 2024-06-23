@@ -79,6 +79,7 @@ set(
     # src/tests/obj.cpp
     src/tests/gltf.cpp
     src/tests/imgui_test.cpp
+    src/tests/test_box2d.cpp
 )
 
 if (CHUGL_BUILD_RENDERER_TESTS)
@@ -128,7 +129,7 @@ else()
     add_library(
         ${PROJECT_NAME} SHARED 
         src/chugl.cpp 
-        src/ulib_cimgui.cpp
+        # src/ulib_imgui.cpp
 
         ${CORE}
         ${VENDOR}
@@ -205,6 +206,8 @@ target_include_directories(chugl_shared_properties
     INTERFACE vendor
     INTERFACE vendor/cimgui
     INTERFACE vendor/cimgui/imgui
+    INTERFACE vendor/cimgui/imgui
+    INTERFACE vendor/box2d/include
 )
 
 # vendor dependencies ==========================================================
@@ -227,9 +230,37 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(webgpu)
 
+# box2d v3.0
+# FetchContent_Declare(
+#   box2d
+#   GIT_REPOSITORY https://github.com/erincatto/box2c
+#   GIT_TAG        main
+# )
+# FetchContent_MakeAvailable(box2d)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+	option(BOX2D_AVX2 "Enable AVX2 (faster)" ON)
+endif()
+
+# Needed for samples.exe to find box2d.dll
+# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+
+# C++17 needed for imgui
+# set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+
+# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# The Box2D library uses simde https://github.com/simd-everywhere/simde
+add_subdirectory(vendor/simde)
+add_subdirectory(vendor/box2d/src)
+
+
+
 # linking
 # target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
-target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu)
+target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu box2d)
 target_link_libraries(${PROJECT_NAME} PRIVATE chugl_shared_properties)
 if (CHUGL_BUILD_RENDERER_TESTS)
     target_link_libraries(ChuGL-Renderer-Tester PRIVATE chugl_shared_properties)

@@ -2,18 +2,26 @@
 #include "ulib_helper.h"
 
 // ulibs
+#include "ulib_box2d.cpp"
 #include "ulib_component.cpp"
 #include "ulib_imgui.cpp"
 #include "ulib_texture.cpp"
 
+// void ulib_imgui_query(Chuck_DL_Query* QUERY);
+
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
 
-// cimgui auto-generated bindings
-void ulib_cimgui_query(Chuck_DL_Query* QUERY);
-
 static Chuck_DL_MainThreadHook* hook = NULL;
 static bool hookActivated            = false;
+
+// metadata required for scene rendering
+struct GG_Config {
+    SG_ID mainScene;
+    SG_ID mainCamera;
+};
+
+GG_Config gg_config = {};
 
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
@@ -315,6 +323,8 @@ CK_DLL_QUERY(ChuGL)
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
+
+    ulib_box2d_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions

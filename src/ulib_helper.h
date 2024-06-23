@@ -16,14 +16,34 @@
 #define MVAR(type, name, is_const) QUERY->add_mvar(QUERY, type, name, is_const)
 #define MFUN(func, ret, name) QUERY->add_mfun(QUERY, func, ret, name)
 #define SFUN(func, ret, name) QUERY->add_sfun(QUERY, func, ret, name)
+#define SVAR(type, name, val) QUERY->add_svar(QUERY, type, name, true, val);
 #define ARG(type, name) QUERY->add_arg(QUERY, type, name)
 #define DOC_FUNC(doc) QUERY->doc_func(QUERY, doc)
 #define DOC_CLASS(doc) QUERY->doc_class(QUERY, doc)
 #define DOC_VAR(doc) QUERY->doc_var(QUERY, doc)
 
+// log levels (copied from
+// https://github.com/ccrma/chuck/blob/90f966cb8649840bc05f5d77219867593eb7fe94/src/core/chuck_errmsg.h#L78)
+#define CK_LOG_ALL 10 // set this to log everything
+#define CK_LOG_FINEST 9
+#define CK_LOG_FINER 8
+#define CK_LOG_FINE 7
+#define CK_LOG_DEBUG 6 // 1.5.0.5 was: CK_LOG_CONFIG
+#define CK_LOG_INFO 5
+#define CK_LOG_WARNING 4
+#define CK_LOG_HERALD 3
+#define CK_LOG_SYSTEM 2
+#define CK_LOG_CORE 1
+#define CK_LOG_NONE 0 // set this to log nothing
+
 #define CK_LOG(level, text) g_chuglAPI->vm->em_log(level, text)
 #define CK_THROW(exception, desc, shred)                                       \
     g_chuglAPI->vm->throw_exception(exception, desc, shred)
+
+#define CHUGIN_SAFE_DELETE(type, data_offset)                                  \
+    type* obj = (type*)OBJ_MEMBER_UINT(SELF, data_offset);                     \
+    if (obj) delete obj;                                                       \
+    OBJ_MEMBER_UINT(SELF, data_offset) = 0;
 
 // references to VM and API
 Chuck_VM* g_chuglVM  = NULL;
@@ -31,14 +51,6 @@ CK_DL_API g_chuglAPI = NULL;
 
 // vtable offsets
 static t_CKINT ggen_update_vt_offset = -1;
-
-// metadata required for scene rendering
-struct GG_Config {
-    SG_ID mainScene;
-    SG_ID mainCamera;
-};
-
-GG_Config gg_config = {};
 
 Arena audio_frame_arena;
 
