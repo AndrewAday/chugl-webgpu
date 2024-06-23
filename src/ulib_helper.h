@@ -52,6 +52,9 @@ CK_DL_API g_chuglAPI = NULL;
 // vtable offsets
 static t_CKINT ggen_update_vt_offset = -1;
 
+// other shared data offset
+static t_CKUINT b2_world_data_offset = 0;
+
 Arena audio_frame_arena;
 
 // map from ckobj to shred

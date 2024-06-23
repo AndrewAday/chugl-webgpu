@@ -339,3 +339,19 @@ void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
     }
     spinlock::unlock(&cq.write_q_lock);
 }
+
+void CQ_PushCommand_b2World_Set(u32 world_id)
+{
+    spinlock::lock(&cq.write_q_lock);
+    {
+        // allocate memory
+        SG_Command_b2World_Set* command
+          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_b2World_Set);
+
+        // initialize memory
+        command->type              = SG_COMMAND_b2_WORLD_SET;
+        command->nextCommandOffset = cq.write_q->curr;
+        command->b2_world_id       = world_id;
+    }
+    spinlock::unlock(&cq.write_q_lock);
+}

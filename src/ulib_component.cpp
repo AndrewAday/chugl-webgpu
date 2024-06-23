@@ -1076,6 +1076,7 @@ static void ulib_gscene_query(Chuck_DL_Query* QUERY)
 
 CK_DLL_CTOR(gscene_ctor)
 {
+    log_error("gscene_ctor");
     CQ_PushCommand_SceneCreate(SELF, component_offset_id, API);
 }
 

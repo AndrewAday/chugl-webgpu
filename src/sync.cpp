@@ -18,6 +18,13 @@ static std::condition_variable gameLoopConditionVar;
 static bool shouldRender = false;
 
 // ============================================================================
+// Shared Audio/Graphics Thread State
+// ============================================================================
+
+// setting physics world here now to avoid an extra frame of latency
+// incurred by setting it via the command queue.
+
+// ============================================================================
 // ChuGL Event API
 // ============================================================================
 

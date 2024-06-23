@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <box2d/box2d.h>
+
 #include <GLFW/glfw3.h>
 #include <chuck/chugin.h>
 #include <glfw3webgpu/glfw3webgpu.h>
@@ -25,6 +27,9 @@
 #include "sg_command.h"
 #include "sg_component.h"
 #include "tests/test_base.h"
+
+// necessary for copying from command
+static_assert(sizeof(u32) == sizeof(b2WorldId), "b2WorldId != u32");
 
 // Usage:
 //  static ImDrawDataSnapshot snapshot; // Important: make persistent accross
@@ -185,6 +190,9 @@ struct App {
 
     // scenegraph state
     SG_ID mainScene;
+
+    // box2D physics
+    b2WorldId b2_world_id;
 
     // memory
     Arena frameArena;
@@ -524,6 +532,14 @@ struct App {
 
             // ~2.15ms (15%) In DEBUG mode!
             // critical_section_stats.update(stm_since(critical_start));
+
+            // physics
+            // TODO: detach timestap from framerate
+            // https://gafferongames.com/post/fix_your_timestep/
+            if (b2World_IsValid(app->b2_world_id)) {
+                b2World_Step(app->b2_world_id, app->dt, 4);
+                log_trace("simulating %d %f", app->b2_world_id.index1, app->dt);
+            }
         }
 
         // done swapping the double buffer, let chuck know it's good to continue
@@ -888,6 +904,11 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
             Component_CreateMesh(cmd);
+            break;
+        }
+        case SG_COMMAND_b2_WORLD_SET: {
+            SG_Command_b2World_Set* cmd = (SG_Command_b2World_Set*)command;
+            app->b2_world_id            = *(b2WorldId*)&cmd->b2_world_id;
             break;
         }
         default: ASSERT(false);
