@@ -32,10 +32,9 @@ static t_CKUINT b2_shape_data_offset     = 0;
 static t_CKUINT b2_polygon_data_offset   = 0;
 static t_CKUINT b2_mass_data_offset      = 0;
 static t_CKUINT b2_shape_def_data_offset = 0;
+static t_CKUINT b2_filter_data_offset    = 0;
 
-static t_CKUINT b2_filter_data_offset = 0;
-
-// TODO: macros for setting/getting b2 ids
+// macros for setting/getting b2 data types
 // need to differentiate between b2Ids that are stored directly IN chuck object
 // vs larger structs that are stored as a pointer to heap memory
 
@@ -44,6 +43,9 @@ static t_CKUINT b2_filter_data_offset = 0;
 
 #define B2_GET_FILTER_PTR(ckobj)                                               \
     (b2Filter*)OBJ_MEMBER_DATA(ckobj, b2_filter_data_offset)
+
+#define B2_GET_BODY_DEF_PTR(ckobj)                                             \
+    ((b2BodyDef*)OBJ_MEMBER_UINT(ckobj, b2_body_def_data_offset))
 
 // ============================================================================
 // b2_ShapeDef
@@ -280,39 +282,6 @@ CK_DLL_DTOR(b2_WorldDef_dtor)
 }
 
 // ============================================================================
-// b2World
-// ============================================================================
-
-CK_DLL_CTOR(b2_world_ctor)
-{
-    b2WorldDef worldDef = b2DefaultWorldDef();
-    (*(b2WorldId*)OBJ_MEMBER_DATA(SELF, b2_world_data_offset))
-      = b2CreateWorld(&worldDef);
-}
-
-CK_DLL_MFUN(b2_world_create_body)
-{
-    b2WorldId world_id
-      = *(b2WorldId*)OBJ_MEMBER_DATA(SELF, b2_world_data_offset);
-
-    Chuck_Object* body_def_obj = GET_NEXT_OBJECT(ARGS);
-    b2BodyDef* bodyDef
-      = (b2BodyDef*)OBJ_MEMBER_UINT(body_def_obj, b2_body_def_data_offset);
-
-    // b2BodyId body_id = b2CreateBody(world_id, bodyDef);
-    b2BodyId body_id = b2CreateBody(world_id, bodyDef);
-
-    b2Vec2 position = b2Body_GetPosition(body_id);
-    float angle     = b2Body_GetAngle(body_id);
-    printf("%4.2f %4.2f %4.2f\n", position.x, position.y, angle);
-
-    Chuck_Object* b2_body = chugin_createCkObj("b2_Body", false, SHRED);
-    *(b2BodyId*)OBJ_MEMBER_DATA(b2_body, b2_body_data_offset) = body_id;
-
-    RETURN->v_object = b2_body;
-}
-
-// ============================================================================
 // b2Polygon
 // ============================================================================
 
@@ -366,54 +335,69 @@ CK_DLL_MFUN(b2_body_def_set_position)
 
 CK_DLL_MFUN(b2_body_def_set_angle)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->angle = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_linear_velocity)
 {
+    t_CKVEC2 linear_velocity = GET_NEXT_VEC2(ARGS);
+    B2_GET_BODY_DEF_PTR(SELF)->linearVelocity
+      = { (float)linear_velocity.x, (float)linear_velocity.y };
 }
 
 CK_DLL_MFUN(b2_body_def_set_angular_velocity)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->angularVelocity = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_linear_damping)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->linearDamping = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_angular_damping)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->angularDamping = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_gravity_scale)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->gravityScale = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_sleep_threshold)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->sleepThreshold = GET_NEXT_FLOAT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_enable_sleep)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->enableSleep = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_awake)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->isAwake = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_fixed_rotation)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->fixedRotation = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_bullet)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->isBullet = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_enabled)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->isEnabled = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_set_automatic_mass)
 {
+    B2_GET_BODY_DEF_PTR(SELF)->automaticMass = GET_NEXT_INT(ARGS);
 }
 
 CK_DLL_MFUN(b2_body_def_get_type)
@@ -448,47 +432,53 @@ CK_DLL_MFUN(b2_body_def_get_angular_velocity)
 
 CK_DLL_MFUN(b2_body_def_get_linear_damping)
 {
+    RETURN->v_float = B2_GET_BODY_DEF_PTR(SELF)->linearDamping;
 }
 
 CK_DLL_MFUN(b2_body_def_get_angular_damping)
 {
+    RETURN->v_float = B2_GET_BODY_DEF_PTR(SELF)->angularDamping;
 }
 
 CK_DLL_MFUN(b2_body_def_get_gravity_scale)
 {
+    RETURN->v_float = B2_GET_BODY_DEF_PTR(SELF)->gravityScale;
 }
 
 CK_DLL_MFUN(b2_body_def_get_sleep_threshold)
 {
+    RETURN->v_float = B2_GET_BODY_DEF_PTR(SELF)->sleepThreshold;
 }
 
 CK_DLL_MFUN(b2_body_def_get_enable_sleep)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->enableSleep;
 }
 
 CK_DLL_MFUN(b2_body_def_get_awake)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->isAwake;
 }
 
 CK_DLL_MFUN(b2_body_def_get_fixed_rotation)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->fixedRotation;
 }
 
 CK_DLL_MFUN(b2_body_def_get_bullet)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->isBullet;
 }
 
 CK_DLL_MFUN(b2_body_def_get_enabled)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->isEnabled;
 }
 
 CK_DLL_MFUN(b2_body_def_get_automatic_mass)
 {
+    RETURN->v_int = B2_GET_BODY_DEF_PTR(SELF)->automaticMass;
 }
-
-// ============================================================================
-// b2BodyType
-// ============================================================================
 
 // ============================================================================
 // b2Body
@@ -704,15 +694,15 @@ CK_DLL_MFUN(b2_body_apply_mass_from_shapes)
     b2Body_ApplyMassFromShapes(B2_GET_BODY_ID(SELF));
 }
 
-CK_DLL_MFUN(b2_body_set_automatic_mass)
-{
-    // b2Body_SetAutomaticMass(B2_GET_BODY_ID(SELF), GET_NEXT_INT(ARGS));
-}
+// CK_DLL_MFUN(b2_body_set_automatic_mass)
+// {
+//     b2Body_SetAutomaticMass(B2_GET_BODY_ID(SELF), GET_NEXT_INT(ARGS));
+// }
 
-CK_DLL_MFUN(b2_body_get_automatic_mass)
-{
-    // RETURN->v_int = b2Body_GetAutomaticMass(B2_GET_BODY_ID(SELF));
-}
+// CK_DLL_MFUN(b2_body_get_automatic_mass)
+// {
+//     RETURN->v_int = b2Body_GetAutomaticMass(B2_GET_BODY_ID(SELF));
+// }
 
 CK_DLL_MFUN(b2_body_set_linear_damping)
 {
@@ -895,6 +885,39 @@ CK_DLL_MFUN(b2_Filter_set_groupIndex)
 {
     b2Filter* filter   = B2_GET_FILTER_PTR(SELF);
     filter->groupIndex = GET_NEXT_INT(ARGS);
+}
+
+// ============================================================================
+// b2World
+// ============================================================================
+
+CK_DLL_CTOR(b2_world_ctor)
+{
+    b2WorldDef worldDef = b2DefaultWorldDef();
+    (*(b2WorldId*)OBJ_MEMBER_DATA(SELF, b2_world_data_offset))
+      = b2CreateWorld(&worldDef);
+}
+
+CK_DLL_MFUN(b2_world_create_body)
+{
+    b2WorldId world_id
+      = *(b2WorldId*)OBJ_MEMBER_DATA(SELF, b2_world_data_offset);
+
+    Chuck_Object* body_def_obj = GET_NEXT_OBJECT(ARGS);
+    b2BodyDef* bodyDef
+      = (b2BodyDef*)OBJ_MEMBER_UINT(body_def_obj, b2_body_def_data_offset);
+
+    // b2BodyId body_id = b2CreateBody(world_id, bodyDef);
+    b2BodyId body_id = b2CreateBody(world_id, bodyDef);
+
+    b2Vec2 position = b2Body_GetPosition(body_id);
+    float angle     = b2Body_GetAngle(body_id);
+    printf("%4.2f %4.2f %4.2f\n", position.x, position.y, angle);
+
+    Chuck_Object* b2_body = chugin_createCkObj("b2_Body", false, SHRED);
+    *(b2BodyId*)OBJ_MEMBER_DATA(b2_body, b2_body_data_offset) = body_id;
+
+    RETURN->v_object = b2_body;
 }
 
 void ulib_box2d_query(Chuck_DL_Query* QUERY)
@@ -1111,9 +1134,6 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     DOC_VAR("positive mass, velocity determined by forces, moved by solver");
     END_CLASS();
 
-    BEGIN_CLASS("b2_ShapeDef", "Object");
-    END_CLASS();
-
     BEGIN_CLASS("b2_WorldDef", "Object");
     b2_world_def_data_offset = MVAR("int", "@b2_world_def_data", false);
     CTOR(b2_WorldDef_ctor);
@@ -1276,7 +1296,6 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     END_CLASS(); // b2_Shape
 
     // b2_Body -------------------------------------------------------
-
     BEGIN_CLASS("b2_Body", "Object");
     DOC_CLASS("Don't create bodies directly. Use b2_World.createBody instead.");
     b2_body_data_offset = MVAR("int", "@b2_body_data", false);
@@ -1451,14 +1470,15 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "disabled."
       "You should call this regardless of body type.");
 
-    MFUN(b2_body_set_automatic_mass, "void", "automaticMass");
-    ARG("int", "automaticMass");
-    DOC_FUNC(
-      "Set the automatic mass setting. Normally this is set in b2BodyDef "
-      "before creation.");
+    // automatic mass not yet added to box2c impl
+    // MFUN(b2_body_set_automatic_mass, "void", "automaticMass");
+    // ARG("int", "automaticMass");
+    // DOC_FUNC(
+    //   "Set the automatic mass setting. Normally this is set in b2BodyDef "
+    //   "before creation.");
 
-    MFUN(b2_body_get_automatic_mass, "int", "automaticMass");
-    DOC_FUNC("Get the automatic mass setting");
+    // MFUN(b2_body_get_automatic_mass, "int", "automaticMass");
+    // DOC_FUNC("Get the automatic mass setting");
 
     MFUN(b2_body_set_linear_damping, "void", "linearDamping");
     ARG("float", "linearDamping");
@@ -1593,8 +1613,9 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "step."
       "@return the shape id for accessing the shape");
 
-    END_CLASS();
+    END_CLASS(); // b2_Body
 
+    // b2_World --------------------------------------
     BEGIN_CLASS("b2_World", "Object");
     b2_world_data_offset = MVAR("int", "@b2_world_data", false);
     CTOR(b2_world_ctor);
@@ -1602,5 +1623,5 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     MFUN(b2_world_create_body, "b2_Body", "createBody");
     ARG("b2_BodyDef", "bodyDef");
 
-    END_CLASS();
+    END_CLASS(); // b2_World
 }

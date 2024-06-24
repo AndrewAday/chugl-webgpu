@@ -13,7 +13,7 @@ ground.createPolygonShape(ground_shape_def, ground_box);
 // create dynamic box
 b2_BodyDef dynamic_body_def;
 dynamic_body_def.type(b2_BodyType.dynamicBody);
-dynamic_body_def.position(@(0.0f, 4.0f));
+dynamic_body_def.position(@(0.0f, 8.0f));
 world.createBody(dynamic_body_def) @=> b2_Body dynamic_body;
 <<< "dynamic body pos", dynamic_body.position() >>>;
 
@@ -25,7 +25,6 @@ b2_ShapeDef dynamic_shape_def;
 dynamic_body.createPolygonShape(dynamic_shape_def, dynamic_box) @=> b2_Shape dynamic_shape;
 
 <<< dynamic_shape_def.density(), dynamic_shape_def.friction() >>>;
-
 
 GG.b2world(world);
 
@@ -41,7 +40,23 @@ GG.b2world(world);
 // <<< "-----------------------" >>>;
 // b2_MassData default_mass_data;
 
+PlaneGeometry plane_geo;
+PBRMaterial mat;
+
+GMesh dynamic_box_mesh(plane_geo, mat) --> GG.scene();
+GMesh ground_mesh(plane_geo, mat) --> GG.scene();
+
+dynamic_box_mesh.scaX(2.0);
+dynamic_box_mesh.scaY(2.0);
+
+ground_mesh.posY(-10.0);
+ground_mesh.scaX(100.0);
+ground_mesh.scaY(20.0);
+
 while (1) {
     GG.nextFrame() => now;
+    dynamic_body.position() => vec2 p;
+    dynamic_box_mesh.pos(@(p.x, p.y, 0.0));
+    dynamic_box_mesh.rotY(dynamic_body.angle());
     <<< dynamic_body.position(), dynamic_body.angle() >>>;
 }

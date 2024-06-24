@@ -321,6 +321,7 @@ CK_DLL_QUERY(ChuGL)
     // ulib_cimgui_query(QUERY);
     // hand-written
     ulib_imgui_query(QUERY);
+    ulib_box2d_query(QUERY);
 
     ulib_texture_query(QUERY);
     ulib_component_query(QUERY);
@@ -329,8 +330,6 @@ CK_DLL_QUERY(ChuGL)
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
-
-    ulib_box2d_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
