@@ -156,6 +156,51 @@ struct TickStats {
 
 TickStats critical_section_stats = {};
 
+static int mini(int x, int y)
+{
+    return x < y ? x : y;
+}
+
+static int maxi(int x, int y)
+{
+    return x > y ? x : y;
+}
+
+GLFWmonitor* getCurrentMonitor(GLFWwindow* window)
+{
+    int nmonitors, i;
+    int wx, wy, ww, wh;
+    int mx, my, mw, mh;
+    int overlap, bestoverlap;
+    GLFWmonitor* bestmonitor;
+    GLFWmonitor** monitors;
+    const GLFWvidmode* mode;
+
+    bestoverlap = 0;
+    bestmonitor = NULL;
+
+    glfwGetWindowPos(window, &wx, &wy);
+    glfwGetWindowSize(window, &ww, &wh);
+    monitors = glfwGetMonitors(&nmonitors);
+
+    for (i = 0; i < nmonitors; i++) {
+        mode = glfwGetVideoMode(monitors[i]);
+        glfwGetMonitorPos(monitors[i], &mx, &my);
+        mw = mode->width;
+        mh = mode->height;
+
+        overlap = maxi(0, mini(wx + ww, mx + mw) - maxi(wx, mx))
+                  * maxi(0, mini(wy + wh, my + mh) - maxi(wy, my));
+
+        if (bestoverlap < overlap) {
+            bestoverlap = overlap;
+            bestmonitor = monitors[i];
+        }
+    }
+
+    return bestmonitor;
+}
+
 struct App;
 static void _R_HandleCommand(App* app, SG_Command* command);
 
@@ -243,7 +288,7 @@ struct App {
             if (width != frame_buffer_width || height != frame_buffer_height) {
                 frame_buffer_width  = width;
                 frame_buffer_height = height;
-                _onWindowResize(app->window, width, height);
+                _onFramebufferResize(app->window, width, height);
             }
         }
 
@@ -309,6 +354,7 @@ struct App {
             glfwSetScrollCallback(app->window, _scrollCallback);
             glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
+            glfwSetWindowCloseCallback(app->window, _closeCallback);
 
             glfwPollEvents(); // call poll events first to get correct
                               //   framebuffer size (glfw bug:
@@ -349,7 +395,7 @@ struct App {
         // trigger window resize callback to set up imgui
         int width, height;
         glfwGetFramebufferSize(app->window, &width, &height);
-        _onWindowResize(app->window, width, height);
+        _onFramebufferResize(app->window, width, height);
 
         // initialize imgui frame (should be threadsafe as long as graphics
         // shreds start with GG.nextFrame() => now)
@@ -615,8 +661,7 @@ struct App {
 
             snprintf(title, WINDOW_TITLE_MAX_LENGTH, "ChuGL-WebGPU [FPS: %.2f]",
                      frameCount / delta);
-
-            log_trace(title);
+            // log_trace(title);
 
             glfwSetWindowTitle(window, title);
 
@@ -626,10 +671,29 @@ struct App {
 #undef WINDOW_TITLE_MAX_LENGTH
     }
 
+    static void _closeCallback(GLFWwindow* window)
+    {
+        App* app = (App*)glfwGetWindowUserPointer(window);
+        if (app->callbacks.onExit) app->callbacks.onExit();
+
+        log_error("closing window");
+
+        // ChuGL
+        if (!app->standalone) {
+            // broadcast WindowCloseEvent
+            Event_Broadcast(CHUGL_EventType::WINDOW_CLOSE, app->ckapi,
+                            app->ckvm);
+            // block closeable
+            if (!CHUGL_Window_Closeable())
+                glfwSetWindowShouldClose(window, GLFW_FALSE);
+        }
+    }
+
     static void _keyCallback(GLFWwindow* window, int key, int scancode,
                              int action, int mods)
     {
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS
+            && CHUGL_Window_Closeable()) {
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             return;
         }
@@ -643,7 +707,7 @@ struct App {
     // happens AFTER GraphicsContext::PrepareFrame(), after render surface has
     // already been set window resize needs to be handled before the frame is
     // prepared
-    static void _onWindowResize(GLFWwindow* window, int width, int height)
+    static void _onFramebufferResize(GLFWwindow* window, int width, int height)
     {
         log_trace("window resized: %d, %d", width, height);
 
@@ -658,6 +722,16 @@ struct App {
 
         if (app->callbacks.onWindowResize)
             app->callbacks.onWindowResize(width, height);
+
+        if (!app->standalone) {
+            // update size stats
+            int window_width, window_height;
+            glfwGetWindowSize(window, &window_width, &window_height);
+            CHUGL_Window_Size(window_width, window_height, width, height);
+            // broadcast to chuck
+            Event_Broadcast(CHUGL_EventType::WINDOW_RESIZE, app->ckapi,
+                            app->ckvm);
+        }
     }
 
     static void _mouseButtonCallback(GLFWwindow* window, int button, int action,
@@ -845,6 +919,47 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
 static void _R_HandleCommand(App* app, SG_Command* command)
 {
     switch (command->type) {
+        case SG_COMMAND_WINDOW_CLOSE: {
+            glfwSetWindowShouldClose(app->window, GLFW_TRUE);
+            break;
+        }
+        case SG_COMMAND_WINDOW_MODE: {
+            SG_Command_WindowMode* cmd = (SG_Command_WindowMode*)command;
+            switch (cmd->mode) {
+                case SG_WINDOW_MODE_FULLSCREEN: {
+                    GLFWmonitor* monitor    = getCurrentMonitor(app->window);
+                    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                    glfwSetWindowMonitor(app->window, monitor, 0, 0,
+                                         mode->width, mode->height,
+                                         mode->refreshRate);
+                    // set fullscreen resolution if specified
+                    if (cmd->height > 0 && cmd->width > 0) {
+                        glfwSetWindowSize(app->window, cmd->width, cmd->height);
+                    }
+                    break;
+                }
+                case SG_WINDOW_MODE_WINDOWED: {
+                    // get previous position
+                    int xpos, ypos;
+                    glfwGetWindowPos(app->window, &xpos, &ypos);
+                    glfwSetWindowMonitor(app->window, NULL, xpos, ypos,
+                                         cmd->width, cmd->height,
+                                         GLFW_DONT_CARE);
+                    break;
+                }
+                case SG_WINDOW_MODE_WINDOWED_FULLSCREEN: {
+                    GLFWmonitor* monitor    = getCurrentMonitor(app->window);
+                    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                    int mx, my;
+                    glfwGetMonitorPos(monitor, &mx, &my);
+                    glfwSetWindowMonitor(app->window, NULL, mx, my, mode->width,
+                                         mode->height, GLFW_DONT_CARE);
+                    break;
+                }
+            }
+
+            break;
+        }
         case SG_COMMAND_GG_SCENE: {
             app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
             break;

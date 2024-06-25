@@ -110,6 +110,29 @@ void CQ_ReadCommandQueueClear()
 // Command API
 // ============================================================================
 
+#define BEGIN_COMMAND(cmd_type, cmd_enum)                                      \
+    spinlock::lock(&cq.write_q_lock);                                          \
+    cmd_type* command          = ARENA_PUSH_TYPE(cq.write_q, cmd_type);        \
+    command->type              = cmd_enum;                                     \
+    command->nextCommandOffset = cq.write_q->curr;
+
+#define END_COMMAND() spinlock::unlock(&cq.write_q_lock);
+
+void CQ_PushCommand_WindowClose()
+{
+    BEGIN_COMMAND(SG_Command_WindowClose, SG_COMMAND_WINDOW_CLOSE);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height)
+{
+    BEGIN_COMMAND(SG_Command_WindowMode, SG_COMMAND_WINDOW_MODE);
+    command->mode   = mode;
+    command->width  = width;
+    command->height = height;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_GG_Scene(SG_Scene* scene)
 {
     spinlock::lock(&cq.write_q_lock);

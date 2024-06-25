@@ -6,6 +6,7 @@
 #include "ulib_component.cpp"
 #include "ulib_imgui.cpp"
 #include "ulib_texture.cpp"
+#include "ulib_window.cpp"
 
 // void ulib_imgui_query(Chuck_DL_Query* QUERY);
 
@@ -77,14 +78,6 @@ CK_DLL_INFO(ChuGL)
 // ============================================================================
 
 static t_CKUINT chugl_next_frame_event_data_offset = 0;
-
-/// @brief NextFrameEvent singleton
-CK_DLL_CTOR(event_next_frame_ctor)
-{
-    // store reference to our new class
-    OBJ_MEMBER_INT(SELF, chugl_next_frame_event_data_offset)
-      = (t_CKINT)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
-}
 
 static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
                                  Chuck_VM* VM, CK_DL_API API,
@@ -294,26 +287,15 @@ CK_DLL_QUERY(ChuGL)
         // for chuck to begin updating the scene graph (intentionally left out
         // of CKDocs)
         QUERY->begin_class(QUERY, "NextFrameEvent", "Event");
-        QUERY->add_ctor(QUERY, event_next_frame_ctor); // singleton
+        DOC_CLASS(
+          "Don't instantiate this class directly. Use GG.nextFrame() => now; "
+          "instead.");
         // no destructor for singleton
         chugl_next_frame_event_data_offset
-          = QUERY->add_mvar(QUERY, "int", "@cgl_next_frame_event_data", false);
+          = QUERY->add_mvar(QUERY, "int", "@next_frame_event_data", false);
 
         QUERY->add_mfun(QUERY, event_next_frame_waiting_on, "void",
                         "waiting_on");
-        QUERY->end_class(QUERY);
-
-        // Window resize event (TODO) ================================
-        QUERY->begin_class(QUERY, "WindowResizeEvent", "Event");
-        QUERY->doc_class(QUERY,
-                         "Event triggered whenever the ChuGL window is "
-                         "resized, either by the user or programmatically.");
-
-        // QUERY->add_ctor(QUERY, cgl_window_resize_ctor);
-        // // QUERY->add_dtor(QUERY, cgl_window_resize_dtor);
-
-        // window_resize_event_data_offset = QUERY->add_mvar(
-        //   QUERY, "int", "@cgl_window_resize_event_data", false);
         QUERY->end_class(QUERY);
     }
 
@@ -323,6 +305,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_imgui_query(QUERY);
     ulib_box2d_query(QUERY);
 
+    ulib_window_query(QUERY);
     ulib_texture_query(QUERY);
     ulib_component_query(QUERY);
     ulib_ggen_query(QUERY);

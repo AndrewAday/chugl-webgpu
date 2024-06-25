@@ -21,8 +21,73 @@ static bool shouldRender = false;
 // Shared Audio/Graphics Thread State
 // ============================================================================
 
-// setting physics world here now to avoid an extra frame of latency
-// incurred by setting it via the command queue.
+// Window State (Don't modify directly, use API functions)
+struct CHUGL_Window {
+    bool closeable;
+
+    // window size (in screen coordinates)
+    int window_width, window_height;
+
+    // framebuffer size (in pixels)
+    int framebuffer_width, framebuffer_height;
+
+    // window frame size
+    int window_frame_left, window_frame_top, window_frame_right,
+      window_frame_bottom;
+
+    float window_opacity;
+
+    // locks
+    spinlock window_lock;
+};
+
+CHUGL_Window chugl_window;
+
+void CHUGL_Window_Closeable(bool closeable)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.closeable = closeable;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+bool CHUGL_Window_Closeable()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    bool closeable = chugl_window.closeable;
+    spinlock::unlock(&chugl_window.window_lock);
+    return closeable;
+}
+
+void CHUGL_Window_Size(int window_width, int window_height,
+                       int framebuffer_width, int framebuffer_height)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.window_width       = window_width;
+    chugl_window.window_height      = window_height;
+    chugl_window.framebuffer_width  = framebuffer_width;
+    chugl_window.framebuffer_height = framebuffer_height;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+t_CKVEC2 CHUGL_Window_WindowSize()
+{
+    t_CKVEC2 size;
+    spinlock::lock(&chugl_window.window_lock);
+    size.x = chugl_window.window_width;
+    size.y = chugl_window.window_height;
+    spinlock::unlock(&chugl_window.window_lock);
+    return size;
+}
+
+t_CKVEC2 CHUGL_Window_FramebufferSize()
+{
+    t_CKVEC2 size;
+    spinlock::lock(&chugl_window.window_lock);
+    size.x = chugl_window.framebuffer_width;
+    size.y = chugl_window.framebuffer_height;
+    spinlock::unlock(&chugl_window.window_lock);
+    return size;
+}
 
 // ============================================================================
 // ChuGL Event API
@@ -30,7 +95,8 @@ static bool shouldRender = false;
 
 #define CHUGL_EventTable                                                       \
     X(NEXT_FRAME = 0, "NextFrameEvent")                                        \
-    X(WINDOW_RESIZE, "WindowResizeEvent")
+    X(WINDOW_RESIZE, "WindowResizeEvent")                                      \
+    X(WINDOW_CLOSE, "WindowCloseEvent")
 
 enum CHUGL_EventType {
 #define X(name, str) name,
@@ -82,10 +148,16 @@ static void Event_Init(CK_DL_API api, Chuck_VM* vm)
 void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
 {
     if (events[type] == NULL) Event_Init(api, vm);
-    spinlock::lock(&waitingShredsLock);
-    waitingShreds = 0; // all current shreds will be woken, so reset counter
-    api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
-    spinlock::unlock(&waitingShredsLock);
+    switch (type) {
+        case CHUGL_EventType::NEXT_FRAME: {
+            spinlock::lock(&waitingShredsLock);
+            waitingShreds = 0;
+            api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
+            spinlock::unlock(&waitingShredsLock);
+            return;
+        }
+        default: api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
+    }
 }
 
 Chuck_Event* Event_Get(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)

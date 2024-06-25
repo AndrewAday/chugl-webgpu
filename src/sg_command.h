@@ -44,6 +44,11 @@ frame arena and then copy over)
 
 enum SG_CommandType : u32 {
     SG_COMMAND_NONE = 0,
+    // window
+    SG_COMMAND_WINDOW_CLOSE,
+    SG_COMMAND_WINDOW_MODE,
+
+    // components
     SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
     SG_COMMAND_ADD_CHILD,
@@ -64,6 +69,25 @@ struct SG_Command {
     SG_CommandType type;
     u64 nextCommandOffset;
 };
+
+// Window Commands --------------------------------------------------------
+
+struct SG_Command_WindowClose : public SG_Command {
+};
+
+enum SG_WindowMode : u8 {
+    SG_WINDOW_MODE_WINDOWED = 0,
+    SG_WINDOW_MODE_FULLSCREEN,
+    SG_WINDOW_MODE_WINDOWED_FULLSCREEN
+};
+
+struct SG_Command_WindowMode : public SG_Command {
+    SG_WindowMode mode;
+    int width;
+    int height;
+};
+
+// Component Commands -----------------------------------------------------
 
 struct SG_Command_GG_Scene : public SG_Command {
     SG_ID sg_id;
@@ -153,6 +177,13 @@ void CQ_ReadCommandQueueClear();
 // ============================================================================
 // Commands
 // ============================================================================
+
+// window ---------------------------------------------------------------
+
+void CQ_PushCommand_WindowClose();
+void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height);
+
+// components
 
 void CQ_PushCommand_GG_Scene(SG_Scene* scene);
 void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
