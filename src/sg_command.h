@@ -47,6 +47,13 @@ enum SG_CommandType : u32 {
     // window
     SG_COMMAND_WINDOW_CLOSE,
     SG_COMMAND_WINDOW_MODE,
+    SG_COMMAND_WINDOW_SIZE_LIMITS,
+    SG_COMMAND_WINDOW_POSITION,
+    SG_COMMAND_WINDOW_CENTER,
+    SG_COMMAND_WINDOW_TITLE,
+    SG_COMMAND_WINDOW_ICONIFY,
+    SG_COMMAND_WINDOW_ATTRIBUTE,
+    SG_COMMAND_WINDOW_OPACITY,
 
     // components
     SG_COMMAND_GG_SCENE,
@@ -81,10 +88,51 @@ enum SG_WindowMode : u8 {
     SG_WINDOW_MODE_WINDOWED_FULLSCREEN
 };
 
+enum CHUGL_WindowAttrib : u8 {
+    CHUGL_WINDOW_ATTRIB_RESIZABLE = 0,
+    CHUGL_WINDOW_ATTRIB_DECORATED,
+    CHUGL_WINDOW_ATTRIB_FLOATING,
+    CHUGL_WINDOW_ATTRIB_TRANSPARENT_FRAMEBUFFER,
+};
+
 struct SG_Command_WindowMode : public SG_Command {
     SG_WindowMode mode;
     int width;
     int height;
+};
+
+struct SG_Command_WindowSizeLimits : public SG_Command {
+    int min_width;
+    int min_height;
+    int max_width;
+    int max_height;
+    int aspect_ratio_x;
+    int aspect_ratio_y;
+};
+
+struct SG_Command_WindowPosition : public SG_Command {
+    int x;
+    int y;
+};
+
+struct SG_Command_WindowCenter : public SG_Command {
+};
+
+struct SG_Command_WindowTitle : public SG_Command {
+    u64 title_offset; // get char* via CG_ReadCommandGetOffset(title_offset)
+};
+
+struct SG_Command_WindowIconify : public SG_Command {
+    bool iconify;
+};
+
+struct SG_Command_WindowAttribute : public SG_Command {
+    CHUGL_WindowAttrib attrib;
+    bool value;
+};
+
+struct SG_Command_WindowOpacity : public SG_Command {
+    float opacity;
 };
 
 // Component Commands -----------------------------------------------------
@@ -174,6 +222,13 @@ bool CQ_ReadCommandQueueIter(SG_Command** command);
 
 void CQ_ReadCommandQueueClear();
 
+// some command structs have variable data (e.g. strings), which are stored in
+// the same command queue arena as cmd->xxx_offset. This function returns the
+// pointer to the data at the offset.
+// (necessary to avoid segfaults from direct pointers to the arena memory
+// caused by Arena resizing)
+void* CQ_ReadCommandGetOffset(u64 byte_offset);
+
 // ============================================================================
 // Commands
 // ============================================================================
@@ -182,6 +237,16 @@ void CQ_ReadCommandQueueClear();
 
 void CQ_PushCommand_WindowClose();
 void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height);
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
+                                     int max_width, int max_height,
+                                     int aspect_ratio_x, int aspect_ratio_y);
+
+void CQ_PushCommand_WindowPosition(int x, int y);
+void CQ_PushCommand_WindowCenter();
+void CQ_PushCommand_WindowTitle(const char* title);
+void CQ_PushCommand_WindowIconify(bool iconify);
+void CQ_PushCommand_WindowAttribute(CHUGL_WindowAttrib attrib, bool value);
+void CQ_PushCommand_WindowOpacity(float opacity);
 
 // components
 

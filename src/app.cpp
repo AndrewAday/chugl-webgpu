@@ -228,6 +228,7 @@ struct App {
     u64 fc;
     f64 lastTime;
     f64 dt;
+    bool show_fps_title = true;
 
     // renderer tests
     Camera camera;
@@ -263,7 +264,7 @@ struct App {
 
         // frame metrics ----------------------------
         {
-            _showFPS(app->window);
+            if (app->show_fps_title) _showFPS(app->window);
 
             ++app->fc;
             f64 currentTime = glfwGetTime();
@@ -325,7 +326,18 @@ struct App {
             // Create the window without an OpenGL context
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-            app->window = glfwCreateWindow(1280, 960, "ChuGL", NULL, NULL);
+            t_CKVEC2 window_size = CHUGL_Window_WindowSize();
+            glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER,
+                           CHUGL_Window_Transparent() ? GLFW_TRUE : GLFW_FALSE);
+            glfwWindowHint(GLFW_DECORATED,
+                           CHUGL_Window_Decorated() ? GLFW_TRUE : GLFW_FALSE);
+            glfwWindowHint(GLFW_RESIZABLE,
+                           CHUGL_Window_Resizable() ? GLFW_TRUE : GLFW_FALSE);
+            glfwWindowHint(GLFW_FLOATING,
+                           CHUGL_Window_Floating() ? GLFW_TRUE : GLFW_FALSE);
+
+            app->window = glfwCreateWindow(
+              (int)window_size.x, (int)window_size.y, "ChuGL", NULL, NULL);
 
             // TODO: set window user pointer to CHUGL_App
 
@@ -355,6 +367,13 @@ struct App {
             glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
             glfwSetWindowCloseCallback(app->window, _closeCallback);
+            glfwSetWindowContentScaleCallback(app->window,
+                                              _contentScaleCallback);
+            // set initial content scale
+            float content_scale_x, content_scale_y;
+            glfwGetWindowContentScale(app->window, &content_scale_x,
+                                      &content_scale_y);
+            CHUGL_Window_ContentScale(content_scale_x, content_scale_y);
 
             glfwPollEvents(); // call poll events first to get correct
                               //   framebuffer size (glfw bug:
@@ -689,6 +708,20 @@ struct App {
         }
     }
 
+    static void _contentScaleCallback(GLFWwindow* window, float xscale,
+                                      float yscale)
+    {
+        App* app = (App*)glfwGetWindowUserPointer(window);
+
+        // broadcast to chuck
+        if (!app->standalone) {
+            CHUGL_Window_ContentScale(xscale, yscale);
+            // update content scale
+            Event_Broadcast(CHUGL_EventType::CONTENT_SCALE, app->ckapi,
+                            app->ckvm);
+        }
+    }
+
     static void _keyCallback(GLFWwindow* window, int key, int scancode,
                              int action, int mods)
     {
@@ -957,7 +990,91 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                     break;
                 }
             }
-
+            break;
+        }
+        case SG_COMMAND_WINDOW_SIZE_LIMITS: {
+            SG_Command_WindowSizeLimits* cmd
+              = (SG_Command_WindowSizeLimits*)command;
+            glfwSetWindowSizeLimits(
+              app->window,
+              (cmd->min_width <= 0) ? GLFW_DONT_CARE : cmd->min_width,
+              (cmd->min_height <= 0) ? GLFW_DONT_CARE : cmd->min_height,
+              (cmd->max_width <= 0) ? GLFW_DONT_CARE : cmd->max_width,
+              (cmd->max_height <= 0) ? GLFW_DONT_CARE : cmd->max_height);
+            glfwSetWindowAspectRatio(
+              app->window,
+              (cmd->aspect_ratio_x <= 0) ? GLFW_DONT_CARE : cmd->aspect_ratio_x,
+              (cmd->aspect_ratio_y <= 0) ? GLFW_DONT_CARE :
+                                           cmd->aspect_ratio_y);
+            // reset size to constrain to new limits
+            int width, height;
+            glfwGetWindowSize(app->window, &width, &height);
+            glfwSetWindowSize(app->window, width, height);
+            break;
+        }
+        case SG_COMMAND_WINDOW_POSITION: {
+            SG_Command_WindowPosition* cmd
+              = (SG_Command_WindowPosition*)command;
+            // set relative to currenet monitor
+            GLFWmonitor* monitor = getCurrentMonitor(app->window);
+            int mx, my;
+            glfwGetMonitorPos(monitor, &mx, &my);
+            glfwSetWindowPos(app->window, mx + cmd->x, my + cmd->y);
+            break;
+        }
+        case SG_COMMAND_WINDOW_CENTER: {
+            // center window on current monitor
+            GLFWmonitor* monitor    = getCurrentMonitor(app->window);
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            int mx, my;
+            glfwGetMonitorPos(monitor, &mx, &my);
+            int wx, wy;
+            glfwGetWindowSize(app->window, &wx, &wy);
+            int xpos = mx + (mode->width - wx) / 2;
+            int ypos = my + (mode->height - wy) / 2;
+            glfwSetWindowPos(app->window, xpos, ypos);
+            break;
+        }
+        case SG_COMMAND_WINDOW_TITLE: {
+            SG_Command_WindowTitle* cmd = (SG_Command_WindowTitle*)command;
+            glfwSetWindowTitle(
+              app->window, (char*)CQ_ReadCommandGetOffset(cmd->title_offset));
+            app->show_fps_title = false; // disable default FPS title
+            break;
+        }
+        case SG_COMMAND_WINDOW_ICONIFY: {
+            SG_Command_WindowIconify* cmd = (SG_Command_WindowIconify*)command;
+            if (cmd->iconify)
+                glfwIconifyWindow(app->window);
+            else
+                glfwRestoreWindow(app->window);
+            break;
+        }
+        case SG_COMMAND_WINDOW_ATTRIBUTE: {
+            ASSERT(false); // not implemented, changing window attributes after
+                           // window creation on macOS causes window to
+                           // disappear and freeze
+            // SG_Command_WindowAttribute* cmd
+            //   = (SG_Command_WindowAttribute*)command;
+            // switch (cmd->attrib) {
+            //     case CHUGL_WINDOW_ATTRIB_DECORATED:
+            //         glfwSetWindowAttrib(app->window, GLFW_DECORATED,
+            //                             cmd->value ? GLFW_TRUE : GLFW_FALSE);
+            //         break;
+            //     case CHUGL_WINDOW_ATTRIB_RESIZABLE:
+            //         glfwSetWindowAttrib(app->window, GLFW_RESIZABLE,
+            //                             cmd->value ? GLFW_TRUE : GLFW_FALSE);
+            //         break;
+            //     case CHUGL_WINDOW_ATTRIB_FLOATING:
+            //         glfwSetWindowAttrib(app->window, GLFW_FLOATING,
+            //                             cmd->value ? GLFW_TRUE : GLFW_FALSE);
+            //         break;
+            //     default: break;
+            // }
+        }
+        case SG_COMMAND_WINDOW_OPACITY: {
+            SG_Command_WindowOpacity* cmd = (SG_Command_WindowOpacity*)command;
+            glfwSetWindowOpacity(app->window, cmd->opacity);
             break;
         }
         case SG_COMMAND_GG_SCENE: {

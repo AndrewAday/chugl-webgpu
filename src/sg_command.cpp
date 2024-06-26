@@ -106,6 +106,11 @@ void CQ_ReadCommandQueueClear()
     Arena::clear(cq.read_q);
 }
 
+void* CQ_ReadCommandGetOffset(u64 byte_offset)
+{
+    return Arena::get(cq.read_q, byte_offset);
+}
+
 // ============================================================================
 // Command API
 // ============================================================================
@@ -130,6 +135,77 @@ void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height)
     command->mode   = mode;
     command->width  = width;
     command->height = height;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
+                                     int max_width, int max_height,
+                                     int aspect_ratio_x, int aspect_ratio_y)
+{
+    BEGIN_COMMAND(SG_Command_WindowSizeLimits, SG_COMMAND_WINDOW_SIZE_LIMITS);
+    command->min_width      = min_width;
+    command->min_height     = min_height;
+    command->max_width      = max_width;
+    command->max_height     = max_height;
+    command->aspect_ratio_x = aspect_ratio_x;
+    command->aspect_ratio_y = aspect_ratio_y;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowPosition(int x, int y)
+{
+    BEGIN_COMMAND(SG_Command_WindowPosition, SG_COMMAND_WINDOW_POSITION);
+    command->x = x;
+    command->y = y;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowCenter()
+{
+    BEGIN_COMMAND(SG_Command_WindowPosition, SG_COMMAND_WINDOW_CENTER);
+    END_COMMAND();
+}
+
+// copies title into command arena
+void CQ_PushCommand_WindowTitle(const char* title)
+{
+    spinlock::lock(&cq.write_q_lock);
+    SG_Command_WindowTitle* command
+      = ARENA_PUSH_TYPE(cq.write_q, SG_Command_WindowTitle);
+    size_t title_len = strlen(title) + 1;
+    // push bytes for title
+    char* title_copy = (char*)Arena::pushZero(cq.write_q, title_len);
+    // copy title
+    strncpy(title_copy, title, title_len - 1);
+
+    // store offset not pointer in case arena resizes
+    command->title_offset = Arena::offsetOf(cq.write_q, title_copy);
+
+    command->type              = SG_COMMAND_WINDOW_TITLE;
+    command->nextCommandOffset = cq.write_q->curr;
+
+    spinlock::unlock(&cq.write_q_lock);
+}
+
+void CQ_PushCommand_WindowIconify(bool iconify)
+{
+    BEGIN_COMMAND(SG_Command_WindowIconify, SG_COMMAND_WINDOW_ICONIFY);
+    command->iconify = iconify;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowAttribute(CHUGL_WindowAttrib attrib, bool value)
+{
+    BEGIN_COMMAND(SG_Command_WindowAttribute, SG_COMMAND_WINDOW_ATTRIBUTE);
+    command->attrib = attrib;
+    command->value  = value;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_WindowOpacity(float opacity)
+{
+    BEGIN_COMMAND(SG_Command_WindowOpacity, SG_COMMAND_WINDOW_OPACITY);
+    command->opacity = opacity;
     END_COMMAND();
 }
 

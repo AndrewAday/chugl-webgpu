@@ -23,13 +23,20 @@ static bool shouldRender = false;
 
 // Window State (Don't modify directly, use API functions)
 struct CHUGL_Window {
-    bool closeable;
+    bool closeable   = true;
+    bool transparent = false;
+    bool floating    = false;
+    bool resizable   = true;
+    bool decorated   = true;
 
     // window size (in screen coordinates)
-    int window_width, window_height;
+    int window_width = 1280, window_height = 960;
 
     // framebuffer size (in pixels)
     int framebuffer_width, framebuffer_height;
+
+    // content scale
+    float content_scale_x, content_scale_y;
 
     // window frame size
     int window_frame_left, window_frame_top, window_frame_right,
@@ -56,6 +63,66 @@ bool CHUGL_Window_Closeable()
     bool closeable = chugl_window.closeable;
     spinlock::unlock(&chugl_window.window_lock);
     return closeable;
+}
+
+void CHUGL_Window_Floating(bool floating)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.floating = floating;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+bool CHUGL_Window_Floating()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    bool floating = chugl_window.floating;
+    spinlock::unlock(&chugl_window.window_lock);
+    return floating;
+}
+
+void CHUGL_Window_Transparent(bool transparent)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.transparent = transparent;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+bool CHUGL_Window_Transparent()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    bool transparent = chugl_window.transparent;
+    spinlock::unlock(&chugl_window.window_lock);
+    return transparent;
+}
+
+void CHUGL_Window_Resizable(bool resizable)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.resizable = resizable;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+bool CHUGL_Window_Resizable()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    bool resizable = chugl_window.resizable;
+    spinlock::unlock(&chugl_window.window_lock);
+    return resizable;
+}
+
+void CHUGL_Window_Decorated(bool decorated)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.decorated = decorated;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+bool CHUGL_Window_Decorated()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    bool decorated = chugl_window.decorated;
+    spinlock::unlock(&chugl_window.window_lock);
+    return decorated;
 }
 
 void CHUGL_Window_Size(int window_width, int window_height,
@@ -89,6 +156,24 @@ t_CKVEC2 CHUGL_Window_FramebufferSize()
     return size;
 }
 
+void CHUGL_Window_ContentScale(float x, float y)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.content_scale_x = x;
+    chugl_window.content_scale_y = y;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+t_CKVEC2 CHUGL_Window_ContentScale()
+{
+    t_CKVEC2 scale;
+    spinlock::lock(&chugl_window.window_lock);
+    scale.x = chugl_window.content_scale_x;
+    scale.y = chugl_window.content_scale_y;
+    spinlock::unlock(&chugl_window.window_lock);
+    return scale;
+}
+
 // ============================================================================
 // ChuGL Event API
 // ============================================================================
@@ -96,7 +181,8 @@ t_CKVEC2 CHUGL_Window_FramebufferSize()
 #define CHUGL_EventTable                                                       \
     X(NEXT_FRAME = 0, "NextFrameEvent")                                        \
     X(WINDOW_RESIZE, "WindowResizeEvent")                                      \
-    X(WINDOW_CLOSE, "WindowCloseEvent")
+    X(WINDOW_CLOSE, "WindowCloseEvent")                                        \
+    X(CONTENT_SCALE, "ContentScaleChangedEvent")
 
 enum CHUGL_EventType {
 #define X(name, str) name,

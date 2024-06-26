@@ -4,14 +4,6 @@
 
 /* API
 
-bool closeable;
-
-// window size (in screen coordinates)
-int window_width, window_height;
-
-// framebuffer size (in pixels)
-int framebuffer_width, framebuffer_height;
-
 // window frame size
 int window_frame_left, window_frame_top, window_frame_right,
 window_frame_bottom;
@@ -23,14 +15,7 @@ glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
 
 ----------------
 
-GG.window() @=> GWindow @ window;
-
-window.closeable(bool); // enable/disable closing
-window.close(void); // close the window
-window.closeEvent => now; // event when window is closed
-
 window.title();
-window.size() vec2 ; // size in
 
 class GWindow
 {
@@ -43,15 +28,6 @@ window.shouldCloseEvent => now;
 
 -----
 window attribs
-
-GLFW_FOCUSED indicates whether the specified window has input focus. See Window
-input focus for details.
-
-GLFW_ICONIFIED indicates whether the specified window is iconified. See Window
-iconification for details.
-
-GLFW_MAXIMIZED indicates whether the specified window is maximized. See Window
-maximization for details.
 
 GLFW_HOVERED indicates whether the cursor is currently directly over the content
 area of the window, with no other windows between. See Cursor enter/leave events
@@ -94,7 +70,7 @@ Window size limits
 
 */
 
-// monitor
+// monitor (not implemented)
 CK_DLL_SFUN(gwindow_monitor_info);
 static t_CKINT monitor_info_width_offset            = 0;
 static t_CKINT monitor_info_height_offset           = 0;
@@ -108,7 +84,7 @@ static t_CKINT monitor_info_name_offset             = 0;
 // callbacks
 CK_DLL_SFUN(gwindow_close_event);
 CK_DLL_SFUN(gwindow_window_resize_event);
-CK_DLL_SFUN(gwindow_framebuffer_resize_event);
+CK_DLL_SFUN(gwindow_window_content_scale_event);
 
 // closing
 CK_DLL_SFUN(gwindow_set_closeable);
@@ -123,6 +99,30 @@ CK_DLL_SFUN(gwindow_maximize);
 
 CK_DLL_SFUN(gwindow_get_window_size);
 CK_DLL_SFUN(gwindow_get_framebuffer_size);
+
+// content scale
+CK_DLL_SFUN(gwindow_get_content_scale);
+
+// size limits
+CK_DLL_SFUN(gwindow_set_window_size_limits);
+
+// position
+CK_DLL_SFUN(gwindow_set_window_pos);
+CK_DLL_SFUN(gwindow_window_center);
+
+// title
+CK_DLL_SFUN(gwindow_set_title);
+
+// iconify
+CK_DLL_SFUN(gwindow_inconify);
+CK_DLL_SFUN(gwindow_restore);
+
+// attributes
+CK_DLL_SFUN(gwindow_set_attrib_resizable);
+CK_DLL_SFUN(gwindow_set_attrib_decorated);
+CK_DLL_SFUN(gwindow_set_attrib_floating);
+CK_DLL_SFUN(gwindow_set_attrib_transparent);
+CK_DLL_SFUN(gwindow_opacity);
 
 void ulib_window_query(Chuck_DL_Query* QUERY)
 {
@@ -173,6 +173,14 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
       "Don't instantiate directly, use GWindow.closeEvent() instead");
     END_CLASS(); // WindowCloseEvent
 
+    BEGIN_CLASS(CHUGL_EventTypeNames[CONTENT_SCALE], "Event");
+    DOC_CLASS(
+      "Event triggered whenever the content scale of the window changes."
+      "The content scale is the ratio between the current DPI and the "
+      "platform's default DPI."
+      "Don't instantiate directly, use GWindow.contentScaleEvent() instead");
+    END_CLASS(); // ContentScaleChangedEvent
+
     // GWindow ========================================================
     BEGIN_CLASS("GWindow", "Object");
     DOC_CLASS("All the properties and methods window management");
@@ -191,6 +199,12 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     DOC_FUNC(
       "Event triggered whenever the ChuGL window is resized, either by the "
       "user or programmatically");
+
+    SFUN(gwindow_window_content_scale_event, "Event", "contentScaleEvent");
+    DOC_FUNC(
+      "Event triggered whenever the content scale of the window changes."
+      "The content scale is the ratio between the current DPI and the "
+      "platform's default DPI.");
 
     // closing --------------------------------------------------------
     SFUN(gwindow_set_closeable, "void", "closeable");
@@ -227,6 +241,82 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     SFUN(gwindow_get_framebuffer_size, "vec2", "framebufferSize");
     DOC_FUNC("Get the framebuffer size in pixels");
 
+    // content scale --------------------------------------------------
+    SFUN(gwindow_get_content_scale, "vec2", "contentScale");
+    DOC_FUNC("Get the content scale of current monitor");
+
+    // size limits ----------------------------------------------------
+    SFUN(gwindow_set_window_size_limits, "void", "sizeLimits");
+    ARG("int", "minWidth");
+    ARG("int", "minHeight");
+    ARG("int", "maxWidth");
+    ARG("int", "maxHeight");
+    ARG("vec2", "aspectRatio");
+    DOC_FUNC(
+      "Set the window size limits, including min/max size and aspect ratio."
+      "To disable a limit, pass 0 for the corresponding argument, or @(0, 0)"
+      "to disable fixed aspect ratio");
+
+    // position -------------------------------------------------------
+    SFUN(gwindow_set_window_pos, "void", "position");
+    ARG("int", "x");
+    ARG("int", "y");
+    DOC_FUNC("Set the window position in screen coordinates");
+
+    SFUN(gwindow_window_center, "void", "center");
+    DOC_FUNC("Center the window on its current monitor");
+
+    // title ----------------------------------------------------------
+    SFUN(gwindow_set_title, "void", "title");
+    ARG("string", "title");
+    DOC_FUNC("Set the window title");
+
+    // iconify --------------------------------------------------------
+    SFUN(gwindow_inconify, "void", "iconify");
+    DOC_FUNC("Iconify the window");
+
+    SFUN(gwindow_restore, "void", "restore");
+    DOC_FUNC("Restore the window from iconified state");
+
+    // attributes -----------------------------------------------------
+    SFUN(gwindow_set_attrib_resizable, "void", "resizable");
+    ARG("int", "resizable");
+    DOC_FUNC(
+      "Set the window resizable attribute. Must call before GG.nextFrame(). "
+      "Default is true.");
+
+    SFUN(gwindow_set_attrib_decorated, "void", "decorated");
+    ARG("int", "decorated");
+    DOC_FUNC(
+      "Set whether the window has decorations such as a border, a close "
+      "widget, etc."
+      "Must call before GG.nextFrame(). Default is true.");
+
+    SFUN(gwindow_set_attrib_floating, "void", "floating");
+    ARG("int", "floating");
+    DOC_FUNC(
+      "set whether the specified window is floating, also called topmost "
+      "or always-on-top. Must call before GG.nextFrame(). Default is false.");
+
+    SFUN(gwindow_set_attrib_transparent, "void", "transparent");
+    ARG("int", "transparent");
+    DOC_FUNC(
+      "set whether the specified window has a transparent framebuffer, "
+      "i.e. the window contents is composited with the background using the "
+      "window framebuffer alpha channel."
+      "Not supported on all platforms. To enable, call GWindow.transparent() "
+      "BEFORE GG.nextFrame() is ever called."
+      "If platform supports it, you can change opacity via "
+      "GWindow.opacity(float)");
+
+    SFUN(gwindow_opacity, "void", "opacity");
+    ARG("float", "opacity");
+    DOC_FUNC(
+      "Set the window opacity, 0.0 is fully transparent, 1.0 is fully opaque."
+      "only works if GWindow.transparent() has been called before "
+      "GG.nextFrame()"
+      "AND the platform supports transparent framebuffers.");
+
     END_CLASS(); // GWindow
 }
 
@@ -253,6 +343,12 @@ CK_DLL_SFUN(gwindow_window_resize_event)
 {
     RETURN->v_object
       = (Chuck_Object*)Event_Get(CHUGL_EventType::WINDOW_RESIZE, API, VM);
+}
+
+CK_DLL_SFUN(gwindow_window_content_scale_event)
+{
+    RETURN->v_object
+      = (Chuck_Object*)Event_Get(CHUGL_EventType::CONTENT_SCALE, API, VM);
 }
 
 // ============================================================================
@@ -313,4 +409,104 @@ CK_DLL_SFUN(gwindow_get_window_size)
 CK_DLL_SFUN(gwindow_get_framebuffer_size)
 {
     RETURN->v_vec2 = CHUGL_Window_FramebufferSize();
+}
+
+// ============================================================================
+// content scale
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_get_content_scale)
+{
+    RETURN->v_vec2 = CHUGL_Window_ContentScale();
+}
+
+// ============================================================================
+// size limits
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_set_window_size_limits)
+{
+    t_CKINT min_width     = GET_NEXT_INT(ARGS);
+    t_CKINT min_height    = GET_NEXT_INT(ARGS);
+    t_CKINT max_width     = GET_NEXT_INT(ARGS);
+    t_CKINT max_height    = GET_NEXT_INT(ARGS);
+    t_CKVEC2 aspect_ratio = GET_NEXT_VEC2(ARGS);
+
+    CQ_PushCommand_WindowSizeLimits(min_width, min_height, max_width,
+                                    max_height, (int)aspect_ratio.x,
+                                    (int)aspect_ratio.y);
+}
+
+// ============================================================================
+// position
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_set_window_pos)
+{
+    t_CKINT x = GET_NEXT_INT(ARGS);
+    t_CKINT y = GET_NEXT_INT(ARGS);
+    CQ_PushCommand_WindowPosition(x, y);
+}
+
+CK_DLL_SFUN(gwindow_window_center)
+{
+    CQ_PushCommand_WindowCenter();
+}
+
+// ============================================================================
+// title
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_set_title)
+{
+    CQ_PushCommand_WindowTitle(API->object->str(GET_NEXT_STRING(ARGS)));
+}
+
+// ============================================================================
+// iconify
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_inconify)
+{
+    CQ_PushCommand_WindowIconify(true);
+}
+
+CK_DLL_SFUN(gwindow_restore)
+{
+    CQ_PushCommand_WindowIconify(false);
+}
+
+// ============================================================================
+// attributes
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_set_attrib_resizable)
+{
+    // CQ_PushCommand_WindowAttribute(CHUGL_WINDOW_ATTRIB_RESIZABLE,
+    //                                GET_NEXT_INT(ARGS));
+    CHUGL_Window_Resizable(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_set_attrib_decorated)
+{
+    // CQ_PushCommand_WindowAttribute(CHUGL_WINDOW_ATTRIB_DECORATED,
+    //                                GET_NEXT_INT(ARGS));
+    CHUGL_Window_Decorated(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_set_attrib_floating)
+{
+    // CQ_PushCommand_WindowAttribute(CHUGL_WINDOW_ATTRIB_FLOATING,
+    //                                GET_NEXT_INT(ARGS));
+    CHUGL_Window_Floating(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_set_attrib_transparent)
+{
+    CHUGL_Window_Transparent(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_opacity)
+{
+    CQ_PushCommand_WindowOpacity(GET_NEXT_FLOAT(ARGS));
 }
