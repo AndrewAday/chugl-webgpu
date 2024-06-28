@@ -13,6 +13,10 @@ namespace cimgui
 // Declarations
 // ============================================================================
 
+// IO
+CK_DLL_SFUN(ui_want_capture_mouse);
+CK_DLL_SFUN(ui_want_capture_keyboard);
+
 // Main
 CK_DLL_SFUN(ui_get_style);
 
@@ -4519,6 +4523,20 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // UI ---------------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI", "Object");
 
+    // IO helpers
+    SFUN(ui_want_capture_mouse, "int", "wantCaptureMouse");
+    DOC_FUNC(
+      "When wantCaptureMouse=true, the mouse is interacting with UI widgets, "
+      "so you know to discard/hide the mouse inputs from your underlying "
+      "application.");
+    
+    SFUN(ui_want_capture_keyboard, "int", "wantCaptureKeyboard");
+    DOC_FUNC(
+      "When wantCaptureKeyboard=true, the keyboard is interacting with UI "
+      "widgets, so you know to discard/hide the keyboard inputs from your "
+      "underlying application.");
+
+
     // Main
     SFUN(ui_get_style, "UI_Style", "getStyle");
     DOC_FUNC(
@@ -6603,6 +6621,20 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_sfun(QUERY, ui_styleColorsClassic, "void", "styleColorsClassic");
 
     QUERY->end_class(QUERY); // UI
+}
+
+// ============================================================================
+// IO
+// ============================================================================
+
+CK_DLL_SFUN(ui_want_capture_mouse)
+{
+    RETURN->v_int = cimgui::ImGui_GetIO()->WantCaptureMouse;
+}
+
+CK_DLL_SFUN(ui_want_capture_keyboard)
+{
+    RETURN->v_int = cimgui::ImGui_GetIO()->WantCaptureKeyboard;
 }
 
 // ============================================================================

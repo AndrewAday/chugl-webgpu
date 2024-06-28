@@ -2,7 +2,7 @@ include(FetchContent)
 
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_VERBOSE_MAKEFILE OFF)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # force universal binary on osx (must go BEFORE project call)
 # TODO: universal binary not working with webgpu-distribution

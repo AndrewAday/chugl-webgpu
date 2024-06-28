@@ -2,74 +2,6 @@
 
 #include "ulib_helper.h"
 
-/* API
-
-// window frame size
-int window_frame_left, window_frame_top, window_frame_right,
-window_frame_bottom;
-
-float window_opacity;
-
-glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
-
-
-----------------
-
-window.title();
-
-class GWindow
-{
-    title()
-}
-
-// window closing
-
-window.shouldCloseEvent => now;
-
------
-window attribs
-
-GLFW_HOVERED indicates whether the cursor is currently directly over the content
-area of the window, with no other windows between. See Cursor enter/leave events
-for details.
-
-GLFW_VISIBLE indicates whether the specified window is visible. See Window
-visibility for details.
-
-GLFW_RESIZABLE indicates whether the specified window is resizable by the user.
-This can be set before creation with the GLFW_RESIZABLE window hint or after
-with glfwSetWindowAttrib.
-
-GLFW_DECORATED indicates whether the specified window has decorations such as a
-border, a close widget, etc. This can be set before creation with the
-GLFW_DECORATED window hint or after with glfwSetWindowAttrib.
-
-GLFW_AUTO_ICONIFY indicates whether the specified full screen window is
-iconified on focus loss, a close widget, etc. This can be set before creation
-with the GLFW_AUTO_ICONIFY window hint or after with glfwSetWindowAttrib.
-
-GLFW_FLOATING indicates whether the specified window is floating, also called
-topmost or always-on-top. This can be set before creation with the GLFW_FLOATING
-window hint or after with glfwSetWindowAttrib.
-
-GLFW_TRANSPARENT_FRAMEBUFFER indicates whether the specified window has a
-transparent framebuffer, i.e. the window contents is composited with the
-background using the window framebuffer alpha channel. See Window transparency
-for details.
-
-GLFW_FOCUS_ON_SHOW specifies whether the window will be given input focus when
-glfwShowWindow is called. This can be set before creation with the
-GLFW_FOCUS_ON_SHOW window hint or after with glfwSetWindowAttrib.
-
-----
-Window size limits
-- constrain min/max size
-- constrain aspect ratio
-
-
-
-*/
-
 // monitor (not implemented)
 CK_DLL_SFUN(gwindow_monitor_info);
 static t_CKINT monitor_info_width_offset            = 0;
@@ -123,6 +55,14 @@ CK_DLL_SFUN(gwindow_set_attrib_decorated);
 CK_DLL_SFUN(gwindow_set_attrib_floating);
 CK_DLL_SFUN(gwindow_set_attrib_transparent);
 CK_DLL_SFUN(gwindow_opacity);
+
+// mouse
+CK_DLL_SFUN(gwindow_get_mouse_pos);
+CK_DLL_SFUN(gwindow_get_mouse_delta_pos);
+CK_DLL_SFUN(gwindow_set_mouse_mode); // normal, disabled, hidden
+// TODO: custom cursor
+CK_DLL_SFUN(gwindow_set_mouse_cursor);
+CK_DLL_SFUN(gwindow_revert_mouse_cursor);
 
 void ulib_window_query(Chuck_DL_Query* QUERY)
 {
@@ -317,6 +257,64 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
       "GG.nextFrame()"
       "AND the platform supports transparent framebuffers.");
 
+    // mouse ----------------------------------------------------------
+    SFUN(gwindow_get_mouse_pos, "vec2", "mousePos");
+    DOC_FUNC("Get the current mouse position in screen coordinates");
+
+    SFUN(gwindow_get_mouse_delta_pos, "vec2", "mouseDeltaPos");
+    DOC_FUNC("Get the change in mouse position since the last call");
+
+    static t_CKINT mouse_mode_normal   = 0;
+    static t_CKINT mouse_mode_hidden   = 1;
+    static t_CKINT mouse_mode_disabled = 2;
+
+    SVAR("int", "MouseModeNormal", &mouse_mode_normal);
+    DOC_VAR(
+      "Normal mouse mode, the cursor is visible and behaves normally. Set via "
+      "GWindow.mouseMode()");
+    SVAR("int", "MouseModeHidden", &mouse_mode_hidden);
+    DOC_VAR(
+      "Hidden mouse mode, hides the cursor when it is focused and hovering "
+      "over the window, but does not lock it to the window. Set via "
+      "GWindow.mouseMode(). May not be supported on all platforms.");
+    SVAR("int", "MouseModeDisabled", &mouse_mode_disabled);
+    DOC_VAR(
+      "Disabled mouse mode, hides the cursor and locks it to the window, "
+      "useful for first-person games. Set via GWindow.mouseMode()");
+
+    SFUN(gwindow_set_mouse_mode, "void", "mouseMode");
+    ARG("int", "mode");
+    DOC_FUNC(
+      "Set the mouse mode. Possible values are: GWindow.MouseModeNormal (0) , "
+      "GWindow.MouseModeDisabled (1), and GWindow.MouseModeHidden (2)"
+      "Normal mode is the default mode, the cursor is visible and behaves "
+      "normally."
+      "Disabled mode hides the cursor and locks it to the window, useful for "
+      "first-person games."
+      "Hidden mode hides the cursor when it is focused and hovering over the "
+      "window, but does not lock it to the window.");
+
+    // TODO: not working (tried on macOS)
+    SFUN(gwindow_set_mouse_cursor, "void", "customCursor");
+    ARG("int[]", "image_data");
+    ARG("int", "width");
+    ARG("int", "height");
+    ARG("int", "xhot");
+    ARG("int", "yhot");
+    DOC_FUNC(
+      "Create a custom mouse cursor. The image data is in RGBA. The pixels are "
+      "arranged canonically as sequential rows, starting from the top-left "
+      "corner. Each consecutive 4 values represent the red, green, blue, and "
+      "alpha value for a single pixel. Width and height are the dimensions of "
+      "the image in pixels. image_data.size() MUST EQUAL width * height * 4."
+      "each value must be an int in the range 0-255."
+      "xhot and yhot are the coordinates of the cursor's hot spot, the point "
+      "within the cursor image that corresponds to the mouse position. Most"
+      "commonly, this is the top-left corner of the image 0, 0.");
+
+    SFUN(gwindow_revert_mouse_cursor, "void", "normalCursor");
+    DOC_FUNC("Revert to the default mouse cursor");
+
     END_CLASS(); // GWindow
 }
 
@@ -509,4 +507,48 @@ CK_DLL_SFUN(gwindow_set_attrib_transparent)
 CK_DLL_SFUN(gwindow_opacity)
 {
     CQ_PushCommand_WindowOpacity(GET_NEXT_FLOAT(ARGS));
+}
+
+// ============================================================================
+// mouse
+// ============================================================================
+
+CK_DLL_SFUN(gwindow_get_mouse_pos)
+{
+    RETURN->v_vec2 = CHUGL_Mouse_Position();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_delta_pos)
+{
+    RETURN->v_vec2 = CHUGL_Mouse_Delta();
+}
+
+CK_DLL_SFUN(gwindow_set_mouse_mode)
+{
+    CQ_PushCommand_MouseMode(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_set_mouse_cursor)
+{
+    Chuck_ArrayInt* image_data = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+    t_CKINT width              = GET_NEXT_INT(ARGS);
+    t_CKINT height             = GET_NEXT_INT(ARGS);
+    t_CKINT xhot               = GET_NEXT_INT(ARGS);
+    t_CKINT yhot               = GET_NEXT_INT(ARGS);
+
+    int size = API->object->array_int_size(image_data);
+
+    if (size != width * height * 4) {
+        CK_LOG(1,
+               "GWindow.mouseCursor() image_data.size() must equal width * "
+               "height * 4. Could not set custom cursor.");
+        return;
+    }
+
+    CQ_PushCommand_MouseCursor(API, image_data, width, height, xhot, yhot);
+}
+
+CK_DLL_SFUN(gwindow_revert_mouse_cursor)
+{
+    CQ_PushCommand_MouseCursorNormal();
 }

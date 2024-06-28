@@ -10,6 +10,72 @@ Plumbing
 - multithreading physics sim
 - fix timestep
 - add option for #simulation steps per frame
+
+------
+
+// workflow WITHOUT shreds / Chuck_Events
+
+b2_World world;
+
+class b2_ContactEvents {
+    b2_ContactBeginTouchEvent begin_touch_events[];
+    b2_ContactEndTouchEvent end_touch_events[];
+    b2_ContactHitEvent hit_events[];
+}
+
+
+class b2_ContactHitEvent {
+	b2_Shape shapeIdA;
+	b2_Shape shapeIdB;
+
+	// Point where the shapes hit
+	vec2 point;
+
+	// Normal vector pointing from shape A to shape B
+	vec2 normal;
+
+	// The speed the shapes are approaching. Always positive. Typically in meters per second.
+	float approachSpeed;
+}
+
+while (1) {
+    GG.nextFrame() => now;
+    world.contactEvents() @=> b2_ContactEvents @ events; // TODO call something other than event
+    for (auto hit : events.hitEvents()) {
+        hit.shapIdA().body() @=> b2_Body @ body_a;
+        hit.shapIdB().body() @=> b2_Body @ body_b;
+        // do something with the bodies
+    }
+}
+
+B2_API b2ContactEvents b2World_GetContactEvents(b2WorldId worldId);
+
+--------
+
+// workflow WITH shreds / Chuck_Events
+// need 1 shred PER shape, also somehow need to group all contact events together to broadcast to a single shred
+// less efficient and more complex
+
+--------
+
+b2_Body / b2_World / etc are just IDS, not actual object pointers.
+As a result, they don't need constructors / destructors to manage memory.
+Furthermore, ChuGL doesn't need to worry about refcount / garbage collection.
+Under the hood, box2d already handles memory efficiently and recycles memory pools.
+
+create via b2_XXX.createYYY()
+destroy via b2_YYY.destroy()
+The ChuGL programmer is therefore responsible for their own physics memory management.
+
+refcounting / destructors wouldn't work anyways, because technically any world can 
+always have a reference to any body, and vice versa. So it's a circular reference.
+
+"Box2D allows you to avoid destroying bodies by destroying the world directly using b2DestroyWorld(), 
+which does all the cleanup work for you. However, you should be mindful to nullify body ids that you 
+keep in your application."
+- so box2d already handles memory references for you, just explicitly called b2_World.destroy()
+
+
 */
 
 b2_World world;
@@ -57,8 +123,6 @@ fun void addBody()
     dynamic_box_mesh.scaY(2.0);
     dynamic_box_meshes << dynamic_box_mesh;
 }
-
-
 
 while (1) {
     GG.nextFrame() => now;

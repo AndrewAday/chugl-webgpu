@@ -47,7 +47,6 @@ struct CHUGL_Window {
     // locks
     spinlock window_lock;
 };
-
 CHUGL_Window chugl_window;
 
 void CHUGL_Window_Closeable(bool closeable)
@@ -172,6 +171,54 @@ t_CKVEC2 CHUGL_Window_ContentScale()
     scale.y = chugl_window.content_scale_y;
     spinlock::unlock(&chugl_window.window_lock);
     return scale;
+}
+
+// Mouse State (Don't modify directly, use API functions)
+struct CHUGL_Mouse {
+    double xpos = 0.0, ypos = 0.0;
+    double dx = 0.0, dy = 0.0;
+
+    spinlock mouse_lock;
+};
+CHUGL_Mouse chugl_mouse;
+
+void CHUGL_Mouse_Position(double xpos, double ypos)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    // update deltas
+    chugl_mouse.dx   = xpos - chugl_mouse.xpos;
+    chugl_mouse.dy   = ypos - chugl_mouse.ypos;
+    chugl_mouse.xpos = xpos;
+    chugl_mouse.ypos = ypos;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+t_CKVEC2 CHUGL_Mouse_Position()
+{
+    t_CKVEC2 pos;
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    pos.x = chugl_mouse.xpos;
+    pos.y = chugl_mouse.ypos;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return pos;
+}
+
+t_CKVEC2 CHUGL_Mouse_Delta()
+{
+    t_CKVEC2 delta;
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    delta.x = chugl_mouse.dx;
+    delta.y = chugl_mouse.dy;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return delta;
+}
+
+void CHUGL_Zero_Mouse_Deltas()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.dx = 0.0;
+    chugl_mouse.dy = 0.0;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
 }
 
 // ============================================================================

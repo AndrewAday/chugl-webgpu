@@ -583,6 +583,7 @@ struct App {
             snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
 
             // imgui and window callbacks
+            CHUGL_Zero_Mouse_Deltas();
             glfwPollEvents();
 
             // reset imgui
@@ -799,6 +800,8 @@ struct App {
             app->callbacks.onCursorPosition(xpos, ypos);
 
         app->camera.onCursorPosition(&app->camera, xpos, ypos);
+
+        CHUGL_Mouse_Position(xpos, ypos);
     }
 };
 
@@ -1075,6 +1078,74 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_WINDOW_OPACITY: {
             SG_Command_WindowOpacity* cmd = (SG_Command_WindowOpacity*)command;
             glfwSetWindowOpacity(app->window, cmd->opacity);
+            break;
+        }
+        case SG_COMMAND_MOUSE_MODE: {
+            SG_Command_MouseMode* cmd = (SG_Command_MouseMode*)command;
+            switch (cmd->mode) {
+                case 0:
+                    glfwSetInputMode(app->window, GLFW_CURSOR,
+                                     GLFW_CURSOR_NORMAL);
+                    break;
+                case 1:
+                    // TODO doesn't work on macos?
+                    glfwSetInputMode(app->window, GLFW_CURSOR,
+                                     GLFW_CURSOR_HIDDEN);
+                    break;
+                case 2:
+                    glfwSetInputMode(app->window, GLFW_CURSOR,
+                                     GLFW_CURSOR_DISABLED);
+                    // raw mouse motion
+                    if (glfwRawMouseMotionSupported())
+                        glfwSetInputMode(app->window, GLFW_RAW_MOUSE_MOTION,
+                                         GLFW_TRUE);
+                    break;
+            }
+            break;
+        }
+        case SG_COMMAND_MOUSE_CURSOR: {
+            SG_Command_MouseCursor* cmd = (SG_Command_MouseCursor*)command;
+            if (cmd->mouse_cursor_image_offset == 0 || cmd->width == 0
+                || cmd->height == 0) {
+                // default to normal cursor
+                glfwSetCursor(app->window, NULL);
+            } else {
+                log_error("setting custom cursor");
+                // create cursor
+                GLFWimage image;
+                image.width  = cmd->width;
+                image.height = cmd->height;
+                image.pixels = (unsigned char*)CQ_ReadCommandGetOffset(
+                  cmd->mouse_cursor_image_offset);
+
+                // print image
+                // for (int i = 0; i < image.width * image.height; i++)
+                //     printf("%d %d %d %d\n", image.pixels[i * 4],
+                //            image.pixels[i * 4 + 1], image.pixels[i * 4 + 2],
+                //            image.pixels[i * 4 + 3]);
+
+                GLFWcursor* cursor
+                  = glfwCreateCursor(&image, cmd->xhot, cmd->yhot);
+                if (!cursor) log_error("failed to create cursor");
+                glfwSetCursor(app->window, cursor);
+
+                // static unsigned char pixels[16 * 16 * 4];
+                // memset(pixels, 0xff, sizeof(pixels));
+
+                // GLFWimage image;
+                // image.width  = 16;
+                // image.height = 16;
+                // image.pixels = pixels;
+
+                // GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
+                // log_error("cursor: %p", cursor);
+                // glfwSetCursor(app->window, cursor);
+            }
+            break;
+        }
+        case SG_COMMAND_MOUSE_CURSOR_NORMAL: {
+            log_error("setting normal cursor");
+            glfwSetCursor(app->window, NULL);
             break;
         }
         case SG_COMMAND_GG_SCENE: {

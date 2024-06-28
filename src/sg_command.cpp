@@ -209,6 +209,50 @@ void CQ_PushCommand_WindowOpacity(float opacity)
     END_COMMAND();
 }
 
+void CQ_PushCommand_MouseMode(int mode)
+{
+    BEGIN_COMMAND(SG_Command_MouseMode, SG_COMMAND_MOUSE_MODE);
+    command->mode = mode;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MouseCursorNormal()
+{
+    BEGIN_COMMAND(SG_Command_MouseCursorNormal, SG_COMMAND_MOUSE_CURSOR_NORMAL);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
+                                u32 width, u32 height, u32 xhot, u32 yhot)
+{
+    u32 data_size = API->object->array_int_size(image_data);
+    ASSERT(data_size == width * height * 4);
+
+    spinlock::lock(&cq.write_q_lock);
+
+    SG_Command_MouseCursor* command
+      = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MouseCursor);
+
+    // push bytes for pixel data
+    char* image_data_bytes = (char*)Arena::pushZero(cq.write_q, data_size);
+    // copy
+    for (u32 i = 0; i < data_size; i++) {
+        image_data_bytes[i] = (unsigned char)CLAMP(
+          API->object->array_int_get_idx(image_data, i), 0, 255);
+    }
+    // store offset not pointer in case arena resizes
+    command->mouse_cursor_image_offset
+      = Arena::offsetOf(cq.write_q, image_data_bytes);
+    command->width             = width;
+    command->height            = height;
+    command->xhot              = xhot;
+    command->yhot              = yhot;
+    command->type              = SG_COMMAND_MOUSE_CURSOR;
+    command->nextCommandOffset = cq.write_q->curr;
+
+    spinlock::unlock(&cq.write_q_lock);
+}
+
 void CQ_PushCommand_GG_Scene(SG_Scene* scene)
 {
     spinlock::lock(&cq.write_q_lock);

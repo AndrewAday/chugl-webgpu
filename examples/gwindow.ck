@@ -7,6 +7,8 @@ Press '2' to go windowed.
 Press '3' to maximize (windowed fullscreen).
 Press '4' to iconify / restore
 press '5' to toggle window opacity
+press '6' to toggle mouse mode (normal - hidden - disabled)
+press '7' to swtich between custom a
 
 
 Author: Andrew Zhu Aday (azaday) June 2024
@@ -47,9 +49,23 @@ fun void contentScaleCallback() {
     }
 } spork ~ contentScaleCallback();
 
+fun void makeCustomCursor() {
+    // make cursor into a greem dot
+    int cursor_image[8 * 8 * 4];
+    for (int i; i < 8 * 8 * 4; 4 +=> i) {
+        0 => cursor_image[i];
+        255 => cursor_image[i + 1];
+        0 => cursor_image[i + 2];
+        255 => cursor_image[i + 3];
+    }
+    GWindow.customCursor(cursor_image, 8, 8, 0, 0);
+}
+
 int fc;
 true => int opaque;
 false => int floating;
+0 => int mouse_mode;
+false => int custom_cursor;
 while (1) { 
     GG.nextFrame() => now;
     if (UI.isKeyPressed(UI_Key.Num1)) GWindow.fullscreen();
@@ -78,6 +94,30 @@ while (1) {
             true => opaque;
         }
     }
+    if (UI.isKeyPressed(UI_Key.Num6, false)) {
+        (mouse_mode + 1) % 3 => mouse_mode;
+        if (mouse_mode == 0) {
+            <<< "mouse mode: normal" >>>;
+        } else if (mouse_mode == 1) {
+            <<< "mouse mode: hidden" >>>;
+        } else {
+            <<< "mouse mode: disabled" >>>;
+        }
+        GWindow.mouseMode(mouse_mode);
+    }
+    if (UI.isKeyPressed(UI_Key.Num7, false)) {
+        if (custom_cursor) {
+            <<< "switching to normal cursor" >>>;
+            GWindow.normalCursor();
+            false => custom_cursor;
+        } else {
+            <<< "switching to custom cursor" >>>;
+            makeCustomCursor();
+            true => custom_cursor;
+        }
+    }
+
+    // <<< "Mouse Pos", GWindow.mousePos(), "Mouse Deltas", GWindow.mouseDeltaPos() >>>;
 
     GWindow.title("GWindow Demo | Frame: " + (++fc));
 }

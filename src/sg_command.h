@@ -55,6 +55,11 @@ enum SG_CommandType : u32 {
     SG_COMMAND_WINDOW_ATTRIBUTE,
     SG_COMMAND_WINDOW_OPACITY,
 
+    // mouse
+    SG_COMMAND_MOUSE_MODE,
+    SG_COMMAND_MOUSE_CURSOR,
+    SG_COMMAND_MOUSE_CURSOR_NORMAL,
+
     // components
     SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
@@ -133,6 +138,23 @@ struct SG_Command_WindowAttribute : public SG_Command {
 
 struct SG_Command_WindowOpacity : public SG_Command {
     float opacity;
+};
+
+// Mouse commands ---------------------------------------------------------
+
+struct SG_Command_MouseMode : public SG_Command {
+    int mode;
+};
+
+struct SG_Command_MouseCursorNormal : public SG_Command {
+};
+
+struct SG_Command_MouseCursor : public SG_Command {
+    u64 mouse_cursor_image_offset;
+    u32 width;
+    u32 height;
+    u32 xhot;
+    u32 yhot;
 };
 
 // Component Commands -----------------------------------------------------
@@ -240,13 +262,18 @@ void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height);
 void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
                                      int max_width, int max_height,
                                      int aspect_ratio_x, int aspect_ratio_y);
-
 void CQ_PushCommand_WindowPosition(int x, int y);
 void CQ_PushCommand_WindowCenter();
 void CQ_PushCommand_WindowTitle(const char* title);
 void CQ_PushCommand_WindowIconify(bool iconify);
 void CQ_PushCommand_WindowAttribute(CHUGL_WindowAttrib attrib, bool value);
 void CQ_PushCommand_WindowOpacity(float opacity);
+
+void CQ_PushCommand_MouseMode(int mode);
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
+                                u32 width, u32 height, u32 xhot, u32 yhot);
+
+void CQ_PushCommand_MouseCursorNormal();
 
 // components
 
