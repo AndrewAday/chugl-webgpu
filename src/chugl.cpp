@@ -251,12 +251,6 @@ CK_DLL_SFUN(chugl_set_scene)
     SG_DecrementRef(prev_scene_id);
 }
 
-CK_DLL_SFUN(chugl_set_b2_world)
-{
-    CQ_PushCommand_b2World_Set(
-      *(u32*)OBJ_MEMBER_DATA(GET_NEXT_OBJECT(ARGS), b2_world_data_offset));
-}
-
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -334,10 +328,6 @@ CK_DLL_QUERY(ChuGL)
         QUERY->add_sfun(QUERY, chugl_set_scene, SG_CKNames[SG_COMPONENT_SCENE],
                         "scene");
         QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_SCENE], "scene");
-
-        SFUN(chugl_set_b2_world, "void", "b2world");
-        ARG("b2_World", "world");
-        DOC_FUNC("Set the active physics world for simulation");
 
         // QUERY->add_sfun(QUERY, chugl_gc, "void", "gc");
         // QUERY->doc_func(QUERY, "Trigger garbage collection");

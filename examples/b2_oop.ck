@@ -78,18 +78,16 @@ keep in your application."
 
 */
 
+b2_World world;
+GG.b2world(world); // TODO: maybe set this under b2.activeWorld instead?
 GWindow.maximize();
 
-b2_WorldDef world_def;
-b2.createWorld(world_def) => int world_id;
-b2.world(world_id);
-
 b2_BodyDef ground_body_def;
-@(0.0, -10.0) => ground_body_def.position;
-b2.createBody(world_id, ground_body_def) => int ground_id;
+ground_body_def.position(@(0.0, -10.0));
+world.createBody(ground_body_def) @=> b2_Body ground;
 b2_ShapeDef ground_shape_def;
 b2_Polygon.makeBox(50.0, 10.0) @=> b2_Polygon ground_box;
-b2.createPolygonShape(ground_id, ground_shape_def, ground_box);
+ground.createPolygonShape(ground_shape_def, ground_box);
 
 PlaneGeometry plane_geo;
 PBRMaterial mat;
@@ -99,22 +97,25 @@ ground_mesh.scaX(100.0);
 ground_mesh.scaY(20.0);
 
 GMesh@ dynamic_box_meshes[0];
-int dynamic_body_ids[0];
+b2_Body@ dynamic_bodies[0];
 
 fun void addBody()
 {
     // create dynamic box
     b2_BodyDef dynamic_body_def;
-    b2_BodyType.dynamicBody => dynamic_body_def.type;
-    @(Math.random2f(-4.0, 4.0), Math.random2f(6.0, 12.0)) => dynamic_body_def.position;
-    Math.random2f(0.0,Math.two_pi) => dynamic_body_def.angle;
-    b2.createBody(world_id, dynamic_body_def) => int dynamic_body_id;
-    dynamic_body_ids << dynamic_body_id;
+    dynamic_body_def.type(b2_BodyType.dynamicBody);
+    dynamic_body_def.position(@(Math.random2f(-4.0, 4.0), Math.random2f(6.0, 12.0)));
+    dynamic_body_def.angle(Math.random2f(0.0,Math.two_pi));
+    world.createBody(dynamic_body_def) @=> b2_Body dynamic_body;
+    dynamic_bodies << dynamic_body;
 
     // then shape
     b2_Polygon.makeBox(1.0f, 1.0f) @=> b2_Polygon dynamic_box;
     b2_ShapeDef dynamic_shape_def;
-    b2.createPolygonShape(dynamic_body_id, dynamic_shape_def, dynamic_box);
+    dynamic_shape_def.density(1.0);
+    dynamic_shape_def.friction(.3);
+    dynamic_body.createPolygonShape(dynamic_shape_def, dynamic_box) @=> b2_Shape dynamic_shape;
+    <<< dynamic_shape_def.density(), dynamic_shape_def.friction() >>>;
 
     // matching GGen
     GMesh dynamic_box_mesh(plane_geo, mat) --> GG.scene();
@@ -128,9 +129,9 @@ while (1) {
 
     if (UI.isKeyPressed(UI_Key.Space)) addBody();
 
-    for (int i; i < dynamic_body_ids.size(); i++) {
-        b2_Body.position(dynamic_body_ids[i]) => vec2 p;
+    for (int i; i < dynamic_bodies.size(); i++) {
+        dynamic_bodies[i].position() => vec2 p;
         dynamic_box_meshes[i].pos(@(p.x, p.y, 0.0));
-        dynamic_box_meshes[i].rotZ(b2_Body.angle(dynamic_body_ids[i]));
+        dynamic_box_meshes[i].rotZ(dynamic_bodies[i].angle());
     }
 }

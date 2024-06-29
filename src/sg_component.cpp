@@ -209,9 +209,10 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
     }
 
     if (SG_Transform::isAncestor(child, parent)) {
-        std::cerr
-          << "No cycles in scenegraph; cannot add parent as child of descendent"
-          << std::endl;
+        // std::cerr
+        //   << "No cycles in scenegraph; cannot add parent as child of
+        //   descendent"
+        //   << std::endl;
         return;
     }
 

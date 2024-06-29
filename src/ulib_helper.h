@@ -22,6 +22,8 @@
 #define DOC_CLASS(doc) QUERY->doc_class(QUERY, doc)
 #define DOC_VAR(doc) QUERY->doc_var(QUERY, doc)
 
+#define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
+
 // log levels (copied from
 // https://github.com/ccrma/chuck/blob/90f966cb8649840bc05f5d77219867593eb7fe94/src/core/chuck_errmsg.h#L78)
 #define CK_LOG_ALL 10 // set this to log everything
