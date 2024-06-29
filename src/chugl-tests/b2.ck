@@ -35,7 +35,24 @@ T.assert(b2_Body.isValid(body_id), "body created");
 T.assert(T.feq(1337, b2_Body.position(body_id).x), "position.x set");
 
 b2_Polygon.makeBox(.5, .5) @=> b2_Polygon@ box_poly;
-b2.createPolygonShape(body_id, shape_def, box_poly) => int shape_id;
+b2_Shape.createPolygonShape(body_id, shape_def, box_poly) => int shape_id;
+
+b2_Circle circle(@(1,2), 3);
+b2_Shape.createCircleShape(body_id, shape_def, circle) => int circle_shape_id;
+
+b2_Segment segment(@(1,2), @(3,4));
+b2_Shape.createSegmentShape(body_id, shape_def, segment) => int segment_shape_id;
+
+b2_Capsule capsule(@(1,2), @(3,4), 5);
+b2_Shape.createCapsuleShape(body_id, shape_def, capsule) => int capsule_shape_id;
+
+int shape_ids[0];
+b2_Body.shapes(body_id, shape_ids);
+T.assert(shape_ids.size() == 4, "shape added to body");
+for (auto shape_id : shape_ids)
+    T.assert(b2_Shape.isValid(shape_id), "shape is valid");
 
 b2.destroyBody(body_id);
 T.assert(!b2_Body.isValid(body_id), "destroy body");
+T.assert(!b2_Shape.isValid(shape_ids[0]), "destroy shape");
+

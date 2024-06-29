@@ -140,8 +140,6 @@ CK_DLL_SFUN(b2_DestroyWorld);
 CK_DLL_SFUN(b2_CreateBody);
 CK_DLL_SFUN(b2_DestroyBody);
 
-CK_DLL_SFUN(b2_CreatePolygonShape);
-
 // b2_world
 CK_DLL_SFUN(b2_World_IsValid);
 CK_DLL_SFUN(b2_World_GetBodyEvents);
@@ -150,8 +148,46 @@ CK_DLL_SFUN(b2_World_GetBodyEvents);
 CK_DLL_DTOR(b2_polygon_dtor);
 CK_DLL_SFUN(b2_polygon_make_box);
 
+// b2_Circle
+static t_CKUINT b2_Circle_position_offset = 0;
+static t_CKUINT b2_Circle_radius_offset   = 0;
+CK_DLL_CTOR(b2_Circle_ctor);
+
+// static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+//                               b2Circle* obj);
+static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj,
+                              Chuck_Object* ckobj);
+
+// b2_Capsule
+static t_CKUINT b2_Capsule_center1_offset = 0;
+static t_CKUINT b2_Capsule_center2_offset = 0;
+static t_CKUINT b2_Capsule_radius_offset  = 0;
+CK_DLL_CTOR(b2_Capsule_ctor);
+
+// static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+//                                b2Capsule* obj);
+static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
+                               Chuck_Object* ckobj);
+
+// b2_Segment
+static t_CKUINT b2_Segment_point1_offset = 0;
+static t_CKUINT b2_Segment_point2_offset = 0;
+CK_DLL_CTOR(b2_Segment_ctor);
+
+// static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment*
+// obj);
+static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
+                               Chuck_Object* ckobj);
+
 // b2_Shape
 // TODO other shape creation functions
+CK_DLL_SFUN(b2_Shape_IsValid);
+
+// shape creation
+CK_DLL_SFUN(b2_CreateCircleShape);
+CK_DLL_SFUN(b2_CreateSegmentShape);
+CK_DLL_SFUN(b2_CreateCapsuleShape);
+CK_DLL_SFUN(b2_CreatePolygonShape);
 
 // b2_Body
 CK_DLL_SFUN(b2_body_is_valid);
@@ -332,6 +368,64 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     END_CLASS(); // b2_Polygon
 
+    // b2_Circle --------------------------------------
+    BEGIN_CLASS("b2_Circle", "Object");
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/"
+      "group__geometry.html#structb2_circle");
+
+    CTOR(b2_Circle_ctor);
+    ARG("vec2", "center");
+    ARG("float", "radius");
+
+    b2_Circle_position_offset = MVAR("vec2", "center", false);
+    DOC_VAR("The local center (relative to the body's origin)");
+
+    b2_Circle_radius_offset = MVAR("float", "radius", false);
+    DOC_VAR("The radius");
+
+    END_CLASS(); // b2_Circle
+
+    // b2_Capsule --------------------------------------
+    BEGIN_CLASS("b2_Capsule", "Object");
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/"
+      "group__geometry.html#structb2_capsule");
+
+    CTOR(b2_Capsule_ctor);
+    ARG("vec2", "center1");
+    ARG("vec2", "center2");
+    ARG("float", "radius");
+
+    b2_Capsule_center1_offset = MVAR("vec2", "center1", false);
+    DOC_VAR("Local center of the first semicircle");
+
+    b2_Capsule_center2_offset = MVAR("vec2", "center2", false);
+    DOC_VAR("Local center of the second semicircle");
+
+    b2_Capsule_radius_offset = MVAR("float", "radius", false);
+    DOC_VAR("The radius of the semicircles");
+
+    END_CLASS(); // b2_Capsule
+
+    // b2_Segment --------------------------------------
+    BEGIN_CLASS("b2_Segment", "Object");
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/"
+      "group__geometry.html#structb2_segment");
+
+    CTOR(b2_Segment_ctor);
+    ARG("vec2", "point1");
+    ARG("vec2", "point2");
+
+    b2_Segment_point1_offset = MVAR("vec2", "point1", false);
+    DOC_VAR("The first point");
+
+    b2_Segment_point2_offset = MVAR("vec2", "point2", false);
+    DOC_VAR("The second point");
+
+    END_CLASS(); // b2_Segment
+
     // b2_Filter --------------------------------------
     BEGIN_CLASS("b2_Filter", "Object");
     DOC_CLASS(
@@ -468,7 +562,9 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     Arena::init(&b2_body_move_event_pool, sizeof(Chuck_Object*) * 1024);
 
     BEGIN_CLASS("b2_BodyMoveEvent", "Object");
+    // clang-format off
     DOC_CLASS(
+      "https://box2d.org/documentation_v3/group__events.html#structb2_body_move_event"
       "Body move events triggered when a body moves. Triggered when a body "
       "moves due to simulation. Not reported for bodies moved by the user. "
       "This also has a flag to indicate that the body went to sleep so the "
@@ -481,6 +577,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "array and it is only populated with bodies that have moved. @note If "
       "sleeping is disabled all dynamic and kinematic bodies will trigger move "
       "events.");
+    // clang-format on
 
     b2_BodyMoveEvent_pos_offset = MVAR("vec2", "pos", false);
     DOC_VAR("2d position");
@@ -530,15 +627,6 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "Destroy a rigid body given an id. This destroys all shapes and joints "
       "attached to the body. Do not keep references to the associated shapes "
       "and joints.");
-
-    SFUN(b2_CreatePolygonShape, "int", "createPolygonShape");
-    DOC_FUNC(
-      "Create a polygon shape and attach it to a body. The shape definition "
-      "and geometry are fully cloned. Contacts are not created until the next "
-      "time step.  @return the shape id for accessing the shape");
-    ARG("int", "body_id");
-    ARG("b2_ShapeDef", "def");
-    ARG("b2_Polygon", "polygon");
 
     // TODO control substep
     /// @param subStepCount The number of sub-steps, increasing the sub-step
@@ -876,9 +964,10 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     ARG("int", "b2_body_id");
     DOC_FUNC("Get the number of shapes on this body");
 
-    // SFUN(b2_body_get_shapes, "int[]", "shapes");
-    // ARG("int", "b2_body_id");
-    // DOC_FUNC("Get the shape ids for all shapes on this body");
+    SFUN(b2_body_get_shapes, "int[]", "shapes");
+    ARG("int", "b2_body_id");
+    ARG("int[]", "shape_id_array");
+    DOC_FUNC("Get the shape ids for all shapes on this body");
 
     SFUN(b2_body_get_joint_count, "int", "jointCount");
     ARG("int", "b2_body_id");
@@ -912,6 +1001,52 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     END_CLASS(); // b2_Body
 
     BEGIN_CLASS("b2_Shape", "Object");
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/group__shape.html"
+      "Don't instantiate directly. Use b2_Shape.createXXXShape() functions "
+      "instead");
+
+    SFUN(b2_CreateCircleShape, "int", "createCircleShape");
+    ARG("int", "body_id");
+    ARG("b2_ShapeDef", "def");
+    ARG("b2_Circle", "circle");
+    DOC_FUNC(
+      "Create a circle shape and attach it to a body. The shape definition and "
+      "geometry are fully cloned. Contacts are not created until the next time "
+      "step.@return the shape id for accessing the shape");
+
+    SFUN(b2_CreateSegmentShape, "int", "createSegmentShape");
+    ARG("int", "body_id");
+    ARG("b2_ShapeDef", "def");
+    ARG("b2_Segment", "segment");
+    DOC_FUNC(
+      "Create a line segment shape and attach it to a body. The shape "
+      "definition and geometry are fully cloned. Contacts are not created "
+      "until the next time step."
+      "@return the shape id for accessing the shape");
+
+    SFUN(b2_CreateCapsuleShape, "int", "createCapsuleShape");
+    ARG("int", "body_id");
+    ARG("b2_ShapeDef", "def");
+    ARG("b2_Capsule", "capsule");
+    DOC_FUNC(
+      "Create a capsule shape and attach it to a body. The shape definition "
+      "and geometry are fully cloned. Contacts are not created until the next "
+      "time step. @return the shape id for accessing the shape");
+
+    SFUN(b2_CreatePolygonShape, "int", "createPolygonShape");
+    ARG("int", "body_id");
+    ARG("b2_ShapeDef", "def");
+    ARG("b2_Polygon", "polygon");
+    DOC_FUNC(
+      "Create a polygon shape and attach it to a body. The shape definition "
+      "and geometry are fully cloned. Contacts are not created until the next "
+      "time step.  @return the shape id for accessing the shape");
+
+    SFUN(b2_Shape_IsValid, "int", "isValid");
+    ARG("int", "shape_id");
+    DOC_FUNC("Check if a shape id is valid");
+
     END_CLASS(); // b2_Shape
 
     // b2_World --------------------------------------
@@ -986,23 +1121,6 @@ CK_DLL_SFUN(b2_CreateBody)
 CK_DLL_SFUN(b2_DestroyBody)
 {
     b2DestroyBody(GET_B2_ID(b2BodyId, ARGS));
-}
-
-CK_DLL_SFUN(b2_CreatePolygonShape)
-{
-    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
-    GET_NEXT_INT(ARGS); // advance to next arg
-
-    b2ShapeDef shape_def = b2DefaultShapeDef();
-    ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
-
-    b2Polygon* polygon = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS),
-                                           b2_polygon_data_offset);
-    // b2Polygon polygon = b2MakeBox(.5f, .5f);
-
-    RETURN_B2_ID(b2ShapeId, b2CreatePolygonShape(body_id, &shape_def, polygon));
-    // RETURN_B2_ID(b2ShapeId,
-    //              b2CreatePolygonShape(body_id, &shape_def, &polygon));
 }
 
 // ============================================================================
@@ -1208,6 +1326,79 @@ CK_DLL_SFUN(b2_polygon_make_box)
     OBJ_MEMBER_UINT(poly, b2_polygon_data_offset) = (t_CKUINT)box_ptr;
 
     RETURN->v_object = poly;
+}
+
+// ============================================================================
+// b2_Shape
+// ============================================================================
+
+CK_DLL_SFUN(b2_CreateCircleShape)
+{
+    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
+
+    Chuck_Object* circle_obj = GET_NEXT_OBJECT(ARGS);
+    b2Circle circle          = {};
+    ckobj_to_b2Circle(API, &circle, circle_obj);
+
+    RETURN_B2_ID(b2ShapeId, b2CreateCircleShape(body_id, &shape_def, &circle));
+}
+
+CK_DLL_SFUN(b2_CreateSegmentShape)
+{
+    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
+
+    Chuck_Object* segment_obj = GET_NEXT_OBJECT(ARGS);
+    b2Segment segment         = {};
+    ckobj_to_b2Segment(API, &segment, segment_obj);
+
+    RETURN_B2_ID(b2ShapeId,
+                 b2CreateSegmentShape(body_id, &shape_def, &segment));
+}
+
+CK_DLL_SFUN(b2_CreateCapsuleShape)
+{
+    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
+
+    Chuck_Object* capsule_obj = GET_NEXT_OBJECT(ARGS);
+    b2Capsule capsule         = {};
+    ckobj_to_b2Capsule(API, &capsule, capsule_obj);
+
+    RETURN_B2_ID(b2ShapeId,
+                 b2CreateCapsuleShape(body_id, &shape_def, &capsule));
+}
+
+CK_DLL_SFUN(b2_CreatePolygonShape)
+{
+    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
+
+    b2Polygon* polygon = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS),
+                                           b2_polygon_data_offset);
+    // b2Polygon polygon = b2MakeBox(.5f, .5f);
+
+    RETURN_B2_ID(b2ShapeId, b2CreatePolygonShape(body_id, &shape_def, polygon));
+    // RETURN_B2_ID(b2ShapeId,
+    //              b2CreatePolygonShape(body_id, &shape_def, &polygon));
+}
+
+CK_DLL_SFUN(b2_Shape_IsValid)
+{
+    RETURN->v_int = b2Shape_IsValid(GET_B2_ID(b2ShapeId, ARGS));
 }
 
 // ============================================================================
@@ -1673,12 +1864,25 @@ CK_DLL_SFUN(b2_body_get_shape_count)
     RETURN->v_int = b2Body_GetShapeCount(body_id);
 }
 
-// CK_DLL_SFUN(b2_body_get_shapes)
-// {
-//     b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
-//     GET_NEXT_INT(ARGS); // advance
-//     // TODO
-// }
+CK_DLL_SFUN(b2_body_get_shapes)
+{
+    b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    Chuck_ArrayInt* ck_shape_array = GET_NEXT_OBJECT_ARRAY(ARGS);
+    API->object->array_int_clear(ck_shape_array);
+
+    // get b2ShapeIds
+    int shape_count = b2Body_GetShapeCount(body_id);
+    b2ShapeId* shape_id_array
+      = ARENA_PUSH_COUNT(&audio_frame_arena, b2ShapeId, shape_count);
+    b2Body_GetShapes(body_id, shape_id_array, shape_count);
+
+    // copy into array
+    for (int i = 0; i < shape_count; i++) {
+        t_CKINT shape_id = *(t_CKINT*)(shape_id_array + i);
+        API->object->array_int_push_back(ck_shape_array, shape_id);
+    }
+}
 
 CK_DLL_SFUN(b2_body_get_joint_count)
 {
@@ -1715,4 +1919,86 @@ CK_DLL_SFUN(b2_body_compute_aabb)
     b2AABB box     = b2Body_ComputeAABB(body_id);
     RETURN->v_vec4 = { box.lowerBound.x, box.lowerBound.y, box.upperBound.x,
                        box.upperBound.y };
+}
+
+// ============================================================================
+// b2_Circle
+// ============================================================================
+
+// static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Circle*
+// obj)
+// {
+//     OBJ_MEMBER_VEC2(ckobj, b2_Circle_position_offset)
+//       = { obj->center.x, obj->center.y };
+//     OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset) = obj->radius;
+// }
+
+static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj, Chuck_Object* ckobj)
+{
+    t_CKVEC2 position_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Circle_position_offset);
+    obj->center            = { (float)position_vec2.x, (float)position_vec2.y };
+    obj->radius = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset);
+}
+
+CK_DLL_CTOR(b2_Circle_ctor)
+{
+    OBJ_MEMBER_VEC2(SELF, b2_Circle_position_offset) = GET_NEXT_VEC2(ARGS);
+    OBJ_MEMBER_FLOAT(SELF, b2_Circle_radius_offset)  = GET_NEXT_FLOAT(ARGS);
+}
+
+// ============================================================================
+// b2_Capsule
+// ============================================================================
+
+// static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Capsule*
+// obj)
+// {
+// OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset) = { obj->center1.x,
+// obj->center1.y }; OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center2_offset) = {
+// obj->center2.x, obj->center2.y }; OBJ_MEMBER_FLOAT(ckobj,
+// b2_Capsule_radius_offset) = obj->radius;
+// }
+
+static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
+                               Chuck_Object* ckobj)
+{
+    t_CKVEC2 center1_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset);
+    obj->center1          = { (float)center1_vec2.x, (float)center1_vec2.y };
+    t_CKVEC2 center2_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center2_offset);
+    obj->center2          = { (float)center2_vec2.x, (float)center2_vec2.y };
+    obj->radius = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Capsule_radius_offset);
+}
+
+CK_DLL_CTOR(b2_Capsule_ctor)
+{
+    OBJ_MEMBER_VEC2(SELF, b2_Capsule_center1_offset) = GET_NEXT_VEC2(ARGS);
+    OBJ_MEMBER_VEC2(SELF, b2_Capsule_center2_offset) = GET_NEXT_VEC2(ARGS);
+    OBJ_MEMBER_FLOAT(SELF, b2_Capsule_radius_offset) = GET_NEXT_FLOAT(ARGS);
+}
+
+// ============================================================================
+// b2_Segment
+// ============================================================================
+
+// static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment*
+// obj)
+// {
+// OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset) = { obj->point1.x,
+// obj->point1.y }; OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset) = {
+// obj->point2.x, obj->point2.y };
+// }
+
+static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
+                               Chuck_Object* ckobj)
+{
+    t_CKVEC2 point1_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset);
+    obj->point1          = { (float)point1_vec2.x, (float)point1_vec2.y };
+    t_CKVEC2 point2_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset);
+    obj->point2          = { (float)point2_vec2.x, (float)point2_vec2.y };
+}
+
+CK_DLL_CTOR(b2_Segment_ctor)
+{
+    OBJ_MEMBER_VEC2(SELF, b2_Segment_point1_offset) = GET_NEXT_VEC2(ARGS);
+    OBJ_MEMBER_VEC2(SELF, b2_Segment_point2_offset) = GET_NEXT_VEC2(ARGS);
 }

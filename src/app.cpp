@@ -237,6 +237,9 @@ struct App {
     // scenegraph state
     SG_ID mainScene;
 
+    // imgui
+    bool imgui_disabled = false;
+
     // box2D physics
     b2WorldId b2_world_id;
 
@@ -565,46 +568,46 @@ struct App {
             - exposes a gameloop to chuck, gauranteed to be executed once per
         frame deadlock shouldn't happen because both locks are never held at the
         same time */
+        bool do_ui = !app->imgui_disabled;
 
         {
-            // u64 critical_start = stm_now();
             CQ_SwapQueues(); // ~ .0001ms
 
-            // log_error("graphics thread: frame: %d", app->fc);
-
-            // static bool show_demo_window = false;
-            // ImGui::ShowDemoWindow(&show_demo_window);
-
+            u64 critical_start = stm_now();
             // Rendering
-            ImGui::Render();
-            // log_error("graphics thread: imgui render");
+            if (do_ui) {
+                ImGui::Render();
+                // log_error("graphics thread: imgui render");
 
-            // copy imgui draw data for rendering later
-            snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
+                // copy imgui draw data for rendering later
+                snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
+            }
 
             // imgui and window callbacks
             CHUGL_Zero_Mouse_Deltas();
             glfwPollEvents();
 
-            // reset imgui
-            ImGui_ImplWGPU_NewFrame();
-            ImGui_ImplGlfw_NewFrame();
-            ImGui::NewFrame();
+            if (do_ui) {
+                // reset imgui
+                ImGui_ImplWGPU_NewFrame();
+                ImGui_ImplGlfw_NewFrame();
+                ImGui::NewFrame();
 
-            // enable docking to main window
-            ImGui::DockSpaceOverViewport(
-              0, ImGui::GetMainViewport(),
-              ImGuiDockNodeFlags_PassthruCentralNode);
-
+                // enable docking to main window
+                ImGui::DockSpaceOverViewport(
+                  0, ImGui::GetMainViewport(),
+                  ImGuiDockNodeFlags_PassthruCentralNode);
+            }
             // ~2.15ms (15%) In DEBUG mode!
-            // critical_section_stats.update(stm_since(critical_start));
+            critical_section_stats.update(stm_since(critical_start));
 
             // physics
             // TODO: detach timestap from framerate
             // https://gafferongames.com/post/fix_your_timestep/
             if (b2World_IsValid(app->b2_world_id)) {
                 b2World_Step(app->b2_world_id, app->dt, 4);
-                log_trace("simulating %d %f", app->b2_world_id.index1, app->dt);
+                // log_trace("simulating %d %f", app->b2_world_id.index1,
+                // app->dt);
             }
         }
 
@@ -653,7 +656,8 @@ struct App {
             _R_RenderScene(app, render_pass);
 
             // UI
-            ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+            if (do_ui)
+                ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
 
             wgpuRenderPassEncoderEnd(render_pass);
         }
@@ -1146,6 +1150,11 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_MOUSE_CURSOR_NORMAL: {
             log_error("setting normal cursor");
             glfwSetCursor(app->window, NULL);
+            break;
+        }
+        case SG_COMMAND_UI_DISABLED: {
+            SG_Command_UI_Disabled* cmd = (SG_Command_UI_Disabled*)command;
+            app->imgui_disabled         = cmd->disabled;
             break;
         }
         case SG_COMMAND_GG_SCENE: {

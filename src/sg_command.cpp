@@ -253,6 +253,13 @@ void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
     spinlock::unlock(&cq.write_q_lock);
 }
 
+void CQ_PushCommand_UI_Disabled(bool disabled)
+{
+    BEGIN_COMMAND(SG_Command_UI_Disabled, SG_COMMAND_UI_DISABLED);
+    command->disabled = disabled;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_GG_Scene(SG_Scene* scene)
 {
     spinlock::lock(&cq.write_q_lock);

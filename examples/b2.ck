@@ -89,7 +89,7 @@ b2_BodyDef ground_body_def;
 b2.createBody(world_id, ground_body_def) => int ground_id;
 b2_ShapeDef ground_shape_def;
 b2_Polygon.makeBox(50.0, 10.0) @=> b2_Polygon ground_box;
-b2.createPolygonShape(ground_id, ground_shape_def, ground_box);
+b2_Shape.createPolygonShape(ground_id, ground_shape_def, ground_box);
 
 PlaneGeometry plane_geo;
 PBRMaterial mat;
@@ -114,7 +114,7 @@ fun void addBody()
     // then shape
     b2_Polygon.makeBox(1.0f, 1.0f) @=> b2_Polygon dynamic_box;
     b2_ShapeDef dynamic_shape_def;
-    b2.createPolygonShape(dynamic_body_id, dynamic_shape_def, dynamic_box);
+    b2_Shape.createPolygonShape(dynamic_body_id, dynamic_shape_def, dynamic_box);
 
     // matching GGen
     GMesh dynamic_box_mesh(plane_geo, mat) --> GG.scene();
@@ -123,6 +123,7 @@ fun void addBody()
     dynamic_box_meshes << dynamic_box_mesh;
 }
 
+b2_BodyMoveEvent move_events[0];
 while (1) {
     GG.nextFrame() => now;
 
@@ -132,5 +133,14 @@ while (1) {
         b2_Body.position(dynamic_body_ids[i]) => vec2 p;
         dynamic_box_meshes[i].pos(@(p.x, p.y, 0.0));
         dynamic_box_meshes[i].rotZ(b2_Body.angle(dynamic_body_ids[i]));
+    }
+
+    b2_World.bodyEvents(world_id, move_events);
+    for (int i; i < move_events.size(); i++) {
+        move_events[i] @=> b2_BodyMoveEvent @ move_event;
+        if (move_event.fellAsleep)
+            <<< move_event.bodyId, "fell asleep", b2_Body.isValid(move_event.bodyId) >>>;
+        else
+            <<< move_event.bodyId, "awake", b2_Body.isValid(move_event.bodyId) >>>;
     }
 }

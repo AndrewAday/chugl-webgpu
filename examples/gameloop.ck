@@ -19,6 +19,8 @@ GMesh plane(planeGeo, mat) --> GG.scene();
 GMesh sphere(sphereGeo, mat) --> GG.scene();
 sphere.translateX(2.0);
 
+// UI.disabled(true);
+
 
 // some variables for printing time; not needed for game loop
 0 => int fc;
@@ -43,7 +45,7 @@ while( true )
     
     // print
     // <<< "fc:", fc++ , "now:", now, "dt:", dt, "fps:", GG.fps() >>>;
-    <<< "fc:", fc++ , "now:", now, "dt:", dt >>>;
+    // <<< "fc:", fc++ , "now:", now, "dt:", dt >>>;
 
     plane.rotateY(0.5*dt_f);
 

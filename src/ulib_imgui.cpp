@@ -13,6 +13,12 @@ namespace cimgui
 // Declarations
 // ============================================================================
 
+// Config
+CK_DLL_SFUN(ui_set_disabled)
+{
+    CQ_PushCommand_UI_Disabled(GET_NEXT_INT(ARGS));
+}
+
 // IO
 CK_DLL_SFUN(ui_want_capture_mouse);
 CK_DLL_SFUN(ui_want_capture_keyboard);
@@ -4523,19 +4529,29 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // UI ---------------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI", "Object");
 
+    // config
+    SFUN(ui_set_disabled, "void", "disabled");
+    ARG("int", "disabled");
+    DOC_FUNC(
+      "Set whether imgui is disabled (does not call call new frame, does not "
+      "submit UI draw lists to renderer)"
+      "Do this if your application does not render UI and needs the extra "
+      "performance from skipping UI overhead. Saves ~2ms on the render thread."
+      "While UI.disabled == true, DO NOT call any other UI functions. Doing so "
+      "results in undefined behavior");
+
     // IO helpers
     SFUN(ui_want_capture_mouse, "int", "wantCaptureMouse");
     DOC_FUNC(
       "When wantCaptureMouse=true, the mouse is interacting with UI widgets, "
       "so you know to discard/hide the mouse inputs from your underlying "
       "application.");
-    
+
     SFUN(ui_want_capture_keyboard, "int", "wantCaptureKeyboard");
     DOC_FUNC(
       "When wantCaptureKeyboard=true, the keyboard is interacting with UI "
       "widgets, so you know to discard/hide the keyboard inputs from your "
       "underlying application.");
-
 
     // Main
     SFUN(ui_get_style, "UI_Style", "getStyle");

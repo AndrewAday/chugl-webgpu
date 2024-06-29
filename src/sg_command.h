@@ -60,6 +60,9 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MOUSE_CURSOR,
     SG_COMMAND_MOUSE_CURSOR_NORMAL,
 
+    // UI
+    SG_COMMAND_UI_DISABLED,
+
     // components
     SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
@@ -155,6 +158,12 @@ struct SG_Command_MouseCursor : public SG_Command {
     u32 height;
     u32 xhot;
     u32 yhot;
+};
+
+// UI commands ---------------------------------------------------------
+
+struct SG_Command_UI_Disabled : public SG_Command {
+    bool disabled;
 };
 
 // Component Commands -----------------------------------------------------
@@ -274,6 +283,9 @@ void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
                                 u32 width, u32 height, u32 xhot, u32 yhot);
 
 void CQ_PushCommand_MouseCursorNormal();
+
+// UI -------------------------------------------------------------------
+void CQ_PushCommand_UI_Disabled(bool disabled);
 
 // components
 
