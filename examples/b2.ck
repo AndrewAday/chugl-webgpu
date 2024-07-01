@@ -81,6 +81,8 @@ keep in your application."
 GWindow.maximize();
 
 b2_WorldDef world_def;
+// .05 => world_def.hitEventThreshold;
+
 b2.createWorld(world_def) => int world_id;
 b2.world(world_id);
 
@@ -88,6 +90,7 @@ b2_BodyDef ground_body_def;
 @(0.0, -10.0) => ground_body_def.position;
 b2.createBody(world_id, ground_body_def) => int ground_id;
 b2_ShapeDef ground_shape_def;
+true => ground_shape_def.enableHitEvents;
 b2_Polygon.makeBox(50.0, 10.0) @=> b2_Polygon ground_box;
 b2_Shape.createPolygonShape(ground_id, ground_shape_def, ground_box);
 
@@ -114,6 +117,7 @@ fun void addBody()
     // then shape
     b2_Polygon.makeBox(1.0f, 1.0f) @=> b2_Polygon dynamic_box;
     b2_ShapeDef dynamic_shape_def;
+    true => dynamic_shape_def.enableHitEvents;
     b2_Shape.createPolygonShape(dynamic_body_id, dynamic_shape_def, dynamic_box);
 
     // matching GGen
@@ -124,6 +128,11 @@ fun void addBody()
 }
 
 b2_BodyMoveEvent move_events[0];
+
+int begin_touch_events[0];
+int end_touch_events[0];
+b2_ContactHitEvent hit_events[0];
+
 while (1) {
     GG.nextFrame() => now;
 
@@ -136,11 +145,23 @@ while (1) {
     }
 
     b2_World.bodyEvents(world_id, move_events);
-    for (int i; i < move_events.size(); i++) {
-        move_events[i] @=> b2_BodyMoveEvent @ move_event;
-        if (move_event.fellAsleep)
-            <<< move_event.bodyId, "fell asleep", b2_Body.isValid(move_event.bodyId) >>>;
-        else
-            <<< move_event.bodyId, "awake", b2_Body.isValid(move_event.bodyId) >>>;
+    // for (int i; i < move_events.size(); i++) {
+    //     move_events[i] @=> b2_BodyMoveEvent @ move_event;
+    //     if (move_event.fellAsleep)
+    //         <<< move_event.bodyId, "fell asleep", b2_Body.isValid(move_event.bodyId) >>>;
+    //     else
+    //         <<< move_event.bodyId, "awake", b2_Body.isValid(move_event.bodyId) >>>;
+    // }
+
+    b2_World.contactEvents(world_id, begin_touch_events, end_touch_events, hit_events);
+    for (int i; i < hit_events.size(); i++) {
+        hit_events[i] @=> b2_ContactHitEvent @ hit_event;
+        <<< "hit:", hit_event.shapeIdA, hit_event.shapeIdB, hit_event.point, hit_event.normal, hit_event.approachSpeed >>>;
     }
+    // for (int i; i < begin_touch_events.size(); 2 +=> i) {
+    //     <<< "begin touch:", begin_touch_events[i], "touched", begin_touch_events[i+1] >>>;
+    // }
+    // for (int i; i < end_touch_events.size(); 2 +=> i) {
+    //     <<< "end touch:", end_touch_events[i], "stopped touching", end_touch_events[i+1] >>>;
+    // }
 }

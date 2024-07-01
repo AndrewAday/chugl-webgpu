@@ -35,6 +35,8 @@ static_assert(sizeof(b2ShapeId) <= sizeof(t_CKINT), "b2Shape size mismatch");
 #define OBJ_MEMBER_B2_PTR(type, ckobj, offset)                                 \
     (*(type**)OBJ_MEMBER_DATA(ckobj, offset))
 
+#define B2_ID_TO_CKINT(id) (*(t_CKINT*)&(id))
+
 b2BodyType ckint_to_b2BodyType(t_CKINT type)
 {
     switch (type) {
@@ -75,6 +77,21 @@ static Arena b2_body_move_event_pool;
 static void b2BodyMoveEvent_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
                                      b2BodyMoveEvent* obj);
 
+// b2_ContactHitEvent
+static t_CKUINT b2_ContactHitEvent_shapeIdA_offset      = 0;
+static t_CKUINT b2_ContactHitEvent_shapeIdB_offset      = 0;
+static t_CKUINT b2_ContactHitEvent_point_offset         = 0;
+static t_CKUINT b2_ContactHitEvent_normal_offset        = 0;
+static t_CKUINT b2_ContactHitEvent_approachSpeed_offset = 0;
+
+static Arena
+  b2_contact_hit_event_pool; // used so we don't have to malloc a ton of contact
+                             // hit event ckobjs every frame
+static void b2ContactHitEvent_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                                       b2ContactHitEvent* obj);
+// static void ckobj_to_b2ContactHitEvent(CK_DL_API  API, b2ContactHitEvent*
+// obj, Chuck_Object* ckobj);
+
 // b2_Filter
 static t_CKUINT b2_Filter_categoryBits_offset = 0;
 static t_CKUINT b2_Filter_maskBits_offset     = 0;
@@ -106,6 +123,15 @@ static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj,
 
 // b2_Polygon
 static t_CKUINT b2_polygon_data_offset = 0;
+static Chuck_Object* b2_polygon_create(Chuck_VM_Shred* shred,
+                                       b2Polygon* polygon)
+{
+    CK_DL_API API             = g_chuglAPI;
+    b2Polygon* poly           = new b2Polygon(*polygon);
+    Chuck_Object* polygon_obj = chugin_createCkObj("b2_Polygon", false, shred);
+    OBJ_MEMBER_UINT(polygon_obj, b2_polygon_data_offset) = (t_CKUINT)poly;
+    return polygon_obj;
+}
 
 // b2_BodyDef
 static t_CKUINT b2_BodyDef_type_offset            = 0;
@@ -130,6 +156,18 @@ static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
 static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj,
                                Chuck_Object* ckobj);
 
+// b2_CastOutput
+static t_CKUINT b2_CastOutput_normal_offset     = 0;
+static t_CKUINT b2_CastOutput_point_offset      = 0;
+static t_CKUINT b2_CastOutput_fraction_offset   = 0;
+static t_CKUINT b2_CastOutput_iterations_offset = 0;
+static t_CKUINT b2_CastOutput_hit_offset        = 0;
+
+static void b2CastOutput_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                                  b2CastOutput* obj);
+// static void ckobj_to_b2CastOutput(CK_DL_API API, b2CastOutput* obj,
+// Chuck_Object* ckobj);
+
 // API ----------------------------------------------------------------
 
 // b2
@@ -143,6 +181,8 @@ CK_DLL_SFUN(b2_DestroyBody);
 // b2_world
 CK_DLL_SFUN(b2_World_IsValid);
 CK_DLL_SFUN(b2_World_GetBodyEvents);
+CK_DLL_SFUN(b2_World_GetSensorEvents);
+CK_DLL_SFUN(b2_World_GetContactEvents);
 
 // b2_Polygon
 CK_DLL_DTOR(b2_polygon_dtor);
@@ -153,8 +193,8 @@ static t_CKUINT b2_Circle_position_offset = 0;
 static t_CKUINT b2_Circle_radius_offset   = 0;
 CK_DLL_CTOR(b2_Circle_ctor);
 
-// static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-//                               b2Circle* obj);
+static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                              b2Circle* obj);
 static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj,
                               Chuck_Object* ckobj);
 
@@ -164,8 +204,8 @@ static t_CKUINT b2_Capsule_center2_offset = 0;
 static t_CKUINT b2_Capsule_radius_offset  = 0;
 CK_DLL_CTOR(b2_Capsule_ctor);
 
-// static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-//                                b2Capsule* obj);
+static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                               b2Capsule* obj);
 static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
                                Chuck_Object* ckobj);
 
@@ -174,20 +214,55 @@ static t_CKUINT b2_Segment_point1_offset = 0;
 static t_CKUINT b2_Segment_point2_offset = 0;
 CK_DLL_CTOR(b2_Segment_ctor);
 
-// static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment*
-// obj);
+static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                               b2Segment* obj);
 static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
                                Chuck_Object* ckobj);
 
 // b2_Shape
-// TODO other shape creation functions
-CK_DLL_SFUN(b2_Shape_IsValid);
-
 // shape creation
 CK_DLL_SFUN(b2_CreateCircleShape);
 CK_DLL_SFUN(b2_CreateSegmentShape);
 CK_DLL_SFUN(b2_CreateCapsuleShape);
 CK_DLL_SFUN(b2_CreatePolygonShape);
+
+// shape accessors
+CK_DLL_SFUN(b2_Shape_IsValid);
+CK_DLL_SFUN(b2_Shape_GetType);
+CK_DLL_SFUN(b2_Shape_GetBody);
+CK_DLL_SFUN(b2_Shape_IsSensor);
+CK_DLL_SFUN(b2_Shape_SetDensity);
+CK_DLL_SFUN(b2_Shape_GetDensity);
+CK_DLL_SFUN(b2_Shape_SetFriction);
+CK_DLL_SFUN(b2_Shape_GetFriction);
+CK_DLL_SFUN(b2_Shape_SetRestitution);
+CK_DLL_SFUN(b2_Shape_GetRestitution);
+CK_DLL_SFUN(b2_Shape_GetFilter);
+CK_DLL_SFUN(b2_Shape_SetFilter);
+CK_DLL_SFUN(b2_Shape_EnableSensorEvents);
+CK_DLL_SFUN(b2_Shape_AreSensorEventsEnabled);
+CK_DLL_SFUN(b2_Shape_EnableContactEvents);
+CK_DLL_SFUN(b2_Shape_AreContactEventsEnabled);
+CK_DLL_SFUN(b2_Shape_EnablePreSolveEvents);
+CK_DLL_SFUN(b2_Shape_ArePreSolveEventsEnabled);
+CK_DLL_SFUN(b2_Shape_EnableHitEvents);
+CK_DLL_SFUN(b2_Shape_AreHitEventsEnabled);
+CK_DLL_SFUN(b2_Shape_TestPoint);
+CK_DLL_SFUN(b2_Shape_RayCast);
+CK_DLL_SFUN(b2_Shape_GetCircle);
+CK_DLL_SFUN(b2_Shape_GetSegment);
+// CK_DLL_SFUN(b2_Shape_GetSmoothSegment);
+CK_DLL_SFUN(b2_Shape_GetCapsule);
+CK_DLL_SFUN(b2_Shape_GetPolygon);
+CK_DLL_SFUN(b2_Shape_SetCircle);
+CK_DLL_SFUN(b2_Shape_SetCapsule);
+CK_DLL_SFUN(b2_Shape_SetSegment);
+CK_DLL_SFUN(b2_Shape_SetPolygon);
+CK_DLL_SFUN(b2_Shape_GetParentChain);
+CK_DLL_SFUN(b2_Shape_GetContactCapacity);
+// CK_DLL_SFUN(b2_Shape_GetContactData);
+CK_DLL_SFUN(b2_Shape_GetAABB);
+CK_DLL_SFUN(b2_Shape_GetClosestPoint);
 
 // b2_Body
 CK_DLL_SFUN(b2_body_is_valid);
@@ -255,6 +330,31 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     DOC_VAR("zero mass, velocity set by user, moved by solver");
     SVAR("int", "dynamicBody", &b2_dynamic_body);
     DOC_VAR("positive mass, velocity determined by forces, moved by solver");
+    END_CLASS();
+
+    // b2_ShapeType --------------------------------------
+    BEGIN_CLASS("b2_ShapeType", "Object");
+    static t_CKINT b2_circle_shape         = b2ShapeType::b2_circleShape;
+    static t_CKINT b2_capsule_shape        = b2ShapeType::b2_capsuleShape;
+    static t_CKINT b2_segment_shape        = b2ShapeType::b2_segmentShape;
+    static t_CKINT b2_polygon_shape        = b2ShapeType::b2_polygonShape;
+    static t_CKINT b2_smooth_segment_shape = b2ShapeType::b2_smoothSegmentShape;
+
+    SVAR("int", "circleShape", &b2_circle_shape);
+    DOC_VAR("A circle with an offset");
+
+    SVAR("int", "capsuleShape", &b2_capsule_shape);
+    DOC_VAR("A capsule is an extruded circle");
+
+    SVAR("int", "segmentShape", &b2_segment_shape);
+    DOC_VAR("A line segment");
+
+    SVAR("int", "polygonShape", &b2_polygon_shape);
+    DOC_VAR("A convex polygon");
+
+    SVAR("int", "smoothSegmentShape", &b2_smooth_segment_shape);
+    DOC_VAR("A smooth segment owned by a chain shape");
+
     END_CLASS();
 
     // b2_BodyDef --------------------------------------
@@ -338,6 +438,29 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "true.");
 
     END_CLASS(); // b2_BodyDef
+
+    // b2_CastOutput --------------------------------------
+    BEGIN_CLASS("b2_CastOutput", "Object");
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/"
+      "group__geometry.html#structb2_cast_output");
+
+    b2_CastOutput_normal_offset = MVAR("vec2", "normal", false);
+    DOC_VAR("The surface normal at the hit point");
+
+    b2_CastOutput_point_offset = MVAR("vec2", "point", false);
+    DOC_VAR("The surface hit point");
+
+    b2_CastOutput_fraction_offset = MVAR("float", "fraction", false);
+    DOC_VAR("The fraction of the input translation at collision");
+
+    b2_CastOutput_iterations_offset = MVAR("int", "iterations", false);
+    DOC_VAR("The number of iterations used");
+
+    b2_CastOutput_hit_offset = MVAR("int", "hit", false);
+    DOC_VAR("Did the cast hit?");
+
+    END_CLASS(); // b2_CastOutput
 
     // b2_Polygon --------------------------------------
     // TODO eventually expose internals
@@ -586,11 +709,42 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     DOC_VAR("rotation in radians around the z-axis");
 
     b2_BodyMoveEvent_bodyId_offset = MVAR("int", "bodyId", false);
-    DOC_VAR("b2_BodyId");
+    DOC_VAR("id of the b2body");
 
     b2_BodyMoveEvent_fellAsleep_offset = MVAR("int", "fellAsleep", false);
 
     END_CLASS(); // b2_BodyMoveEvent
+
+    // b2_ContactHitEvent --------------------------------------
+    Arena::init(&b2_contact_hit_event_pool, sizeof(Chuck_Object*) * 1024);
+
+    BEGIN_CLASS("b2_ContactHitEvent", "Object");
+    // clang-format off
+    DOC_CLASS(
+      "https://box2d.org/documentation_v3/group__events.html#structb2_contact_hit_event"
+      "Don't instantiate directly. Use b2_World.contactEvents() instead"
+    );
+    // clang-format on
+
+    b2_ContactHitEvent_shapeIdA_offset = MVAR("int", "shapeIdA", false);
+    DOC_VAR("Id of the first shape");
+
+    b2_ContactHitEvent_shapeIdB_offset = MVAR("int", "shapeIdB", false);
+    DOC_VAR("Id of the second shape");
+
+    b2_ContactHitEvent_point_offset = MVAR("vec2", "point", false);
+    DOC_VAR("Point where the shapes hit");
+
+    b2_ContactHitEvent_normal_offset = MVAR("vec2", "normal", false);
+    DOC_VAR("Normal vector pointing from shape A to shape B");
+
+    b2_ContactHitEvent_approachSpeed_offset
+      = MVAR("float", "approachSpeed", false);
+    DOC_VAR(
+      "The speed the shapes are approaching. Always positive. Typically in "
+      "meters per second.");
+
+    END_CLASS(); // b2_ContactHitEvent
 
     // b2 --------------------------------------
     BEGIN_CLASS("b2", "Object");
@@ -631,9 +785,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     // TODO control substep
     /// @param subStepCount The number of sub-steps, increasing the sub-step
     /// count can increase accuracy. Typically 4.
-    // B2_API void b2World_Step(b2WorldId worldId, float timeStep, int
-    // subStepCount);
-
+    // CK_DLL_SFUN(b2_World_Step);
     END_CLASS(); // b2
 
     // b2_Body ---------------------------------------
@@ -1043,9 +1195,216 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "and geometry are fully cloned. Contacts are not created until the next "
       "time step.  @return the shape id for accessing the shape");
 
+    // shape accessors
+
     SFUN(b2_Shape_IsValid, "int", "isValid");
     ARG("int", "shape_id");
     DOC_FUNC("Check if a shape id is valid");
+
+    SFUN(b2_Shape_GetType, "int", "type");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the type of a shape. Returns b2_ShapeType");
+
+    SFUN(b2_Shape_GetBody, "int", "body");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the body id that a shape is attached to");
+
+    SFUN(b2_Shape_IsSensor, "int", "isSensor");
+    ARG("int", "shape_id");
+    DOC_FUNC("Returns true If the shape is a sensor");
+
+    SFUN(b2_Shape_SetDensity, "void", "density");
+    ARG("int", "shape_id");
+    ARG("float", "density");
+    DOC_FUNC(
+      "Set the mass density of a shape, typically in kg/m^2. This will not "
+      "update the mass properties on the parent body.");
+
+    SFUN(b2_Shape_GetDensity, "float", "density");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the density of a shape, typically in kg/m^2");
+
+    SFUN(b2_Shape_SetFriction, "void", "friction");
+    ARG("int", "shape_id");
+    ARG("float", "friction");
+    DOC_FUNC("Set the friction on a shape");
+
+    SFUN(b2_Shape_GetFriction, "float", "friction");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the friction of a shape");
+
+    SFUN(b2_Shape_SetRestitution, "void", "restitution");
+    ARG("int", "shape_id");
+    ARG("float", "restitution");
+    DOC_FUNC("Set the shape restitution (bounciness)");
+
+    SFUN(b2_Shape_GetRestitution, "float", "restitution");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the shape restitution");
+
+    SFUN(b2_Shape_SetFilter, "void", "filter");
+    ARG("int", "shape_id");
+    ARG("b2_Filter", "filter");
+    DOC_FUNC(
+      "Set the current filter. This is almost as expensive as recreating the "
+      "shape. @see b2_ShapeDef::filter");
+
+    SFUN(b2_Shape_GetFilter, "b2_Filter", "filter");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get the shape filter");
+
+    SFUN(b2_Shape_EnableSensorEvents, "void", "enableSensorEvents");
+    ARG("int", "shape_id");
+    ARG("int", "flag");
+    DOC_FUNC(
+      "Enable sensor events for this shape. Only applies to kinematic and "
+      "dynamic bodies. Ignored for sensors. @see b2_ShapeDef::isSensor");
+
+    SFUN(b2_Shape_AreSensorEventsEnabled, "int", "areSensorEventsEnabled");
+    ARG("int", "shape_id");
+    DOC_FUNC("Returns true if sensor events are enabled");
+
+    SFUN(b2_Shape_EnableContactEvents, "void", "enableContactEvents");
+    ARG("int", "shape_id");
+    ARG("int", "flag");
+    DOC_FUNC(
+      "Enable contact events for this shape. Only applies to kinematic and "
+      "dynamic bodies. Ignored for sensors. @see "
+      "b2ShapeDef::enableContactEvents");
+
+    SFUN(b2_Shape_AreContactEventsEnabled, "int", "areContactEventsEnabled");
+    ARG("int", "shape_id");
+    DOC_FUNC("Returns true if contact events are enabled");
+
+    SFUN(b2_Shape_EnablePreSolveEvents, "void", "enablePreSolveEvents");
+    ARG("int", "shape_id");
+    ARG("int", "flag");
+    DOC_FUNC(
+      "Enable pre-solve contact events for this shape. Only applies to dynamic "
+      "bodies. These are expensive and must be carefully handled due to "
+      "multithreading. Ignored for sensors. @see b2PreSolveFcn");
+
+    SFUN(b2_Shape_ArePreSolveEventsEnabled, "int", "arePreSolveEventsEnabled");
+    ARG("int", "shape_id");
+    DOC_FUNC("Returns true if pre-solve events are enabled");
+
+    SFUN(b2_Shape_EnableHitEvents, "void", "enableHitEvents");
+    ARG("int", "shape_id");
+    ARG("int", "flag");
+    DOC_FUNC(
+      "Enable contact hit events for this shape. Ignored for sensors. @see "
+      "b2WorldDef::hitEventThreshold");
+
+    SFUN(b2_Shape_AreHitEventsEnabled, "int", "areHitEventsEnabled");
+    ARG("int", "shape_id");
+    DOC_FUNC("Returns true if hit events are enabled");
+
+    SFUN(b2_Shape_TestPoint, "int", "testPoint");
+    ARG("int", "shape_id");
+    ARG("vec2", "point");
+    DOC_FUNC("Test a point for overlap with a shape");
+
+    SFUN(b2_Shape_RayCast, "void", "rayCast");
+    ARG("int", "shape_id");
+    ARG("vec2", "origin");
+    ARG("vec2", "translation");
+    ARG("b2_CastOutput", "output");
+    DOC_FUNC(
+      "Ray cast a shape directly. Copies the output to the provided "
+      "output object.");
+
+    SFUN(b2_Shape_GetCircle, "b2_Circle", "circle");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get a copy of the shape's circle. Asserts the type is correct.");
+
+    SFUN(b2_Shape_GetSegment, "b2_Segment", "segment");
+    ARG("int", "shape_id");
+    DOC_FUNC(
+      "Get a copy of the shape's line segment. Asserts the type is correct.");
+
+    // TODO
+    // SFUN(b2_Shape_GetSmoothSegment, "b2_SmoothSegment", "smoothSegment");
+    // ARG("int", "shape_id");
+    // DOC_FUNC(
+    //   "Get a copy of the shape's smooth line segment. Asserts the type is "
+    //   "correct.");
+
+    SFUN(b2_Shape_GetCapsule, "b2_Capsule", "capsule");
+    ARG("int", "shape_id");
+    DOC_FUNC("Get a copy of the shape's capsule. Asserts the type is correct.");
+
+    SFUN(b2_Shape_GetPolygon, "b2_Polygon", "polygon");
+    ARG("int", "shape_id");
+    DOC_FUNC(
+      "Get a copy of the shape's convex polygon. Asserts the type is correct.");
+
+    SFUN(b2_Shape_SetCircle, "void", "circle");
+    ARG("int", "shape_id");
+    ARG("b2_Circle", "circle");
+    DOC_FUNC(
+      "Allows you to change a shape to be a circle or update the current "
+      "circle."
+      "This does not modify the mass properties."
+      "@see b2Body_ApplyMassFromShapes");
+
+    SFUN(b2_Shape_SetSegment, "void", "segment");
+    ARG("int", "shape_id");
+    ARG("b2_Segment", "segment");
+    DOC_FUNC(
+      "Allows you to change a shape to be a segment or update the current "
+      "segment."
+      "This does not modify the mass properties.");
+
+    SFUN(b2_Shape_SetCapsule, "void", "capsule");
+    ARG("int", "shape_id");
+    ARG("b2_Capsule", "capsule");
+    DOC_FUNC(
+      "Allows you to change a shape to be a capsule or update the current "
+      "capsule."
+      "This does not modify the mass properties."
+      "@see b2Body_ApplyMassFromShapes");
+
+    SFUN(b2_Shape_SetPolygon, "void", "polygon");
+    ARG("int", "shape_id");
+    ARG("b2_Polygon", "polygon");
+    DOC_FUNC(
+      "Allows you to change a shape to be a polygon or update the current "
+      "polygon."
+      "This does not modify the mass properties."
+      "@see b2Body_ApplyMassFromShapes");
+
+    SFUN(b2_Shape_GetParentChain, "int", "parentChain");
+    ARG("int", "shape_id");
+    DOC_FUNC(
+      "Get the parent chain id if the shape type is b2_smoothSegmentShape,"
+      "otherwise returns b2_nullChainId = 0x00.");
+
+    SFUN(b2_Shape_GetContactCapacity, "int", "contactCapacity");
+    ARG("int", "shape_id");
+    DOC_FUNC(
+      "Get the maximum capacity required for retrieving all the touching "
+      "contacts on a shape");
+
+    // SFUN(b2_Shape_GetContactData, "void", "contactData");
+    // ARG("int", "shape_id");
+    // ARG("b2_ContactData[]", "contacts");
+    // DOC_FUNC(
+    //   "Get the touching contact data for a shape. The provided shapeId will
+    //   be " "either shapeIdA or shapeIdB on the contact data. Contact data is
+    //   copied " "into the given contacts array.");
+
+    SFUN(b2_Shape_GetAABB, "vec4", "AABB");
+    ARG("int", "shape_id");
+    DOC_FUNC(
+      "Get the current world AABB. Returns (lowerBound.x, lowerBound.y, "
+      "upperBound.x, upperBound.y)");
+
+    SFUN(b2_Shape_GetClosestPoint, "vec2", "closestPoint");
+    ARG("int", "shape_id");
+    ARG("vec2", "target");
+    DOC_FUNC(
+      "Get the closest point on a shape to a target point. Target and result "
+      "are in world space.");
 
     END_CLASS(); // b2_Shape
 
@@ -1059,12 +1418,46 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "World id validation. Provides validation for up to 64K allocations.");
 
     // TODO debug draw
-    // B2_API void b2World_Draw(b2WorldId worldId, b2DebugDraw* draw);
 
     SFUN(b2_World_GetBodyEvents, "void", "bodyEvents");
     ARG("int", "world_id");
     ARG("b2_BodyMoveEvent[]", "body_events");
     DOC_FUNC("Get the body events for the current time step.");
+
+    SFUN(b2_World_GetSensorEvents, "void", "sensorEvents");
+    ARG("int", "world_id");
+    ARG("int[]", "begin_sensor_events");
+    ARG("int[]", "end_sensor_events");
+    DOC_FUNC(
+      "Original box2D documentation: "
+      "https://box2d.org/documentation_v3/"
+      "group__events.html#structb2_sensor_events "
+      "This implementation is different and optimized for cache performance. "
+      "The two input arrays,"
+      "begin_sensor_events and end_sensor_events, are used to store the sensor "
+      "events of the last frame,"
+      "which are a pair of b2ShapeIds (int), stored in order. E.g. "
+      "begin_sensor_events[i] is the id of the"
+      "sensor shape, and begin_sensor_events[i+1] is the id of the dynamic "
+      "shape that began contact with the sensor.");
+
+    SFUN(b2_World_GetContactEvents, "void", "contactEvents");
+    ARG("int", "world_id");
+    ARG("int[]", "begin_contact_events_shape_ids");
+    ARG("int[]", "end_contact_events_shape_ids");
+    ARG("b2_ContactHitEvent[]", "contact_hit_events");
+    DOC_FUNC(
+      "https://box2d.org/documentation_v3/"
+      "group__world.html#ga67e9e2ecf3897d4c7254196395be65ca"
+      "Unlike the original box2D implementation, this function returns the "
+      "ContactBeginTouchEvents and ContactEndTouchEvents in two separate flat "
+      "arrays"
+      "of b2ShapeIds (int), stored in order. E.g. begin_contact_events[i] and "
+      "begin_contact_events[i+1] are the ids of the two shapes that began "
+      "contact."
+      "The contact_hit_events array is used to store the contact hit events of "
+      "the "
+      "last frame.");
 
     END_CLASS(); // b2_World
 }
@@ -1142,9 +1535,13 @@ CK_DLL_SFUN(b2_World_GetBodyEvents)
 
     // first create new body events in pool
     int pool_len = ARENA_LENGTH(&b2_body_move_event_pool, Chuck_Object*);
-    for (int i = pool_len; i < body_events.moveCount; i++)
-        *ARENA_PUSH_TYPE(&b2_body_move_event_pool, Chuck_Object*)
-          = chugin_createCkObj("b2_BodyMoveEvent", true, SHRED);
+    int diff     = body_events.moveCount - pool_len;
+    if (diff > 0) {
+        Chuck_Object** p
+          = ARENA_PUSH_COUNT(&b2_body_move_event_pool, Chuck_Object*, diff);
+        for (int i = 0; i < diff; i++)
+            p[i] = chugin_createCkObj("b2_BodyMoveEvent", true, SHRED);
+    }
 
     // TODO switch to use array_int_set after updating chuck version
     // int ck_array_len         = API->object->array_int_size(body_event_array);
@@ -1158,6 +1555,100 @@ CK_DLL_SFUN(b2_World_GetBodyEvents)
           = *ARENA_GET_TYPE(&b2_body_move_event_pool, Chuck_Object*, i);
         b2BodyMoveEvent_to_ckobj(API, ckobj, &body_events.moveEvents[i]);
         API->object->array_int_push_back(body_event_array, (t_CKUINT)ckobj);
+    }
+}
+
+CK_DLL_SFUN(b2_World_GetSensorEvents)
+{
+    b2WorldId world_id = GET_B2_ID(b2WorldId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+    Chuck_ArrayInt* begin_sensor_events = GET_NEXT_OBJECT_ARRAY(ARGS);
+    Chuck_ArrayInt* end_sensor_events   = GET_NEXT_OBJECT_ARRAY(ARGS);
+
+    // TODO switch to use array_int_set after updating chuck version
+
+    b2SensorEvents sensor_events = b2World_GetSensorEvents(world_id);
+
+    // clear arrays
+    API->object->array_int_clear(begin_sensor_events);
+    API->object->array_int_clear(end_sensor_events);
+
+    // add new sensor events to arrays
+    for (int i = 0; i < sensor_events.beginCount; i++) {
+        API->object->array_int_push_back(
+          begin_sensor_events,
+          B2_ID_TO_CKINT(sensor_events.beginEvents[i].sensorShapeId));
+        API->object->array_int_push_back(
+          begin_sensor_events,
+          B2_ID_TO_CKINT(sensor_events.beginEvents[i].visitorShapeId));
+    }
+
+    ASSERT(API->object->array_int_size(begin_sensor_events)
+           == sensor_events.beginCount * 2);
+
+    for (int i = 0; i < sensor_events.endCount; i++) {
+        API->object->array_int_push_back(
+          end_sensor_events,
+          B2_ID_TO_CKINT(sensor_events.endEvents[i].sensorShapeId));
+        API->object->array_int_push_back(
+          end_sensor_events,
+          B2_ID_TO_CKINT(sensor_events.endEvents[i].visitorShapeId));
+    }
+
+    ASSERT(API->object->array_int_size(end_sensor_events)
+           == sensor_events.endCount * 2);
+}
+
+CK_DLL_SFUN(b2_World_GetContactEvents)
+{
+    b2WorldId world_id = GET_B2_ID(b2WorldId, ARGS);
+    GET_NEXT_INT(ARGS); // advance to next arg
+    Chuck_ArrayInt* begin_contact_events = GET_NEXT_OBJECT_ARRAY(ARGS);
+    Chuck_ArrayInt* end_contact_events   = GET_NEXT_OBJECT_ARRAY(ARGS);
+    Chuck_ArrayInt* hit_events           = GET_NEXT_OBJECT_ARRAY(ARGS);
+
+    // TODO switch to use array_int_set after updating chuck version
+    API->object->array_int_clear(begin_contact_events);
+    API->object->array_int_clear(end_contact_events);
+    API->object->array_int_clear(hit_events);
+
+    b2ContactEvents contact_events = b2World_GetContactEvents(world_id);
+
+    // populate begin_contact_events and end_contact_events
+    for (int i = 0; i < contact_events.beginCount; i++) {
+        API->object->array_int_push_back(
+          begin_contact_events,
+          B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdA));
+        API->object->array_int_push_back(
+          begin_contact_events,
+          B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdB));
+    }
+    for (int i = 0; i < contact_events.endCount; i++) {
+        API->object->array_int_push_back(
+          end_contact_events,
+          B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdA));
+        API->object->array_int_push_back(
+          end_contact_events,
+          B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdB));
+    }
+
+    // populate hit_events
+    // first create new body events in pool
+    int pool_len = ARENA_LENGTH(&b2_contact_hit_event_pool, Chuck_Object*);
+    int diff     = contact_events.hitCount - pool_len;
+    if (diff > 0) {
+        Chuck_Object** p
+          = ARENA_PUSH_COUNT(&b2_contact_hit_event_pool, Chuck_Object*, diff);
+        for (int i = 0; i < diff; i++)
+            p[i] = chugin_createCkObj("b2_ContactHitEvent", true, SHRED);
+    }
+
+    // add new body events to array
+    for (int i = 0; i < contact_events.hitCount; i++) {
+        Chuck_Object* ckobj
+          = *ARENA_GET_TYPE(&b2_contact_hit_event_pool, Chuck_Object*, i);
+        b2ContactHitEvent_to_ckobj(API, ckobj, &contact_events.hitEvents[i]);
+        API->object->array_int_push_back(hit_events, (t_CKUINT)ckobj);
     }
 }
 
@@ -1318,14 +1809,11 @@ CK_DLL_DTOR(b2_polygon_dtor)
 
 CK_DLL_SFUN(b2_polygon_make_box)
 {
-    float hx           = GET_NEXT_FLOAT(ARGS);
-    float hy           = GET_NEXT_FLOAT(ARGS);
-    b2Polygon* box_ptr = new b2Polygon(b2MakeBox(hx, hy));
+    float hx          = GET_NEXT_FLOAT(ARGS);
+    float hy          = GET_NEXT_FLOAT(ARGS);
+    b2Polygon polygon = b2MakeBox(hx, hy);
 
-    Chuck_Object* poly = chugin_createCkObj("b2_Polygon", false, SHRED);
-    OBJ_MEMBER_UINT(poly, b2_polygon_data_offset) = (t_CKUINT)box_ptr;
-
-    RETURN->v_object = poly;
+    RETURN->v_object = b2_polygon_create(SHRED, &polygon);
 }
 
 // ============================================================================
@@ -1399,6 +1887,276 @@ CK_DLL_SFUN(b2_CreatePolygonShape)
 CK_DLL_SFUN(b2_Shape_IsValid)
 {
     RETURN->v_int = b2Shape_IsValid(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_GetType)
+{
+    RETURN->v_int = b2Shape_GetType(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_GetBody)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    RETURN_B2_ID(b2BodyId, b2Shape_GetBody(shape_id));
+}
+
+CK_DLL_SFUN(b2_Shape_IsSensor)
+{
+    RETURN->v_int = b2Shape_IsSensor(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_SetDensity)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    float density = GET_NEXT_FLOAT(ARGS);
+    b2Shape_SetDensity(shape_id, density);
+}
+
+CK_DLL_SFUN(b2_Shape_GetDensity)
+{
+    RETURN->v_float = b2Shape_GetDensity(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_SetFriction)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    float friction = GET_NEXT_FLOAT(ARGS);
+    b2Shape_SetFriction(shape_id, friction);
+}
+
+CK_DLL_SFUN(b2_Shape_GetFriction)
+{
+    RETURN->v_float = b2Shape_GetFriction(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_SetRestitution)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    float f = GET_NEXT_FLOAT(ARGS);
+    b2Shape_SetRestitution(shape_id, f);
+}
+
+CK_DLL_SFUN(b2_Shape_GetRestitution)
+{
+    RETURN->v_float = b2Shape_GetRestitution(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_GetFilter)
+{
+    b2Filter filter            = b2Shape_GetFilter(GET_B2_ID(b2ShapeId, ARGS));
+    Chuck_Object* filter_ckobj = chugin_createCkObj("b2_Filter", false, SHRED);
+    b2Filter_to_ckobj(API, filter_ckobj, &filter);
+    RETURN->v_object = filter_ckobj;
+}
+
+CK_DLL_SFUN(b2_Shape_SetFilter)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    b2Filter filter = b2DefaultFilter();
+    ckobj_to_b2Filter(API, &filter, GET_NEXT_OBJECT(ARGS));
+    b2Shape_SetFilter(shape_id, filter);
+}
+
+CK_DLL_SFUN(b2_Shape_EnableSensorEvents)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    int flag = GET_NEXT_INT(ARGS);
+    b2Shape_EnableSensorEvents(shape_id, flag);
+}
+
+CK_DLL_SFUN(b2_Shape_AreSensorEventsEnabled)
+{
+    RETURN->v_int = b2Shape_AreSensorEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_EnableContactEvents)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    int flag = GET_NEXT_INT(ARGS);
+    b2Shape_EnableContactEvents(shape_id, flag);
+}
+
+CK_DLL_SFUN(b2_Shape_AreContactEventsEnabled)
+{
+    RETURN->v_int = b2Shape_AreContactEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_EnablePreSolveEvents)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    int flag = GET_NEXT_INT(ARGS);
+    b2Shape_EnablePreSolveEvents(shape_id, flag);
+}
+
+CK_DLL_SFUN(b2_Shape_ArePreSolveEventsEnabled)
+{
+    RETURN->v_int
+      = b2Shape_ArePreSolveEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_EnableHitEvents)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    int flag = GET_NEXT_INT(ARGS);
+    b2Shape_EnableHitEvents(shape_id, flag);
+}
+
+CK_DLL_SFUN(b2_Shape_AreHitEventsEnabled)
+{
+    RETURN->v_int = b2Shape_AreHitEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+CK_DLL_SFUN(b2_Shape_TestPoint)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    t_CKVEC2 point = GET_NEXT_VEC2(ARGS);
+    RETURN->v_int
+      = b2Shape_TestPoint(shape_id, { (float)point.x, (float)point.y });
+}
+
+CK_DLL_SFUN(b2_Shape_RayCast)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    t_CKVEC2 origin          = GET_NEXT_VEC2(ARGS);
+    t_CKVEC2 translation     = GET_NEXT_VEC2(ARGS);
+    Chuck_Object* output_obj = GET_NEXT_OBJECT(ARGS);
+    b2CastOutput output
+      = b2Shape_RayCast(shape_id, { (float)origin.x, (float)origin.y },
+                        { (float)translation.x, (float)translation.y });
+    b2CastOutput_to_ckobj(API, output_obj, &output);
+    RETURN->v_object = output_obj;
+}
+
+CK_DLL_SFUN(b2_Shape_GetCircle)
+{
+    b2Circle circle          = b2Shape_GetCircle(GET_B2_ID(b2ShapeId, ARGS));
+    Chuck_Object* circle_obj = chugin_createCkObj("b2_Circle", false, SHRED);
+    b2Circle_to_ckobj(API, circle_obj, &circle);
+    RETURN->v_object = circle_obj;
+}
+
+CK_DLL_SFUN(b2_Shape_GetSegment)
+{
+    b2Segment segment         = b2Shape_GetSegment(GET_B2_ID(b2ShapeId, ARGS));
+    Chuck_Object* segment_obj = chugin_createCkObj("b2_Segment", false, SHRED);
+    b2Segment_to_ckobj(API, segment_obj, &segment);
+    RETURN->v_object = segment_obj;
+}
+
+// CK_DLL_SFUN(b2_Shape_GetSmoothSegment)
+// {
+//     b2SmoothSegment smooth_segment
+//       = b2Shape_GetSmoothSegment(GET_B2_ID(b2ShapeId, ARGS));
+//     Chuck_Object* smooth_segment_obj
+//       = chugin_createCkObj("b2_SmoothSegment", false, SHRED);
+//     b2SmoothSegment_to_ckobj(API, smooth_segment_obj, &smooth_segment);
+//     RETURN->v_object = smooth_segment_obj;
+// }
+
+CK_DLL_SFUN(b2_Shape_GetCapsule)
+{
+    b2Capsule capsule         = b2Shape_GetCapsule(GET_B2_ID(b2ShapeId, ARGS));
+    Chuck_Object* capsule_obj = chugin_createCkObj("b2_Capsule", false, SHRED);
+    b2Capsule_to_ckobj(API, capsule_obj, &capsule);
+    RETURN->v_object = capsule_obj;
+}
+
+CK_DLL_SFUN(b2_Shape_GetPolygon)
+{
+    b2Polygon polygon = b2Shape_GetPolygon(GET_B2_ID(b2ShapeId, ARGS));
+    RETURN->v_object  = b2_polygon_create(SHRED, &polygon);
+}
+
+CK_DLL_SFUN(b2_Shape_SetCircle)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    b2Circle circle = {};
+    ckobj_to_b2Circle(API, &circle, GET_NEXT_OBJECT(ARGS));
+    b2Shape_SetCircle(shape_id, &circle);
+}
+
+CK_DLL_SFUN(b2_Shape_SetCapsule)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    b2Capsule capsule = {};
+    ckobj_to_b2Capsule(API, &capsule, GET_NEXT_OBJECT(ARGS));
+    b2Shape_SetCapsule(shape_id, &capsule);
+}
+
+CK_DLL_SFUN(b2_Shape_SetSegment)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    b2Segment segment = {};
+    ckobj_to_b2Segment(API, &segment, GET_NEXT_OBJECT(ARGS));
+    b2Shape_SetSegment(shape_id, &segment);
+}
+
+CK_DLL_SFUN(b2_Shape_SetPolygon)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    b2Polygon* polygon = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS),
+                                           b2_polygon_data_offset);
+    b2Shape_SetPolygon(shape_id, polygon);
+}
+
+CK_DLL_SFUN(b2_Shape_GetParentChain)
+{
+    RETURN_B2_ID(b2ChainId, b2Shape_GetParentChain(GET_B2_ID(b2ShapeId, ARGS)));
+}
+
+CK_DLL_SFUN(b2_Shape_GetContactCapacity)
+{
+    RETURN->v_int = b2Shape_GetContactCapacity(GET_B2_ID(b2ShapeId, ARGS));
+}
+
+// CK_DLL_SFUN(b2_Shape_GetContactData)
+// {
+//     b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+//     GET_NEXT_INT(ARGS); // advance
+//     Chuck_ArrayInt* contacts = GET_NEXT_OBJECT_ARRAY(ARGS);
+
+//     // allocate mem in frame arena for contacts
+//     int contact_capacity = b2Shape_GetContactCapacity(shape_id);
+//     b2ContactData* contact_data
+//       = ARENA_PUSH_COUNT(&audio_frame_arena, b2ContactData,
+//       contact_capacity);
+
+//     b2Shape_GetContactData(shape_id, contact_data, contact_capacity);
+
+//     // copy contact data back to chuck array
+//     // TODO
+// }
+
+CK_DLL_SFUN(b2_Shape_GetAABB)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    b2AABB aabb        = b2Shape_GetAABB(shape_id);
+    RETURN->v_vec4 = { aabb.lowerBound.x, aabb.lowerBound.y, aabb.upperBound.x,
+                       aabb.upperBound.y };
+}
+
+CK_DLL_SFUN(b2_Shape_GetClosestPoint)
+{
+    b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
+    GET_NEXT_INT(ARGS); // advance
+    t_CKVEC2 target = GET_NEXT_VEC2(ARGS);
+    b2Vec2 closest_point
+      = b2Shape_GetClosestPoint(shape_id, { (float)target.x, (float)target.y });
+    RETURN->v_vec2 = { closest_point.x, closest_point.y };
 }
 
 // ============================================================================
@@ -1925,13 +2683,12 @@ CK_DLL_SFUN(b2_body_compute_aabb)
 // b2_Circle
 // ============================================================================
 
-// static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Circle*
-// obj)
-// {
-//     OBJ_MEMBER_VEC2(ckobj, b2_Circle_position_offset)
-//       = { obj->center.x, obj->center.y };
-//     OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset) = obj->radius;
-// }
+static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Circle* obj)
+{
+    OBJ_MEMBER_VEC2(ckobj, b2_Circle_position_offset)
+      = { obj->center.x, obj->center.y };
+    OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset) = obj->radius;
+}
 
 static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj, Chuck_Object* ckobj)
 {
@@ -1950,14 +2707,15 @@ CK_DLL_CTOR(b2_Circle_ctor)
 // b2_Capsule
 // ============================================================================
 
-// static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Capsule*
-// obj)
-// {
-// OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset) = { obj->center1.x,
-// obj->center1.y }; OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center2_offset) = {
-// obj->center2.x, obj->center2.y }; OBJ_MEMBER_FLOAT(ckobj,
-// b2_Capsule_radius_offset) = obj->radius;
-// }
+static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                               b2Capsule* obj)
+{
+    OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset)
+      = { obj->center1.x, obj->center1.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center2_offset)
+      = { obj->center2.x, obj->center2.y };
+    OBJ_MEMBER_FLOAT(ckobj, b2_Capsule_radius_offset) = obj->radius;
+}
 
 static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
                                Chuck_Object* ckobj)
@@ -1980,13 +2738,14 @@ CK_DLL_CTOR(b2_Capsule_ctor)
 // b2_Segment
 // ============================================================================
 
-// static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment*
-// obj)
-// {
-// OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset) = { obj->point1.x,
-// obj->point1.y }; OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset) = {
-// obj->point2.x, obj->point2.y };
-// }
+static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                               b2Segment* obj)
+{
+    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset)
+      = { obj->point1.x, obj->point1.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset)
+      = { obj->point2.x, obj->point2.y };
+}
 
 static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
                                Chuck_Object* ckobj)
@@ -2002,3 +2761,65 @@ CK_DLL_CTOR(b2_Segment_ctor)
     OBJ_MEMBER_VEC2(SELF, b2_Segment_point1_offset) = GET_NEXT_VEC2(ARGS);
     OBJ_MEMBER_VEC2(SELF, b2_Segment_point2_offset) = GET_NEXT_VEC2(ARGS);
 }
+
+// ============================================================================
+// b2_CastOutput
+// ============================================================================
+
+static void b2CastOutput_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                                  b2CastOutput* obj)
+{
+    OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_normal_offset)
+      = { obj->normal.x, obj->normal.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_point_offset)
+      = { obj->point.x, obj->point.y };
+    OBJ_MEMBER_FLOAT(ckobj, b2_CastOutput_fraction_offset) = obj->fraction;
+    OBJ_MEMBER_INT(ckobj, b2_CastOutput_iterations_offset) = obj->iterations;
+    OBJ_MEMBER_INT(ckobj, b2_CastOutput_hit_offset)        = obj->hit;
+}
+
+// static void ckobj_to_b2CastOutput(CK_DL_API API, b2CastOutput* obj,
+// Chuck_Object* ckobj)
+// {
+// t_CKVEC2 normal_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_normal_offset);
+// obj->normal = { (float) normal_vec2.x, (float) normal_vec2.y };
+// t_CKVEC2 point_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_point_offset);
+// obj->point = { (float) point_vec2.x, (float) point_vec2.y };
+// obj->fraction = (float) OBJ_MEMBER_FLOAT(ckobj,
+// b2_CastOutput_fraction_offset); obj->iterations = OBJ_MEMBER_INT(ckobj,
+// b2_CastOutput_iterations_offset); obj->hit = OBJ_MEMBER_INT(ckobj,
+// b2_CastOutput_hit_offset);
+// }
+
+// ============================================================================
+// b2_ContactHitEvent
+// ============================================================================
+
+static void b2ContactHitEvent_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
+                                       b2ContactHitEvent* obj)
+{
+
+    OBJ_MEMBER_B2_ID(b2ShapeId, ckobj, b2_ContactHitEvent_shapeIdA_offset)
+      = obj->shapeIdA;
+    OBJ_MEMBER_B2_ID(b2ShapeId, ckobj, b2_ContactHitEvent_shapeIdB_offset)
+      = obj->shapeIdB;
+    OBJ_MEMBER_VEC2(ckobj, b2_ContactHitEvent_point_offset)
+      = { obj->point.x, obj->point.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_ContactHitEvent_normal_offset)
+      = { obj->normal.x, obj->normal.y };
+    OBJ_MEMBER_FLOAT(ckobj, b2_ContactHitEvent_approachSpeed_offset)
+      = obj->approachSpeed;
+}
+
+// static void ckobj_to_b2ContactHitEvent(CK_DL_API API, b2ContactHitEvent* obj,
+// Chuck_Object* ckobj)
+// {
+// obj->shapeIdA = OBJ_MEMBER_INT(ckobj, b2_ContactHitEvent_shapeIdA_offset);
+// obj->shapeIdB = OBJ_MEMBER_INT(ckobj, b2_ContactHitEvent_shapeIdB_offset);
+// t_CKVEC2 point_vec2 = OBJ_MEMBER_VEC2(ckobj,
+// b2_ContactHitEvent_point_offset); obj->point = { (float) point_vec2.x,
+// (float) point_vec2.y }; t_CKVEC2 normal_vec2 = OBJ_MEMBER_VEC2(ckobj,
+// b2_ContactHitEvent_normal_offset); obj->normal = { (float) normal_vec2.x,
+// (float) normal_vec2.y }; obj->approachSpeed = (float) OBJ_MEMBER_FLOAT(ckobj,
+// b2_ContactHitEvent_approachSpeed_offset);
+// }

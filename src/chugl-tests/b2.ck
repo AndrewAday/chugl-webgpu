@@ -37,6 +37,9 @@ T.assert(T.feq(1337, b2_Body.position(body_id).x), "position.x set");
 b2_Polygon.makeBox(.5, .5) @=> b2_Polygon@ box_poly;
 b2_Shape.createPolygonShape(body_id, shape_def, box_poly) => int shape_id;
 
+b2_Shape.filter(shape_id) @=> b2_Filter circle_shape_filter;
+T.assert(circle_shape_filter.categoryBits == 0x0001, "filter.categoryBits default value");
+
 b2_Circle circle(@(1,2), 3);
 b2_Shape.createCircleShape(body_id, shape_def, circle) => int circle_shape_id;
 

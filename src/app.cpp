@@ -573,7 +573,7 @@ struct App {
         {
             CQ_SwapQueues(); // ~ .0001ms
 
-            u64 critical_start = stm_now();
+            // u64 critical_start = stm_now();
             // Rendering
             if (do_ui) {
                 ImGui::Render();
@@ -599,7 +599,7 @@ struct App {
                   ImGuiDockNodeFlags_PassthruCentralNode);
             }
             // ~2.15ms (15%) In DEBUG mode!
-            critical_section_stats.update(stm_since(critical_start));
+            // critical_section_stats.update(stm_since(critical_start));
 
             // physics
             // TODO: detach timestap from framerate
