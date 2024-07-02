@@ -242,6 +242,8 @@ struct App {
 
     // box2D physics
     b2WorldId b2_world_id;
+    u32 b2_substep_count = 4;
+    // f64 b2_time_step_accum  = 0;
 
     // memory
     Arena frameArena;
@@ -605,9 +607,8 @@ struct App {
             // TODO: detach timestap from framerate
             // https://gafferongames.com/post/fix_your_timestep/
             if (b2World_IsValid(app->b2_world_id)) {
-                b2World_Step(app->b2_world_id, app->dt, 4);
-                // log_trace("simulating %d %f", app->b2_world_id.index1,
-                // app->dt);
+                b2World_Step(app->b2_world_id, app->dt, app->b2_substep_count);
+                log_trace("simulating %d %f", app->b2_world_id.index1, app->dt);
             }
         }
 
@@ -1218,9 +1219,16 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             Component_CreateMesh(cmd);
             break;
         }
+        // b2
         case SG_COMMAND_b2_WORLD_SET: {
             SG_Command_b2World_Set* cmd = (SG_Command_b2World_Set*)command;
             app->b2_world_id            = *(b2WorldId*)&cmd->b2_world_id;
+            break;
+        }
+        case SG_COMMAND_b2_SUBSTEP_COUNT: {
+            SG_Command_b2_SubstepCount* cmd
+              = (SG_Command_b2_SubstepCount*)command;
+            app->b2_substep_count = cmd->substep_count;
             break;
         }
         default: ASSERT(false);

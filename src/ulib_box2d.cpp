@@ -172,6 +172,8 @@ static void b2CastOutput_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
 
 // b2
 CK_DLL_SFUN(chugl_set_b2_world);
+CK_DLL_SFUN(b2_set_substep_count);
+
 CK_DLL_SFUN(b2_CreateWorld);
 CK_DLL_SFUN(b2_DestroyWorld);
 
@@ -754,6 +756,12 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     ARG("int", "world");
     DOC_FUNC("Set the active physics world for simulation");
 
+    SFUN(b2_set_substep_count, "void", "substeps");
+    ARG("int", "substeps");
+    DOC_FUNC(
+      "Set the number of substeps for the physics simulation. Increasing the "
+      "substep count can increase accuracy. Default 4.");
+
     SFUN(b2_CreateWorld, "int", "createWorld");
     ARG("b2_WorldDef", "def");
     DOC_FUNC(
@@ -782,10 +790,6 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "attached to the body. Do not keep references to the associated shapes "
       "and joints.");
 
-    // TODO control substep
-    /// @param subStepCount The number of sub-steps, increasing the sub-step
-    /// count can increase accuracy. Typically 4.
-    // CK_DLL_SFUN(b2_World_Step);
     END_CLASS(); // b2
 
     // b2_Body ---------------------------------------
@@ -1487,6 +1491,11 @@ CK_DLL_SFUN(chugl_set_b2_world)
 {
     b2WorldId world_id = GET_B2_ID(b2WorldId, ARGS);
     CQ_PushCommand_b2World_Set(*(u32*)&world_id);
+}
+
+CK_DLL_SFUN(b2_set_substep_count)
+{
+    CQ_PushCommand_b2SubstepCount(GET_NEXT_INT(ARGS));
 }
 
 CK_DLL_SFUN(b2_CreateWorld)

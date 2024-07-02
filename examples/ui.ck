@@ -47,6 +47,13 @@ UI_Int listbox_int;
 // <<< UI_Key.Backslash >>>;
 0 => int fc;
 
+
+fun void restoreMainUI() {
+    while (1::second => now)
+        true => main_window.val;
+} spork ~ restoreMainUI();
+
+
 fun void drawUI() {
 while (1) {
 
@@ -54,7 +61,7 @@ while (1) {
 
     // if (fc == 0) UI.styleColorsLight();
 
-    if (main_window.val()) {
+    if (main_window.val) {
         UI.setNextWindowSizeConstraints(
             @(1, 1), // size_min
             @(1000, 1000), // size_max
@@ -170,6 +177,8 @@ while (1) {
     //     UI.showMetricsWindow(metrics_window);
     // }
     fc++;
+
+    <<< main_window.val >>>;
 }
 }
 

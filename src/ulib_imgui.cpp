@@ -679,11 +679,7 @@ static t_CKINT ui_combo_callback_vt_offset = -1;
 // UI_String read-write
 
 // UI_Bool
-static t_CKUINT ui_bool_ptr_offset = 0;
-CK_DLL_CTOR(ui_bool_ctor);
-CK_DLL_DTOR(ui_bool_dtor);
-CK_DLL_MFUN(ui_bool_get_value);
-CK_DLL_MFUN(ui_bool_set_value);
+static t_CKUINT ui_bool_val_offset = 0;
 
 // UI_String
 static t_CKUINT ui_string_ptr_offset = 0;
@@ -956,21 +952,22 @@ CK_DLL_SFUN(ui_DrawList_PathRect);
 // Helpers -------------------------------------------------------------------
 
 // clang-format off
-#define CHUGL_UI_BOOL_PTR(a) a ? (bool*) OBJ_MEMBER_UINT(a, ui_bool_ptr_offset) : NULL
+
+// helper so that CHUGL_UI_VAL_PTR macro doesn't expand ckobj twice
+static void* _chugl_ui_val_ptr(Chuck_Object* ckobj, t_CKUINT offset)
+{
+    return ckobj ?  g_chuglAPI->object->data(ckobj, offset) : NULL;
+}
+
+#define CHUGL_UI_VAL_PTR(type, ckobj, offset) (type*) _chugl_ui_val_ptr(ckobj, offset);
+
 // clang-format on
 
 void ulib_imgui_query(Chuck_DL_Query* QUERY)
 {
     // UI_Bool ---------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI_Bool", "Object");
-    ui_bool_ptr_offset = QUERY->add_mvar(QUERY, "int", "@ui_bool_ptr", false);
-
-    QUERY->add_ctor(QUERY, ui_bool_ctor);
-    QUERY->add_dtor(QUERY, ui_bool_dtor);
-    QUERY->add_mfun(QUERY, ui_bool_get_value, "int", "val");
-    QUERY->add_mfun(QUERY, ui_bool_set_value, "int", "val");
-    QUERY->add_arg(QUERY, "int", "val");
-
+    ui_bool_val_offset = QUERY->add_mvar(QUERY, "int", "val", false);
     QUERY->end_class(QUERY); // UI_Bool
 
     // UI_String ---------------------------------------------------------------
@@ -6670,22 +6667,22 @@ CK_DLL_SFUN(ui_get_style)
 // ============================================================================
 CK_DLL_SFUN(ui_ShowDemoWindow)
 {
-    Chuck_Object* ck_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ck_obj);
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowDemoWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowMetricsWindow)
 {
-    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowMetricsWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowDebugLogWindow)
 {
-    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowDebugLogWindow(p_open);
 }
 
@@ -6696,15 +6693,15 @@ CK_DLL_SFUN(ui_showStyleEditor)
 
 CK_DLL_SFUN(ui_ShowIDStackToolWindowEx)
 {
-    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowIDStackToolWindowEx(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowAboutWindow)
 {
-    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowAboutWindow(p_open);
 }
 
@@ -6734,33 +6731,6 @@ CK_DLL_SFUN(ui_GetVersion)
 // ============================================================================
 // structs
 // ============================================================================
-
-// UI_Bool -------------------------------------------------------------------
-CK_DLL_CTOR(ui_bool_ctor)
-{
-    bool* b                                   = new bool(false);
-    OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset) = (t_CKUINT)b;
-}
-
-CK_DLL_DTOR(ui_bool_dtor)
-{
-    bool* b = (bool*)OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset);
-    delete b;
-    OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset) = 0;
-}
-
-CK_DLL_MFUN(ui_bool_get_value)
-{
-    bool* b       = (bool*)OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset);
-    RETURN->v_int = *b;
-}
-
-CK_DLL_MFUN(ui_bool_set_value)
-{
-    bool* b       = (bool*)OBJ_MEMBER_UINT(SELF, ui_bool_ptr_offset);
-    *b            = (bool)GET_NEXT_INT(ARGS);
-    RETURN->v_int = *b;
-}
 
 // UI_String -----------------------------------------------------------------
 
@@ -8591,10 +8561,11 @@ CK_DLL_SFUN(ui_DrawList_PathRect)
 
 CK_DLL_SFUN(ui_begin)
 {
-    const char* name      = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
+    const char* name = API->object->str(GET_NEXT_STRING(ARGS));
+
     bool* p_open
-      = ui_bool ? (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset) : NULL;
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
     int flags = GET_NEXT_INT(ARGS);
 
     bool ret      = cimgui::ImGui_Begin(name, p_open, flags);
@@ -9366,8 +9337,7 @@ CK_DLL_SFUN(ui_Checkbox)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
 
-    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* b = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+    bool* b = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
 
     RETURN->v_int = cimgui::ImGui_Checkbox(label, b);
 }
@@ -10452,9 +10422,9 @@ CK_DLL_SFUN(ui_CollapsingHeader)
 CK_DLL_SFUN(ui_CollapsingHeaderBoolPtr)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
-    int flags = GET_NEXT_INT(ARGS);
+    bool* v = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
+    int flags     = GET_NEXT_INT(ARGS);
     RETURN->v_int = cimgui::ImGui_CollapsingHeaderBoolPtr(label, v, flags);
 }
 
@@ -10489,8 +10459,9 @@ CK_DLL_SFUN(ui_SelectableEx)
 CK_DLL_SFUN(ui_SelectableBoolPtr)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+
+    bool* v = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
     int flags = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_SelectableBoolPtr(label, v, flags);
@@ -10499,9 +10470,10 @@ CK_DLL_SFUN(ui_SelectableBoolPtr)
 CK_DLL_SFUN(ui_SelectableBoolPtrEx)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    bool* v   = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
-    int flags = GET_NEXT_INT(ARGS);
+
+    bool* v = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
+    int flags     = GET_NEXT_INT(ARGS);
     t_CKVEC2 size = GET_NEXT_VEC2(ARGS);
 
     RETURN->v_int = cimgui::ImGui_SelectableBoolPtrEx(
@@ -10677,9 +10649,10 @@ CK_DLL_SFUN(ui_MenuItemBoolPtr)
 {
     const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
     const char* shortcut = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* obj    = GET_NEXT_OBJECT(ARGS);
+
     bool* selected
-      = obj ? (bool*)OBJ_MEMBER_UINT(obj, ui_bool_ptr_offset) : NULL;
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
     bool enabled = GET_NEXT_INT(ARGS);
     RETURN->v_int
       = cimgui::ImGui_MenuItemBoolPtr(label, shortcut, selected, enabled);
@@ -10723,10 +10696,12 @@ CK_DLL_SFUN(ui_BeginPopup)
 
 CK_DLL_SFUN(ui_BeginPopupModal)
 {
-    const char* name     = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* ui_obj = GET_NEXT_OBJECT(ARGS);
-    bool* p_open         = CHUGL_UI_BOOL_PTR(ui_obj);
-    int flags            = GET_NEXT_INT(ARGS);
+    const char* name = API->object->str(GET_NEXT_STRING(ARGS));
+
+    bool* p_open
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
+    int flags = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_BeginPopupModal(name, p_open, flags);
 }
@@ -10958,10 +10933,11 @@ CK_DLL_SFUN(ui_EndTabBar)
 
 CK_DLL_SFUN(ui_BeginTabItem)
 {
-    const char* label     = API->object->str(GET_NEXT_STRING(ARGS));
-    Chuck_Object* ui_bool = GET_NEXT_OBJECT(ARGS);
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+
     bool* p_open
-      = ui_bool ? (bool*)OBJ_MEMBER_UINT(ui_bool, ui_bool_ptr_offset) : NULL;
+      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+
     int flags     = GET_NEXT_INT(ARGS);
     RETURN->v_int = cimgui::ImGui_BeginTabItem(label, p_open, flags);
 }

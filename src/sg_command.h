@@ -63,6 +63,10 @@ enum SG_CommandType : u32 {
     // UI
     SG_COMMAND_UI_DISABLED,
 
+    // b2 physics
+    SG_COMMAND_b2_WORLD_SET,
+    SG_COMMAND_b2_SUBSTEP_COUNT, // # of substeps per physics step
+
     // components
     SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
@@ -76,7 +80,6 @@ enum SG_CommandType : u32 {
     SG_COMMAND_GEO_CREATE,
     SG_COMMAND_MATERIAL_CREATE,
     SG_COMMAND_MESH_CREATE,
-    SG_COMMAND_b2_WORLD_SET,
     SG_COMMAND_COUNT
 };
 
@@ -239,6 +242,10 @@ struct SG_Command_b2World_Set : public SG_Command {
     u32 b2_world_id;
 };
 
+struct SG_Command_b2_SubstepCount : public SG_Command {
+    u32 substep_count;
+};
+
 // ============================================================================
 // Command Queue API
 // ============================================================================
@@ -311,3 +318,4 @@ void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);
+void CQ_PushCommand_b2SubstepCount(u32 substep_count);

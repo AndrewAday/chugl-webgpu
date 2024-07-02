@@ -505,3 +505,10 @@ void CQ_PushCommand_b2World_Set(u32 world_id)
     }
     spinlock::unlock(&cq.write_q_lock);
 }
+
+void CQ_PushCommand_b2SubstepCount(u32 substep_count)
+{
+    BEGIN_COMMAND(SG_Command_b2_SubstepCount, SG_COMMAND_b2_SUBSTEP_COUNT);
+    command->substep_count = substep_count;
+    END_COMMAND();
+}

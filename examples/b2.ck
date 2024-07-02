@@ -84,7 +84,11 @@ b2_WorldDef world_def;
 // .05 => world_def.hitEventThreshold;
 
 b2.createWorld(world_def) => int world_id;
-b2.world(world_id);
+
+{ // simulation config (eventually group these into single function/command/struct)
+    b2.world(world_id);
+    // b2.substeps(1);
+}
 
 b2_BodyDef ground_body_def;
 @(0.0, -10.0) => ground_body_def.position;
