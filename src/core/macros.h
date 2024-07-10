@@ -41,6 +41,30 @@
 #define COPY_STRUCT(dst, src, type) (memcpy((dst), (src), sizeof(type)))
 
 // ============================================================================
+// defer
+// Note: calls at end of *scope* not function
+// ============================================================================
+
+// clang-format off
+template <typename F>
+struct __privDefer {
+	F f;
+	__privDefer(F f) : f(f) {}
+	~__privDefer() { f(); }
+};
+
+template <typename F>
+__privDefer<F> __defer_func(F f) {
+	return __privDefer<F>(f);
+}
+// clang-format on
+
+#define DEFER_1(x, y) x##y
+#define DEFER_2(x, y) DEFER_1(x, y)
+#define DEFER_3(x) DEFER_2(x, __COUNTER__)
+#define defer(code) auto DEFER_3(_defer_) = __defer_func([&]() { code; })
+
+// ============================================================================
 // Types
 // ============================================================================
 

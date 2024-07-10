@@ -80,6 +80,7 @@ set(
     src/tests/gltf.cpp
     src/tests/imgui_test.cpp
     src/tests/test_box2d.cpp
+    src/tests/test_lines2d.cpp
 )
 
 if (CHUGL_BUILD_RENDERER_TESTS)

@@ -791,6 +791,9 @@ struct App {
     static void _scrollCallback(GLFWwindow* window, double xoffset,
                                 double yoffset)
     {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureMouse) return;
+
         App* app = (App*)glfwGetWindowUserPointer(window);
         if (app->callbacks.onScroll) app->callbacks.onScroll(xoffset, yoffset);
 

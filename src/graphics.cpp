@@ -399,7 +399,6 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
     WGPU_RELEASE_RESOURCE(SwapChain, ctx->swapChain);
 
     // recreate swap chain
-    // createSwapChain(ctx, width, height);
     createSwapChain(ctx, width, height);
     // recreate depth texture
     createDepthTexture(ctx, width, height);
@@ -515,20 +514,6 @@ void ShaderModule::release(ShaderModule* module)
     wgpuShaderModuleRelease(module->module);
 }
 
-void ShaderModule::compilationCallback(WGPUCompilationInfoRequestStatus status,
-                                       const WGPUCompilationInfo* info,
-                                       void* userdata)
-{
-    if (status == WGPUCompilationInfoRequestStatus_Error) {
-        log_error("Shader compilation failed");
-        for (u32 m = 0; m < info->messageCount; ++m) {
-            WGPUCompilationMessage message = info->messages[m];
-            log_error("lineNum: %u, linePos: %u, Error: %s", message.lineNum,
-                      message.linePos, message.message);
-        }
-    }
-}
-
 // ============================================================================
 // Blend State
 // ============================================================================
@@ -553,11 +538,11 @@ static WGPUBlendState createBlendState(bool enableBlend)
 }
 
 // ============================================================================
-// Depth / Stencil State
+// Pipeline State Helpers
 // ============================================================================
 
-static WGPUDepthStencilState createDepthStencilState(WGPUTextureFormat format,
-                                                     bool enableDepthWrite)
+WGPUDepthStencilState G_createDepthStencilState(WGPUTextureFormat format,
+                                                bool enableDepthWrite)
 {
     WGPUStencilFaceState stencil = {};
     stencil.compare              = WGPUCompareFunction_Always;
@@ -579,6 +564,55 @@ static WGPUDepthStencilState createDepthStencilState(WGPUTextureFormat format,
     depthStencilState.depthBiasClamp      = 0.0f;
 
     return depthStencilState;
+}
+
+WGPUMultisampleState G_createMultisampleState(u8 sample_count)
+{
+    WGPUMultisampleState ms   = {};
+    ms.count                  = sample_count;
+    ms.mask                   = 0xFFFFFFFF;
+    ms.alphaToCoverageEnabled = false;
+    return ms;
+}
+
+// static void _G_compilationInfoCallback(WGPUCompilationInfoRequestStatus
+// status,
+//                                        const WGPUCompilationInfo* info,
+//                                        void* userdata)
+// {
+//     UNUSED_VAR(userdata);
+//     if (status == WGPUCompilationInfoRequestStatus_Error) {
+//         log_error("Shader compilation failed");
+//         for (u32 m = 0; m < info->messageCount; ++m) {
+//             WGPUCompilationMessage message = info->messages[m];
+//             log_error("lineNum: %u, linePos: %u, Error: %s", message.lineNum,
+//                       message.linePos, message.message);
+//         }
+//     }
+// }
+
+WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
+                                      const char* label)
+{
+    WGPUShaderModuleWGSLDescriptor desc
+      = { { NULL, WGPUSType_ShaderModuleWGSLDescriptor }, // base class
+          code };
+
+    WGPUShaderModuleDescriptor moduleDesc = {};
+    moduleDesc.label                      = label;
+    moduleDesc.nextInChain                = &desc.chain;
+
+    WGPUShaderModule module
+      = wgpuDeviceCreateShaderModule(gctx->device, &moduleDesc);
+
+    // NOT IMPLEMENTED IN CURRENT VERSION OF WGPU
+    // #ifdef CHUGL_DEBUG
+    //     wgpuShaderModuleGetCompilationInfo(module,
+    //     _G_compilationInfoCallback,
+    //                                        NULL);
+    // #endif
+
+    return module;
 }
 
 // ============================================================================
@@ -669,7 +703,7 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
     colorTargetState.writeMask            = WGPUColorWriteMask_All;
 
     WGPUDepthStencilState depth_stencil_state
-      = createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
+      = G_createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
 
     // Setup shader module
     ShaderModule vertexShaderModule = {}, fragmentShaderModule = {};

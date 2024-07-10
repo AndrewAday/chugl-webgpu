@@ -121,10 +121,6 @@ struct ShaderModule {
                      const char* code, const char* label);
 
     static void release(ShaderModule* module);
-
-    static void compilationCallback(WGPUCompilationInfoRequestStatus status,
-                                    const WGPUCompilationInfo* info,
-                                    void* userdata);
 };
 
 // ============================================================================
@@ -289,3 +285,15 @@ SamplerConfig Graphics_SamplerConfigFromDesciptor(WGPUSamplerDescriptor* desc);
 
 //     static void release(Material* material);
 // };
+
+// ============================================================================
+// Pipeline State Helpers (blend, depth/stencil, multisample)
+// ============================================================================
+
+WGPUDepthStencilState G_createDepthStencilState(WGPUTextureFormat format,
+                                                bool enableDepthWrite);
+
+WGPUMultisampleState G_createMultisampleState(u8 sample_count);
+
+WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
+                                      const char* label);
