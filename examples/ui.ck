@@ -178,7 +178,6 @@ while (1) {
     // }
     fc++;
 
-    <<< main_window.val >>>;
 }
 }
 

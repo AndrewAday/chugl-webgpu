@@ -64,7 +64,19 @@ class DelayFX extends Chugraph
     delay.max(1::second); // max delay time
 
     // control signal
-    SinOsc lfo_delay_mod => Range range_delay_mod => Patch patch_delay_mod(delay, "delay") => blackhole;
+    SinOsc lfo_delay_mod => blackhole;
+    0 => float delay_samps;
+
+    // modulator
+    spork ~ modulate();
+    fun void modulate()
+    {
+        // remap from [-1, 1] to [0, 2*delay_samps]
+        while (1::ms => now) {
+            lfo_delay_mod.last() + 1 => float mod;
+            (1 + mod * delay_samps)::samp => delay.delay;
+        }
+    }
 
     // default to flanger
     flange();  
@@ -104,9 +116,7 @@ class DelayFX extends Chugraph
     fun void feedbackGain(float f) { f => this.feedback.gain; }
     fun void delayBase(dur d) {
         delay.delay(d);
-        // update output range
-        d / samp => float delay_samps;
-        range_delay_mod.outRadius(delay_samps , delay_samps * .999);
+        d / samp => delay_samps;
     }
     fun void delayModFreq(float f) { lfo_delay_mod.freq(f); }
     fun void delayModDepth(float f) { lfo_delay_mod.gain(f); }
@@ -126,7 +136,7 @@ class CKFXR extends Chugraph
 
     // modulators
     SinOsc lfo_vibrato => blackhole;
-    TriOsc lfo_pwm(0.0) => Range range_pwm(0.001, 0.999) => Patch patch_pwm(square, "width") => blackhole;
+    TriOsc lfo_pwm(0.0) => blackhole;
 
     // WaveType enum
     0 => static int WaveType_SQUARE;
@@ -180,6 +190,14 @@ class CKFXR extends Chugraph
     // initialize values
     resetParams();
 
+    // pwm modulator
+    spork ~ pwmModulate();
+    fun void pwmModulate()
+    {
+        while (1::ms => now) {
+            Math.remap(lfo_pwm.last(), -1, 1, .001, .999) => square.width;
+        }
+    }
     // public API
     fun void resetParams()
     {

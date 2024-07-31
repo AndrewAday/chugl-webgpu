@@ -406,6 +406,6 @@ void Vertices::createSphere(Vertices* vertices, SphereParams* params)
         }
     }
 
-    Vertices::copy(vertices, verts.data(), verts.size(), indices.data(),
-                   indices.size());
+    Vertices::copy(vertices, verts.data(), (u32) verts.size(), indices.data(),
+                   (u32) indices.size());
 }

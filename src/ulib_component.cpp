@@ -57,7 +57,7 @@ CK_DLL_MFUN(component_get_name)
     SG_Component* component
       = SG_GetComponent(OBJ_MEMBER_UINT(SELF, component_offset_id));
     RETURN->v_string
-      = API->object->create_string(VM, component->name.c_str(), false);
+      = API->object->create_string(VM, component->name, false);
 }
 
 CK_DLL_MFUN(component_set_name)
@@ -66,7 +66,11 @@ CK_DLL_MFUN(component_set_name)
       = SG_GetComponent(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     Chuck_String* name = GET_NEXT_STRING(ARGS);
-    component->name    = API->object->str(name);
+    const char* ck_str = API->object->str(name);
+    size_t len         = MIN(strlen(ck_str), sizeof(component->name) - 1);
+    strncpy(component->name, ck_str, len);
+    component->name[len] = 0;
+
 
     RETURN->v_string = name;
 }

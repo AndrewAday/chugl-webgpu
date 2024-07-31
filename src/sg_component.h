@@ -52,7 +52,7 @@ static const char* SG_CKNames[SG_COMPONENT_COUNT] = {
 struct SG_Component {
     SG_ID id;
     SG_ComponentType type;
-    std::string name; // TODO move off std::string
+    char name[64] = {};
     Chuck_Object* ckobj;
     // TODO cache hash
     // u64 hash;

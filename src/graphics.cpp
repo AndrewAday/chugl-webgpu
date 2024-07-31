@@ -268,22 +268,21 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     log_trace("adapter created");
 
     // set required limits to max supported
-    WGPUSupportedLimits supportedLimits;
-    wgpuAdapterGetLimits(context->adapter, &supportedLimits);
+#ifdef WEBGPU_BACKEND_WGPU
+    WGPUSupportedLimits supportedLimits = {};
+    bool success = wgpuAdapterGetLimits(context->adapter, &supportedLimits);
+    ASSERT(success);
     // copy supported limits into context
     context->limits = supportedLimits.limits;
-
     logWGPULimits(&context->limits);
 
     WGPURequiredLimits requiredLimits = {};
     requiredLimits.limits             = context->limits;
-
-    // required features
-#ifdef WEBGPU_BACKEND_WGPU
-    const u32 requiredFeaturesCount    = 1;
+;
     WGPUFeatureName requiredFeatures[] = {
         (WGPUFeatureName)WGPUNativeFeature_VertexWritableStorage,
     };
+    const u32 requiredFeaturesCount   = ARRAY_LENGTH(requiredFeatures);
     log_trace("required features: %d", ARRAY_LENGTH(requiredFeatures));
 #else
     const u32 requiredFeaturesCount   = 0;
@@ -619,28 +618,28 @@ WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
 // Render Pipeline
 // ============================================================================
 
-static WGPUBindGroupLayout
-createBindGroupLayout(GraphicsContext* ctx, u8 bindingNumber, u64 size,
-                      WGPUBufferBindingType bufferType)
-{
-    UNUSED_VAR(bindingNumber);
-
-    // Per frame uniform buffer
-    WGPUBindGroupLayoutEntry bindGroupLayout = {};
-    // bindGroupLayout.binding                  = bindingNumber;
-    bindGroupLayout.binding = 0;
-    bindGroupLayout.visibility // always both for simplicity
-      = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
-    bindGroupLayout.buffer.type             = bufferType;
-    bindGroupLayout.buffer.minBindingSize   = size;
-    bindGroupLayout.buffer.hasDynamicOffset = false; // TODO
-
-    // Create a bind group layout
-    WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc = {};
-    bindGroupLayoutDesc.entryCount                    = 1;
-    bindGroupLayoutDesc.entries                       = &bindGroupLayout;
-    return wgpuDeviceCreateBindGroupLayout(ctx->device, &bindGroupLayoutDesc);
-}
+//static WGPUBindGroupLayout
+//createBindGroupLayout(GraphicsContext* ctx, u8 bindingNumber, u64 size,
+//                      WGPUBufferBindingType bufferType)
+//{
+//    UNUSED_VAR(bindingNumber);
+//
+//    // Per frame uniform buffer
+//    WGPUBindGroupLayoutEntry bindGroupLayout = {};
+//    // bindGroupLayout.binding                  = bindingNumber;
+//    bindGroupLayout.binding = 0;
+//    bindGroupLayout.visibility // always both for simplicity
+//      = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+//    bindGroupLayout.buffer.type             = bufferType;
+//    bindGroupLayout.buffer.minBindingSize   = size;
+//    bindGroupLayout.buffer.hasDynamicOffset = false; // TODO
+//
+//    // Create a bind group layout
+//    WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc = {};
+//    bindGroupLayoutDesc.entryCount                    = 1;
+//    bindGroupLayoutDesc.entries                       = &bindGroupLayout;
+//    return wgpuDeviceCreateBindGroupLayout(ctx->device, &bindGroupLayoutDesc);
+//}
 
 // ============================================================================
 // Bind Group
@@ -688,8 +687,6 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
                           const char* vertexShaderCode,
                           const char* fragmentShaderCode)
 {
-    UNUSED_FUNCTION(createBindGroupLayout);
-
     WGPUPrimitiveState primitiveState = {};
     primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
     primitiveState.stripIndexFormat   = WGPUIndexFormat_Undefined;

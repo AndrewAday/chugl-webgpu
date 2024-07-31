@@ -61,7 +61,8 @@ struct hashmap {
 };
 
 void hashmap_set_grow_by_power(struct hashmap *map, size_t power) {
-    map->growpower = power < 1 ? 1 : power > 16 ? 16 : power;
+    // clamps power between 1 and 16
+    map->growpower = (uint8_t) (power < 1 ? 1 : power > 16 ? 16 : power);
 }
 
 static double clamp_load_factor(double factor, double default_factor) {
@@ -273,7 +274,7 @@ const void *hashmap_set_with_hash(struct hashmap *map, const void *item,
     hash = clip_hash(hash);
     map->oom = false;
     if (map->count >= map->growat) {
-        if (!resize(map, map->nbuckets*(1<<map->growpower))) {
+        if (!resize(map, map->nbuckets*( ((size_t) 1) << map->growpower))) {
             map->oom = true;
             return NULL;
         }

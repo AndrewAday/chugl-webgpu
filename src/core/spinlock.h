@@ -25,7 +25,8 @@ struct spinlock {
     {
 // Issue a Pause/Yield instruction while spinning.
 #if defined(_MSC_VER)
-        YieldProcessor();
+        //YieldProcessor(); //  Microsoft dropped YieldProcessor with Windows 8. Replace with _mm_pause()
+        _mm_pause();
 #elif defined(__i386__) || defined(__x86_64__)
 #if defined(__clang__) || defined(__INTEL_COMPILER)
         _mm_pause();

@@ -81,7 +81,7 @@ static t_CKUINT chugl_next_frame_event_data_offset = 0;
 
 static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
                                  Chuck_VM* VM, CK_DL_API API,
-                                 t_CKINT ggen_update_vt_offset)
+                                 t_CKINT _ggen_update_vt_offset)
 {
     static t_CKTIME chuglLastUpdateTime{};
 
@@ -125,7 +125,7 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
         // because they are not user defined
         if (origin_shred != NULL) {
             // invoke the update function in immediate mode
-            API->vm->invoke_mfun_immediate_mode(ggen, ggen_update_vt_offset, VM,
+            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
                                                 origin_shred, &theArg, 1);
         }
 

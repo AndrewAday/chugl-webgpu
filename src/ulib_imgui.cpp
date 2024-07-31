@@ -6739,6 +6739,7 @@ CK_DLL_SFUN(ui_GetVersion)
 CK_DLL_CTOR(ui_string_ctor)
 {
     char* s = new char[UI_STRING_DEFAULT_SIZE];
+    s[0]    = '\0';
     OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = (t_CKUINT)s;
     OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = UI_STRING_DEFAULT_SIZE;
 }
@@ -6790,6 +6791,7 @@ CK_DLL_MFUN(ui_string_set_value)
 
     // copy string
     strncpy(ui_str, ck_str, ck_str_len);
+    ui_str[ck_str_len] = '\0';
 }
 
 // UI_Int -------------------------------------------------------------------
@@ -10195,10 +10197,10 @@ CK_DLL_SFUN(ui_InputScalarN_CKINT)
 {
     const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components    = API->object->array_int_size(ck_array);
+    int num_components       = API->object->array_int_size(ck_array);
 
     int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
@@ -10207,7 +10209,7 @@ CK_DLL_SFUN(ui_InputScalarN_CKINT)
 
     // copy back
     API->object->array_int_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_int_push_back(ck_array, v[i]);
     }
 }
@@ -10216,10 +10218,10 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKINT)
 {
     const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components    = API->object->array_int_size(ck_array);
+    int num_components       = API->object->array_int_size(ck_array);
 
     int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
@@ -10234,7 +10236,7 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKINT)
 
     // copy back
     API->object->array_int_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_int_push_back(ck_array, v[i]);
     }
 }
@@ -10243,10 +10245,10 @@ CK_DLL_SFUN(ui_InputScalarN_CKFLOAT)
 {
     const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components      = API->object->array_float_size(ck_array);
+    int num_components         = API->object->array_float_size(ck_array);
 
     float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
@@ -10255,7 +10257,7 @@ CK_DLL_SFUN(ui_InputScalarN_CKFLOAT)
 
     // copy back
     API->object->array_float_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_float_push_back(ck_array, v[i]);
     }
 }
@@ -10264,10 +10266,10 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT)
 {
     const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components      = API->object->array_float_size(ck_array);
+    int num_components         = API->object->array_float_size(ck_array);
 
     float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
@@ -10282,7 +10284,7 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT)
 
     // copy back
     API->object->array_float_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_float_push_back(ck_array, v[i]);
     }
 }
