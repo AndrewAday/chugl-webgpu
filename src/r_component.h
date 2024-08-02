@@ -118,37 +118,28 @@ struct R_Transform : public R_Component {
     static void print(R_Transform* xform);
 };
 
+#define R_GEOMETRY_MAX_VERTEX_ATTRIBUTES 8
 struct R_Geometry : public R_Component {
-
-    // IndexBuffer indexBuffer;
-    // VertexBuffer vertexBuffer;
-
-    WGPUBuffer gpuIndexBuffer;
-    WGPUBuffer gpuVertexBuffer; // non-interleaved, contiguous
-    WGPUBufferDescriptor indexBufferDesc;
-    WGPUBufferDescriptor vertexBufferDesc;
-
-    u32 numVertices;
-    u32 numIndices;
-
-    // // associated xform instances
-    // Arena xformIDs;
-
-    // // bindgroup
-    // WGPUBindGroupEntry bindGroupEntry;
-    // WGPUBindGroup bindGroup;
-    // WGPUBuffer storageBuffer;
-    // u32 storageBufferCap; // capacity in number of FrameUniforms NOT bytes
-    // bool staleBindGroup;  // true if storage buffer needs to be rebuilt with
-    // new
-    //                       // world matrices
+    GPU_Buffer
+      gpu_vertex_buffers[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES]; // non-interleaved
+    GPU_Buffer gpu_index_buffer;
+    u8 vertex_attribute_num_components[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
     static void init(R_Geometry* geo);
+
+    static u32 indexCount(R_Geometry* geo);
+    static u32 vertexCount(R_Geometry* geo);
+    static u32 vertexAttributeCount(R_Geometry* geo);
+
     static void buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
                                   Vertices* vertices);
-    // static u64 numInstances(R_Geometry* geo);
 
-    // uploads xform data to storage buffer
+    static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
+                                   u32 location, u32 num_components, f32* data,
+                                   u32 vertex_count);
+
+    static void setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices,
+                           u32 indices_count);
 };
 
 // =============================================================================

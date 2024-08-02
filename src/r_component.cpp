@@ -398,44 +398,77 @@ void R_Geometry::init(R_Geometry* geo)
     geo->type = SG_COMPONENT_GEOMETRY;
 }
 
+u32 R_Geometry::indexCount(R_Geometry* geo)
+{
+    return geo->gpu_index_buffer.size / sizeof(u32);
+}
+
+u32 R_Geometry::vertexCount(R_Geometry* geo)
+{
+    return geo->gpu_vertex_buffers[0].size
+           / (sizeof(f32) * geo->vertex_attribute_num_components[0]);
+}
+
+// returns # of contiguous non-zero vertex attributes
+u32 R_Geometry::vertexAttributeCount(R_Geometry* geo)
+{
+    for (int i = 0; i < ARRAY_LENGTH(geo->vertex_attribute_num_components);
+         ++i) {
+        if (geo->vertex_attribute_num_components[i] == 0) return i;
+    }
+    return ARRAY_LENGTH(geo->vertex_attribute_num_components);
+}
+
 void R_Geometry::buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
                                    Vertices* vertices)
 {
-    ASSERT(geo->gpuIndexBuffer == NULL);
-    ASSERT(geo->gpuVertexBuffer == NULL);
-
     // TODO: optimization. Flag if tangents are already present
+    // actually tangents should be built before being passed...
     Vertices::buildTangents(vertices);
 
     // write indices
     if (vertices->indicesCount > 0) {
-        geo->indexBufferDesc.usage
-          = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index;
-        geo->indexBufferDesc.size = sizeof(u32) * vertices->indicesCount;
-        geo->gpuIndexBuffer
-          = wgpuDeviceCreateBuffer(gctx->device, &geo->indexBufferDesc);
-
-        wgpuQueueWriteBuffer(gctx->queue, geo->gpuIndexBuffer, 0,
-                             vertices->indices, geo->indexBufferDesc.size);
+        R_Geometry::setIndices(gctx, geo, vertices->indices,
+                               vertices->indicesCount);
     }
 
+    // TODO probably refactor vertices to encode attrib layout (# components and
+    // location)
     { // write vertices
-        geo->vertexBufferDesc.usage
-          = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
-        geo->vertexBufferDesc.size
-          = CHUGL_FLOATS_PER_VERTEX * sizeof(f32) * vertices->vertexCount;
-        geo->gpuVertexBuffer
-          = wgpuDeviceCreateBuffer(gctx->device, &geo->vertexBufferDesc);
+        R_Geometry::setVertexAttribute(gctx, geo, 0, 3,
+                                       Vertices::positions(vertices),
+                                       vertices->vertexCount);
 
-        wgpuQueueWriteBuffer(gctx->queue, geo->gpuVertexBuffer, 0,
-                             vertices->vertexData, geo->vertexBufferDesc.size);
+        R_Geometry::setVertexAttribute(
+          gctx, geo, 1, 3, Vertices::normals(vertices), vertices->vertexCount);
+
+        R_Geometry::setVertexAttribute(gctx, geo, 2, 2,
+                                       Vertices::texcoords(vertices),
+                                       vertices->vertexCount);
+
+        R_Geometry::setVertexAttribute(
+          gctx, geo, 3, 4, Vertices::tangents(vertices), vertices->vertexCount);
     }
+}
 
-    geo->numVertices = vertices->vertexCount;
-    geo->numIndices  = vertices->indicesCount;
+void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
+                                    u32 location, u32 num_components, f32* data,
+                                    u32 vertex_count)
+{
+    ASSERT(location >= 0
+           && location < ARRAY_LENGTH(geo->vertex_attribute_num_components));
 
-    log_trace("geo->numVertices: %d", geo->numVertices);
-    log_trace("geo->numIndices: %d", geo->numIndices);
+    geo->vertex_attribute_num_components[location] = num_components;
+    GPU_Buffer::write(gctx, &geo->gpu_vertex_buffers[location],
+                      (WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst), data,
+                      vertex_count * num_components * sizeof(f32));
+}
+void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo,
+                            u32* indices, u32 indices_count)
+{
+    GPU_Buffer::write(gctx, &geo->gpu_index_buffer,
+                      (WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst),
+                      indices, indices_count * sizeof(*indices));
 }
 
 // ============================================================================

@@ -77,9 +77,14 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_SCALE,
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
-    SG_COMMAND_GEO_CREATE,
     SG_COMMAND_MATERIAL_CREATE,
     SG_COMMAND_MESH_CREATE,
+
+    // geometry
+    SG_COMMAND_GEO_CREATE,
+    SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
+    SG_COMMAND_GEO_SET_INDICES,
+
     SG_COMMAND_COUNT
 };
 
@@ -225,6 +230,20 @@ struct SG_Command_GeoCreate : public SG_Command {
     SG_GeometryType geo_type;
 };
 
+struct SG_Command_GeoSetVertexAttribute : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    int num_components;
+    int data_len;    // # of floats in data array
+    f32* data_owned; // separately alloced. must be freed by renderer
+};
+
+struct SG_Command_GeoSetIndices : public SG_Command {
+    SG_ID sg_id;
+    u32* indices_owned;
+    int index_count;
+};
+
 // TODO: need way to specify config (doublesided, alpha, etc)
 struct SG_Command_MaterialCreate : public SG_Command {
     SG_ID sg_id;
@@ -311,8 +330,16 @@ SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
                                      CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
-void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
 
+// geometry
+void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
+void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
+                                               int num_components, f32* data,
+                                               int data_len);
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices,
+                                       int index_count);
+
+// material
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
 

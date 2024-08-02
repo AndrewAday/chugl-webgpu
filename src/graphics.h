@@ -89,6 +89,48 @@ struct IndexBuffer {
                      const char* label);
 };
 
+// grows buffer to new size, copying old data
+struct GPU_Buffer {
+    WGPUBuffer buf;
+    WGPUBufferUsageFlags usage;
+    u64 capacity; // total size in bytes
+    u64 size;     // current size in bytes
+
+    static void write(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                      WGPUBufferUsageFlags usage_flags, const void* data,
+                      u64 size)
+    {
+        if (size == 0) return;
+
+        if (size > gpu_buffer->capacity
+            || (usage_flags | WGPUBufferUsage_CopyDst) != gpu_buffer->usage) {
+            // grow buffer
+            u64 new_capacity = MAX(gpu_buffer->capacity * 2, size);
+
+            // TODO: how to copy data between buffers?
+            // what is going on with mapping?
+            // is copying a synchronous or asynchronous operation?
+            // when is it safe to release the old buffer?
+
+            WGPUBufferDescriptor desc = {};
+            desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
+            desc.size                 = new_capacity;
+
+            WGPUBuffer new_buf = wgpuDeviceCreateBuffer(gctx->device, &desc);
+
+            // release old buffer
+            WGPU_DESTROY_AND_RELEASE_BUFFER(gpu_buffer->buf);
+
+            // update buffer
+            gpu_buffer->buf      = new_buf;
+            gpu_buffer->capacity = new_capacity;
+        }
+
+        wgpuQueueWriteBuffer(gctx->queue, gpu_buffer->buf, 0, data, size);
+        gpu_buffer->size = size;
+    }
+};
+
 // ============================================================================
 // Attributes
 // ============================================================================

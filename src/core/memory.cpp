@@ -43,8 +43,6 @@ void* Arena::top(Arena* a)
 
 void* Arena::push(Arena* a, u64 size)
 {
-    ASSERT(a->base != NULL); // must be initialized
-
     // reallocate more memory if needed
     if (a->curr + size > a->cap) {
         u64 oldCap = a->cap;

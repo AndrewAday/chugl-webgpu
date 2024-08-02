@@ -4,6 +4,7 @@
 // ulibs
 #include "ulib_box2d.cpp"
 #include "ulib_component.cpp"
+#include "ulib_geometry.cpp"
 #include "ulib_imgui.cpp"
 #include "ulib_texture.cpp"
 #include "ulib_window.cpp"
@@ -125,8 +126,8 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
         // because they are not user defined
         if (origin_shred != NULL) {
             // invoke the update function in immediate mode
-            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
-                                                origin_shred, &theArg, 1);
+            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset,
+                                                VM, origin_shred, &theArg, 1);
         }
 
         // add children to stack

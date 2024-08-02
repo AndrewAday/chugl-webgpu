@@ -913,46 +913,32 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 ASSERT(geo);
 
                 // set vertex attributes
-                // TODO: move into renderer, and consider separate buffer for
-                // each attribute to handle case where some vertex attributes
-                // are missing (tangent, color, etc)
                 // TODO: what happens if a vertex attribute is not set in for
                 // the shader?
-                wgpuRenderPassEncoderSetVertexBuffer(
-                  renderPass, 0, geo->gpuVertexBuffer, 0,
-                  sizeof(f32) * geo->numVertices * 3);
 
-                auto normalsOffset = sizeof(f32) * geo->numVertices * 3;
-
-                wgpuRenderPassEncoderSetVertexBuffer(
-                  renderPass, 1, geo->gpuVertexBuffer, normalsOffset,
-                  sizeof(f32) * geo->numVertices * 3);
-
-                auto texcoordsOffset = sizeof(f32) * geo->numVertices * 6;
-
-                wgpuRenderPassEncoderSetVertexBuffer(
-                  renderPass, 2, geo->gpuVertexBuffer, texcoordsOffset,
-                  sizeof(f32) * geo->numVertices * 2);
-
-                size_t tangentOffset = sizeof(f32) * geo->numVertices * 8;
-
-                wgpuRenderPassEncoderSetVertexBuffer(
-                  renderPass, 3, geo->gpuVertexBuffer, tangentOffset,
-                  sizeof(f32) * geo->numVertices * 4);
+                for (int location = 0;
+                     location < R_Geometry::vertexAttributeCount(geo);
+                     location++) {
+                    GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
+                    wgpuRenderPassEncoderSetVertexBuffer(renderPass, location,
+                                                         gpu_buffer->buf, 0,
+                                                         gpu_buffer->size);
+                }
 
                 // populate index buffer
-                if (geo->numIndices > 0)
+                u32 num_indices = R_Geometry::indexCount(geo);
+                if (num_indices > 0) {
+                    // indexed draw
                     wgpuRenderPassEncoderSetIndexBuffer(
-                      renderPass, geo->gpuIndexBuffer, WGPUIndexFormat_Uint32,
-                      0, geo->indexBufferDesc.size);
+                      renderPass, geo->gpu_index_buffer.buf,
+                      WGPUIndexFormat_Uint32, 0, geo->gpu_index_buffer.size);
 
-                // draw call (indexed)
-                if (geo->numIndices > 0) {
-                    wgpuRenderPassEncoderDrawIndexed(
-                      renderPass, geo->numIndices, numInstances, 0, 0, 0);
+                    wgpuRenderPassEncoderDrawIndexed(renderPass, num_indices,
+                                                     numInstances, 0, 0, 0);
                 } else {
-                    // draw call (nonindexed)
-                    wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,
+                    // non-index draw
+                    wgpuRenderPassEncoderDraw(renderPass,
+                                              R_Geometry::vertexCount(geo),
                                               numInstances, 0, 0);
                 }
             }
@@ -1211,6 +1197,24 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             Component_CreateGeometry(&app->gctx, cmd);
             break;
         }
+        case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
+            SG_Command_GeoSetVertexAttribute* cmd
+              = (SG_Command_GeoSetVertexAttribute*)command;
+            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
+
+            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
+                                           cmd->num_components, cmd->data_owned,
+                                           cmd->data_len);
+
+            FREE_ARRAY(f32, cmd->data_owned, cmd->data_len);
+        } break;
+        case SG_COMMAND_GEO_SET_INDICES: {
+            SG_Command_GeoSetIndices* cmd = (SG_Command_GeoSetIndices*)command;
+            R_Geometry* geo               = Component_GetGeometry(cmd->sg_id);
+            R_Geometry::setIndices(&app->gctx, geo, cmd->indices_owned,
+                                   cmd->index_count);
+            FREE_ARRAY(u32, cmd->indices_owned, cmd->index_count);
+        } break;
         case SG_COMMAND_MATERIAL_CREATE: {
             SG_Command_MaterialCreate* cmd
               = (SG_Command_MaterialCreate*)command;

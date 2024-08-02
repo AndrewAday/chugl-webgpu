@@ -291,21 +291,68 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 
 void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
 {
-    ASSERT(params);
     g->geo_type = geo_type;
     switch (geo_type) {
         case SG_GEOMETRY_PLANE: {
             PlaneParams* p  = (PlaneParams*)params;
             g->params.plane = *p;
-            break;
-        }
+        } break;
         case SG_GEOMETRY_SPHERE: {
             SphereParams* p  = (SphereParams*)params;
             g->params.sphere = *p;
-            break;
-        }
+        } break;
+        case SG_GEOMETRY: {
+            // custom geometry
+        } break;
         default: ASSERT(false);
     }
+}
+
+u32 SG_Geometry::vertexCount(SG_Geometry* geo)
+{
+    if (geo->vertex_attribute_num_components[0] == 0) return 0;
+    return ARENA_LENGTH(&geo->vertex_attribute_data[0], f32)
+           / geo->vertex_attribute_num_components[0];
+}
+
+u32 SG_Geometry::indexCount(SG_Geometry* geo)
+{
+    return ARENA_LENGTH(&geo->indices, u32);
+}
+
+void SG_Geometry::setAttribute(SG_Geometry* geo, int location,
+                               int num_components, f32* ck_array, int data_len)
+{
+    ASSERT(location < SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES && location >= 0);
+    ASSERT(num_components >= 0);
+    ASSERT(data_len >= 0);
+
+    Arena* arena = &geo->vertex_attribute_data[location];
+    Arena::clear(arena);
+    f32* arena_data = ARENA_PUSH_COUNT(arena, f32, data_len);
+
+    // copy new data
+    memcpy(arena_data, ck_array, sizeof(*ck_array) * data_len);
+
+    // set num components
+    geo->vertex_attribute_num_components[location] = num_components;
+}
+
+void SG_Geometry::setIndices(SG_Geometry* geo, u32* indices, int index_count)
+{
+    Arena::clear(&geo->indices);
+    u32* arena_data = ARENA_PUSH_COUNT(&geo->indices, u32, index_count);
+    memcpy(arena_data, indices, sizeof(*indices) * index_count);
+}
+
+u32* SG_Geometry::getIndices(SG_Geometry* geo)
+{
+    return (u32*)geo->indices.base;
+}
+
+f32* SG_Geometry::getAttributeData(SG_Geometry* geo, int location)
+{
+    return (f32*)geo->vertex_attribute_data[location].base;
 }
 
 // ============================================================================

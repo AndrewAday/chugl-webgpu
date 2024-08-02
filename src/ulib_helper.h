@@ -22,6 +22,8 @@
 #define DOC_CLASS(doc) QUERY->doc_class(QUERY, doc)
 #define DOC_VAR(doc) QUERY->doc_var(QUERY, doc)
 
+#define GET_NEXT_INT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
+#define GET_NEXT_FLOAT_ARRAY(ptr) (*((Chuck_ArrayFloat**&)ptr)++)
 #define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 
 // log levels (copied from
@@ -51,11 +53,14 @@
 Chuck_VM* g_chuglVM  = NULL;
 CK_DL_API g_chuglAPI = NULL;
 
+// offset which stores the component's SG_ID.
+static t_CKUINT component_offset_id = 0;
+
 // vtable offsets
 static t_CKINT ggen_update_vt_offset = -1;
 
 // other shared data offset
-static t_CKUINT b2_world_data_offset = 0;
+// static t_CKUINT b2_world_data_offset = 0;
 
 Arena audio_frame_arena;
 

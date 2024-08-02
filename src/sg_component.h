@@ -156,13 +156,13 @@ struct SG_Scene : public SG_Transform {
 
 enum SG_GeometryType : u8 {
     SG_GEOMETRY_INVALID = 0,
+    SG_GEOMETRY, // base class. doubles as custom geometry
     SG_GEOMETRY_PLANE,
     SG_GEOMETRY_CUBE,
     SG_GEOMETRY_SPHERE,
     SG_GEOMETRY_CYLINDER,
     SG_GEOMETRY_CONE,
     SG_GEOMETRY_TORUS,
-    SG_GEOMETRY_CUSTOM,
     SG_GEOMETRY_COUNT
 };
 
@@ -171,15 +171,34 @@ union SG_GeometryParams {
     SphereParams sphere;
 };
 
-// immutable
+#define SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES 8
 struct SG_Geometry : SG_Component {
     SG_GeometryType geo_type;
     // TODO add cpu-side vertex data
     SG_GeometryParams params;
 
+    // buffers to hold vertex data
+    Arena vertex_attribute_data[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+    int vertex_attribute_num_components[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES] = {};
+
+    Arena indices;
+
+    // TODO index buffer
+
     /// @brief
     /// @param params pointer to struct containing geometry parameters
     static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
+
+    static u32 vertexCount(SG_Geometry* geo);
+    static u32 indexCount(SG_Geometry* geo);
+
+    // data_len is length of data in floats, not bytes not components
+    static void setAttribute(SG_Geometry* geo, int location, int num_components,
+                             f32* data, int data_len);
+    static void setIndices(SG_Geometry* geo, u32* indices, int index_count);
+    static u32* getIndices(SG_Geometry* geo);
+
+    static f32* getAttributeData(SG_Geometry* geo, int location);
 };
 
 // ============================================================================

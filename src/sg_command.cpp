@@ -234,7 +234,7 @@ void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
       = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MouseCursor);
 
     // push bytes for pixel data
-    char* image_data_bytes = (char*)Arena::pushZero(cq.write_q, data_size);
+    char* image_data_bytes = (char*)Arena::push(cq.write_q, data_size);
     // copy
     for (u32 i = 0; i < data_size; i++) {
         image_data_bytes[i] = (unsigned char)CLAMP(
@@ -453,6 +453,30 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
     }
     spinlock::unlock(&cq.write_q_lock);
 } // Path: src/sg_command.h
+
+void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
+                                               int num_components, f32* data,
+                                               int data_len)
+{
+    BEGIN_COMMAND(SG_Command_GeoSetVertexAttribute,
+                  SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE);
+    command->sg_id          = geo->id;
+    command->num_components = num_components;
+    command->location       = location;
+    command->data_len       = data_len;
+    command->data_owned     = data;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices,
+                                       int index_count)
+{
+    BEGIN_COMMAND(SG_Command_GeoSetIndices, SG_COMMAND_GEO_SET_INDICES);
+    command->sg_id         = geo->id;
+    command->indices_owned = indices;
+    command->index_count   = index_count;
+    END_COMMAND();
+}
 
 void CQ_PushCommand_MaterialCreate(SG_Material* material)
 {
