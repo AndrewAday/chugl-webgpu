@@ -207,6 +207,36 @@ CK_DLL_MFUN(geo_get_indices)
 
 // TODO all goemetry subclasses use geometry vertex attribute interface
 
+static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
+{ // push attribute changes to command queue
+    Arena* positions_arena
+      = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
+    CQ_PushCommand_GeometrySetVertexAttribute(
+      geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, (f32*)positions_arena->base,
+      ARENA_LENGTH(positions_arena, f32));
+
+    Arena* normals_arena
+      = &geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
+    CQ_PushCommand_GeometrySetVertexAttribute(
+      geo, SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3, (f32*)normals_arena->base,
+      ARENA_LENGTH(normals_arena, f32));
+
+    Arena* uvs_arena = &geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
+    CQ_PushCommand_GeometrySetVertexAttribute(geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2,
+                                              (f32*)uvs_arena->base,
+                                              ARENA_LENGTH(uvs_arena, f32));
+
+    Arena* tangents_arena
+      = &geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
+    CQ_PushCommand_GeometrySetVertexAttribute(
+      geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, (f32*)tangents_arena->base,
+      ARENA_LENGTH(tangents_arena, f32));
+
+    Arena* indices_arena = &geo->indices;
+    CQ_PushCommand_GeometrySetIndices(geo, (u32*)indices_arena->base,
+                                      ARENA_LENGTH(indices_arena, u32));
+}
+
 CK_DLL_CTOR(plane_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
@@ -218,78 +248,44 @@ CK_DLL_CTOR(plane_geo_ctor)
 
     SG_Geometry::buildPlane(geo, &params);
 
-    { // push attribute changes to command queue
-        Arena* positions_arena
-          = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
-        CQ_PushCommand_GeometrySetVertexAttribute(
-          geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, (f32*)positions_arena->base,
-          ARENA_LENGTH(positions_arena, f32));
-
-        Arena* normals_arena
-          = &geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
-        CQ_PushCommand_GeometrySetVertexAttribute(
-          geo, SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3, (f32*)normals_arena->base,
-          ARENA_LENGTH(normals_arena, f32));
-
-        Arena* uvs_arena
-          = &geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
-        CQ_PushCommand_GeometrySetVertexAttribute(
-          geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2, (f32*)uvs_arena->base,
-          ARENA_LENGTH(uvs_arena, f32));
-
-        Arena* tangents_arena
-          = &geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
-        CQ_PushCommand_GeometrySetVertexAttribute(
-          geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, (f32*)tangents_arena->base,
-          ARENA_LENGTH(tangents_arena, f32));
-
-        Arena* indices_arena = &geo->indices;
-        CQ_PushCommand_GeometrySetIndices(geo, (u32*)indices_arena->base,
-                                          ARENA_LENGTH(indices_arena, u32));
-    }
+    CQ_UpdateAllVertexAttributes(geo);
 }
 
 CK_DLL_CTOR(plane_geo_ctor_params)
 {
-    // PlaneParams params    = {};
-    // params.width          = GET_NEXT_FLOAT(ARGS);
-    // params.height         = GET_NEXT_FLOAT(ARGS);
-    // params.widthSegments  = GET_NEXT_INT(ARGS);
-    // params.heightSegments = GET_NEXT_INT(ARGS);
+    PlaneParams params    = {};
+    params.width          = GET_NEXT_FLOAT(ARGS);
+    params.height         = GET_NEXT_FLOAT(ARGS);
+    params.widthSegments  = GET_NEXT_INT(ARGS);
+    params.heightSegments = GET_NEXT_INT(ARGS);
 
-    // SG_Geometry* geo                           = SG_CreateGeometry(SELF);
-    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    // CQ_PushCommand_GeometryCreate(geo);
+    SG_Geometry::buildPlane(geo, &params);
+
+    CQ_UpdateAllVertexAttributes(geo);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor)
 {
-    // SphereParams params = {};
-
-    // SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_SPHERE, &params);
-    // ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
-    // ASSERT(geo->id > 0);
-    // ASSERT(geo->geo_type == SG_GEOMETRY_SPHERE);
-
-    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    // CQ_PushCommand_GeometryCreate(geo);
+    SG_Geometry* geo    = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SphereParams params = {};
+    SG_Geometry::buildSphere(geo, &params);
+    CQ_UpdateAllVertexAttributes(geo);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor_params)
 {
-    // SphereParams params = {};
-    // params.radius       = GET_NEXT_FLOAT(ARGS);
-    // params.widthSeg     = GET_NEXT_INT(ARGS);
-    // params.heightSeg    = GET_NEXT_INT(ARGS);
-    // params.phiStart     = GET_NEXT_FLOAT(ARGS);
-    // params.phiLength    = GET_NEXT_FLOAT(ARGS);
-    // params.thetaStart   = GET_NEXT_FLOAT(ARGS);
-    // params.thetaLength  = GET_NEXT_FLOAT(ARGS);
+    SphereParams params = {};
+    params.radius       = GET_NEXT_FLOAT(ARGS);
+    params.widthSeg     = GET_NEXT_INT(ARGS);
+    params.heightSeg    = GET_NEXT_INT(ARGS);
+    params.phiStart     = GET_NEXT_FLOAT(ARGS);
+    params.phiLength    = GET_NEXT_FLOAT(ARGS);
+    params.thetaStart   = GET_NEXT_FLOAT(ARGS);
+    params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
-    // SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    // CQ_PushCommand_GeometryCreate(geo);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry::buildSphere(geo, &params);
+    CQ_UpdateAllVertexAttributes(geo);
 }

@@ -307,8 +307,7 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 //     }
 // }
 
-static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b,
-                                                  SG_Geometry* g)
+static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b, SG_Geometry* g)
 {
     // set arena pointers
     b->pos_arena  = &g->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
@@ -341,6 +340,16 @@ void SG_Geometry::buildPlane(SG_Geometry* g, PlaneParams* p)
     GeometryArenaBuilder gab;
     SG_Geometry_initGABandNumComponents(&gab, g);
     Geometry_buildPlane(&gab, p);
+}
+
+void SG_Geometry::buildSphere(SG_Geometry* g, SphereParams* p)
+{
+    g->geo_type      = SG_GEOMETRY_SPHERE;
+    g->params.sphere = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildSphere(&gab, p);
 }
 
 u32 SG_Geometry::vertexCount(SG_Geometry* geo)

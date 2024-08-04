@@ -198,10 +198,8 @@ struct SG_Geometry : SG_Component {
     static f32* getAttributeData(SG_Geometry* geo, int location);
 
     // builder functions
-    /// @brief
-    /// @param params pointer to struct containing geometry parameters
-    // static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
     static void buildPlane(SG_Geometry* g, PlaneParams* p);
+    static void buildSphere(SG_Geometry* g, SphereParams* p);
 };
 
 // ============================================================================
