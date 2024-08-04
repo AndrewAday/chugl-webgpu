@@ -91,8 +91,8 @@ struct R_Transform : public R_Component {
     /// @brief decompose matrix into transform data
     static void setXformFromMatrix(R_Transform* xform, const glm::mat4& M);
 
-    static void setXform(R_Transform* xform, const glm::vec3& pos,
-                         const glm::quat& rot, const glm::vec3& sca);
+    static void setXform(R_Transform* xform, const glm::vec3& pos, const glm::quat& rot,
+                         const glm::vec3& sca);
     static void pos(R_Transform* xform, const glm::vec3& pos);
     static void rot(R_Transform* xform, const glm::quat& rot);
     static void sca(R_Transform* xform, const glm::vec3& sca);
@@ -120,8 +120,7 @@ struct R_Transform : public R_Component {
 
 #define R_GEOMETRY_MAX_VERTEX_ATTRIBUTES 8
 struct R_Geometry : public R_Component {
-    GPU_Buffer
-      gpu_vertex_buffers[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES]; // non-interleaved
+    GPU_Buffer gpu_vertex_buffers[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES]; // non-interleaved
     GPU_Buffer gpu_index_buffer;
     u8 vertex_attribute_num_components[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
@@ -134,9 +133,8 @@ struct R_Geometry : public R_Component {
     static void buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
                                   Vertices* vertices);
 
-    static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
-                                   u32 location, u32 num_components, f32* data,
-                                   u32 vertex_count);
+    static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo, u32 location,
+                                   u32 num_components, f32* data, u32 data_count);
 
     static void setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices,
                            u32 indices_count);
@@ -185,8 +183,7 @@ struct Material_Primitive {
     // populates storage buffer with new xform data
     // only creates new storage buffer if #xformIDs grows or an existing xformID
     // is moved
-    static void rebuildBindGroup(GraphicsContext* gctx,
-                                 Material_Primitive* prim,
+    static void rebuildBindGroup(GraphicsContext* gctx, Material_Primitive* prim,
                                  WGPUBindGroupLayout layout, Arena* arena);
 };
 
@@ -278,14 +275,13 @@ struct R_Material : public R_Component {
     Arena primitives; // array of Material_Primitive (geo + xform)
 
     // constructors ----------------------------------------------
-    static void init(GraphicsContext* gctx, R_Material* mat,
-                     R_MaterialConfig* config);
+    static void init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig* config);
 
     // bind group fns --------------------------------------------
     static void rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                                  WGPUBindGroupLayout layout);
-    static void setBinding(R_Material* mat, u32 location, R_BindType type,
-                           void* data, size_t bytes);
+    static void setBinding(R_Material* mat, u32 location, R_BindType type, void* data,
+                           size_t bytes);
 
     static void setTextureAndSamplerBinding(R_Material* mat, u32 location,
                                             SG_ID textureID,
@@ -293,10 +289,8 @@ struct R_Material : public R_Component {
 
     // functions for adding/removing primitives ------------------
     static u32 numPrimitives(R_Material* mat);
-    static void addPrimitive(R_Material* mat, R_Geometry* geo,
-                             R_Transform* xform);
-    static void removePrimitive(R_Material* mat, R_Geometry* geo,
-                                R_Transform* xform);
+    static void addPrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform);
+    static void removePrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform);
     static void markPrimitiveStale(R_Material* mat, R_Transform* xform);
     static bool primitiveIter(R_Material* mat, size_t* indexPtr,
                               Material_Primitive** primitive);
@@ -353,11 +347,9 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 
 R_Geometry* Component_CreateGeometry();
-R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
-                                     SG_Command_GeoCreate* cmd);
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd);
 
-R_Material* Component_CreateMaterial(GraphicsContext* gctx,
-                                     R_MaterialConfig* config);
+R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig* config);
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      SG_Command_MaterialCreate* cmd);
 

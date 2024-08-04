@@ -26,14 +26,14 @@
 typedef t_CKUINT SG_ID;
 
 // (enum, ckname)
-#define SG_ComponentTable                                                      \
-    X(SG_COMPONENT_INVALID = 0, "Invalid")                                     \
-    X(SG_COMPONENT_BASE, "SG_Component")                                       \
-    X(SG_COMPONENT_TRANSFORM, "GGen")                                          \
-    X(SG_COMPONENT_SCENE, "GScene")                                            \
-    X(SG_COMPONENT_GEOMETRY, "Geometry")                                       \
-    X(SG_COMPONENT_MATERIAL, "Material")                                       \
-    X(SG_COMPONENT_TEXTURE, "Texture")                                         \
+#define SG_ComponentTable                                                              \
+    X(SG_COMPONENT_INVALID = 0, "Invalid")                                             \
+    X(SG_COMPONENT_BASE, "SG_Component")                                               \
+    X(SG_COMPONENT_TRANSFORM, "GGen")                                                  \
+    X(SG_COMPONENT_SCENE, "GScene")                                                    \
+    X(SG_COMPONENT_GEOMETRY, "Geometry")                                               \
+    X(SG_COMPONENT_MATERIAL, "Material")                                               \
+    X(SG_COMPONENT_TEXTURE, "Texture")                                                 \
     X(SG_COMPONENT_MESH, "GMesh")
 
 enum SG_ComponentType {
@@ -79,9 +79,8 @@ struct SG_Sampler {
 };
 
 static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
-  = { SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_WRAP_REPEAT,
-      SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_FILTER_LINEAR,
-      SG_SAMPLER_FILTER_LINEAR, SG_SAMPLER_FILTER_LINEAR };
+  = { SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_WRAP_REPEAT,
+      SG_SAMPLER_FILTER_LINEAR, SG_SAMPLER_FILTER_LINEAR, SG_SAMPLER_FILTER_LINEAR };
 
 // ============================================================================
 // SG_Texture
@@ -155,8 +154,7 @@ struct SG_Scene : public SG_Transform {
 // ============================================================================
 
 enum SG_GeometryType : u8 {
-    SG_GEOMETRY_INVALID = 0,
-    SG_GEOMETRY, // base class. doubles as custom geometry
+    SG_GEOMETRY = 0, // base class. doubles as custom geometry
     SG_GEOMETRY_PLANE,
     SG_GEOMETRY_CUBE,
     SG_GEOMETRY_SPHERE,
@@ -172,33 +170,38 @@ union SG_GeometryParams {
 };
 
 #define SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES 8
+
+#define SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION 0
+#define SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION 1
+#define SG_GEOMETRY_UV_ATTRIBUTE_LOCATION 2
+#define SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION 3
+
 struct SG_Geometry : SG_Component {
     SG_GeometryType geo_type;
-    // TODO add cpu-side vertex data
     SG_GeometryParams params;
 
     // buffers to hold vertex data
     Arena vertex_attribute_data[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
-    int vertex_attribute_num_components[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES] = {};
-
+    int vertex_attribute_num_components[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
     Arena indices;
-
-    // TODO index buffer
-
-    /// @brief
-    /// @param params pointer to struct containing geometry parameters
-    static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
 
     static u32 vertexCount(SG_Geometry* geo);
     static u32 indexCount(SG_Geometry* geo);
 
     // data_len is length of data in floats, not bytes not components
-    static void setAttribute(SG_Geometry* geo, int location, int num_components,
-                             f32* data, int data_len);
-    static void setIndices(SG_Geometry* geo, u32* indices, int index_count);
+    static f32* setAttribute(SG_Geometry* geo, int location, int num_components,
+                             CK_DL_API api, Chuck_ArrayFloat* ck_array, int ck_arr_len);
+    static u32* setIndices(SG_Geometry* geo, CK_DL_API API, Chuck_ArrayInt* indices,
+                           int index_count);
     static u32* getIndices(SG_Geometry* geo);
 
     static f32* getAttributeData(SG_Geometry* geo, int location);
+
+    // builder functions
+    /// @brief
+    /// @param params pointer to struct containing geometry parameters
+    // static void _init(SG_Geometry* g, SG_GeometryType geo_type, void* params);
+    static void buildPlane(SG_Geometry* g, PlaneParams* p);
 };
 
 // ============================================================================
@@ -263,12 +266,10 @@ void SG_Free();
 
 SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
-SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
+SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);
-SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
-                               SG_MaterialType material_type, void* params);
-SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo,
-                       SG_Material* sg_mat);
+SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg_mat);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);

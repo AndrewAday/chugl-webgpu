@@ -57,10 +57,9 @@ struct ImDrawDataSnapshot {
         Clear();
     }
     void Clear();
-    void
-    SnapUsingSwap(ImDrawData* src,
-                  double current_time); // Efficient snapshot by swapping data,
-                                        // meaning "src_list" is unusable.
+    void SnapUsingSwap(ImDrawData* src,
+                       double current_time); // Efficient snapshot by swapping data,
+                                             // meaning "src_list" is unusable.
     // void                          SnapUsingCopy(ImDrawData* src, double
     // current_time); // Deep-copy snapshop
 
@@ -108,9 +107,8 @@ void ImDrawDataSnapshot::SnapUsingSwap(ImDrawData* src, double current_time)
         entry->SrcCopy->IdxBuffer.swap(entry->OurCopy->IdxBuffer);
         entry->SrcCopy->VtxBuffer.swap(entry->OurCopy->VtxBuffer);
         entry->SrcCopy->CmdBuffer.reserve(
-          entry->OurCopy->CmdBuffer
-            .Capacity); // Preserve bigger size to avoid reallocs for two
-                        // consecutive frames
+          entry->OurCopy->CmdBuffer.Capacity); // Preserve bigger size to avoid reallocs
+                                               // for two consecutive frames
         entry->SrcCopy->IdxBuffer.reserve(entry->OurCopy->IdxBuffer.Capacity);
         entry->SrcCopy->VtxBuffer.reserve(entry->OurCopy->VtxBuffer.Capacity);
         entry->LastUsedTime = current_time;
@@ -149,8 +147,8 @@ struct TickStats {
 
     void print(const char* name)
     {
-        printf("%s: min: %f, max: %f, avg: %f\n", name, stm_ms(min),
-               stm_ms(max), stm_ms(total / fc));
+        printf("%s: min: %f, max: %f, avg: %f\n", name, stm_ms(min), stm_ms(max),
+               stm_ms(total / fc));
     }
 };
 
@@ -341,8 +339,8 @@ struct App {
             glfwWindowHint(GLFW_FLOATING,
                            CHUGL_Window_Floating() ? GLFW_TRUE : GLFW_FALSE);
 
-            app->window = glfwCreateWindow(
-              (int)window_size.x, (int)window_size.y, "ChuGL", NULL, NULL);
+            app->window = glfwCreateWindow((int)window_size.x, (int)window_size.y,
+                                           "ChuGL", NULL, NULL);
 
             // TODO: set window user pointer to CHUGL_App
 
@@ -372,12 +370,10 @@ struct App {
             glfwSetCursorPosCallback(app->window, _cursorPositionCallback);
             glfwSetKeyCallback(app->window, _keyCallback);
             glfwSetWindowCloseCallback(app->window, _closeCallback);
-            glfwSetWindowContentScaleCallback(app->window,
-                                              _contentScaleCallback);
+            glfwSetWindowContentScaleCallback(app->window, _contentScaleCallback);
             // set initial content scale
             float content_scale_x, content_scale_y;
-            glfwGetWindowContentScale(app->window, &content_scale_x,
-                                      &content_scale_y);
+            glfwGetWindowContentScale(app->window, &content_scale_x, &content_scale_y);
             CHUGL_Window_ContentScale(content_scale_x, content_scale_y);
 
             glfwPollEvents(); // call poll events first to get correct
@@ -394,10 +390,9 @@ struct App {
             io.ConfigFlags
               |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
             io.ConfigFlags
-              |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+              |= ImGuiConfigFlags_NavEnableGamepad;           // Enable Gamepad Controls
             io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
-            io.ConfigFlags
-              |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
+            io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
 
             // Setup Dear ImGui style
             ImGui::StyleColorsDark();
@@ -504,9 +499,9 @@ struct App {
 
         if (app->callbacks.onUpdate) app->callbacks.onUpdate(app->dt);
         if (app->callbacks.onRender) {
-            app->callbacks.onRender(
-              Camera::projectionMatrix(&app->camera, aspect),
-              Entity::viewMatrix(&app->camera.entity), app->camera.entity.pos);
+            app->callbacks.onRender(Camera::projectionMatrix(&app->camera, aspect),
+                                    Entity::viewMatrix(&app->camera.entity),
+                                    app->camera.entity.pos);
         }
     }
 
@@ -596,9 +591,8 @@ struct App {
                 ImGui::NewFrame();
 
                 // enable docking to main window
-                ImGui::DockSpaceOverViewport(
-                  0, ImGui::GetMainViewport(),
-                  ImGuiDockNodeFlags_PassthruCentralNode);
+                ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(),
+                                             ImGuiDockNodeFlags_PassthruCentralNode);
             }
             // ~2.15ms (15%) In DEBUG mode!
             // critical_section_stats.update(stm_since(critical_start));
@@ -650,15 +644,14 @@ struct App {
 
         WGPURenderPassEncoder render_pass = NULL;
         { // render pass
-            render_pass = wgpuCommandEncoderBeginRenderPass(
-              app->gctx.commandEncoder, &app->gctx.renderPassDesc);
+            render_pass = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
+                                                            &app->gctx.renderPassDesc);
 
             // scene
             _R_RenderScene(app, render_pass);
 
             // UI
-            if (do_ui)
-                ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+            if (do_ui) ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
 
             wgpuRenderPassEncoderEnd(render_pass);
         }
@@ -706,16 +699,13 @@ struct App {
         // ChuGL
         if (!app->standalone) {
             // broadcast WindowCloseEvent
-            Event_Broadcast(CHUGL_EventType::WINDOW_CLOSE, app->ckapi,
-                            app->ckvm);
+            Event_Broadcast(CHUGL_EventType::WINDOW_CLOSE, app->ckapi, app->ckvm);
             // block closeable
-            if (!CHUGL_Window_Closeable())
-                glfwSetWindowShouldClose(window, GLFW_FALSE);
+            if (!CHUGL_Window_Closeable()) glfwSetWindowShouldClose(window, GLFW_FALSE);
         }
     }
 
-    static void _contentScaleCallback(GLFWwindow* window, float xscale,
-                                      float yscale)
+    static void _contentScaleCallback(GLFWwindow* window, float xscale, float yscale)
     {
         App* app = (App*)glfwGetWindowUserPointer(window);
 
@@ -723,13 +713,12 @@ struct App {
         if (!app->standalone) {
             CHUGL_Window_ContentScale(xscale, yscale);
             // update content scale
-            Event_Broadcast(CHUGL_EventType::CONTENT_SCALE, app->ckapi,
-                            app->ckvm);
+            Event_Broadcast(CHUGL_EventType::CONTENT_SCALE, app->ckapi, app->ckvm);
         }
     }
 
-    static void _keyCallback(GLFWwindow* window, int key, int scancode,
-                             int action, int mods)
+    static void _keyCallback(GLFWwindow* window, int key, int scancode, int action,
+                             int mods)
     {
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS
             && CHUGL_Window_Closeable()) {
@@ -738,8 +727,7 @@ struct App {
         }
 
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onKey)
-            app->callbacks.onKey(key, scancode, action, mods);
+        if (app->callbacks.onKey) app->callbacks.onKey(key, scancode, action, mods);
     }
 
     // this is deliberately NOT made a glfw callback because glfwPollEvents()
@@ -759,8 +747,7 @@ struct App {
 
         // ImGui_ImplWGPU_CreateDeviceObjects();
 
-        if (app->callbacks.onWindowResize)
-            app->callbacks.onWindowResize(width, height);
+        if (app->callbacks.onWindowResize) app->callbacks.onWindowResize(width, height);
 
         if (!app->standalone) {
             // update size stats
@@ -768,8 +755,7 @@ struct App {
             glfwGetWindowSize(window, &window_width, &window_height);
             CHUGL_Window_Size(window_width, window_height, width, height);
             // broadcast to chuck
-            Event_Broadcast(CHUGL_EventType::WINDOW_RESIZE, app->ckapi,
-                            app->ckvm);
+            Event_Broadcast(CHUGL_EventType::WINDOW_RESIZE, app->ckapi, app->ckvm);
         }
     }
 
@@ -788,8 +774,7 @@ struct App {
         app->camera.onMouseButton(&app->camera, button, action, mods);
     }
 
-    static void _scrollCallback(GLFWwindow* window, double xoffset,
-                                double yoffset)
+    static void _scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
     {
         ImGuiIO& io = ImGui::GetIO();
         if (io.WantCaptureMouse) return;
@@ -800,8 +785,7 @@ struct App {
         app->camera.onScroll(&app->camera, xoffset, yoffset);
     }
 
-    static void _cursorPositionCallback(GLFWwindow* window, double xpos,
-                                        double ypos)
+    static void _cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
     {
         App* app = (App*)glfwGetWindowUserPointer(window);
         if (app->callbacks.onCursorPosition)
@@ -832,14 +816,12 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
-    frameUniforms.projectionMat
-      = Camera::projectionMatrix(&app->camera, aspect);
-    frameUniforms.viewMat = Entity::viewMatrix(&app->camera.entity);
-    frameUniforms.projViewMat
-      = frameUniforms.projectionMat * frameUniforms.viewMat;
-    frameUniforms.camPos   = app->camera.entity.pos;
-    frameUniforms.dirLight = VEC_FORWARD;
-    frameUniforms.time     = time;
+    frameUniforms.projectionMat = Camera::projectionMatrix(&app->camera, aspect);
+    frameUniforms.viewMat       = Entity::viewMatrix(&app->camera.entity);
+    frameUniforms.projViewMat   = frameUniforms.projectionMat * frameUniforms.viewMat;
+    frameUniforms.camPos        = app->camera.entity.pos;
+    frameUniforms.dirLight      = VEC_FORWARD;
+    frameUniforms.time          = time;
 
     // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
     // Test render loop
@@ -856,8 +838,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
         // TODO: cache the bindGroupLayout in the pipeline after creation (it
         // will never change)
         WGPUBindGroupLayout perMaterialLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
-                                                 PER_MATERIAL_GROUP);
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_MATERIAL_GROUP);
         WGPUBindGroupLayout perDrawLayout
           = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_DRAW_GROUP);
 
@@ -870,14 +851,13 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                              renderPipeline->pipeline.frameUniformBuffer, 0,
                              &frameUniforms, sizeof(frameUniforms));
         wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-                                          renderPipeline->pipeline.frameGroup,
-                                          0, NULL);
+                                          renderPipeline->pipeline.frameGroup, 0, NULL);
 
         // per-material render loop
         size_t materialIdx    = 0;
         R_Material* rMaterial = NULL;
-        while (R_RenderPipeline::materialIter(renderPipeline, &materialIdx,
-                                              &rMaterial)) {
+        while (
+          R_RenderPipeline::materialIter(renderPipeline, &materialIdx, &rMaterial)) {
             // get material
             // log_trace("drawing material: %d", rMaterial->id);
 
@@ -889,25 +869,23 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             // TODO: figure out textures / texture views...
 
             // set per_material bind group
-            R_Material::rebuildBindGroup(rMaterial, &app->gctx,
-                                         perMaterialLayout);
+            R_Material::rebuildBindGroup(rMaterial, &app->gctx, perMaterialLayout);
             wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
                                               rMaterial->bindGroup, 0, NULL);
 
             // iterate over material primitives
             size_t primitiveIdx           = 0;
             Material_Primitive* primitive = NULL;
-            while (
-              R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
+            while (R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
                 u32 numInstances = Material_Primitive::numInstances(primitive);
                 if (numInstances == 0) continue;
 
-                Material_Primitive::rebuildBindGroup(
-                  &app->gctx, primitive, perDrawLayout, &app->frameArena);
+                Material_Primitive::rebuildBindGroup(&app->gctx, primitive,
+                                                     perDrawLayout, &app->frameArena);
 
                 // set model bind group
-                wgpuRenderPassEncoderSetBindGroup(
-                  renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
+                wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
+                                                  primitive->bindGroup, 0, NULL);
 
                 R_Geometry* geo = Component_GetGeometry(primitive->geoID);
                 ASSERT(geo);
@@ -916,13 +894,11 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 // TODO: what happens if a vertex attribute is not set in for
                 // the shader?
 
-                for (int location = 0;
-                     location < R_Geometry::vertexAttributeCount(geo);
+                for (int location = 0; location < R_Geometry::vertexAttributeCount(geo);
                      location++) {
                     GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
-                    wgpuRenderPassEncoderSetVertexBuffer(renderPass, location,
-                                                         gpu_buffer->buf, 0,
-                                                         gpu_buffer->size);
+                    wgpuRenderPassEncoderSetVertexBuffer(
+                      renderPass, location, gpu_buffer->buf, 0, gpu_buffer->size);
                 }
 
                 // populate index buffer
@@ -930,15 +906,14 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 if (num_indices > 0) {
                     // indexed draw
                     wgpuRenderPassEncoderSetIndexBuffer(
-                      renderPass, geo->gpu_index_buffer.buf,
-                      WGPUIndexFormat_Uint32, 0, geo->gpu_index_buffer.size);
+                      renderPass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
+                      geo->gpu_index_buffer.size);
 
                     wgpuRenderPassEncoderDrawIndexed(renderPass, num_indices,
                                                      numInstances, 0, 0, 0);
                 } else {
                     // non-index draw
-                    wgpuRenderPassEncoderDraw(renderPass,
-                                              R_Geometry::vertexCount(geo),
+                    wgpuRenderPassEncoderDraw(renderPass, R_Geometry::vertexCount(geo),
                                               numInstances, 0, 0);
                 }
             }
@@ -959,9 +934,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                 case SG_WINDOW_MODE_FULLSCREEN: {
                     GLFWmonitor* monitor    = getCurrentMonitor(app->window);
                     const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-                    glfwSetWindowMonitor(app->window, monitor, 0, 0,
-                                         mode->width, mode->height,
-                                         mode->refreshRate);
+                    glfwSetWindowMonitor(app->window, monitor, 0, 0, mode->width,
+                                         mode->height, mode->refreshRate);
                     // set fullscreen resolution if specified
                     if (cmd->height > 0 && cmd->width > 0) {
                         glfwSetWindowSize(app->window, cmd->width, cmd->height);
@@ -972,9 +946,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                     // get previous position
                     int xpos, ypos;
                     glfwGetWindowPos(app->window, &xpos, &ypos);
-                    glfwSetWindowMonitor(app->window, NULL, xpos, ypos,
-                                         cmd->width, cmd->height,
-                                         GLFW_DONT_CARE);
+                    glfwSetWindowMonitor(app->window, NULL, xpos, ypos, cmd->width,
+                                         cmd->height, GLFW_DONT_CARE);
                     break;
                 }
                 case SG_WINDOW_MODE_WINDOWED_FULLSCREEN: {
@@ -990,19 +963,16 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             break;
         }
         case SG_COMMAND_WINDOW_SIZE_LIMITS: {
-            SG_Command_WindowSizeLimits* cmd
-              = (SG_Command_WindowSizeLimits*)command;
+            SG_Command_WindowSizeLimits* cmd = (SG_Command_WindowSizeLimits*)command;
             glfwSetWindowSizeLimits(
-              app->window,
-              (cmd->min_width <= 0) ? GLFW_DONT_CARE : cmd->min_width,
+              app->window, (cmd->min_width <= 0) ? GLFW_DONT_CARE : cmd->min_width,
               (cmd->min_height <= 0) ? GLFW_DONT_CARE : cmd->min_height,
               (cmd->max_width <= 0) ? GLFW_DONT_CARE : cmd->max_width,
               (cmd->max_height <= 0) ? GLFW_DONT_CARE : cmd->max_height);
             glfwSetWindowAspectRatio(
               app->window,
               (cmd->aspect_ratio_x <= 0) ? GLFW_DONT_CARE : cmd->aspect_ratio_x,
-              (cmd->aspect_ratio_y <= 0) ? GLFW_DONT_CARE :
-                                           cmd->aspect_ratio_y);
+              (cmd->aspect_ratio_y <= 0) ? GLFW_DONT_CARE : cmd->aspect_ratio_y);
             // reset size to constrain to new limits
             int width, height;
             glfwGetWindowSize(app->window, &width, &height);
@@ -1010,8 +980,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             break;
         }
         case SG_COMMAND_WINDOW_POSITION: {
-            SG_Command_WindowPosition* cmd
-              = (SG_Command_WindowPosition*)command;
+            SG_Command_WindowPosition* cmd = (SG_Command_WindowPosition*)command;
             // set relative to currenet monitor
             GLFWmonitor* monitor = getCurrentMonitor(app->window);
             int mx, my;
@@ -1034,8 +1003,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         }
         case SG_COMMAND_WINDOW_TITLE: {
             SG_Command_WindowTitle* cmd = (SG_Command_WindowTitle*)command;
-            glfwSetWindowTitle(
-              app->window, (char*)CQ_ReadCommandGetOffset(cmd->title_offset));
+            glfwSetWindowTitle(app->window,
+                               (char*)CQ_ReadCommandGetOffset(cmd->title_offset));
             app->show_fps_title = false; // disable default FPS title
             break;
         }
@@ -1078,21 +1047,17 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_MouseMode* cmd = (SG_Command_MouseMode*)command;
             switch (cmd->mode) {
                 case 0:
-                    glfwSetInputMode(app->window, GLFW_CURSOR,
-                                     GLFW_CURSOR_NORMAL);
+                    glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
                     break;
                 case 1:
                     // TODO doesn't work on macos?
-                    glfwSetInputMode(app->window, GLFW_CURSOR,
-                                     GLFW_CURSOR_HIDDEN);
+                    glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
                     break;
                 case 2:
-                    glfwSetInputMode(app->window, GLFW_CURSOR,
-                                     GLFW_CURSOR_DISABLED);
+                    glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     // raw mouse motion
                     if (glfwRawMouseMotionSupported())
-                        glfwSetInputMode(app->window, GLFW_RAW_MOUSE_MOTION,
-                                         GLFW_TRUE);
+                        glfwSetInputMode(app->window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
                     break;
             }
             break;
@@ -1118,8 +1083,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                 //            image.pixels[i * 4 + 1], image.pixels[i * 4 + 2],
                 //            image.pixels[i * 4 + 3]);
 
-                GLFWcursor* cursor
-                  = glfwCreateCursor(&image, cmd->xhot, cmd->yhot);
+                GLFWcursor* cursor = glfwCreateCursor(&image, cmd->xhot, cmd->yhot);
                 if (!cursor) log_error("failed to create cursor");
                 glfwSetCursor(app->window, cursor);
 
@@ -1195,32 +1159,30 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_GEO_CREATE: {
             SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
             Component_CreateGeometry(&app->gctx, cmd);
-            break;
-        }
+        } break;
         case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
             SG_Command_GeoSetVertexAttribute* cmd
               = (SG_Command_GeoSetVertexAttribute*)command;
             R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
 
-            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
-                                           cmd->num_components, cmd->data_owned,
-                                           cmd->data_len);
+            f32* data = (f32*)CQ_ReadCommandGetOffset(cmd->data_offset);
 
-            FREE_ARRAY(f32, cmd->data_owned, cmd->data_len);
+            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
+                                           cmd->num_components, data, cmd->data_len);
+
         } break;
         case SG_COMMAND_GEO_SET_INDICES: {
             SG_Command_GeoSetIndices* cmd = (SG_Command_GeoSetIndices*)command;
             R_Geometry* geo               = Component_GetGeometry(cmd->sg_id);
-            R_Geometry::setIndices(&app->gctx, geo, cmd->indices_owned,
-                                   cmd->index_count);
-            FREE_ARRAY(u32, cmd->indices_owned, cmd->index_count);
+
+            u32* indices = (u32*)CQ_ReadCommandGetOffset(cmd->indices_offset);
+
+            R_Geometry::setIndices(&app->gctx, geo, indices, cmd->index_count);
         } break;
         case SG_COMMAND_MATERIAL_CREATE: {
-            SG_Command_MaterialCreate* cmd
-              = (SG_Command_MaterialCreate*)command;
+            SG_Command_MaterialCreate* cmd = (SG_Command_MaterialCreate*)command;
             Component_CreateMaterial(&app->gctx, cmd);
-            break;
-        }
+        } break;
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
             Component_CreateMesh(cmd);
@@ -1233,9 +1195,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             break;
         }
         case SG_COMMAND_b2_SUBSTEP_COUNT: {
-            SG_Command_b2_SubstepCount* cmd
-              = (SG_Command_b2_SubstepCount*)command;
-            app->b2_substep_count = cmd->substep_count;
+            SG_Command_b2_SubstepCount* cmd = (SG_Command_b2_SubstepCount*)command;
+            app->b2_substep_count           = cmd->substep_count;
             break;
         }
         default: ASSERT(false);

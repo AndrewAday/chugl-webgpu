@@ -110,8 +110,7 @@ void SG_Transform::worldPosition(SG_Transform* t, glm::vec3 pos)
         t->pos = pos;
     else
         // inverse matrix maps from world space --> local space
-        t->pos = glm::inverse(SG_Transform::worldMatrix(parent))
-                 * glm::vec4(pos, 1.0);
+        t->pos = glm::inverse(SG_Transform::worldMatrix(parent)) * glm::vec4(pos, 1.0);
 }
 
 void SG_Transform::worldScale(SG_Transform* t, glm::vec3 scale)
@@ -123,7 +122,7 @@ void SG_Transform::worldScale(SG_Transform* t, glm::vec3 scale)
         t->sca = scale / SG_Transform::worldScale(parent);
 }
 
-#define _SG_XFORM_DIRECTION(t, dir)                                            \
+#define _SG_XFORM_DIRECTION(t, dir)                                                    \
     (glm::normalize(glm::rotate(SG_Transform::worldRotation(t), (dir))))
 
 // get the forward direction in world space
@@ -203,8 +202,7 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
     }
 
     if (child->type == SG_COMPONENT_SCENE) { // necessary to prevent cycles
-        std::cerr << "cannot add make GScene a child of another GGen"
-                  << std::endl;
+        std::cerr << "cannot add make GScene a child of another GGen" << std::endl;
         return;
     }
 
@@ -289,23 +287,60 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 // SG_Geometry Definitions
 // ============================================================================
 
-void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
+// TODO delete function
+// void SG_Geometry::_init(SG_Geometry* g, SG_GeometryType geo_type, void* params)
+// {
+//     g->geo_type = geo_type;
+//     switch (geo_type) {
+//         case SG_GEOMETRY_PLANE: {
+//             PlaneParams* p  = (PlaneParams*)params;
+//             g->params.plane = *p;
+//         } break;
+//         case SG_GEOMETRY_SPHERE: {
+//             SphereParams* p  = (SphereParams*)params;
+//             g->params.sphere = *p;
+//         } break;
+//         case SG_GEOMETRY: {
+//             // custom geometry
+//         } break;
+//         default: ASSERT(false);
+//     }
+// }
+
+static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b,
+                                                  SG_Geometry* g)
 {
-    g->geo_type = geo_type;
-    switch (geo_type) {
-        case SG_GEOMETRY_PLANE: {
-            PlaneParams* p  = (PlaneParams*)params;
-            g->params.plane = *p;
-        } break;
-        case SG_GEOMETRY_SPHERE: {
-            SphereParams* p  = (SphereParams*)params;
-            g->params.sphere = *p;
-        } break;
-        case SG_GEOMETRY: {
-            // custom geometry
-        } break;
-        default: ASSERT(false);
-    }
+    // set arena pointers
+    b->pos_arena  = &g->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
+    b->norm_arena = &g->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
+    b->uv_arena   = &g->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
+    b->tangent_arena
+      = &g->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
+    b->indices_arena = &g->indices;
+
+    // clear arenas
+    Arena::clear(b->pos_arena);
+    Arena::clear(b->norm_arena);
+    Arena::clear(b->uv_arena);
+    Arena::clear(b->tangent_arena);
+    Arena::clear(b->indices_arena);
+
+    // set num components
+    ZERO_ARRAY(g->vertex_attribute_num_components);
+    g->vertex_attribute_num_components[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION] = 3;
+    g->vertex_attribute_num_components[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION]   = 3;
+    g->vertex_attribute_num_components[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION]       = 2;
+    g->vertex_attribute_num_components[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION]  = 4;
+}
+
+void SG_Geometry::buildPlane(SG_Geometry* g, PlaneParams* p)
+{
+    g->geo_type     = SG_GEOMETRY_PLANE;
+    g->params.plane = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildPlane(&gab, p);
 }
 
 u32 SG_Geometry::vertexCount(SG_Geometry* geo)
@@ -320,29 +355,40 @@ u32 SG_Geometry::indexCount(SG_Geometry* geo)
     return ARENA_LENGTH(&geo->indices, u32);
 }
 
-void SG_Geometry::setAttribute(SG_Geometry* geo, int location,
-                               int num_components, f32* ck_array, int data_len)
+f32* SG_Geometry::setAttribute(SG_Geometry* geo, int location, int num_components,
+                               CK_DL_API api, Chuck_ArrayFloat* ck_array,
+                               int ck_arr_len)
 {
     ASSERT(location < SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES && location >= 0);
     ASSERT(num_components >= 0);
-    ASSERT(data_len >= 0);
 
     Arena* arena = &geo->vertex_attribute_data[location];
     Arena::clear(arena);
-    f32* arena_data = ARENA_PUSH_COUNT(arena, f32, data_len);
 
-    // copy new data
-    memcpy(arena_data, ck_array, sizeof(*ck_array) * data_len);
+    // write ck_array data to arena
+    f32* arena_data = ARENA_PUSH_COUNT(arena, f32, ck_arr_len);
+    for (int i = 0; i < ck_arr_len; i++)
+        arena_data[i] = (f32)api->object->array_float_get_idx(ck_array, i);
 
     // set num components
     geo->vertex_attribute_num_components[location] = num_components;
+
+    ASSERT(ARENA_LENGTH(arena, f32) == ck_arr_len);
+
+    return arena_data;
 }
 
-void SG_Geometry::setIndices(SG_Geometry* geo, u32* indices, int index_count)
+u32* SG_Geometry::setIndices(SG_Geometry* geo, CK_DL_API API, Chuck_ArrayInt* indices,
+                             int index_count)
 {
     Arena::clear(&geo->indices);
+
     u32* arena_data = ARENA_PUSH_COUNT(&geo->indices, u32, index_count);
-    memcpy(arena_data, indices, sizeof(*indices) * index_count);
+
+    for (int i = 0; i < index_count; i++)
+        arena_data[i] = (u32)API->object->array_int_get_idx(indices, i);
+
+    return arena_data;
 }
 
 u32* SG_Geometry::getIndices(SG_Geometry* geo)
@@ -515,14 +561,11 @@ SG_Scene* SG_CreateScene(Chuck_Object* ckobj)
     return scene;
 }
 
-SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
-                               void* params)
+SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj)
 {
     Arena* arena     = &SG_GeoArena;
     size_t offset    = arena->curr;
-    SG_Geometry* geo = ARENA_PUSH_TYPE(arena, SG_Geometry);
-
-    SG_Geometry::_init(geo, geo_type, params);
+    SG_Geometry* geo = ARENA_PUSH_ZERO_TYPE(arena, SG_Geometry);
 
     geo->id    = SG_GetNewComponentID();
     geo->type  = SG_COMPONENT_GEOMETRY;
@@ -535,8 +578,8 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj, SG_GeometryType geo_type,
     return geo;
 }
 
-SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
-                               SG_MaterialType material_type, void* params)
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
+                               void* params)
 {
     Arena* arena     = &SG_MaterialArena;
     size_t offset    = arena->curr;
@@ -568,8 +611,7 @@ SG_Material* SG_CreateMaterial(Chuck_Object* ckobj,
     return mat;
 }
 
-SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo,
-                       SG_Material* sg_mat)
+SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg_mat)
 {
     Arena* arena  = &SG_MeshArena;
     size_t offset = arena->curr;
@@ -595,8 +637,7 @@ SG_Component* SG_GetComponent(SG_ID id)
     key.id              = id;
     SG_Location* result = (SG_Location*)hashmap_get(locator, &key);
     SG_Component* component
-      = result ? (SG_Component*)Arena::get(result->arena, result->offset) :
-                 NULL;
+      = result ? (SG_Component*)Arena::get(result->arena, result->offset) : NULL;
     return component;
 }
 

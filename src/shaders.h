@@ -136,8 +136,7 @@ static const char* shaderCode = R"glsl(
 
         var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
         out.v_worldPos = worldPos.xyz;
-        // handle non-uniform scaling
-
+        // TODO handle non-uniform scaling
         // TODO: restore to normal Mat. need to pass normal mat from cpu side
         // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
         out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
@@ -161,6 +160,7 @@ static const char* shaderCode = R"glsl(
         tangentNormal.y *= scale;
 
         // TODO: account for side of face (can we calculate facenormal in frag shader?)
+        // TODO: do we need to adjust tangent normal based on face direction (backface or frontface)?
         // e.g. tangentNormal *= (sign(dot(normal, faceNormal)))
 
         // from mikkt:
@@ -219,9 +219,19 @@ static const char* shaderCode = R"glsl(
     }
 
     @fragment 
-    fn fs_main(in : VertexOutput)->@location(0) vec4f
+    fn fs_main(
+        in : VertexOutput,
+        @builtin(front_facing) is_front: bool
+    ) -> @location(0) vec4f
     {
-        let N : vec3f = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_Material.normalFactor);
+        var normal : vec3f;
+        if (is_front) {
+            normal = in.v_normal;
+        } else {
+            normal = -in.v_normal;
+        }
+
+        let N : vec3f = calculateNormal( normal, in.v_uv, in.v_tangent, u_Material.normalFactor);
         let V : vec3f = normalize(u_Frame.camPos - in.v_worldPos);
 
         // linear-space albedo (normally authored in sRGB space so we have to convert to linear space)

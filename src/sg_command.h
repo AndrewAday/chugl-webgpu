@@ -234,14 +234,14 @@ struct SG_Command_GeoSetVertexAttribute : public SG_Command {
     SG_ID sg_id;
     int location;
     int num_components;
-    int data_len;    // # of floats in data array
-    f32* data_owned; // separately alloced. must be freed by renderer
+    int data_len;          // # of floats in data array
+    ptrdiff_t data_offset; // byte offset into command queue arena for attribute data
 };
 
 struct SG_Command_GeoSetIndices : public SG_Command {
     SG_ID sg_id;
-    u32* indices_owned;
     int index_count;
+    ptrdiff_t indices_offset;
 };
 
 // TODO: need way to specify config (doublesided, alpha, etc)
@@ -294,9 +294,9 @@ void* CQ_ReadCommandGetOffset(u64 byte_offset);
 
 void CQ_PushCommand_WindowClose();
 void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height);
-void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
-                                     int max_width, int max_height,
-                                     int aspect_ratio_x, int aspect_ratio_y);
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height, int max_width,
+                                     int max_height, int aspect_ratio_x,
+                                     int aspect_ratio_y);
 void CQ_PushCommand_WindowPosition(int x, int y);
 void CQ_PushCommand_WindowCenter();
 void CQ_PushCommand_WindowTitle(const char* title);
@@ -305,8 +305,8 @@ void CQ_PushCommand_WindowAttribute(CHUGL_WindowAttrib attrib, bool value);
 void CQ_PushCommand_WindowOpacity(float opacity);
 
 void CQ_PushCommand_MouseMode(int mode);
-void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
-                                u32 width, u32 height, u32 xhot, u32 yhot);
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data, u32 width,
+                                u32 height, u32 xhot, u32 yhot);
 
 void CQ_PushCommand_MouseCursorNormal();
 
@@ -316,8 +316,7 @@ void CQ_PushCommand_UI_Disabled(bool disabled);
 // components
 
 void CQ_PushCommand_GG_Scene(SG_Scene* scene);
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
-                                    t_CKUINT component_offset_id,
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offset_id,
                                     CK_DL_API API);
 void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child);
 void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child);
@@ -325,8 +324,7 @@ void CQ_PushCommand_SetPosition(SG_Transform* xform);
 void CQ_PushCommand_SetRotation(SG_Transform* xform);
 void CQ_PushCommand_SetScale(SG_Transform* xform);
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                     t_CKUINT component_offset_id,
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_offset_id,
                                      CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
@@ -336,8 +334,7 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
 void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
                                                int num_components, f32* data,
                                                int data_len);
-void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices,
-                                       int index_count);
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count);
 
 // material
 void CQ_PushCommand_MaterialCreate(SG_Material* material);

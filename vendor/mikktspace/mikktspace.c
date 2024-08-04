@@ -580,7 +580,7 @@ static void GenerateSharedVerticesIndexList(int piTriList_in_and_out[],
         if (pTmpVert != NULL) {
             for (e = 0; e < iEntries; e++) {
                 int ii          = pTable[e];
-                const SVec3 vP = GetPosition(pContext, piTriList_in_and_out[i]);
+                const SVec3 vP = GetPosition(pContext, piTriList_in_and_out[ii]);
                 pTmpVert[e].vert[0] = vP.x;
                 pTmpVert[e].vert[1] = vP.y;
                 pTmpVert[e].vert[2] = vP.z;

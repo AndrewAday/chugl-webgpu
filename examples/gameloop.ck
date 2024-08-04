@@ -11,13 +11,13 @@
 // uncomment to run in fullscreen
 // GG.fullscreen();
 
-SphereGeometry sphereGeo;
+// SphereGeometry sphereGeo;
 PlaneGeometry planeGeo;
 PBRMaterial mat;
 GMesh plane(planeGeo, mat) --> GG.scene();
 
-GMesh sphere(sphereGeo, mat) --> GG.scene();
-sphere.translateX(2.0);
+// GMesh sphere(sphereGeo, mat) --> GG.scene();
+// sphere.translateX(2.0);
 
 // UI.disabled(true);
 

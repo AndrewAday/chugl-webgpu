@@ -19,13 +19,13 @@
 #endif
 
 #ifndef NDEBUG
-#define ASSERT(expression)                                                     \
-    {                                                                          \
-        if (!(expression)) {                                                   \
-            printf("Assertion(%s) failed: file \"%s\", line %d\n",             \
-                   #expression, __FILE__, __LINE__);                           \
-            debug_break();                                                     \
-        }                                                                      \
+#define ASSERT(expression)                                                             \
+    {                                                                                  \
+        if (!(expression)) {                                                           \
+            printf("Assertion(%s) failed: file \"%s\", line %d\n", #expression,        \
+                   __FILE__, __LINE__);                                                \
+            debug_break();                                                             \
+        }                                                                              \
     }
 #else
 #define ASSERT(expression) NULL;
@@ -38,6 +38,7 @@
 #define UNUSED_VAR(x) ((void)(x))
 #define UNUSED_FUNCTION(x) ((void)(x))
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
+#define ZERO_ARRAY(array) (memset((array), 0, sizeof(array)))
 #define COPY_STRUCT(dst, src, type) (memcpy((dst), (src), sizeof(type)))
 
 // ============================================================================

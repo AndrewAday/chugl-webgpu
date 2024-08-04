@@ -28,12 +28,29 @@ CK_DLL_CTOR(sphere_geo_ctor_params);
 static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 {
     // Geometry -----------------------------------------------------
-    BEGIN_CLASS(SG_CKNames[SG_COMPONENT_GEOMETRY],
-                SG_CKNames[SG_COMPONENT_BASE]);
+    BEGIN_CLASS(SG_CKNames[SG_COMPONENT_GEOMETRY], SG_CKNames[SG_COMPONENT_BASE]);
 
     // contants
     static t_CKINT sg_geometry_max_attributes{ SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES };
+    static t_CKINT pos_attr_loc{ SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION };
+    static t_CKINT norm_attr_loc{ SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION };
+    static t_CKINT uv_attr_loc{ SG_GEOMETRY_UV_ATTRIBUTE_LOCATION };
+    static t_CKINT tangent_attr_loc{ SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION };
+
     SVAR("int", "MAX_VERTEX_ATTRIBUTES", &sg_geometry_max_attributes);
+    DOC_VAR("Maximum number of vertex attributes.");
+
+    SVAR("int", "POSITION_ATTRIBUTE_LOCATION", &pos_attr_loc);
+    DOC_VAR("Position attribute location used by builtin renderer");
+
+    SVAR("int", "NORMAL_ATTRIBUTE_LOCATION", &norm_attr_loc);
+    DOC_VAR("Normal attribute location used by builtin renderer");
+
+    SVAR("int", "UV_ATTRIBUTE_LOCATION", &uv_attr_loc);
+    DOC_VAR("UV attribute location used by builtin renderer");
+
+    SVAR("int", "TANGENT_ATTRIBUTE_LOCATION", &tangent_attr_loc);
+    DOC_VAR("Tangent attribute location used by builtin renderer");
 
     // ctor
     CTOR(geo_ctor);
@@ -54,8 +71,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
     MFUN(geo_get_vertex_attribute_data, "float[]", "vertexAttributeData");
     ARG("int", "location");
-    DOC_FUNC(
-      "Get the vertex data for a vertex attribute. Default empty array.");
+    DOC_FUNC("Get the vertex data for a vertex attribute. Default empty array.");
 
     MFUN(geo_set_indices, "void", "indices");
     ARG("int[]", "indices");
@@ -67,8 +83,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     END_CLASS();
 
     // Plane -----------------------------------------------------
-    QUERY->begin_class(QUERY, "PlaneGeometry",
-                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    QUERY->begin_class(QUERY, "PlaneGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     QUERY->add_ctor(QUERY, plane_geo_ctor);
     QUERY->add_ctor(QUERY, plane_geo_ctor_params);
@@ -81,8 +96,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     QUERY->end_class(QUERY);
 
     // Sphere -----------------------------------------------------
-    QUERY->begin_class(QUERY, "SphereGeometry",
-                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    QUERY->begin_class(QUERY, "SphereGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     QUERY->add_ctor(QUERY, sphere_geo_ctor);
     QUERY->add_ctor(QUERY, sphere_geo_ctor_params);
@@ -102,7 +116,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
 CK_DLL_CTOR(geo_ctor)
 {
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY, NULL);
+    SG_Geometry* geo                           = SG_CreateGeometry(SELF);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
     CQ_PushCommand_GeometryCreate(geo);
 }
@@ -113,29 +127,35 @@ CK_DLL_MFUN(geo_set_vertex_attribute)
     t_CKINT num_components   = GET_NEXT_INT(ARGS);
     Chuck_ArrayFloat* ck_arr = GET_NEXT_FLOAT_ARRAY(ARGS);
 
+    /*
+    idea: pass ck array of doubles into SG_Geometry::setAttribute directly.
+    have SG_Geometry copy and convert f64 -> f32
+
+    then push to command queue, passing a pointer to this f32 array
+
+    the command queue copies the array into the command queue arena
+
+    renderer writes data from command queue arena to GPU buffer and DOES NOT
+    need to free because arena memory is cleared on each frame
+    */
+
     t_CKINT ck_arr_len = API->object->array_float_size(ck_arr);
 
-    f32* vertex_data = ALLOCATE_COUNT(f32, ck_arr_len);
-    for (int i = 0; i < ck_arr_len; i++)
-        vertex_data[i] = (f32)API->object->array_float_get_idx(ck_arr, i);
-
-    SG_Geometry* geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     // set attribute locally
-    SG_Geometry::setAttribute(geo, location, num_components, vertex_data,
-                              ck_arr_len);
+    f32* vertex_attrib_data = SG_Geometry::setAttribute(geo, location, num_components,
+                                                        API, ck_arr, ck_arr_len);
 
     // push attribute change to command queue
     CQ_PushCommand_GeometrySetVertexAttribute(geo, location, num_components,
-                                              vertex_data, ck_arr_len);
+                                              vertex_attrib_data, ck_arr_len);
 }
 
 CK_DLL_MFUN(geo_get_vertex_attribute_num_components)
 {
     t_CKINT location = GET_NEXT_INT(ARGS);
-    SG_Geometry* geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     RETURN->v_int = geo->vertex_attribute_num_components[location];
 }
@@ -143,12 +163,11 @@ CK_DLL_MFUN(geo_get_vertex_attribute_num_components)
 CK_DLL_MFUN(geo_get_vertex_attribute_data)
 {
     t_CKINT location = GET_NEXT_INT(ARGS);
-    SG_Geometry* geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    f32* data      = SG_Geometry::getAttributeData(geo, location);
-    int data_count = SG_Geometry::vertexCount(geo)
-                     * geo->vertex_attribute_num_components[location];
+    f32* data = SG_Geometry::getAttributeData(geo, location);
+    int data_count
+      = SG_Geometry::vertexCount(geo) * geo->vertex_attribute_num_components[location];
 
     Chuck_ArrayFloat* ck_arr
       = (Chuck_ArrayFloat*)chugin_createCkObj("float[]", false, SHRED);
@@ -163,28 +182,21 @@ CK_DLL_MFUN(geo_set_indices)
     Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
     t_CKINT ck_arr_len     = API->object->array_int_size(ck_arr);
 
-    u32* indices = ALLOCATE_COUNT(u32, ck_arr_len);
-    for (int i = 0; i < ck_arr_len; i++)
-        indices[i] = (u32)API->object->array_int_get_idx(ck_arr, i);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    SG_Geometry* geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-
-    SG_Geometry::setIndices(geo, indices, ck_arr_len);
+    u32* indices = SG_Geometry::setIndices(geo, API, ck_arr, ck_arr_len);
 
     CQ_PushCommand_GeometrySetIndices(geo, indices, ck_arr_len);
 }
 
 CK_DLL_MFUN(geo_get_indices)
 {
-    SG_Geometry* geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     u32* indices    = SG_Geometry::getIndices(geo);
     int index_count = SG_Geometry::indexCount(geo);
 
-    Chuck_ArrayInt* ck_arr
-      = (Chuck_ArrayInt*)chugin_createCkObj("int[]", false, SHRED);
+    Chuck_ArrayInt* ck_arr = (Chuck_ArrayInt*)chugin_createCkObj("int[]", false, SHRED);
     for (int i = 0; i < index_count; i++)
         API->object->array_int_push_back(ck_arr, indices[i]);
 
@@ -197,61 +209,87 @@ CK_DLL_MFUN(geo_get_indices)
 
 CK_DLL_CTOR(plane_geo_ctor)
 {
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    ASSERT(geo);
+
     PlaneParams params = {};
     // test default value initialization
     ASSERT(params.widthSegments == 1 && params.heightSegments == 1);
 
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
-    ASSERT(geo->id > 0);
-    ASSERT(geo->geo_type == SG_GEOMETRY_PLANE);
+    SG_Geometry::buildPlane(geo, &params);
 
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+    { // push attribute changes to command queue
+        Arena* positions_arena
+          = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
+        CQ_PushCommand_GeometrySetVertexAttribute(
+          geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, (f32*)positions_arena->base,
+          ARENA_LENGTH(positions_arena, f32));
 
-    CQ_PushCommand_GeometryCreate(geo);
+        Arena* normals_arena
+          = &geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
+        CQ_PushCommand_GeometrySetVertexAttribute(
+          geo, SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3, (f32*)normals_arena->base,
+          ARENA_LENGTH(normals_arena, f32));
+
+        Arena* uvs_arena
+          = &geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
+        CQ_PushCommand_GeometrySetVertexAttribute(
+          geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2, (f32*)uvs_arena->base,
+          ARENA_LENGTH(uvs_arena, f32));
+
+        Arena* tangents_arena
+          = &geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
+        CQ_PushCommand_GeometrySetVertexAttribute(
+          geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, (f32*)tangents_arena->base,
+          ARENA_LENGTH(tangents_arena, f32));
+
+        Arena* indices_arena = &geo->indices;
+        CQ_PushCommand_GeometrySetIndices(geo, (u32*)indices_arena->base,
+                                          ARENA_LENGTH(indices_arena, u32));
+    }
 }
 
 CK_DLL_CTOR(plane_geo_ctor_params)
 {
-    PlaneParams params    = {};
-    params.width          = GET_NEXT_FLOAT(ARGS);
-    params.height         = GET_NEXT_FLOAT(ARGS);
-    params.widthSegments  = GET_NEXT_INT(ARGS);
-    params.heightSegments = GET_NEXT_INT(ARGS);
+    // PlaneParams params    = {};
+    // params.width          = GET_NEXT_FLOAT(ARGS);
+    // params.height         = GET_NEXT_FLOAT(ARGS);
+    // params.widthSegments  = GET_NEXT_INT(ARGS);
+    // params.heightSegments = GET_NEXT_INT(ARGS);
 
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+    // SG_Geometry* geo                           = SG_CreateGeometry(SELF);
+    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
 
-    CQ_PushCommand_GeometryCreate(geo);
+    // CQ_PushCommand_GeometryCreate(geo);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor)
 {
-    SphereParams params = {};
+    // SphereParams params = {};
 
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_SPHERE, &params);
-    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
-    ASSERT(geo->id > 0);
-    ASSERT(geo->geo_type == SG_GEOMETRY_SPHERE);
+    // SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_SPHERE, &params);
+    // ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
+    // ASSERT(geo->id > 0);
+    // ASSERT(geo->geo_type == SG_GEOMETRY_SPHERE);
 
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
 
-    CQ_PushCommand_GeometryCreate(geo);
+    // CQ_PushCommand_GeometryCreate(geo);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor_params)
 {
-    SphereParams params = {};
-    params.radius       = GET_NEXT_FLOAT(ARGS);
-    params.widthSeg     = GET_NEXT_INT(ARGS);
-    params.heightSeg    = GET_NEXT_INT(ARGS);
-    params.phiStart     = GET_NEXT_FLOAT(ARGS);
-    params.phiLength    = GET_NEXT_FLOAT(ARGS);
-    params.thetaStart   = GET_NEXT_FLOAT(ARGS);
-    params.thetaLength  = GET_NEXT_FLOAT(ARGS);
+    // SphereParams params = {};
+    // params.radius       = GET_NEXT_FLOAT(ARGS);
+    // params.widthSeg     = GET_NEXT_INT(ARGS);
+    // params.heightSeg    = GET_NEXT_INT(ARGS);
+    // params.phiStart     = GET_NEXT_FLOAT(ARGS);
+    // params.phiLength    = GET_NEXT_FLOAT(ARGS);
+    // params.thetaStart   = GET_NEXT_FLOAT(ARGS);
+    // params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
+    // SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
+    // OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
 
-    CQ_PushCommand_GeometryCreate(geo);
+    // CQ_PushCommand_GeometryCreate(geo);
 }

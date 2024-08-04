@@ -96,8 +96,7 @@ bool CQ_ReadCommandQueueIter(SG_Command** command)
     }
 
     // else return the nextOffset
-    *command
-      = (SG_Command*)Arena::get(cq.read_q, (*command)->nextCommandOffset);
+    *command = (SG_Command*)Arena::get(cq.read_q, (*command)->nextCommandOffset);
     return true;
 }
 
@@ -115,13 +114,14 @@ void* CQ_ReadCommandGetOffset(u64 byte_offset)
 // Command API
 // ============================================================================
 
-#define BEGIN_COMMAND(cmd_type, cmd_enum)                                      \
-    spinlock::lock(&cq.write_q_lock);                                          \
-    cmd_type* command          = ARENA_PUSH_TYPE(cq.write_q, cmd_type);        \
-    command->type              = cmd_enum;                                     \
-    command->nextCommandOffset = cq.write_q->curr;
+#define BEGIN_COMMAND(cmd_type, cmd_enum)                                              \
+    spinlock::lock(&cq.write_q_lock);                                                  \
+    cmd_type* command = ARENA_PUSH_TYPE(cq.write_q, cmd_type);                         \
+    command->type     = cmd_enum;
 
-#define END_COMMAND() spinlock::unlock(&cq.write_q_lock);
+#define END_COMMAND()                                                                  \
+    command->nextCommandOffset = cq.write_q->curr;                                     \
+    spinlock::unlock(&cq.write_q_lock);
 
 void CQ_PushCommand_WindowClose()
 {
@@ -138,9 +138,9 @@ void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height)
     END_COMMAND();
 }
 
-void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
-                                     int max_width, int max_height,
-                                     int aspect_ratio_x, int aspect_ratio_y)
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height, int max_width,
+                                     int max_height, int aspect_ratio_x,
+                                     int aspect_ratio_y)
 {
     BEGIN_COMMAND(SG_Command_WindowSizeLimits, SG_COMMAND_WINDOW_SIZE_LIMITS);
     command->min_width      = min_width;
@@ -222,8 +222,8 @@ void CQ_PushCommand_MouseCursorNormal()
     END_COMMAND();
 }
 
-void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
-                                u32 width, u32 height, u32 xhot, u32 yhot)
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data, u32 width,
+                                u32 height, u32 xhot, u32 yhot)
 {
     u32 data_size = API->object->array_int_size(image_data);
     ASSERT(data_size == width * height * 4);
@@ -237,18 +237,17 @@ void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
     char* image_data_bytes = (char*)Arena::push(cq.write_q, data_size);
     // copy
     for (u32 i = 0; i < data_size; i++) {
-        image_data_bytes[i] = (unsigned char)CLAMP(
-          API->object->array_int_get_idx(image_data, i), 0, 255);
+        image_data_bytes[i]
+          = (unsigned char)CLAMP(API->object->array_int_get_idx(image_data, i), 0, 255);
     }
     // store offset not pointer in case arena resizes
-    command->mouse_cursor_image_offset
-      = Arena::offsetOf(cq.write_q, image_data_bytes);
-    command->width             = width;
-    command->height            = height;
-    command->xhot              = xhot;
-    command->yhot              = yhot;
-    command->type              = SG_COMMAND_MOUSE_CURSOR;
-    command->nextCommandOffset = cq.write_q->curr;
+    command->mouse_cursor_image_offset = Arena::offsetOf(cq.write_q, image_data_bytes);
+    command->width                     = width;
+    command->height                    = height;
+    command->xhot                      = xhot;
+    command->yhot                      = yhot;
+    command->type                      = SG_COMMAND_MOUSE_CURSOR;
+    command->nextCommandOffset         = cq.write_q->curr;
 
     spinlock::unlock(&cq.write_q_lock);
 }
@@ -265,8 +264,7 @@ void CQ_PushCommand_GG_Scene(SG_Scene* scene)
     spinlock::lock(&cq.write_q_lock);
     {
         // allocate memory
-        SG_Command_GG_Scene* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_GG_Scene);
+        SG_Command_GG_Scene* command = ARENA_PUSH_TYPE(cq.write_q, SG_Command_GG_Scene);
 
         // initialize memory
         command->type              = SG_COMMAND_GG_SCENE;
@@ -276,8 +274,8 @@ void CQ_PushCommand_GG_Scene(SG_Scene* scene)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
-                                    t_CKUINT component_offset_id, CK_DL_API API)
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offset_id,
+                                    CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Transform* xform = SG_CreateTransform(ckobj);
@@ -309,8 +307,7 @@ void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child)
     spinlock::lock(&cq.write_q_lock);
     {
         // allocate memory
-        SG_Command_AddChild* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_AddChild);
+        SG_Command_AddChild* command = ARENA_PUSH_TYPE(cq.write_q, SG_Command_AddChild);
 
         // initialize memory
         command->type              = SG_COMMAND_ADD_CHILD;
@@ -380,8 +377,7 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::lock(&cq.write_q_lock);
     {
         // allocate memory
-        SG_Command_SetScale* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SetScale);
+        SG_Command_SetScale* command = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SetScale);
 
         // initialize memory
         command->type              = SG_COMMAND_SET_SCALE;
@@ -392,8 +388,7 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                     t_CKUINT component_offset_id,
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_offset_id,
                                      CK_DL_API API)
 {
     // execute change on audio thread side
@@ -454,27 +449,45 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
     spinlock::unlock(&cq.write_q_lock);
 } // Path: src/sg_command.h
 
+// copies data pointer into command arena. does NOT take ownership
 void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
                                                int num_components, f32* data,
                                                int data_len)
 {
+
     BEGIN_COMMAND(SG_Command_GeoSetVertexAttribute,
                   SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE);
-    command->sg_id          = geo->id;
-    command->num_components = num_components;
-    command->location       = location;
-    command->data_len       = data_len;
-    command->data_owned     = data;
+
+    // get cq memory for vertex data
+    f32* attribute_data = ARENA_PUSH_COUNT(cq.write_q, f32, data_len);
+    memcpy(attribute_data, data, data_len * sizeof(*data));
+
+    command->sg_id             = geo->id;
+    command->num_components    = num_components;
+    command->location          = location;
+    command->data_len          = data_len;
+    command->data_offset       = Arena::offsetOf(cq.write_q, attribute_data);
+    command->nextCommandOffset = cq.write_q->curr;
+
+    ASSERT(command->nextCommandOffset - command->data_offset
+           == (data_len * sizeof(*data)));
+
+    ASSERT(command->data_len % num_components == 0);
+
     END_COMMAND();
 }
 
-void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices,
-                                       int index_count)
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count)
 {
     BEGIN_COMMAND(SG_Command_GeoSetIndices, SG_COMMAND_GEO_SET_INDICES);
-    command->sg_id         = geo->id;
-    command->indices_owned = indices;
-    command->index_count   = index_count;
+
+    u32* index_data = ARENA_PUSH_COUNT(cq.write_q, u32, index_count);
+    memcpy(index_data, indices, index_count * sizeof(*indices));
+
+    command->sg_id          = geo->id;
+    command->index_count    = index_count;
+    command->indices_offset = Arena::offsetOf(cq.write_q, index_data);
+
     END_COMMAND();
 }
 

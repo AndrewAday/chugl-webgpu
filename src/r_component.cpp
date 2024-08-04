@@ -176,8 +176,7 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
 void R_Transform::addChild(R_Transform* parent, R_Transform* child)
 {
     if (R_Transform::isAncestor(child, parent)) {
-        log_error(
-          "No cycles in scenegraph; cannot add parent as child of descendent");
+        log_error("No cycles in scenegraph; cannot add parent as child of descendent");
         return;
     }
 
@@ -218,10 +217,9 @@ glm::mat4 R_Transform::localMatrix(R_Transform* xform)
 void R_Transform::setXformFromMatrix(R_Transform* xform, const glm::mat4& M)
 {
     log_trace("decomposing matrix");
-    xform->_pos = glm::vec3(M[3]);
-    xform->_rot = glm::quat_cast(M);
-    xform->_sca
-      = glm::vec3(glm::length(M[0]), glm::length(M[1]), glm::length(M[2]));
+    xform->_pos  = glm::vec3(M[3]);
+    xform->_rot  = glm::quat_cast(M);
+    xform->_sca  = glm::vec3(glm::length(M[0]), glm::length(M[1]), glm::length(M[2]));
     xform->local = M;
 
     // log_trace("pos: %s", glm::to_string(xform->_pos).c_str());
@@ -315,8 +313,7 @@ void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
             case R_Transform_STALE_DESCENDENTS: {
                 // add to stack
                 SG_ID* children = (SG_ID*)xform->children.base;
-                for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID);
-                     ++i) {
+                for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID); ++i) {
                     SG_ID* childID = ARENA_PUSH_ZERO_TYPE(arena, SG_ID);
                     *childID       = children[i];
                 }
@@ -326,8 +323,8 @@ void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
             case R_Transform_STALE_LOCAL: {
                 // get parent world matrix
                 R_Transform* parent = Component_GetXform(xform->parentID);
-                _Transform_RebuildDescendants(xform, parent ? &parent->world :
-                                                              &identityMat);
+                _Transform_RebuildDescendants(xform,
+                                              parent ? &parent->world : &identityMat);
                 break;
             }
             default: log_error("unhandled staleness %d", xform->_stale); break;
@@ -353,14 +350,12 @@ R_Transform* R_Transform::getChild(R_Transform* xform, u32 index)
 
 void R_Transform::rotateOnLocalAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
 {
-    R_Transform::rot(xform,
-                     xform->_rot * glm::angleAxis(deg, glm::normalize(axis)));
+    R_Transform::rot(xform, xform->_rot * glm::angleAxis(deg, glm::normalize(axis)));
 }
 
 void R_Transform::rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
 {
-    R_Transform::rot(xform,
-                     glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
+    R_Transform::rot(xform, glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
 }
 
 void R_Transform::print(R_Transform* xform)
@@ -412,8 +407,7 @@ u32 R_Geometry::vertexCount(R_Geometry* geo)
 // returns # of contiguous non-zero vertex attributes
 u32 R_Geometry::vertexAttributeCount(R_Geometry* geo)
 {
-    for (int i = 0; i < ARRAY_LENGTH(geo->vertex_attribute_num_components);
-         ++i) {
+    for (int i = 0; i < ARRAY_LENGTH(geo->vertex_attribute_num_components); ++i) {
         if (geo->vertex_attribute_num_components[i] == 0) return i;
     }
     return ARRAY_LENGTH(geo->vertex_attribute_num_components);
@@ -428,47 +422,50 @@ void R_Geometry::buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
 
     // write indices
     if (vertices->indicesCount > 0) {
-        R_Geometry::setIndices(gctx, geo, vertices->indices,
-                               vertices->indicesCount);
+        R_Geometry::setIndices(gctx, geo, vertices->indices, vertices->indicesCount);
     }
 
     // TODO probably refactor vertices to encode attrib layout (# components and
     // location)
     { // write vertices
-        R_Geometry::setVertexAttribute(gctx, geo, 0, 3,
-                                       Vertices::positions(vertices),
+        R_Geometry::setVertexAttribute(gctx, geo, 0, 3, Vertices::positions(vertices),
                                        vertices->vertexCount);
 
-        R_Geometry::setVertexAttribute(
-          gctx, geo, 1, 3, Vertices::normals(vertices), vertices->vertexCount);
-
-        R_Geometry::setVertexAttribute(gctx, geo, 2, 2,
-                                       Vertices::texcoords(vertices),
+        R_Geometry::setVertexAttribute(gctx, geo, 1, 3, Vertices::normals(vertices),
                                        vertices->vertexCount);
 
-        R_Geometry::setVertexAttribute(
-          gctx, geo, 3, 4, Vertices::tangents(vertices), vertices->vertexCount);
+        R_Geometry::setVertexAttribute(gctx, geo, 2, 2, Vertices::texcoords(vertices),
+                                       vertices->vertexCount);
+
+        R_Geometry::setVertexAttribute(gctx, geo, 3, 4, Vertices::tangents(vertices),
+                                       vertices->vertexCount);
     }
+
+    Vertices::free(vertices);
 }
 
+// data count is # of floats in data array NOT length / num_components
 void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
                                     u32 location, u32 num_components, f32* data,
-                                    u32 vertex_count)
+                                    u32 data_count)
 {
     ASSERT(location >= 0
            && location < ARRAY_LENGTH(geo->vertex_attribute_num_components));
 
+    ASSERT(data_count % num_components == 0);
+
     geo->vertex_attribute_num_components[location] = num_components;
     GPU_Buffer::write(gctx, &geo->gpu_vertex_buffers[location],
                       (WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst), data,
-                      vertex_count * num_components * sizeof(f32));
+                      data_count * sizeof(f32));
 }
-void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo,
-                            u32* indices, u32 indices_count)
+
+void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices,
+                            u32 indices_count)
 {
     GPU_Buffer::write(gctx, &geo->gpu_index_buffer,
-                      (WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst),
-                      indices, indices_count * sizeof(*indices));
+                      (WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst), indices,
+                      indices_count * sizeof(*indices));
 }
 
 // ============================================================================
@@ -487,8 +484,7 @@ void R_Texture::init(R_Texture* texture)
 // Material_Primitive
 // ============================================================================
 
-void Material_Primitive::init(Material_Primitive* prim, R_Material* mat,
-                              SG_ID geoID)
+void Material_Primitive::init(Material_Primitive* prim, R_Material* mat, SG_ID geoID)
 {
     ASSERT(prim->geoID == 0);
     ASSERT(prim->matID == 0);
@@ -553,8 +549,7 @@ void Material_Primitive::addXform(Material_Primitive* prim, R_Transform* xform)
     *xformID       = xform->id;
 }
 
-void Material_Primitive::removeXform(Material_Primitive* prim,
-                                     R_Transform* xform)
+void Material_Primitive::removeXform(Material_Primitive* prim, R_Transform* xform)
 {
     u64 numInstances = Material_Primitive::numInstances(prim);
     SG_ID* instances = (SG_ID*)prim->xformIDs.base;
@@ -577,8 +572,7 @@ void Material_Primitive::removeXform(Material_Primitive* prim,
 
 void Material_Primitive::rebuildBindGroup(GraphicsContext* gctx,
                                           Material_Primitive* prim,
-                                          WGPUBindGroupLayout layout,
-                                          Arena* arena)
+                                          WGPUBindGroupLayout layout, Arena* arena)
 {
     if (!prim->stale) return;
 
@@ -708,8 +702,7 @@ static void _R_Material_Init(R_Material* mat)
     Arena::init(&mat->uniformData, 64);
 }
 
-void R_Material::init(GraphicsContext* gctx, R_Material* mat,
-                      R_MaterialConfig* config)
+void R_Material::init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig* config)
 {
     _R_Material_Init(mat);
 
@@ -734,8 +727,7 @@ void R_Material::init(GraphicsContext* gctx, R_Material* mat,
 }
 
 static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
-                                                  R_Material* mat,
-                                                  R_Binding* binding,
+                                                  R_Material* mat, R_Binding* binding,
                                                   WGPUBindGroupEntry* entry,
                                                   u32 bindIndex)
 {
@@ -750,8 +742,7 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
             break;
         }
         case R_BIND_SAMPLER: {
-            entry->sampler
-              = Graphics_GetSampler(gctx, binding->as.samplerConfig);
+            entry->sampler = Graphics_GetSampler(gctx, binding->as.samplerConfig);
             break;
         }
         case R_BIND_TEXTURE_ID: {
@@ -805,8 +796,8 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
         }
 
         // write data cpu -> gpu
-        wgpuQueueWriteBuffer(gctx->queue, mat->gpuUniformBuff, 0,
-                             mat->uniformData.base, uniformDataSize);
+        wgpuQueueWriteBuffer(gctx->queue, mat->gpuUniformBuff, 0, mat->uniformData.base,
+                             uniformDataSize);
     }
 
     // TODO: rebuild storageBuffer for storage bindings
@@ -814,9 +805,8 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     // for now unsupported
 
     // create bindgroups for all bindings
-    u32 numBindings = ARENA_LENGTH(&mat->bindings, R_Binding);
-    u32 numBindGroupEntries
-      = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
+    u32 numBindings         = ARENA_LENGTH(&mat->bindings, R_Binding);
+    u32 numBindGroupEntries = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
     ASSERT(numBindings == numBindGroupEntries); // WGPUBindGroupEntry should
                                                 // exist for each R_Binding
 
@@ -838,29 +828,27 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     WGPUBindGroupDescriptor bgDesc = {};
     bgDesc.layout                  = layout;
     bgDesc.entryCount              = numBindGroupEntries;
-    bgDesc.entries = (WGPUBindGroupEntry*)mat->bindGroupEntries.base;
-    mat->bindGroup = wgpuDeviceCreateBindGroup(gctx->device, &bgDesc);
+    bgDesc.entries                 = (WGPUBindGroupEntry*)mat->bindGroupEntries.base;
+    mat->bindGroup                 = wgpuDeviceCreateBindGroup(gctx->device, &bgDesc);
 }
 
 // TODO: this function can take an R_Binding directly, rather than
 // type/data/bytes.
 // Or maybe break this into setUniform, setTexture, setSampler, etc.
 // to simplify the switch statement logic
-void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type,
-                            void* data, size_t bytes)
+void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type, void* data,
+                            size_t bytes)
 {
     mat->stale = true;
 
     // allocate memory in arenas
     {
-        u32 numBindings = ARENA_LENGTH(&mat->bindings, R_Binding);
-        u32 numBindGroups
-          = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
+        u32 numBindings   = ARENA_LENGTH(&mat->bindings, R_Binding);
+        u32 numBindGroups = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
         ASSERT(numBindings == numBindGroups);
         if (numBindings < location + 1) {
             // grow bindings arena
-            ARENA_PUSH_COUNT(&mat->bindings, R_Binding,
-                             location + 1 - numBindings);
+            ARENA_PUSH_COUNT(&mat->bindings, R_Binding, location + 1 - numBindings);
             // grow bindgroup entries arena
             ARENA_PUSH_COUNT(&mat->bindGroupEntries, WGPUBindGroupEntry,
                              location + 1 - numBindings);
@@ -869,16 +857,14 @@ void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type,
 
     // TODO can combine R_Binding and WGPUBindGroupEntry into a single struct
     ASSERT(mat->bindings.cap >= sizeof(R_Binding) * (location + 1));
-    ASSERT(mat->bindGroupEntries.cap
-           >= sizeof(WGPUBindGroupEntry) * (location + 1));
+    ASSERT(mat->bindGroupEntries.cap >= sizeof(WGPUBindGroupEntry) * (location + 1));
 
     { // replace previous binding
         // NOTE: currently don't allow changing binding type for a given
         // location
         // NOTE: don't allow changing binding size for UNIFORM bindings
         // at same location
-        R_Binding* binding
-          = ARENA_GET_TYPE(&mat->bindings, R_Binding, location);
+        R_Binding* binding = ARENA_GET_TYPE(&mat->bindings, R_Binding, location);
         ASSERT(binding->type == R_BIND_EMPTY || binding->type == type);
         R_BindType prevType = binding->type;
         size_t prevSize     = binding->size;
@@ -891,15 +877,14 @@ void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type,
                 // first time setting this bindgroup, allocate memory for
                 // uniform
                 if (prevType == R_BIND_EMPTY) {
-                    u8* uniformPtr
-                      = ARENA_PUSH_COUNT(&mat->uniformData, u8, bytes);
+                    u8* uniformPtr = ARENA_PUSH_COUNT(&mat->uniformData, u8, bytes);
                     // set offset pointer
                     binding->as.uniformOffset
                       = Arena::offsetOf(&mat->uniformData, uniformPtr);
                 }
 
-                u8* uniformPtr = ARENA_GET_TYPE(&mat->uniformData, u8,
-                                                binding->as.uniformOffset);
+                u8* uniformPtr
+                  = ARENA_GET_TYPE(&mat->uniformData, u8, binding->as.uniformOffset);
 
                 // write new data
                 memcpy(uniformPtr, data, bytes);
@@ -955,8 +940,8 @@ void R_Material::setTextureAndSamplerBinding(R_Material* mat, u32 location,
         R_Material::setBinding(mat, location, R_BIND_TEXTURE_VIEW, &defaultView,
                                sizeof(WGPUTextureView));
         // set default sampler
-        R_Material::setBinding(mat, location + 1, R_BIND_SAMPLER,
-                               &defaultSampler, sizeof(SamplerConfig));
+        R_Material::setBinding(mat, location + 1, R_BIND_SAMPLER, &defaultSampler,
+                               sizeof(SamplerConfig));
     }
 }
 
@@ -970,8 +955,7 @@ u32 R_Material::numPrimitives(R_Material* mat)
 // TODO: using array linear search for now
 // to improve: use array + hashmap combo for fast lookup
 // and linear iteration
-void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
-                              R_Transform* xform)
+void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform)
 {
     if (mat == NULL || geo == NULL || xform == NULL) return;
 
@@ -1002,8 +986,7 @@ void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo,
 
 /// @brief remove instance of xform from the geo primitive on mat
 // TODO: accelerate with hashmap
-void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo,
-                                 R_Transform* xform)
+void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform)
 {
     if (mat == NULL || geo == NULL || xform == NULL) return;
 
@@ -1030,8 +1013,7 @@ void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo,
 
 // Linear search
 // TODO use hashmap later
-static Material_Primitive* _R_Material_GetPrimitive(R_Material* mat,
-                                                    SG_ID geoID)
+static Material_Primitive* _R_Material_GetPrimitive(R_Material* mat, SG_ID geoID)
 {
     u32 numPrims = R_Material::numPrimitives(mat);
     for (u32 i = 0; i < numPrims; ++i) {
@@ -1066,8 +1048,7 @@ bool R_Material::primitiveIter(R_Material* mat, size_t* indexPtr,
     // lazily delete / swap empty primitives in this iter loop.
     // for now just doing a linear walk
 
-    *primitive
-      = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, *indexPtr);
+    *primitive = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, *indexPtr);
 
     ASSERT(*primitive != NULL);
     ASSERT((*primitive)->matID == mat->id);
@@ -1129,8 +1110,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
         default: ASSERT(false && "unsupported shader type");
     }
 
-    RenderPipeline::init(gctx, &pipeline->pipeline, vertShaderCode,
-                         fragShaderCode);
+    RenderPipeline::init(gctx, &pipeline->pipeline, vertShaderCode, fragShaderCode);
 
     Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
 }
@@ -1159,8 +1139,7 @@ Going with option 2 for now
 
 */
 
-void R_RenderPipeline::addMaterial(R_RenderPipeline* pipeline,
-                                   R_Material* material)
+void R_RenderPipeline::addMaterial(R_RenderPipeline* pipeline, R_Material* material)
 {
     ASSERT(material);
     // disallow duplicates
@@ -1194,8 +1173,8 @@ size_t R_RenderPipeline::numMaterials(R_RenderPipeline* pipeline)
 // elsewhere) swap NULL with last element and pop
 // Can do away with this lazy deletion if we augment the SG_ID arena with a
 // hashmap for O(1) material ID lookup and deletion
-bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline,
-                                    size_t* indexPtr, R_Material** material)
+bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline, size_t* indexPtr,
+                                    R_Material** material)
 {
     size_t numMaterials = R_RenderPipeline::numMaterials(pipeline);
 
@@ -1204,9 +1183,8 @@ bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline,
         return false;
     }
 
-    SG_ID* materialID
-      = ARENA_GET_TYPE(&pipeline->materialIDs, SG_ID, *indexPtr);
-    *material = Component_GetMaterial(*materialID);
+    SG_ID* materialID = ARENA_GET_TYPE(&pipeline->materialIDs, SG_ID, *indexPtr);
+    *material         = Component_GetMaterial(*materialID);
 
     // if null or reassigned to different pipeline, swap with last element and
     // try again
@@ -1326,8 +1304,7 @@ R_Transform* Component_CreateTransform()
     ASSERT(xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
 
     // store offset
-    R_Location loc
-      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1343,8 +1320,7 @@ R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
     ASSERT(xform->type == SG_COMPONENT_TRANSFORM); // ensure type is set
 
     // store offset
-    R_Location loc
-      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1375,8 +1351,7 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
     }
 
     // store offset
-    R_Location loc
-      = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
+    R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1398,7 +1373,7 @@ R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
     ASSERT(r_scene->type == SG_COMPONENT_SCENE); // ensure type is set
 
     // store offset
-    R_Location loc = { r_scene->id, Arena::offsetOf(arena, r_scene), arena };
+    R_Location loc     = { r_scene->id, Arena::offsetOf(arena, r_scene), arena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1414,48 +1389,33 @@ R_Geometry* Component_CreateGeometry()
     ASSERT(geo->type == SG_COMPONENT_GEOMETRY); // ensure type is set
 
     // store offset
-    R_Location loc = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+    R_Location loc     = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
     return geo;
 }
 
-R_Geometry* Component_CreateGeometry(GraphicsContext* gctx,
-                                     SG_Command_GeoCreate* cmd)
+// TODO delete vertices
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd)
 {
-    // first build vertices
-    Vertices vertices = {};
-    switch (cmd->geo_type) {
-        case SG_GEOMETRY_PLANE: {
-            Vertices::createPlane(&vertices, &cmd->params.plane);
-            break;
-        }
-        case SG_GEOMETRY_SPHERE: {
-            Vertices::createSphere(&vertices, &cmd->params.sphere);
-            break;
-        }
-        default: ASSERT(false)
-    }
-
     R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
-    R_Geometry::buildFromVertices(gctx, geo, &vertices);
 
     geo->id   = cmd->sg_id;
     geo->type = SG_COMPONENT_GEOMETRY;
+
     // for now not storing geo_type (cube, sphere, custom etc.)
     // we only store the GPU vertex data, and don't care about semantics
 
     // store offset
-    R_Location loc = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+    R_Location loc     = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
     return geo;
 }
 
-R_Material* Component_CreateMaterial(GraphicsContext* gctx,
-                                     R_MaterialConfig* config)
+R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig* config)
 {
     R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
     R_Material::init(gctx, mat, config);
@@ -1464,8 +1424,7 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
     ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
 
     // store offset
-    R_Location loc
-      = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1524,25 +1483,19 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
         R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
                                sizeof(pbr_uniforms));
 
-        R_Material::setTextureAndSamplerBinding(mat, 1, 0,
-                                                opaqueWhitePixel.view);
+        R_Material::setTextureAndSamplerBinding(mat, 1, 0, opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 3, 0,
-                                                defaultNormalPixel.view);
+        R_Material::setTextureAndSamplerBinding(mat, 3, 0, defaultNormalPixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 5, 0,
-                                                opaqueWhitePixel.view);
+        R_Material::setTextureAndSamplerBinding(mat, 5, 0, opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 7, 0,
-                                                opaqueWhitePixel.view);
+        R_Material::setTextureAndSamplerBinding(mat, 7, 0, opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 9, 0,
-                                                transparentBlackPixel.view);
+        R_Material::setTextureAndSamplerBinding(mat, 9, 0, transparentBlackPixel.view);
     }
 
     // store offset
-    R_Location loc
-      = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
@@ -1570,16 +1523,14 @@ R_Component* Component_GetComponent(SG_ID id)
 {
     R_Location loc     = { id, 0, NULL };
     R_Location* result = (R_Location*)hashmap_get(r_locator, &loc);
-    return result ? (R_Component*)Arena::get(result->arena, result->offset) :
-                    NULL;
+    return result ? (R_Component*)Arena::get(result->arena, result->offset) : NULL;
 }
 
 R_Transform* Component_GetXform(SG_ID id)
 {
     R_Component* comp = Component_GetComponent(id);
     if (comp) {
-        ASSERT(comp->type == SG_COMPONENT_TRANSFORM
-               || comp->type == SG_COMPONENT_SCENE
+        ASSERT(comp->type == SG_COMPONENT_TRANSFORM || comp->type == SG_COMPONENT_SCENE
                || comp->type == SG_COMPONENT_MESH);
     }
     return (R_Transform*)comp;
@@ -1634,14 +1585,12 @@ bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline)
 
     // Possible optimization: pack nonempty pipelines at start, swap empty
     // pipelines to end
-    *renderPipeline
-      = ARENA_GET_TYPE(&_RenderPipelineArena, R_RenderPipeline, *i);
+    *renderPipeline = ARENA_GET_TYPE(&_RenderPipelineArena, R_RenderPipeline, *i);
     ++(*i);
     return true;
 }
 
-R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
-                                        R_MaterialConfig* config)
+R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx, R_MaterialConfig* config)
 {
     // TODO figure out a better way to search (augment with a hashmap?)
     // for now just doing linear search

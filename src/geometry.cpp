@@ -406,6 +406,202 @@ void Vertices::createSphere(Vertices* vertices, SphereParams* params)
         }
     }
 
-    Vertices::copy(vertices, verts.data(), (u32) verts.size(), indices.data(),
-                   (u32) indices.size());
+    Vertices::copy(vertices, verts.data(), (u32)verts.size(), indices.data(),
+                   (u32)indices.size());
+}
+
+// ============================================================================
+// Arena builders
+// ============================================================================
+
+struct gvec3i {
+    u32 x, y, z;
+};
+
+struct gvec2f {
+    f32 x, y;
+};
+
+struct gvec3f {
+    f32 x, y, z;
+};
+
+struct gvec4f {
+    f32 x, y, z, w;
+};
+
+static int GAB_indicesCount(GeometryArenaBuilder* builder)
+{
+    return ARENA_LENGTH(builder->indices_arena, u32);
+}
+
+static int GAB_vertexCount(GeometryArenaBuilder* builder)
+{
+    return ARENA_LENGTH(builder->pos_arena, gvec3f);
+}
+
+static int GAB_faceCount(GeometryArenaBuilder* builder)
+{
+    int indices_count = GAB_indicesCount(builder);
+    int ret = (indices_count > 0) ? indices_count / 3 :
+                                 GAB_vertexCount(builder) / 3;
+    return ret;
+}
+
+static int GAB_indexFromFace(GeometryArenaBuilder* builder, int iFace,
+                               int iVert)
+{
+    int indices_count  = GAB_indicesCount(builder);
+    u32* indices_array = (u32*)(builder->indices_arena->base);
+    return (indices_count > 0) ? indices_array[iFace * 3 + iVert] :
+                                 (iFace * 3 + iVert);
+}
+
+static void Geometry_computeTangents(GeometryArenaBuilder* builder)
+{
+    SMikkTSpaceInterface mikktspaceIface = {};
+    SMikkTSpaceContext mikktspaceContext = {};
+    mikktspaceContext.m_pInterface       = &mikktspaceIface;
+    mikktspaceContext.m_pUserData        = builder;
+
+    mikktspaceIface.m_getNumFaces = [](const SMikkTSpaceContext* pContext) {
+        return GAB_faceCount((GeometryArenaBuilder*)pContext->m_pUserData);
+    };
+
+    mikktspaceIface.m_getNumVerticesOfFace
+      = [](const SMikkTSpaceContext* pContext, const int iFace) {
+            return 3; // triangles only
+        };
+
+    mikktspaceIface.m_getPosition
+      = [](const SMikkTSpaceContext* pContext, f32 fvPosOut[], const int iFace,
+           const int iVert) {
+            GeometryArenaBuilder* builder
+              = (GeometryArenaBuilder*)pContext->m_pUserData;
+
+            int index = GAB_indexFromFace(builder, iFace, iVert);
+
+            f32* positions = (f32*)(builder->pos_arena->base);
+            fvPosOut[0]    = positions[index * 3 + 0];
+            fvPosOut[1]    = positions[index * 3 + 1];
+            fvPosOut[2]    = positions[index * 3 + 2];
+        };
+
+    mikktspaceIface.m_getNormal
+      = [](const SMikkTSpaceContext* pContext, f32 fvNormOut[], const int iFace,
+           const int iVert) {
+            GeometryArenaBuilder* builder
+              = (GeometryArenaBuilder*)pContext->m_pUserData;
+
+            int index = GAB_indexFromFace(builder, iFace, iVert);
+
+            f32* normals = (f32*)(builder->norm_arena->base);
+            fvNormOut[0] = normals[index * 3 + 0];
+            fvNormOut[1] = normals[index * 3 + 1];
+            fvNormOut[2] = normals[index * 3 + 2];
+        };
+
+    mikktspaceIface.m_getTexCoord
+      = [](const SMikkTSpaceContext* pContext, f32 fvTexcOut[], const int iFace,
+           const int iVert) {
+            GeometryArenaBuilder* builder
+              = (GeometryArenaBuilder*)pContext->m_pUserData;
+
+            int index = GAB_indexFromFace(builder, iFace, iVert);
+
+            f32* texcoords = (f32*)(builder->uv_arena->base);
+            fvTexcOut[0]   = texcoords[index * 2 + 0];
+            fvTexcOut[1]   = texcoords[index * 2 + 1];
+        };
+
+    mikktspaceIface.m_setTSpaceBasic =
+      [](const SMikkTSpaceContext* pContext, const f32 fvTangent[],
+         const f32 fSign, const int iFace, const int iVert) {
+          GeometryArenaBuilder* builder
+            = (GeometryArenaBuilder*)pContext->m_pUserData;
+
+          int index = GAB_indexFromFace(builder, iFace, iVert);
+
+          gvec4f* tangents = (gvec4f*)(builder->tangent_arena->base);
+          tangents[index] = { fvTangent[0], fvTangent[1], fvTangent[2], fSign };
+      };
+
+    genTangSpaceDefault(&mikktspaceContext);
+}
+
+void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params)
+{
+    const f32 width_half  = params->width * 0.5f;
+    const f32 height_half = params->height * 0.5f;
+
+    const u32 gridX = params->widthSegments;
+    const u32 gridY = params->heightSegments;
+
+    const u32 gridX1 = gridX + 1;
+    const u32 gridY1 = gridY + 1;
+
+    const f32 segment_width  = params->width / gridX;
+    const f32 segment_height = params->height / gridY;
+
+    const u32 vertex_count    = gridX1 * gridY1;
+    const u32 index_tri_count = gridX * gridY * 2;
+
+    // initialize arena memory
+    gvec3f* pos_array
+      = ARENA_PUSH_COUNT(builder->pos_arena, gvec3f, vertex_count);
+    gvec3f* norm_array
+      = ARENA_PUSH_COUNT(builder->norm_arena, gvec3f, vertex_count);
+    gvec2f* uv_array
+      = ARENA_PUSH_COUNT(builder->uv_arena, gvec2f, vertex_count);
+    gvec4f* tangent_array
+      = ARENA_PUSH_COUNT(builder->tangent_arena, gvec4f, vertex_count);
+    gvec3i* indices_array
+      = ARENA_PUSH_COUNT(builder->indices_arena, gvec3i, index_tri_count);
+
+    u32 index   = 0;
+    Vertex vert = {};
+    for (u32 iy = 0; iy < gridY1; iy++) {
+        const f32 y = iy * segment_height - height_half;
+        for (u32 ix = 0; ix < gridX1; ix++) {
+            const f32 x = ix * segment_width - width_half;
+
+            // vert = {
+            //     x,  // x
+            //     -y, // y
+            //     0,  // z
+
+            //     0, // nx
+            //     0, // ny
+            //     1, // nz
+
+            //     (f32)ix / gridX,          // u
+            //     1.0f - ((f32)iy / gridY), // v
+            // };
+
+            pos_array[index]  = { x, -y, 0 };
+            norm_array[index] = { 0, 0, 1 };
+            uv_array[index]   = { (f32)ix / gridX, 1.0f - ((f32)iy / gridY) };
+
+            ++index;
+        }
+    }
+    ASSERT(index == vertex_count);
+
+    index = 0;
+    for (u32 iy = 0; iy < gridY; iy++) {
+        for (u32 ix = 0; ix < gridX; ix++) {
+            const u32 a = ix + gridX1 * iy;
+            const u32 b = ix + gridX1 * (iy + 1);
+            const u32 c = (ix + 1) + gridX1 * (iy + 1);
+            const u32 d = (ix + 1) + gridX1 * iy;
+
+            indices_array[index++] = { a, b, d };
+            indices_array[index++] = { b, c, d };
+        }
+    }
+    ASSERT(index == index_tri_count);
+
+    // build tangents
+    Geometry_computeTangents(builder);
+    ASSERT(ARENA_LENGTH(builder->tangent_arena, gvec4f) == vertex_count);
 }

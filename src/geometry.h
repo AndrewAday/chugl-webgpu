@@ -35,12 +35,25 @@ struct SphereParams {
     f32 thetaStart = 0.0, thetaLength = PI; // how much along central diameter
 };
 
+// Arena builders
+struct Arena;
+
+struct GeometryArenaBuilder {
+    Arena* pos_arena;
+    Arena* norm_arena;
+    Arena* uv_arena;
+    Arena* tangent_arena;
+    Arena* indices_arena;
+};
+
+void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params);
+
 // TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags
 // probably requires splitting vertex data into separate arrays
 // per attribute type
 #define CHUGL_FLOATS_PER_VERTEX (3 + 3 + 2 + 4)
-struct Vertices {
+  struct Vertices {
     u32 vertexCount;
     u32 indicesCount;
     f32* vertexData; // alloc. owned

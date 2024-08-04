@@ -26,7 +26,31 @@ public class T {
     fun void assert(string code) {
         Machine.eval(
             this.context + 
-            " T.assert(" + code + ", \"" + code + "\");
-        ");
+            " T.assert(" + code + ", \"" + code + "\"); "
+        );
+    }
+
+    fun static void printArray(float arr[], int num_components) {
+        chout <= "[ ";
+        for (0 => int i; i < arr.size(); num_components +=> i) {
+            chout <= "( ";
+            for (i => int j; j < i + num_components; ++j) {
+                chout <= arr[j] <= ", ";
+            }
+            chout <= ") ";
+        }
+        chout <= " ]" <= IO.nl();
+    }
+
+    fun static void printArray(int arr[], int num_components) {
+        chout <= "[ ";
+        for (0 => int i; i < arr.size(); num_components +=> i) {
+            chout <= "( ";
+            for (i => int j; j < i + num_components; ++j) {
+                chout <= arr[j] <= ", ";
+            }
+            chout <= ") ";
+        }
+        chout <= " ]" <= IO.nl();
     }
 }
