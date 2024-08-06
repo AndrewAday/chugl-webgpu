@@ -267,7 +267,7 @@ struct App {
 
         // frame metrics ----------------------------
         {
-            if (app->show_fps_title) _showFPS(app->window);
+            _calculateFPS(app->window, app->show_fps_title);
 
             ++app->fc;
             f64 currentTime = glfwGetTime();
@@ -316,9 +316,6 @@ struct App {
 
         // seed random number generator ===========================
         srand((unsigned int)time(0));
-
-        // initialize performance counters
-        stm_setup();
 
         { // Initialize window
             if (!glfwInit()) {
@@ -526,7 +523,7 @@ struct App {
         // must happen after window resize
 
         // Render Loop ===========================================
-        double prevTickTime = glfwGetTime();
+        static u64 prev_lap_time{ stm_now() };
 
         // ======================
         // enter critical section
@@ -543,15 +540,10 @@ struct App {
         // chuck shreds are on wait queue guaranteeing that when they awake,
         // they'll be using fresh dt data
 
-        // get current window uptime
-        {
-            double currentTime = glfwGetTime();
-            // time since last frame
-            // m_DeltaTime = currentTime - prevTickTime;
-            // update for next frame
-            // prevTickTime = currentTime;
-            UNUSED_VAR(prevTickTime);
-            UNUSED_VAR(currentTime);
+        { // calculate dt
+            u64 dt_ticks = stm_laptime(&prev_lap_time);
+            f64 dt_sec   = stm_sec(dt_ticks);
+            CHUGL_Window_dt(dt_sec);
         }
 
         /* two locks here:
@@ -663,7 +655,7 @@ struct App {
         wgpuRenderPassEncoderRelease(render_pass);
     }
 
-    static void _showFPS(GLFWwindow* window)
+    static void _calculateFPS(GLFWwindow* window, bool print_to_title)
     {
 #define WINDOW_TITLE_MAX_LENGTH 256
 
@@ -676,12 +668,13 @@ struct App {
         f64 delta       = currentTime - lastTime;
         frameCount++;
         if (delta >= 1.0) { // If last cout was more than 1 sec ago
-
-            snprintf(title, WINDOW_TITLE_MAX_LENGTH, "ChuGL-WebGPU [FPS: %.2f]",
-                     frameCount / delta);
-            // log_trace(title);
-
-            glfwSetWindowTitle(window, title);
+            f64 fps = frameCount / delta;
+            CHUGL_Window_fps(fps);
+            if (print_to_title) {
+                snprintf(title, WINDOW_TITLE_MAX_LENGTH, "ChuGL-WebGPU [FPS: %.2f]",
+                         fps);
+                glfwSetWindowTitle(window, title);
+            }
 
             frameCount = 0;
             lastTime   = currentTime;

@@ -510,7 +510,9 @@ static void Geometry_computeTangents(GeometryArenaBuilder* builder)
         int index = GAB_indexFromFace(builder, iFace, iVert);
 
         gvec4f* tangents = (gvec4f*)(builder->tangent_arena->base);
-        tangents[index]  = { fvTangent[0], fvTangent[1], fvTangent[2], fSign };
+        // make sure index within arena bounds
+        ASSERT(index < ARENA_LENGTH(builder->tangent_arena, gvec4f));
+        tangents[index] = { fvTangent[0], fvTangent[1], fvTangent[2], fSign };
     };
 
     genTangSpaceDefault(&mikktspaceContext);

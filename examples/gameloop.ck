@@ -37,18 +37,13 @@ fun void gameloop()
 // infinite time loop
 while( true )
 {
-    // compute our own delta time for printing
-    now - lastTime => dur dt;
-    // remember now as last time
-    now => lastTime;
-    dt / second => float dt_f;
+    // IMPORTANT: synchronization point with next frame to render
+    // must be called at the beginning of every frame,
+    // so the chuck VM can properly mark this shred as a graphics shred
+    GG.nextFrame() => now;
     
     // print
     // <<< "fc:", fc++ , "now:", now, "dt:", dt, "fps:", GG.fps() >>>;
-    // <<< "fc:", fc++ , "now:", now, "dt:", dt >>>;
 
-    plane.rotateY(0.5*dt_f);
-
-    // IMPORTANT: synchronization point with next frame to render
-    GG.nextFrame() => now;
+    plane.rotateY(0.5*GG.dt());
 }

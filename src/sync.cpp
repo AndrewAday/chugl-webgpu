@@ -39,15 +39,49 @@ struct CHUGL_Window {
     float content_scale_x, content_scale_y;
 
     // window frame size
-    int window_frame_left, window_frame_top, window_frame_right,
-      window_frame_bottom;
+    int window_frame_left, window_frame_top, window_frame_right, window_frame_bottom;
 
     float window_opacity;
+
+    f64 fps; // updated every second by the graphics thread
 
     // locks
     spinlock window_lock;
 };
 CHUGL_Window chugl_window;
+
+static f64 window_dt_sec = 0;
+static spinlock window_dt_lock;
+
+void CHUGL_Window_dt(f64 dt)
+{
+    spinlock::lock(&window_dt_lock);
+    window_dt_sec = dt;
+    spinlock::unlock(&window_dt_lock);
+}
+
+f64 CHUGL_Window_dt()
+{
+    spinlock::lock(&window_dt_lock);
+    f64 dt = window_dt_sec;
+    spinlock::unlock(&window_dt_lock);
+    return dt;
+}
+
+void CHUGL_Window_fps(f64 fps)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.fps = fps;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+f64 CHUGL_Window_fps()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    f64 fps = chugl_window.fps;
+    spinlock::unlock(&chugl_window.window_lock);
+    return fps;
+}
 
 void CHUGL_Window_Closeable(bool closeable)
 {
@@ -124,8 +158,8 @@ bool CHUGL_Window_Decorated()
     return decorated;
 }
 
-void CHUGL_Window_Size(int window_width, int window_height,
-                       int framebuffer_width, int framebuffer_height)
+void CHUGL_Window_Size(int window_width, int window_height, int framebuffer_width,
+                       int framebuffer_height)
 {
     spinlock::lock(&chugl_window.window_lock);
     chugl_window.window_width       = window_width;
@@ -225,10 +259,10 @@ void CHUGL_Zero_Mouse_Deltas()
 // ChuGL Event API
 // ============================================================================
 
-#define CHUGL_EventTable                                                       \
-    X(NEXT_FRAME = 0, "NextFrameEvent")                                        \
-    X(WINDOW_RESIZE, "WindowResizeEvent")                                      \
-    X(WINDOW_CLOSE, "WindowCloseEvent")                                        \
+#define CHUGL_EventTable                                                               \
+    X(NEXT_FRAME = 0, "NextFrameEvent")                                                \
+    X(WINDOW_RESIZE, "WindowResizeEvent")                                              \
+    X(WINDOW_CLOSE, "WindowCloseEvent")                                                \
     X(CONTENT_SCALE, "ContentScaleChangedEvent")
 
 enum CHUGL_EventType {
@@ -266,15 +300,12 @@ static Chuck_Event* events[CHUGL_EVENT_TYPE_COUNT] = {};
 
 static void Event_Init(CK_DL_API api, Chuck_VM* vm)
 {
-    if (chuckEventQueue == NULL)
-        chuckEventQueue = api->vm->create_event_buffer(vm);
+    if (chuckEventQueue == NULL) chuckEventQueue = api->vm->create_event_buffer(vm);
 
     for (u32 i = 0; i < CHUGL_EVENT_TYPE_COUNT; i++) {
         if (events[i] != NULL) continue;
-        Chuck_DL_Api::Type type
-          = api->type->lookup(vm, CHUGL_EventTypeNames[i]);
-        events[i]
-          = (Chuck_Event*)api->object->create_without_shred(vm, type, true);
+        Chuck_DL_Api::Type type = api->type->lookup(vm, CHUGL_EventTypeNames[i]);
+        events[i] = (Chuck_Event*)api->object->create_without_shred(vm, type, true);
     }
 }
 

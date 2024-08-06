@@ -9,7 +9,8 @@
 #include "ulib_texture.cpp"
 #include "ulib_window.cpp"
 
-// void ulib_imgui_query(Chuck_DL_Query* QUERY);
+// vendor
+#include <sokol/sokol_time.h>
 
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
@@ -24,6 +25,9 @@ struct GG_Config {
 };
 
 GG_Config gg_config = {};
+
+static f64 ckdt_sec      = 0;
+static f64 system_dt_sec = 0;
 
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
@@ -40,8 +44,7 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
     { // cleanup (after exiting main loop)
         // remove all shreds (should trigger shutdown, unless running in --loop
         // mode)
-        if (g_chuglVM && g_chuglAPI)
-            g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
+        if (g_chuglVM && g_chuglAPI) g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
 
         App::end(&app);
     }
@@ -72,6 +75,11 @@ CK_DLL_INFO(ChuGL)
       "framework built into the ChucK programming language.");
     QUERY->setinfo(QUERY, CHUGIN_INFO_URL, "https://chuck.stanford.edu/chugl/");
     QUERY->setinfo(QUERY, CHUGIN_INFO_EMAIL, "azaday@ccrma.stanford.edu");
+
+    { // setup
+        // initialize performance counters
+        stm_setup();
+    }
 }
 
 // ============================================================================
@@ -80,9 +88,8 @@ CK_DLL_INFO(ChuGL)
 
 static t_CKUINT chugl_next_frame_event_data_offset = 0;
 
-static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
-                                 Chuck_VM* VM, CK_DL_API API,
-                                 t_CKINT _ggen_update_vt_offset)
+static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id, Chuck_VM* VM,
+                                 CK_DL_API API, t_CKINT _ggen_update_vt_offset)
 {
     static t_CKTIME chuglLastUpdateTime{};
 
@@ -126,15 +133,14 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
         // because they are not user defined
         if (origin_shred != NULL) {
             // invoke the update function in immediate mode
-            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset,
-                                                VM, origin_shred, &theArg, 1);
+            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
+                                                origin_shred, &theArg, 1);
         }
 
         // add children to stack
         size_t numChildren  = SG_Transform::numChildren(xform);
         SG_ID* children_ptr = ARENA_PUSH_COUNT(arena, SG_ID, numChildren);
-        memcpy(children_ptr, xform->childrenIDs.base,
-               sizeof(SG_ID) * numChildren);
+        memcpy(children_ptr, xform->childrenIDs.base, sizeof(SG_ID) * numChildren);
     }
 }
 
@@ -154,8 +160,7 @@ CK_DLL_SFUN(chugl_next_frame)
 
     // RETURN->v_object = (Chuck_Object *)CGL::GetShredUpdateEvent(SHRED, API,
     // VM)->GetEvent();
-    RETURN->v_object
-      = (Chuck_Object*)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
+    RETURN->v_object = (Chuck_Object*)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
 
     // register shred and set has-waited flag to false
     Sync_RegisterShred(SHRED);
@@ -206,6 +211,21 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
         // and waitingShreds will never == registeredShreds.size() thus hanging
         // the renderer
 
+        { // process dt
+            // process dt in audio samples
+            static t_CKTIME chuglLastUpdateTime{ API->vm->now(VM) };
+
+            t_CKTIME chuckTimeNow  = API->vm->now(VM);
+            t_CKTIME chuckTimeDiff = chuckTimeNow - chuglLastUpdateTime;
+            ckdt_sec               = chuckTimeDiff / API->vm->srate(VM);
+            chuglLastUpdateTime    = chuckTimeNow;
+
+            // process dt with OS-provided timer
+            static u64 system_last_time{ stm_now() };
+            u64 system_dt_ticks = stm_laptime(&system_last_time);
+            system_dt_sec       = stm_sec(system_dt_ticks);
+        }
+
         // traverse scenegraph and call chuck-defined update() on all GGens
         autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
                              g_chuglAPI, ggen_update_vt_offset);
@@ -238,8 +258,7 @@ CK_DLL_SFUN(chugl_set_scene)
 
     // get new scene
     Chuck_Object* newScene = GET_NEXT_OBJECT(ARGS);
-    SG_Scene* sg_scene
-      = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
+    SG_Scene* sg_scene = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
 
     // bump refcount on new scene
     SG_AddRef(sg_scene);
@@ -250,6 +269,17 @@ CK_DLL_SFUN(chugl_set_scene)
 
     // decrement refcount on old scene
     SG_DecrementRef(prev_scene_id);
+}
+
+CK_DLL_SFUN(chugl_get_fps)
+{
+    RETURN->v_float = CHUGL_Window_fps();
+    return;
+}
+
+CK_DLL_SFUN(chugl_get_dt)
+{
+    RETURN->v_float = CHUGL_Window_dt();
 }
 
 // ============================================================================
@@ -289,8 +319,7 @@ CK_DLL_QUERY(ChuGL)
         chugl_next_frame_event_data_offset
           = QUERY->add_mvar(QUERY, "int", "@next_frame_event_data", false);
 
-        QUERY->add_mfun(QUERY, event_next_frame_waiting_on, "void",
-                        "waiting_on");
+        QUERY->add_mfun(QUERY, event_next_frame_waiting_on, "void", "waiting_on");
         QUERY->end_class(QUERY);
     }
 
@@ -333,12 +362,17 @@ CK_DLL_QUERY(ChuGL)
         // QUERY->add_sfun(QUERY, chugl_gc, "void", "gc");
         // QUERY->doc_func(QUERY, "Trigger garbage collection");
 
-        // fps()
-        // QUERY->add_sfun(QUERY, cgl_get_fps, "int", "fps");
-        // QUERY->doc_func(
-        //   QUERY,
-        //   "FPS of current window, averaged over sliding window of 30
-        //   frames");
+        SFUN(chugl_get_fps, "float", "fps");
+        DOC_FUNC("FPS of current window, updated every second");
+
+        // note: we use window time here instead of ckdt_sec or system_dt_sec
+        // (which are laptimes calculated on the audio thread every cycle of
+        // nextFrameWaitingOn ) because the latter values are highly unstable, and do
+        // not correspond to the actual average FPS of the graphics window. dt is most
+        // likely used for graphical animations, and so therefore should be set by the
+        // actual render thread, not the audio thread.
+        SFUN(chugl_get_dt, "float", "dt");
+        DOC_FUNC("return the laptime of the graphics thread's last frame in seconds");
 
         QUERY->end_class(QUERY); // GG
     }
@@ -348,10 +382,9 @@ CK_DLL_QUERY(ChuGL)
         Chuck_DL_Api::Type sceneCKType
           = g_chuglAPI->type->lookup(g_chuglVM, SG_CKNames[SG_COMPONENT_SCENE]);
         Chuck_DL_Api::Object sceneObj
-          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType,
-                                                     true);
-        SG_Scene* scene = CQ_PushCommand_SceneCreate(
-          sceneObj, component_offset_id, g_chuglAPI);
+          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType, true);
+        SG_Scene* scene
+          = CQ_PushCommand_SceneCreate(sceneObj, component_offset_id, g_chuglAPI);
         gg_config.mainScene = scene->id;
         CQ_PushCommand_GG_Scene(scene);
     }

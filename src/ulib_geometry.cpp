@@ -19,6 +19,8 @@ CK_DLL_MFUN(geo_get_vertex_attribute_data);
 CK_DLL_MFUN(geo_set_indices);
 CK_DLL_MFUN(geo_get_indices);
 
+CK_DLL_MFUN(geo_generate_tangents);
+
 CK_DLL_CTOR(plane_geo_ctor);
 CK_DLL_CTOR(plane_geo_ctor_params);
 
@@ -79,6 +81,13 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
     MFUN(geo_get_indices, "int[]", "indices");
     DOC_FUNC("Get the indices for a geometry.");
+
+    MFUN(geo_generate_tangents, "void", "generateTangents");
+    DOC_FUNC(
+      "Generate tangents assuming default vertex attribute locations: "
+      "position=0, normal=1, uv=2, tangent=3. Tangents are written to location = 3."
+      "Indices are supported but optional."
+      " Call *after* all other attribute data and indices have been supplied.");
 
     END_CLASS();
 
@@ -201,6 +210,47 @@ CK_DLL_MFUN(geo_get_indices)
         API->object->array_int_push_back(ck_arr, indices[i]);
 
     RETURN->v_object = (Chuck_Object*)ck_arr;
+}
+
+CK_DLL_MFUN(geo_generate_tangents)
+{
+    SG_Geometry* g = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    // check num components to make sure they match expected values
+    if (g->vertex_attribute_num_components[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION] != 3
+        || g->vertex_attribute_num_components[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION]
+             != 3
+        || g->vertex_attribute_num_components[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION] != 2) {
+        CK_THROW("tangentGenerationException",
+                 "Tangent generation requires position, normal, and uv "
+                 "attributes to have 3, 3, and 2 components respectively, and be set "
+                 "at locations 0, 1, and 2 respectively.",
+                 SHRED);
+        return;
+    }
+
+    GeometryArenaBuilder b = {};
+    // set arena pointers
+    b.pos_arena  = &g->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
+    b.norm_arena = &g->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
+    b.uv_arena   = &g->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
+    b.tangent_arena = &g->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
+    b.indices_arena = &g->indices;
+
+    // clear arenas and resize
+    Arena::clear(b.tangent_arena);
+    ARENA_PUSH_COUNT(b.tangent_arena, f32, SG_Geometry::vertexCount(g) * 4);
+
+    // set num components
+    g->vertex_attribute_num_components[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION] = 4;
+
+    // generate tangents
+    Geometry_computeTangents(&b);
+
+    // push to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(g, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION,
+                                              4, (f32*)b.tangent_arena->base,
+                                              ARENA_LENGTH(b.tangent_arena, f32));
 }
 
 // Plane Geometry -----------------------------------------------------
