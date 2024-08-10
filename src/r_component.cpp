@@ -404,6 +404,8 @@ u32 R_Geometry::indexCount(R_Geometry* geo)
 
 u32 R_Geometry::vertexCount(R_Geometry* geo)
 {
+    if (geo->vertex_attribute_num_components[0] == 0) return 0;
+
     return geo->gpu_vertex_buffers[0].size
            / (sizeof(f32) * geo->vertex_attribute_num_components[0]);
 }
@@ -470,6 +472,60 @@ void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices
     GPU_Buffer::write(gctx, &geo->gpu_index_buffer,
                       (WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst), indices,
                       indices_count * sizeof(*indices));
+}
+
+bool R_Geometry::usesVertexPulling(R_Geometry* geo)
+{
+
+    for (int i = 0; i < ARRAY_LENGTH(geo->pull_buffers); ++i) {
+        if (geo->pull_buffers[i].buf) return true;
+    }
+    return false;
+}
+void R_Geometry::rebuildPullBindGroup(GraphicsContext* gctx, R_Geometry* geo,
+                                      WGPUBindGroupLayout layout)
+{
+    if (!geo->pull_bind_group_dirty) {
+        return;
+    }
+
+    geo->pull_bind_group_dirty = false;
+
+    WGPUBindGroupEntry entries[SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS];
+    int num_entries = 0;
+    for (u32 i = 0; i < SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS; i++) {
+        if (geo->pull_buffers[i].size == 0) {
+            continue;
+        }
+
+        WGPUBindGroupEntry* entry = &entries[num_entries++];
+        entry->binding            = i;
+        entry->buffer             = geo->pull_buffers[i].buf;
+        entry->offset             = 0;
+        entry->size               = geo->pull_buffers[i].size;
+    }
+
+    WGPUBindGroupDescriptor desc = {};
+    desc.layout                  = layout;
+    desc.entryCount              = num_entries;
+    desc.entries                 = entries;
+
+    WGPU_RELEASE_RESOURCE(BindGroup, geo->pull_bind_group);
+
+    geo->pull_bind_group = wgpuDeviceCreateBindGroup(gctx->device, &desc);
+    ASSERT(geo->pull_bind_group);
+}
+
+void R_Geometry::setPulledVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
+                                          u32 location, void* data, size_t size_bytes)
+{
+    int prev_size  = geo->pull_buffers[location].size;
+    bool recreated = GPU_Buffer::write(gctx, &geo->pull_buffers[location],
+                                       WGPUBufferUsage_Storage, data, size_bytes);
+    if (recreated || prev_size != size_bytes) {
+        // need to update bindgroup size
+        geo->pull_bind_group_dirty = true;
+    }
 }
 
 // ============================================================================
@@ -731,7 +787,7 @@ void MaterialTextureView::init(MaterialTextureView* view)
 //     // mat->baseColor = glm::vec4(1.0f);
 // }
 
-    #if 0
+#if 0
 static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
                                                   R_Material* mat, R_Binding* binding,
                                                   WGPUBindGroupEntry* entry,
@@ -774,14 +830,13 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
         }
     }
 }
-    #endif
+#endif
 
 void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
                            SG_MaterialPipelineState* pso)
 {
     mat->pso           = *pso;
     const void* result = hashmap_set(materials_with_new_pso, &mat->id);
-    ASSERT(result != NULL); // ensure material already created
 }
 
 void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
@@ -815,6 +870,11 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                 bind_group_entry->size   = sizeof(SG_MaterialUniformData);
                 bind_group_entry->buffer = mat->uniform_buffer.buf;
             } break;
+            case R_BIND_STORAGE: {
+                bind_group_entry->offset = 0;
+                bind_group_entry->size   = binding->size;
+                bind_group_entry->buffer = binding->as.storage_buffer.buf;
+            } break;
                 // case R_BIND_SAMPLER: {
                 //     bind_group_entry->sampler = Graphics_GetSampler(gctx,
                 //     binding->as.samplerConfig); break;
@@ -826,16 +886,16 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
         }
     }
 
-	// release previous bindgroup
-	WGPU_RELEASE_RESOURCE(BindGroup, mat->bind_group);
+    // release previous bindgroup
+    WGPU_RELEASE_RESOURCE(BindGroup, mat->bind_group);
 
-	// create new bindgroup
-	WGPUBindGroupDescriptor bg_desc = {};
-	bg_desc.layout                  = layout;
-	bg_desc.entryCount              = bind_group_index;
-	bg_desc.entries                 = new_bind_group_entries;
-	mat->bind_group = wgpuDeviceCreateBindGroup(gctx->device, &bg_desc);
-	ASSERT(mat->bind_group);
+    // create new bindgroup
+    WGPUBindGroupDescriptor bg_desc = {};
+    bg_desc.layout                  = layout;
+    bg_desc.entryCount              = bind_group_index;
+    bg_desc.entries                 = new_bind_group_entries;
+    mat->bind_group                 = wgpuDeviceCreateBindGroup(gctx->device, &bg_desc);
+    ASSERT(mat->bind_group);
 }
 
 // TODO: this function can take an R_Binding directly, rather than
@@ -854,6 +914,12 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         mat->fresh_bind_group = false;
     }
 
+    if (binding->type == R_BIND_STORAGE && binding->size != bytes) {
+        // for wgsl builtin arrayLength() to work, need to update the
+        // corresponding BindGroupEntry size
+        mat->fresh_bind_group = false;
+    }
+
     binding->type = type;
     binding->size = bytes;
 
@@ -864,9 +930,8 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         case R_BIND_UNIFORM: {
             size_t offset = sizeof(SG_MaterialUniformData) * location;
             // write unfiform data to corresponding GPU location
-            bool recreated = GPU_Buffer::write(
-              gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform, offset, data, bytes);
-            ASSERT(!recreated);
+            GPU_Buffer::write(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
+                              offset, data, bytes);
         } break;
         // case R_BIND_TEXTURE_ID: {
         //     ASSERT(bytes == sizeof(SG_ID));
@@ -884,7 +949,10 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         //     binding->as.samplerConfig = *(SamplerConfig*)data;
         //     break;
         // }
-        // case R_BIND_STORAGE:
+        case R_BIND_STORAGE: {
+            GPU_Buffer::write(gctx, &binding->as.storage_buffer,
+                              WGPUBufferUsage_Storage, data, bytes);
+        } break;
         default:
             // if the new binding is also STORAGE reuse the memory, don't
             // free
@@ -1091,7 +1159,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     // }
 
     WGPUPrimitiveState primitiveState = {};
-    primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
+    primitiveState.topology           = config->primitive_topology;
     primitiveState.stripIndexFormat
       = (primitiveState.topology == WGPUPrimitiveTopology_TriangleStrip
          || primitiveState.topology == WGPUPrimitiveTopology_LineStrip) ?
@@ -1492,8 +1560,9 @@ R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate
 {
     R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
 
-    geo->id   = cmd->sg_id;
-    geo->type = SG_COMPONENT_GEOMETRY;
+    geo->id           = cmd->sg_id;
+    geo->type         = SG_COMPONENT_GEOMETRY;
+    geo->vertex_count = -1; // means draw all vertices
 
     // for now not storing geo_type (cube, sphere, custom etc.)
     // we only store the GPU vertex data, and don't care about semantics

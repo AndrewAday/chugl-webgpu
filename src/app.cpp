@@ -845,6 +845,8 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
           = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_MATERIAL_GROUP);
         WGPUBindGroupLayout perDrawLayout
           = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_DRAW_GROUP);
+        // WGPUBindGroupLayout vertex_pulling_layout
+        //   = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, VERTEX_PULL_GROUP);
 
         // set shader
         // TODO only set shader if we actually have anything to render
@@ -898,6 +900,18 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                       renderPass, location, gpu_buffer->buf, 0, gpu_buffer->size);
                 }
 
+                // set pulled vertex buffers (programmable vertex pulling)
+                // TODO cache layout in outer loop
+                if (R_Geometry::usesVertexPulling(geo)) {
+                    WGPUBindGroupLayout vertex_pulling_layout
+                      = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline,
+                                                             VERTEX_PULL_GROUP);
+                    R_Geometry::rebuildPullBindGroup(&app->gctx, geo,
+                                                     vertex_pulling_layout);
+                    wgpuRenderPassEncoderSetBindGroup(renderPass, VERTEX_PULL_GROUP,
+                                                      geo->pull_bind_group, 0, NULL);
+                }
+
                 // populate index buffer
                 u32 num_indices = R_Geometry::indexCount(geo);
                 if (num_indices > 0) {
@@ -910,7 +924,10 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                                                      numInstances, 0, 0, 0);
                 } else {
                     // non-index draw
-                    wgpuRenderPassEncoderDraw(renderPass, R_Geometry::vertexCount(geo),
+                    int num_vertices = (int)R_Geometry::vertexCount(geo);
+                    int vertex_draw_count
+                      = geo->vertex_count >= 0 ? geo->vertex_count : num_vertices;
+                    wgpuRenderPassEncoderDraw(renderPass, vertex_draw_count,
                                               numInstances, 0, 0);
                 }
             }
@@ -1176,6 +1193,22 @@ static void _R_HandleCommand(App* app, SG_Command* command)
 
             R_Geometry::setIndices(&app->gctx, geo, indices, cmd->index_count);
         } break;
+        case SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE: {
+            SG_Command_GeometrySetPulledVertexAttribute* cmd
+              = (SG_Command_GeometrySetPulledVertexAttribute*)command;
+            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
+
+            void* data = CQ_ReadCommandGetOffset(cmd->data_offset);
+
+            R_Geometry::setPulledVertexAttribute(&app->gctx, geo, cmd->location, data,
+                                                 cmd->data_bytes);
+        } break;
+        case SG_COMMAND_GEO_SET_VERTEX_COUNT: {
+            SG_Command_GeometrySetVertexCount* cmd
+              = (SG_Command_GeometrySetVertexCount*)command;
+            R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
+            geo->vertex_count = cmd->count;
+        } break;
         // shaders
         case SG_COMMAND_SHADER_CREATE: {
             SG_Command_ShaderCreate* cmd = (SG_Command_ShaderCreate*)command;
@@ -1198,6 +1231,15 @@ static void _R_HandleCommand(App* app, SG_Command* command)
               = SG_MaterialUniform::data(&cmd->uniform);
             R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_UNIFORM,
                                    u_ptr_size.ptr, u_ptr_size.size);
+        } break;
+        case SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER: {
+            SG_Command_MaterialSetStorageBuffer* cmd
+              = (SG_Command_MaterialSetStorageBuffer*)command;
+            R_Material* material = Component_GetMaterial(cmd->sg_id);
+            void* data           = CQ_ReadCommandGetOffset(cmd->data_offset);
+            // TODO: only supports f32 storage buffers currently
+            R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_STORAGE,
+                                   data, cmd->data_count * sizeof(f32));
         } break;
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;

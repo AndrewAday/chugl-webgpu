@@ -36,9 +36,19 @@ T.assert(material.CULL_NONE == 0, "material CULL_NONE");
 T.assert(material.CULL_FRONT == 1, "material CULL_FRONT");
 T.assert(material.CULL_BACK == 2, "material CULL_BACK");
 
+T.assert(material.TOPOLOGY_POINTLIST == 0, "material TOPOLOGY_POINTLIST");
+T.assert(material.TOPOLOGY_LINELIST == 1, "material TOPOLOGY_LINELIST");
+T.assert(material.TOPOLOGY_LINESTRIP == 2, "material TOPOLOGY_LINESTRIP");
+T.assert(material.TOPOLOGY_TRIANGLELIST == 3, "material TOPOLOGY_TRIANGLELIST");
+T.assert(material.TOPOLOGY_TRIANGLESTRIP == 4, "material TOPOLOGY_TRIANGLESTRIP");
+
 T.assert(material.cullMode() == material.CULL_NONE, "material cullMode default"); 
 material.cullMode(material.CULL_BACK);
 T.assert(material.cullMode() == material.CULL_BACK, "material cullMode");
+
+T.assert(material.topology() == material.TOPOLOGY_TRIANGLELIST, "material topology default");
+material.topology(material.TOPOLOGY_POINTLIST);
+T.assert(material.topology() == material.TOPOLOGY_POINTLIST, "material topology");
 
 T.assert(material.shader() == null, "material shader default");
 shader => material.shader;
@@ -56,5 +66,18 @@ material.removeUniform(1);
 int empty_int_arr[0];
 T.assert(T.arrayEquals(material.activeUniformLocations(), empty_int_arr), "material activeUniformLocations");
 
+// TODO: janky to conflate uniforms and storage buffer
+material.storageBuffer(0, [1.0]);
+T.assert(T.arrayEquals(material.activeUniformLocations(), [0]), "material activeUniformLocations after storageBuffer");
+
+// Lines2D
+Lines2DMaterial lines2d_material;
+T.assert(T.feq(lines2d_material.uniformFloat(0), 0.1), "lines2d_material uniformFloat default");
+T.assert(T.feq(lines2d_material.thickness(), 0.1), "lines2d_material default thickness");
+lines2d_material.thickness(0.2);
+T.assert(T.feq(lines2d_material.thickness(), 0.2), "lines2d_material thickness");
+T.assert(lines2d_material.topology() == material.TOPOLOGY_TRIANGLESTRIP, "lines2d_material topology default");
+T.assert(lines2d_material.shader().vertexLayout()[0] == 0, "lines2d_material no vertex layout");
+lines2d_material.shader().fragmentString() @=> string lines2d_frag;
 
 

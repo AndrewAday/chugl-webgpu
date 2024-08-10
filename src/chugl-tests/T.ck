@@ -72,7 +72,11 @@ public class T {
             return 0;
         }
         for (0 => int i; i < a.size(); ++i) {
-            if (a[i] != b[i]) {
+            if (!T.feq(a[i], b[i])) {
+                <<< a[i], " != ", b[i], " at index ", i >>>;
+                T.println("Arrays not equal:");
+                T.printArray(a);
+                T.printArray(b);
                 return 0;
             }
         }
@@ -133,6 +137,10 @@ public class T {
     
 
     fun static void printArray(int arr[]) {
+        T.printArray(arr, 1);
+    }
+
+    fun static void printArray(float arr[]) {
         T.printArray(arr, 1);
     }
 }

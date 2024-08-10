@@ -630,6 +630,36 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
     return shader;
 }
 
+SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
+                           const char* fragment_string, const char* vertex_filepath,
+                           const char* fragment_filepath, int* vertex_layout,
+                           int vertex_layout_len)
+{
+    Arena* arena      = &SG_ShaderArena;
+    size_t offset     = arena->curr;
+    SG_Shader* shader = ARENA_PUSH_TYPE(arena, SG_Shader);
+    *shader           = {};
+
+    // set base component values
+    shader->id    = SG_GetNewComponentID();
+    shader->type  = SG_COMPONENT_SHADER;
+    shader->ckobj = ckobj;
+
+    // set shader values
+    shader->vertex_string_owned     = strdup(vertex_string);
+    shader->fragment_string_owned   = strdup(fragment_string);
+    shader->vertex_filepath_owned   = strdup(fragment_string);
+    shader->fragment_filepath_owned = strdup(fragment_string);
+    memcpy(shader->vertex_layout, vertex_layout,
+           sizeof(*vertex_layout) * vertex_layout_len);
+
+    // store in map
+    SG_Location loc = { shader->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return shader;
+}
+
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params)
 {
@@ -641,6 +671,7 @@ SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_typ
     mat->id            = SG_GetNewComponentID();
     mat->type          = SG_COMPONENT_MATERIAL;
     mat->material_type = material_type;
+    mat->pso           = {};
 
     // switch (material_type) {
     //     case SG_MATERIAL_PBR: {

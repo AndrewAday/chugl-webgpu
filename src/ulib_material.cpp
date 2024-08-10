@@ -3,8 +3,17 @@
 #include "sg_command.h"
 #include "sg_component.h"
 
+#include "shaders.h"
+
 #define GET_SHADER(ckobj) SG_GetShader(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 #define GET_MATERIAL(ckobj) SG_GetMaterial(OBJ_MEMBER_UINT(ckobj, component_offset_id))
+
+struct chugl_MaterialBuiltinShaders {
+    SG_ID lines2d_shader_id;
+};
+
+static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
+void chugl_initDefaultMaterials();
 
 CK_DLL_CTOR(shader_desc_ctor);
 static t_CKUINT shader_desc_vertex_string_offset     = 0;
@@ -28,12 +37,30 @@ CK_DLL_MFUN(material_get_shader);
 CK_DLL_MFUN(material_set_shader);
 CK_DLL_MFUN(material_get_cullmode);
 CK_DLL_MFUN(material_set_cullmode);
+CK_DLL_MFUN(material_set_topology);
+CK_DLL_MFUN(material_get_topology);
 
+// material uniforms
 CK_DLL_MFUN(material_uniform_remove);
 CK_DLL_MFUN(material_uniform_active_locations);
 
 CK_DLL_MFUN(material_set_uniform_float);
 CK_DLL_MFUN(material_get_uniform_float);
+
+// getting back storage buffers is tricky because it may have been modified by shader
+// so no getter for now (until we figure out compute shaders)
+/*
+possible impl for storage buffer getter:
+- StorageBufferEvent to handle async buffer map from gpu --> render thread --> audio
+thread
+- GPUBuffer component exposed through chugl API that can be queried for buffer data
+    - setStorageBuffer() instead of taking a ck_FloatArray, takes a GPUBuffer component
+*/
+CK_DLL_MFUN(material_set_storage_buffer);
+
+CK_DLL_CTOR(lines2d_material_ctor);
+CK_DLL_MFUN(lines2d_material_get_thickness);
+CK_DLL_MFUN(lines2d_material_set_thickness);
 
 CK_DLL_CTOR(pbr_material_ctor);
 
@@ -100,6 +127,26 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     SVAR("int", "CULL_BACK", &cullmode_back);
     DOC_VAR("Cull back faces.");
 
+    static t_CKINT topology_pointlist     = WGPUPrimitiveTopology_PointList;
+    static t_CKINT topology_linelist      = WGPUPrimitiveTopology_LineList;
+    static t_CKINT topology_linestrip     = WGPUPrimitiveTopology_LineStrip;
+    static t_CKINT topology_trianglelist  = WGPUPrimitiveTopology_TriangleList;
+    static t_CKINT topology_trianglestrip = WGPUPrimitiveTopology_TriangleStrip;
+    SVAR("int", "TOPOLOGY_POINTLIST", &topology_pointlist);
+    DOC_VAR("Interpret each vertex as a point.");
+    SVAR("int", "TOPOLOGY_LINELIST", &topology_linelist);
+    DOC_VAR("Interpret each pair of vertices as a line.");
+    SVAR("int", "TOPOLOGY_LINESTRIP", &topology_linestrip);
+    DOC_VAR(
+      "Each vertex after the first defines a line primitive between it and the "
+      "previous vertex.");
+    SVAR("int", "TOPOLOGY_TRIANGLELIST", &topology_trianglelist);
+    DOC_VAR("Interpret each triplet of vertices as a triangle.");
+    SVAR("int", "TOPOLOGY_TRIANGLESTRIP", &topology_trianglestrip);
+    DOC_VAR(
+      "Each vertex after the first two defines a triangle primitive between it and the "
+      "previous two vertices.");
+
     // pso modifiers (shouldn't be set often, so we lump all together in a single
     // command that copies the entire PSO struct)
     MFUN(material_get_shader, SG_CKNames[SG_COMPONENT_SHADER], "shader");
@@ -118,6 +165,20 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
       "Set the cull mode of the material. valid options: Material.CULL_NONE, "
       "Material.CULL_FRONT, or Material.CULL_BACK.");
 
+    MFUN(material_set_topology, "void", "topology");
+    ARG("int", "topology");
+    DOC_FUNC(
+      "Set the primitive topology of the material. valid options: "
+      "Material.TOPOLOGY_POINTLIST, Material.TOPOLOGY_LINELIST, "
+      "Material.TOPOLOGY_LINESTRIP, Material.TOPOLOGY_TRIANGLELIST, or "
+      "Material.TOPOLOGY_TRIANGLESTRIP.");
+
+    MFUN(material_get_topology, "int", "topology");
+    DOC_FUNC(
+      "Get the primitive topology of the material. Material.TOPOLOGY_POINTLIST, "
+      "Material.TOPOLOGY_LINELIST, Material.TOPOLOGY_LINESTRIP, "
+      "Material.TOPOLOGY_TRIANGLELIST, or Material.TOPOLOGY_TRIANGLESTRIP.");
+
     // uniforms
     MFUN(material_uniform_remove, "void", "removeUniform");
     ARG("int", "location");
@@ -131,7 +192,27 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(material_get_uniform_float, "float", "uniformFloat");
     ARG("int", "location");
 
+    // storage buffers
+    MFUN(material_set_storage_buffer, "void", "storageBuffer");
+    ARG("int", "location");
+    ARG("float[]", "storageBuffer");
+
     // abstract class, no destructor or constructor
+    END_CLASS();
+
+    // Lines2DMaterial -----------------------------------------------------
+    BEGIN_CLASS("Lines2DMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+
+    CTOR(lines2d_material_ctor);
+
+    // thickness uniform
+    MFUN(lines2d_material_get_thickness, "float", "thickness");
+    DOC_FUNC("Get the thickness of the lines in the material.");
+
+    MFUN(lines2d_material_set_thickness, "void", "thickness");
+    ARG("float", "thickness");
+    DOC_FUNC("Set the thickness of the lines in the material.");
+
     END_CLASS();
 
     // PBR Material -----------------------------------------------------
@@ -141,14 +222,15 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
     // abstract class, no destructor or constructor
     END_CLASS();
+
+    // initialize default components
+    chugl_initDefaultMaterials();
 }
 
 // Shader ===================================================================
 
 CK_DLL_CTOR(shader_desc_ctor)
 {
-    // TODO today: should we default vertex layout to [3, 3, 2, 4]?
-
     // chuck doesn't initialize class member vars in constructor. create manually
     // create string members (empty string)
     OBJ_MEMBER_STRING(SELF, shader_desc_vertex_string_offset)
@@ -237,16 +319,18 @@ CK_DLL_MFUN(material_get_shader)
     RETURN->v_object      = shader ? shader->ckobj : NULL;
 }
 
+static void chugl_materialSetShader(SG_Material* material, SG_Shader* shader)
+{
+    SG_Material::shader(material, shader);
+    CQ_PushCommand_MaterialUpdatePSO(material);
+}
+
 CK_DLL_MFUN(material_set_shader)
 {
     Chuck_Object* shader  = GET_NEXT_OBJECT(ARGS);
     SG_Material* material = GET_MATERIAL(SELF);
 
-    // set shader on audio side
-    SG_Material::shader(material, GET_SHADER(shader));
-
-    // push to command queue
-    CQ_PushCommand_MaterialUpdatePSO(material);
+    chugl_materialSetShader(material, GET_SHADER(shader));
 }
 
 CK_DLL_MFUN(material_get_cullmode)
@@ -262,6 +346,21 @@ CK_DLL_MFUN(material_set_cullmode)
     material->pso.cull_mode = (WGPUCullMode)cull_mode;
 
     CQ_PushCommand_MaterialUpdatePSO(material);
+}
+
+CK_DLL_MFUN(material_set_topology)
+{
+    SG_Material* material            = GET_MATERIAL(SELF);
+    t_CKINT primitive_topology       = GET_NEXT_INT(ARGS);
+    material->pso.primitive_topology = (WGPUPrimitiveTopology)primitive_topology;
+
+    CQ_PushCommand_MaterialUpdatePSO(material);
+}
+
+CK_DLL_MFUN(material_get_topology)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    RETURN->v_int         = (t_CKINT)material->pso.primitive_topology;
 }
 
 CK_DLL_MFUN(material_uniform_active_locations)
@@ -314,6 +413,60 @@ CK_DLL_MFUN(material_get_uniform_float)
     RETURN->v_float = (t_CKFLOAT)SG_Material::uniformFloat(material, location);
 }
 
+CK_DLL_MFUN(material_set_storage_buffer)
+{
+    SG_Material* material    = GET_MATERIAL(SELF);
+    t_CKINT location         = GET_NEXT_INT(ARGS);
+    Chuck_ArrayFloat* ck_arr = GET_NEXT_FLOAT_ARRAY(ARGS);
+
+    SG_Material::setStorageBuffer(material, location);
+
+    CQ_PushCommand_MaterialSetStorageBuffer(material, location, ck_arr);
+}
+
+// Lines2DMaterial ===================================================================
+
+CK_DLL_CTOR(lines2d_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_LINES2D;
+
+    // init shader
+    // Shader lines2d_shader(lines2d_shader_desc);
+    SG_Shader* lines2d_shader
+      = SG_GetShader(g_material_builtin_shaders.lines2d_shader_id);
+    ASSERT(lines2d_shader);
+
+    chugl_materialSetShader(material, lines2d_shader);
+
+    // set pso
+    material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
+    CQ_PushCommand_MaterialUpdatePSO(material);
+
+    // set uniform
+    // TODO where to store default uniform values + locations?
+    SG_Material::uniformFloat(material, 0, 0.1f); // thickness
+    // TODO extrusion uniform
+
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(lines2d_material_get_thickness)
+{
+    RETURN->v_float = (t_CKFLOAT)SG_Material::uniformFloat(GET_MATERIAL(SELF), 0);
+}
+
+CK_DLL_MFUN(lines2d_material_set_thickness)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT thickness   = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 0, (f32)thickness);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+// PBRMaterial ===================================================================
+
 CK_DLL_CTOR(pbr_material_ctor)
 {
     // SG_Material* material = GET_MATERIAL(SELF);
@@ -323,4 +476,34 @@ CK_DLL_CTOR(pbr_material_ctor)
     // OBJ_MEMBER_UINT(SELF, component_offset_id) = material->id;
 
     // CQ_PushCommand_MaterialCreate(material);
+}
+
+// init default materials ========================================================
+
+static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
+                                const char* fragment_string,
+                                const char* vertex_filepath,
+                                const char* fragment_filepath, int* vertex_layout,
+                                int vertex_layout_count)
+{
+    Chuck_Object* shader_ckobj
+      = chugin_createCkObj(SG_CKNames[SG_COMPONENT_SHADER], true);
+
+    // create shader on audio side
+    SG_Shader* shader = SG_CreateShader(shader_ckobj, vertex_string, fragment_string,
+                                        vertex_filepath, fragment_filepath, NULL, 0);
+
+    // save component id
+    OBJ_MEMBER_UINT(shader_ckobj, component_offset_id) = shader->id;
+
+    // push to command queue
+    CQ_PushCommand_ShaderCreate(shader);
+
+    return shader->id;
+}
+
+void chugl_initDefaultMaterials()
+{
+    g_material_builtin_shaders.lines2d_shader_id = chugl_createShader(
+      g_chuglAPI, lines2d_shader_string, lines2d_shader_string, NULL, NULL, NULL, 0);
 }

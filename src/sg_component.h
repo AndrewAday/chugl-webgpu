@@ -177,6 +177,8 @@ union SG_GeometryParams {
 #define SG_GEOMETRY_UV_ATTRIBUTE_LOCATION 2
 #define SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION 3
 
+#define SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS 4
+
 struct SG_Geometry : SG_Component {
     SG_GeometryType geo_type;
     SG_GeometryParams params;
@@ -185,6 +187,9 @@ struct SG_Geometry : SG_Component {
     Arena vertex_attribute_data[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
     int vertex_attribute_num_components[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
     Arena indices;
+
+    // buffers to hold pull data
+    Arena vertex_pull_buffers[SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS];
 
     static u32 vertexCount(SG_Geometry* geo);
     static u32 indexCount(SG_Geometry* geo);
@@ -223,6 +228,7 @@ struct SG_Shader : SG_Component {
 enum SG_MaterialType : u8 {
     SG_MATERIAL_INVALID = 0,
     SG_MATERIAL_CUSTOM,
+    SG_MATERIAL_LINES2D,
     SG_MATERIAL_PBR,
     SG_MATERIAL_COUNT
 };
@@ -239,6 +245,11 @@ struct SG_Material_PBR_Params {
     // textures and samplers
     // TODO
     // SG_Sampler baseColorSampler;
+};
+
+struct SG_Material_Lines2DParams {
+    f32 thickness       = 0.1f;
+    f32 extrution_ratio = 0.5f;
 };
 
 #define SG_MATERIAL_MAX_UNIFORMS 32 // @group(1) @binding(0 - 31)
@@ -310,6 +321,7 @@ union SG_MaterialParams {
 struct SG_MaterialPipelineState {
     SG_ID sg_shader_id;
     WGPUCullMode cull_mode;
+    WGPUPrimitiveTopology primitive_topology = WGPUPrimitiveTopology_TriangleList;
 };
 
 struct SG_Material : SG_Component {
@@ -334,6 +346,11 @@ struct SG_Material : SG_Component {
     // static void uniform(SG_Material* mat, int location, glm::ivec3 i3);
     // static void uniform(SG_Material* mat, int location, glm::ivec4 i4);
     static f32 uniformFloat(SG_Material* mat, int location);
+
+    static void setStorageBuffer(SG_Material* mat, int location)
+    {
+        mat->uniforms[location].type = SG_MATERIAL_UNIFORM_STORAGE_BUFFER;
+    }
 
     static void shader(SG_Material* mat, SG_Shader* shader);
 };
@@ -373,6 +390,10 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,
                            Chuck_String* fragment_filepath,
                            Chuck_ArrayInt* ck_vertex_layout);
+SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
+                           const char* fragment_string, const char* vertex_filepath,
+                           const char* fragment_filepath, int* vertex_layout,
+                           int vertex_layout_len);
 
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);

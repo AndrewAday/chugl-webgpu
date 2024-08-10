@@ -7,6 +7,7 @@
 #define PER_FRAME_GROUP 0
 #define PER_MATERIAL_GROUP 1
 #define PER_DRAW_GROUP 2
+#define VERTEX_PULL_GROUP 3
 
 #define VS_ENTRY_POINT "vs_main"
 #define FS_ENTRY_POINT "fs_main"
@@ -46,6 +47,168 @@ struct DrawUniforms {
 };
 
 // clang-format off
+
+static const char* lines2d_shader_string  = R"glsl(
+
+struct FrameUniforms {
+    projectionMat: mat4x4f,
+    viewMat: mat4x4f,
+    projViewMat: mat4x4f,
+    camPos: vec3f, // camera
+    dirLight: vec3f, // lighting
+    time: f32,
+};
+
+@group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
+
+// our custom material uniforms
+@group(1) @binding(0) var<uniform> line_width: f32;
+
+struct DrawUniforms {
+    modelMat: mat4x4f,
+};
+
+@group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
+
+@group(3) @binding(0) var<storage, read> positions : array<f32>;
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_worldPos : vec3f,
+    @location(1) v_normal : vec3f,
+    @location(2) v_uv : vec2f,
+    @location(3) v_tangent : vec4f,
+};
+
+struct VertexInput {
+    @builtin(instance_index) instance : u32,
+};
+
+fn calculate_line_pos(vertex_id : u32) -> vec2f
+{
+    // var pos_idx = (vertex_id / 2u) + 1u; // add 1 to skip sentinel start point
+    var pos_idx = (vertex_id / 2u);
+    var this_pos = vec2f(
+        positions[2u * pos_idx + 0u],  // x
+        positions[2u * pos_idx + 1u]   // y
+    );
+    var pos = this_pos;
+
+    let half_width = line_width * 0.5; 
+
+    // get even/odd (odd vertices are expanded down, even vertices are expanded up)
+    var orientation : f32 = 0.0;
+    if (vertex_id % 2u == 0u) {
+        orientation = 1.0;
+    } else {
+        orientation = -1.0;
+    }
+
+    // are we the first endpoint?
+    if (vertex_id / 2u == 0u) {
+        var next_pos = vec2f(
+            positions[2u * (pos_idx + 1u) + 0u],  // x
+            positions[2u * (pos_idx + 1u) + 1u],  // y
+        );
+
+        var line_seg_dir = normalize(next_pos - this_pos);
+        var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
+
+        // adjust position
+        pos += half_width * perp_dir;
+    } 
+    else if (pos_idx == arrayLength(&positions) / 2u - 1u) {
+        // last endpoint
+        var prev_pos = vec2f(
+            positions[2u * (pos_idx - 1u) + 0u],  // x
+            positions[2u * (pos_idx - 1u) + 1u],  // y
+        );
+
+        var line_seg_dir = normalize(this_pos - prev_pos);
+        var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
+
+        // adjust position
+        pos += half_width * perp_dir;
+    } else {
+        // middle points
+        var prev_pos = vec2f(
+            positions[2u * (pos_idx - 1u) + 0u],  // x
+            positions[2u * (pos_idx - 1u) + 1u],  // y
+        );
+        var next_pos = vec2f(
+            positions[2u * (pos_idx + 1u) + 0u],  // x
+            positions[2u * (pos_idx + 1u) + 1u],  // y
+        );
+
+        var prev_dir = normalize(this_pos - prev_pos);
+        var next_dir = normalize(next_pos - this_pos);
+        var prev_dir_perp = orientation * vec2f(-prev_dir.y, prev_dir.x);
+        var next_dir_perp = orientation * vec2f(-next_dir.y, next_dir.x);
+
+        var miter_dir = normalize(prev_dir_perp + next_dir_perp);
+        var miter_length = half_width / dot(miter_dir, prev_dir_perp);
+
+        // adjust position
+        pos += miter_length * miter_dir;
+    }
+
+    return pos;
+}
+
+@vertex 
+fn vs_main(
+    in : VertexInput,
+    @builtin(vertex_index) vertex_id : u32
+) -> VertexOutput
+{
+    var out : VertexOutput;
+    var u_Draw : DrawUniforms = drawInstances[in.instance];
+
+    let modelMat3 : mat3x3<f32> = mat3x3(
+        u_Draw.modelMat[0].xyz,
+        u_Draw.modelMat[1].xyz,
+        u_Draw.modelMat[2].xyz
+    );
+
+    var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(calculate_line_pos(vertex_id), 0.0f, 1.0f);
+    out.v_worldPos = worldPos.xyz;
+    out.v_normal = (u_Draw.modelMat * vec4f(0.0, 0.0, 1.0, 0.0)).xyz;
+    // tangent vectors aren't impacted by non-uniform scaling or translation
+    out.v_tangent = vec4f(modelMat3 * vec3f(1.0, 0.0, 0.0), 1.0);
+
+    // map uv to progress along line
+    // TODO make this work with line loop / no loop
+    // let total_points = arrayLength(&positions) - 2u; // subtract 2 for sentinel points
+    let total_points = arrayLength(&positions);
+    out.v_uv.x = f32(vertex_id) / (2.0 * f32(total_points));
+    if (vertex_id % 2u == 0u) {
+        out.v_uv.y = 1.0;
+    } else {
+        out.v_uv.y = 0.0;
+    }
+
+    out.position = worldPos;
+
+    return out;
+}
+
+@fragment 
+fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
+{
+    var normal : vec3f;
+    if (is_front) {
+        normal = in.v_normal;
+    } else {
+        normal = -in.v_normal;
+    }
+
+    var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
+    diffuse = diffuse * diffuse;
+    return vec4f(vec3f(diffuse), 1.0);
+}
+)glsl";
+
+// ----------------------------------------------------------------------------
 
 static const char* shaderCode = R"glsl(
     struct FrameUniforms {

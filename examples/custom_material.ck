@@ -28,6 +28,7 @@ adc => g;
 
 // our custom material uniforms
 @group(1) @binding(0) var<uniform> u_grayscale: f32;
+@group(1) @binding(1) var<storage> u_color: array<f32>;
 
 // TODO handle normal Mat
 struct DrawUniforms {
@@ -94,12 +95,13 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     // https://developer.valvesoftware.com/wiki/Half_Lambert
     var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
     diffuse = diffuse * diffuse;
-    return vec4f(diffuse * vec3f(u_grayscale), 1.0);
-}" => string shader_string;
+    let u_color_len : u32 = arrayLength(&u_color);
+    return vec4f(diffuse * u_grayscale * vec3f(u_color[u_color_len - 3u], u_color[u_color_len - 2u], u_color[u_color_len - 1u]), 1.0);
+}" => string lambert_shader_string;
 
 ShaderDesc shader_desc;
-shader_string => shader_desc.vertexString;
-shader_string => shader_desc.fragmentString;
+lambert_shader_string => shader_desc.vertexString;
+lambert_shader_string => shader_desc.fragmentString;
 sphere_geo.vertexAttributeNumComponents() @=> shader_desc.vertexLayout;
 
 Shader custom_shader(shader_desc); // create shader from shader_desc
@@ -114,12 +116,28 @@ for (-1 => int i; i < 2; i++) {
     }
 }
 
+
 custom_material.uniformFloat(0, 1.0);
+[0.0, 1.0, 1.0] @=> float storage_buffer[];
+custom_material.storageBuffer(1, storage_buffer);
+
+fun void psoChanger() {
+    while (1::second => now) {
+        // 1 - custom_material.cullMode() => custom_material.cullMode;
+        (custom_material.topology() + 1) % (Material.TOPOLOGY_TRIANGLESTRIP + 1) => custom_material.topology;
+
+        // update storage buffer
+        for (0 => int i; i < 3; i++) {
+           Math.random2f(0.0, 1.0) => storage_buffer[i];
+        }
+        storage_buffer << 1.0; // update size to force bindgroupentry rebuild
+        custom_material.storageBuffer(1, storage_buffer);
+    }
+} spork ~ psoChanger();
 
 while (true) {
     GG.nextFrame() => now;
     custom_material.uniformFloat(0, .5 * Math.sin(now/second) + 0.5);
-    GG.dt() => big_suzanne.rotateY;
 
     // get volume
     .75 + Math.sqrt(p.last()) => big_suzanne.sca;

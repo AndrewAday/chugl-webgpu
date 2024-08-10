@@ -225,26 +225,12 @@ static void _Test_Lines2D_onInit(GraphicsContext* ctx, GLFWwindow* w)
         fragmentShaderModule = NULL;
     });
 
-    // for now hardcode attributes to 3:
-    // position, normal, uv
-    // VertexBufferLayout vertexBufferLayout = {};
-    // u32 attributeStrides[]                = {
-    //     3, // position
-    //     3, // normal
-    //     2, // uv
-    //     4, // tangent
-    // };
-    // VertexBufferLayout::init(&vertexBufferLayout,
-    //                          ARRAY_LENGTH(attributeStrides),
-    //                          attributeStrides);
-
     // vertex state
     WGPUVertexState vertexState = {};
-    vertexState.bufferCount
-      = 0; // programmable vertex pulling, no vertex buffers
-    vertexState.buffers    = NULL;
-    vertexState.module     = vertexShaderModule;
-    vertexState.entryPoint = "vs_main";
+    vertexState.bufferCount     = 0; // programmable vertex pulling, no vertex buffers
+    vertexState.buffers         = NULL;
+    vertexState.module          = vertexShaderModule;
+    vertexState.entryPoint      = "vs_main";
 
     // fragment state
     WGPUFragmentState fragmentState = {};
@@ -264,8 +250,7 @@ static void _Test_Lines2D_onInit(GraphicsContext* ctx, GLFWwindow* w)
     pipeline_desc.depthStencil                 = &depth_stencil_state;
     pipeline_desc.multisample                  = multisampleState;
 
-    lines2D_pipeline
-      = wgpuDeviceCreateRenderPipeline(ctx->device, &pipeline_desc);
+    lines2D_pipeline = wgpuDeviceCreateRenderPipeline(ctx->device, &pipeline_desc);
     ASSERT(lines2D_pipeline);
 
     WGPUBindGroupLayout layout
@@ -275,8 +260,7 @@ static void _Test_Lines2D_onInit(GraphicsContext* ctx, GLFWwindow* w)
         // create uniform buffer
         WGPUBufferDescriptor uniform_buffer_desc = {};
         uniform_buffer_desc.size                 = sizeof(Uniforms);
-        uniform_buffer_desc.usage
-          = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        uniform_buffer_desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
 
         lines2d_uniform_buffer
           = wgpuDeviceCreateBuffer(gctx->device, &uniform_buffer_desc);
@@ -285,8 +269,7 @@ static void _Test_Lines2D_onInit(GraphicsContext* ctx, GLFWwindow* w)
         // create positions storage buffer
         WGPUBufferDescriptor positions_buffer_desc = {};
         positions_buffer_desc.size                 = sizeof(line_points);
-        positions_buffer_desc.usage
-          = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
+        positions_buffer_desc.usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
         lines2d_positions
           = wgpuDeviceCreateBuffer(gctx->device, &positions_buffer_desc);
 
@@ -354,8 +337,7 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
             line_points[0] = line_points[num_points]; // copy last point
         } else {
             glm::vec3 diff = line_points[2] - line_points[1];
-            line_points[0]
-              = line_points[1] - diff; // extend in opposite direction
+            line_points[0] = line_points[1] - diff; // extend in opposite direction
         }
 
         // sentinal end points
@@ -363,8 +345,7 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
             line_points[num_points + 1] = line_points[1]; // copy first point
             line_points[num_points + 2] = line_points[2]; // copy second point
         } else {
-            glm::vec3 diff
-              = line_points[num_points] - line_points[num_points - 1];
+            glm::vec3 diff = line_points[num_points] - line_points[num_points - 1];
             line_points[num_points + 1]
               = line_points[num_points] + diff; // extend in same direction
         }
@@ -433,15 +414,14 @@ static void drawUI(WGPURenderPassEncoder pass)
     ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
 }
 
-static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view,
-                                   glm::vec3 camPos)
+static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 {
     updateBuffers(proj, view, camPos);
 
     GraphicsContext::prepareFrame(gctx);
 
-    WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(
-      gctx->commandEncoder, &gctx->renderPassDesc);
+    WGPURenderPassEncoder renderPass
+      = wgpuCommandEncoderBeginRenderPass(gctx->commandEncoder, &gctx->renderPassDesc);
 
     wgpuRenderPassEncoderSetPipeline(renderPass, lines2D_pipeline);
 

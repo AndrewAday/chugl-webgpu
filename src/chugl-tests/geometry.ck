@@ -52,3 +52,19 @@ for (0 => int i; i < truth_plane_indices.size(); ++i) {
 }
 
 T.assert(T.arrayEquals(A.vertexAttributeNumComponents(), [3, 3, 2, 4, 0, 0, 0, 0]), "plane vertexAttributeNumComponents ALL");
+
+// programmable vertex pulling
+
+Geometry pulled_geo;
+[1.1, 2.0, 3.0, 4.0, 5.0, 6.0] @=> float pulled_vertex_data[];
+pulled_geo.pulledVertexAttribute(0, pulled_vertex_data);
+pulled_geo.pulledVertexAttribute(0) @=> float pulled_vertex_data_copy[];
+T.assert(pulled_vertex_data.size() == pulled_vertex_data_copy.size(), "pulledVertexAttribute size");
+T.assert(T.arrayEquals(pulled_vertex_data, pulled_vertex_data_copy), "pulledVertexAttribute equality");
+
+// lines2d geo
+
+Lines2DGeometry lines2d_geo;
+[@(0.0, 0.0), @(0.5, 0.5), @(1.0, 1.0)] => lines2d_geo.linePoints;
+T.assert(T.arrayEquals(lines2d_geo.pulledVertexAttribute(0), [0.0, 0.0, 0.5, 0.5, 1.0, 1.0]), "lines2d pulledVertexAttribute");
+

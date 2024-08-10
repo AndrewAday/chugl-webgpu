@@ -85,6 +85,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_CREATE,
     SG_COMMAND_MATERIAL_UPDATE_PSO,
     SG_COMMAND_MATERIAL_SET_UNIFORM,
+    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
 
     // mesh
     SG_COMMAND_MESH_CREATE,
@@ -92,6 +93,8 @@ enum SG_CommandType : u32 {
     // geometry
     SG_COMMAND_GEO_CREATE,
     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
+    SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE,
+    SG_COMMAND_GEO_SET_VERTEX_COUNT,
     SG_COMMAND_GEO_SET_INDICES,
 
     SG_COMMAND_COUNT
@@ -247,6 +250,18 @@ struct SG_Command_GeoSetVertexAttribute : public SG_Command {
     ptrdiff_t data_offset; // byte offset into command queue arena for attribute data
 };
 
+struct SG_Command_GeometrySetPulledVertexAttribute : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    size_t data_bytes;
+    ptrdiff_t data_offset;
+};
+
+struct SG_Command_GeometrySetVertexCount : public SG_Command {
+    SG_ID sg_id;
+    int count;
+};
+
 struct SG_Command_GeoSetIndices : public SG_Command {
     SG_ID sg_id;
     int index_count;
@@ -279,6 +294,13 @@ struct SG_Command_MaterialSetUniform : public SG_Command {
     SG_ID sg_id;
     SG_MaterialUniform uniform;
     int location;
+};
+
+struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    ptrdiff_t data_offset;
+    int data_count; // number of floats in data array
 };
 
 struct SG_Command_Mesh_Create : public SG_Command {
@@ -365,6 +387,9 @@ void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
                                                int num_components, f32* data,
                                                int data_len);
 void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count);
+void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int location,
+                                                     void* data, size_t bytes);
+void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
 
 // shader
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
@@ -373,6 +398,9 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
 void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material);
 void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
+
+void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
+                                             Chuck_ArrayFloat* ck_arr);
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);

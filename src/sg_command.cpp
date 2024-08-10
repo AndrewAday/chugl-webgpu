@@ -491,6 +491,30 @@ void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index
     END_COMMAND();
 }
 
+void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int location,
+                                                     void* data, size_t bytes)
+{
+    BEGIN_COMMAND(SG_Command_GeometrySetPulledVertexAttribute,
+                  SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE);
+
+    u8* attribute_data = ARENA_PUSH_COUNT(cq.write_q, u8, bytes);
+    memcpy(attribute_data, data, bytes);
+
+    command->sg_id       = geo->id;
+    command->location    = location;
+    command->data_bytes  = bytes;
+    command->data_offset = Arena::offsetOf(cq.write_q, attribute_data);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count)
+{
+    BEGIN_COMMAND(SG_Command_GeometrySetVertexCount, SG_COMMAND_GEO_SET_VERTEX_COUNT);
+    command->sg_id = geo->id;
+    command->count = count;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
 {
     BEGIN_COMMAND(SG_Command_ShaderCreate, SG_COMMAND_SHADER_CREATE);
@@ -557,6 +581,20 @@ void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location)
     command->sg_id    = material->id;
     command->uniform  = material->uniforms[location];
     command->location = location;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
+                                             Chuck_ArrayFloat* ck_arr)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetStorageBuffer,
+                  SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER);
+    command->sg_id      = material->id;
+    command->location   = location;
+    command->data_count = g_chuglAPI->object->array_float_size(ck_arr);
+    f32* data           = ARENA_PUSH_COUNT(cq.write_q, f32, command->data_count);
+    chugin_copyCkFloatArray(ck_arr, data, command->data_count);
+    command->data_offset = Arena::offsetOf(cq.write_q, data);
     END_COMMAND();
 }
 

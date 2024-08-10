@@ -12,8 +12,6 @@
 
 #include <iostream>
 
-// TODO: write readme on architecture
-
 // =============================================================================
 // scenegraph data structures
 // =============================================================================
@@ -124,6 +122,12 @@ struct R_Geometry : public R_Component {
     GPU_Buffer gpu_index_buffer;
     u8 vertex_attribute_num_components[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
+    // storage buffers for vertex pulling
+    GPU_Buffer pull_buffers[SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS];
+    WGPUBindGroup pull_bind_group;
+    int vertex_count = -1; // if set, overrides vertex count from vertices
+    bool pull_bind_group_dirty;
+
     static void init(R_Geometry* geo);
 
     static u32 indexCount(R_Geometry* geo);
@@ -135,6 +139,16 @@ struct R_Geometry : public R_Component {
 
     static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo, u32 location,
                                    u32 num_components, f32* data, u32 data_count);
+
+    // TODO if works, move into cpp
+    // TODO move vertexPulling reflection check into state of ck ShaderDesc
+    static bool usesVertexPulling(R_Geometry* geo);
+
+    static void rebuildPullBindGroup(GraphicsContext* gctx, R_Geometry* geo,
+                                     WGPUBindGroupLayout layout);
+
+    static void setPulledVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
+                                         u32 location, void* data, size_t size_bytes);
 
     static void setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices,
                            u32 indices_count);
@@ -226,7 +240,7 @@ struct R_Binding {
         SG_ID textureID;
         WGPUTextureView textureView;
         SamplerConfig samplerConfig;
-        void* storageData; // cpu-side storage buffer data
+        GPU_Buffer storage_buffer;
     } as;
 };
 

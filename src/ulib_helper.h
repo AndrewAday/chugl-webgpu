@@ -25,6 +25,7 @@
 
 #define GET_NEXT_INT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 #define GET_NEXT_FLOAT_ARRAY(ptr) (*((Chuck_ArrayFloat**&)ptr)++)
+#define GET_NEXT_VEC2_ARRAY(ptr) (*((Chuck_ArrayVec2**&)ptr)++)
 #define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 
 #define OBJ_MEMBER_INT_ARRAY(obj, offset)                                              \
@@ -146,6 +147,39 @@ void chugin_copyCkFloatArray(Chuck_ArrayFloat* ck_arr, float* arr, int count)
     int size = MIN(g_chuglAPI->object->array_float_size(ck_arr), count);
     for (int i = 0; i < size; i++) {
         arr[i] = (float)g_chuglAPI->object->array_float_get_idx(ck_arr, i);
+    }
+}
+
+void chugin_copyCkVec2Array(Chuck_ArrayVec2* ck_arr, f32* arr)
+{
+    int size = g_chuglAPI->object->array_vec2_size(ck_arr);
+    for (int i = 0; i < size; i++) {
+        t_CKVEC2 vec2  = g_chuglAPI->object->array_vec2_get_idx(ck_arr, i);
+        arr[i * 2]     = vec2.x;
+        arr[i * 2 + 1] = vec2.y;
+    }
+}
+
+void chugin_copyCkVec3Array(Chuck_ArrayVec3* ck_arr, f32* arr)
+{
+    int size = g_chuglAPI->object->array_vec3_size(ck_arr);
+    for (int i = 0; i < size; i++) {
+        t_CKVEC3 vec3  = g_chuglAPI->object->array_vec3_get_idx(ck_arr, i);
+        arr[i * 3]     = vec3.x;
+        arr[i * 3 + 1] = vec3.y;
+        arr[i * 3 + 2] = vec3.z;
+    }
+}
+
+void chugin_copyCkVec4Array(Chuck_ArrayVec4* ck_arr, f32* arr)
+{
+    int size = g_chuglAPI->object->array_vec4_size(ck_arr);
+    for (int i = 0; i < size; i++) {
+        t_CKVEC4 vec4  = g_chuglAPI->object->array_vec4_get_idx(ck_arr, i);
+        arr[i * 4]     = vec4.x;
+        arr[i * 4 + 1] = vec4.y;
+        arr[i * 4 + 2] = vec4.z;
+        arr[i * 4 + 3] = vec4.w;
     }
 }
 
