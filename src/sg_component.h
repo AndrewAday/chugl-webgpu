@@ -201,6 +201,7 @@ struct SG_Geometry : SG_Component {
     // builder functions
     static void buildPlane(SG_Geometry* g, PlaneParams* p);
     static void buildSphere(SG_Geometry* g, SphereParams* p);
+    static void buildSuzanne(SG_Geometry* g);
 };
 
 // ============================================================================

@@ -48,6 +48,7 @@ struct GeometryArenaBuilder {
 
 void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params);
 void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params);
+void Geometry_buildSuzanne(GeometryArenaBuilder* builder);
 
 // TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags

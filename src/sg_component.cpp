@@ -354,6 +354,14 @@ void SG_Geometry::buildSphere(SG_Geometry* g, SphereParams* p)
     Geometry_buildSphere(&gab, p);
 }
 
+void SG_Geometry::buildSuzanne(SG_Geometry* g)
+{
+    g->geo_type = SG_GEOMETRY; // custom type
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildSuzanne(&gab);
+}
+
 u32 SG_Geometry::vertexCount(SG_Geometry* geo)
 {
     if (geo->vertex_attribute_num_components[0] == 0) return 0;

@@ -1,5 +1,7 @@
 #include "geometry.h"
 
+#include "suzanne_geo.cpp"
+
 #include "core/memory.h"
 
 #include <glm/gtc/epsilon.hpp>
@@ -679,4 +681,22 @@ void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params)
     // build tangents
     Geometry_computeTangents(builder);
     ASSERT(ARENA_LENGTH(builder->tangent_arena, gvec4f) == vertex_count);
+}
+
+void Geometry_buildSuzanne(GeometryArenaBuilder* builder)
+{
+    // copy data.
+    f32* positions
+      = ARENA_PUSH_COUNT(builder->pos_arena, f32, ARRAY_LENGTH(suzanne_positions));
+    f32* normals
+      = ARENA_PUSH_COUNT(builder->norm_arena, f32, ARRAY_LENGTH(suzanne_normals));
+    f32* texcoords
+      = ARENA_PUSH_COUNT(builder->uv_arena, f32, ARRAY_LENGTH(suzanne_uvs));
+    f32* tangents
+      = ARENA_PUSH_COUNT(builder->tangent_arena, f32, ARRAY_LENGTH(suzanne_tangents));
+
+    memcpy(positions, suzanne_positions, sizeof(suzanne_positions));
+    memcpy(normals, suzanne_normals, sizeof(suzanne_normals));
+    memcpy(texcoords, suzanne_uvs, sizeof(suzanne_uvs));
+    memcpy(tangents, suzanne_tangents, sizeof(suzanne_tangents));
 }

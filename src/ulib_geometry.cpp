@@ -28,6 +28,8 @@ CK_DLL_CTOR(plane_geo_ctor_params);
 CK_DLL_CTOR(sphere_geo_ctor);
 CK_DLL_CTOR(sphere_geo_ctor_params);
 
+CK_DLL_CTOR(suzanne_geo_ctor);
+
 static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 {
     // Geometry -----------------------------------------------------
@@ -124,6 +126,13 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     QUERY->doc_func(QUERY, "Set sphere dimensions and subdivisions");
 
     QUERY->end_class(QUERY);
+
+    // Suzanne ----------
+    BEGIN_CLASS("SuzanneGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
+
+    CTOR(suzanne_geo_ctor);
+
+    END_CLASS();
 }
 
 // Geometry -----------------------------------------------------
@@ -273,7 +282,7 @@ CK_DLL_MFUN(geo_generate_tangents)
 
 // TODO all goemetry subclasses use geometry vertex attribute interface
 
-static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
+static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo, bool set_indices = true)
 { // push attribute changes to command queue
     Arena* positions_arena
       = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
@@ -298,9 +307,11 @@ static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
       geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, (f32*)tangents_arena->base,
       ARENA_LENGTH(tangents_arena, f32));
 
-    Arena* indices_arena = &geo->indices;
-    CQ_PushCommand_GeometrySetIndices(geo, (u32*)indices_arena->base,
-                                      ARENA_LENGTH(indices_arena, u32));
+    if (set_indices) {
+        Arena* indices_arena = &geo->indices;
+        CQ_PushCommand_GeometrySetIndices(geo, (u32*)indices_arena->base,
+                                          ARENA_LENGTH(indices_arena, u32));
+    }
 }
 
 CK_DLL_CTOR(plane_geo_ctor)
@@ -354,4 +365,11 @@ CK_DLL_CTOR(sphere_geo_ctor_params)
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
     SG_Geometry::buildSphere(geo, &params);
     CQ_UpdateAllVertexAttributes(geo);
+}
+
+CK_DLL_CTOR(suzanne_geo_ctor)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Geometry::buildSuzanne(geo);
+    CQ_UpdateAllVertexAttributes(geo, false);
 }
