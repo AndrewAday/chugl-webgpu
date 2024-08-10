@@ -187,6 +187,24 @@ struct Material_Primitive {
                                  WGPUBindGroupLayout layout, Arena* arena);
 };
 
+void Material_batchUpdatePipelines(GraphicsContext* gctx);
+
+// =============================================================================
+// R_Shader
+// =============================================================================
+
+struct R_Shader : public R_Component {
+    WGPUShaderModule vertex_shader_module;
+    WGPUShaderModule fragment_shader_module;
+    // e.g. [3, 3, 2, 4] for [POSITION, NORMAL, TEXCOORD_0, TANGENT]
+    int vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+
+    static void init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
+                     const char* vertex_filepath, const char* fragment_string,
+                     const char* fragment_filepath, int* vertex_layout);
+    static void free(R_Shader* shader);
+};
+
 // =============================================================================
 // R_Material
 // =============================================================================
@@ -208,8 +226,7 @@ struct R_Binding {
         SG_ID textureID;
         WGPUTextureView textureView;
         SamplerConfig samplerConfig;
-        ptrdiff_t uniformOffset; // offset into uniform buffer
-        void* storageData;       // cpu-side storage buffer data
+        void* storageData; // cpu-side storage buffer data
     } as;
 };
 
@@ -226,33 +243,32 @@ struct MaterialTextureView {
     static void init(MaterialTextureView* view);
 };
 
-// base material properties that determine pipeline selection
-struct R_MaterialConfig {
-    SG_MaterialType material_type = SG_MATERIAL_PBR;
-    SG_ID shaderID                = 0; // 0 for built-in shaders.
-    b32 doubleSided               = false;
-};
-
-// TODO: somehow make this interop with render pipeline and shader
-// material instance component
 struct R_Material : public R_Component {
-    R_MaterialConfig config;
-    b32 stale; // set if modified by chuck user, need to rebuild bind groups
+    SG_MaterialPipelineState pso;
+
+    b32 fresh_bind_group; // set if modified by chuck user, need to rebuild bind groups
 
     R_ID pipelineID; // renderpipeline this material belongs to
 
-    Arena bindings;         // array of R_Binding
-    Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
-    WGPUBindGroup bindGroup;
+    // bindgroup state (uniforms, storage buffers, textures, samplers)
+    R_Binding bindings[SG_MATERIAL_MAX_UNIFORMS];
+    GPU_Buffer
+      uniform_buffer; // maps 1:1 with uniform location, size =
+                      // sizeof(SG_MaterialUniformData * SG_MATERIAL_MAX_UNIFORMS)
+    WGPUBindGroup bind_group;
+
+    // Arena bindings;         // array of R_Binding
+    // Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
+    // WGPUBindGroup bindGroup;
 
     // TODO: figure out how to include MaterialTextureView
     // maybe as part of the R_BIND_TEXTURE_ID binding,
     // because every texture needs a texture view
 
-    Arena uniformData;         // cpu-side uniform data buffer
-                               // used by all bindings of type R_BIND_UNIFORM
-    WGPUBuffer gpuUniformBuff; // gpu-side uniform buffer
-    WGPUBufferDescriptor uniformBuffDesc;
+    // Arena uniformData;         // cpu-side uniform data buffer
+    //                            // used by all bindings of type R_BIND_UNIFORM
+    // WGPUBuffer gpuUniformBuff; // gpu-side uniform buffer
+    // WGPUBufferDescriptor uniformBuffDesc;
 
     // textures (TODO: convert to SG_ID of SG_Texture)
     // SG_Texture* baseColorTexture;
@@ -267,22 +283,28 @@ struct R_Material : public R_Component {
     // SG_Texture* occlusionTexture;
     // SG_Texture* emissiveTexture;
 
-    // glm::vec4 baseColor;
-    // f32 metallicFactor;
-    // f32 roughnessFactor;
-
     // primitive data ---------------
     Arena primitives; // array of Material_Primitive (geo + xform)
 
     // constructors ----------------------------------------------
-    static void init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig* config);
+    // static void init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig*
+    // config);
+
+    static void updatePSO(GraphicsContext* gctx, R_Material* mat,
+                          SG_MaterialPipelineState* pso);
 
     // bind group fns --------------------------------------------
     static void rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                                  WGPUBindGroupLayout layout);
-    static void setBinding(R_Material* mat, u32 location, R_BindType type, void* data,
-                           size_t bytes);
+    static void setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                           R_BindType type, void* data, size_t bytes);
+    static void removeBinding(R_Material* mat, u32 location)
+    {
+        ASSERT(false);
+        // TODO
+    }
 
+    // TODO: reimplement
     static void setTextureAndSamplerBinding(R_Material* mat, u32 location,
                                             SG_ID textureID,
                                             WGPUTextureView defaultView);
@@ -312,11 +334,15 @@ struct R_Scene : R_Transform {
 
 struct R_RenderPipeline /* NOT backed by SG_Component */ {
     R_ID rid;
-    RenderPipeline pipeline;
-    R_MaterialConfig config;
-    ptrdiff_t offset; // acts as an ID, offset in bytes into pipeline Arena
+    // RenderPipeline pipeline;
+    WGPURenderPipeline gpu_pipeline;
+    SG_MaterialPipelineState pso;
+    // ptrdiff_t offset; // acts as an ID, offset in bytes into pipeline Arena
 
     Arena materialIDs; // array of SG_IDs
+
+    WGPUBindGroup frame_group;
+    static GPU_Buffer frame_uniform_buffer;
 
     /*
     possible optimizations:
@@ -324,8 +350,10 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
       so we don't waste time iterating over empty materials
     */
 
+    // static void init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
+    //                  const SG_MaterialPipelineState* config, ptrdiff_t offset);
     static void init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
-                     const R_MaterialConfig* config, ptrdiff_t offset);
+                     const SG_MaterialPipelineState* config);
 
     static void addMaterial(R_RenderPipeline* pipeline, R_Material* material);
 
@@ -349,7 +377,10 @@ R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 R_Geometry* Component_CreateGeometry();
 R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd);
 
-R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig* config);
+R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate* cmd);
+
+// R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig*
+// config);
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      SG_Command_MaterialCreate* cmd);
 
@@ -359,12 +390,13 @@ R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
 R_Scene* Component_GetScene(SG_ID id);
 R_Geometry* Component_GetGeometry(SG_ID id);
+R_Shader* Component_GetShader(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
-                                        R_MaterialConfig* config);
+                                        SG_MaterialPipelineState* pso);
 R_RenderPipeline* Component_GetPipeline(R_ID rid);
 
 // component iterators
@@ -375,6 +407,7 @@ R_RenderPipeline* Component_GetPipeline(R_ID rid);
 // returns false upon reachign end of material arena
 bool Component_MaterialIter(size_t* i, R_Material** material);
 bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline);
+int Component_RenderPipelineCount();
 
 // component manager initialization
 void Component_Init(GraphicsContext* gctx);

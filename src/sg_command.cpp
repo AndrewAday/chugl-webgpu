@@ -274,13 +274,13 @@ void CQ_PushCommand_GG_Scene(SG_Scene* scene)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offset_id,
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT id_offset,
                                     CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Transform* xform = SG_CreateTransform(ckobj);
     // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, component_offset_id) = xform->id;
+    OBJ_MEMBER_UINT(ckobj, id_offset) = xform->id;
 
     spinlock::lock(&cq.write_q_lock);
     {
@@ -388,13 +388,13 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_offset_id,
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT offset_id,
                                      CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Scene* scene = SG_CreateScene(ckobj);
     // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, component_offset_id) = scene->id;
+    OBJ_MEMBER_UINT(ckobj, offset_id) = scene->id;
 
     spinlock::lock(&cq.write_q_lock);
     {
@@ -491,22 +491,73 @@ void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index
     END_COMMAND();
 }
 
+void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
+{
+    BEGIN_COMMAND(SG_Command_ShaderCreate, SG_COMMAND_SHADER_CREATE);
+
+    // make sure no strings are null
+    ASSERT(
+      shader->vertex_filepath_owned != NULL && shader->fragment_filepath_owned != NULL
+      && shader->vertex_string_owned != NULL && shader->fragment_string_owned != NULL);
+
+    command->sg_id = shader->id;
+
+    char* vertex_filepath
+      = (char*)Arena::pushZero(cq.write_q, strlen(shader->vertex_filepath_owned) + 1);
+    char* fragment_filepath
+      = (char*)Arena::pushZero(cq.write_q, strlen(shader->fragment_filepath_owned) + 1);
+    char* vertex_string
+      = (char*)Arena::pushZero(cq.write_q, strlen(shader->vertex_string_owned) + 1);
+    char* fragment_string
+      = (char*)Arena::pushZero(cq.write_q, strlen(shader->fragment_string_owned) + 1);
+
+    // copy strings (leaving space for null terminators)
+    strncpy(vertex_filepath, shader->vertex_filepath_owned,
+            strlen(shader->vertex_filepath_owned));
+    strncpy(fragment_filepath, shader->fragment_filepath_owned,
+            strlen(shader->fragment_filepath_owned));
+    strncpy(vertex_string, shader->vertex_string_owned,
+            strlen(shader->vertex_string_owned));
+    strncpy(fragment_string, shader->fragment_string_owned,
+            strlen(shader->fragment_string_owned));
+
+    // set offsets
+    command->vertex_filepath_offset   = Arena::offsetOf(cq.write_q, vertex_filepath);
+    command->fragment_filepath_offset = Arena::offsetOf(cq.write_q, fragment_filepath);
+    command->vertex_string_offset     = Arena::offsetOf(cq.write_q, vertex_string);
+    command->fragment_string_offset   = Arena::offsetOf(cq.write_q, fragment_string);
+
+    memcpy(command->vertex_layout, shader->vertex_layout,
+           sizeof(shader->vertex_layout));
+
+    END_COMMAND();
+}
+
 void CQ_PushCommand_MaterialCreate(SG_Material* material)
 {
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_MaterialCreate* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MaterialCreate);
+    BEGIN_COMMAND(SG_Command_MaterialCreate, SG_COMMAND_MATERIAL_CREATE);
+    command->material_type = material->material_type; // TODO remove?
+    command->sg_id         = material->id;
+    command->pso           = material->pso;
+    // command->params        = material->params;
+    END_COMMAND();
+}
 
-        // initialize memory
-        command->type              = SG_COMMAND_MATERIAL_CREATE;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->material_type     = material->material_type;
-        command->sg_id             = material->id;
-        command->params            = material->params;
-    }
-    spinlock::unlock(&cq.write_q_lock);
+void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material)
+{
+    BEGIN_COMMAND(SG_Command_MaterialUpdatePSO, SG_COMMAND_MATERIAL_UPDATE_PSO);
+    command->sg_id = material->id;
+    command->pso   = material->pso;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetUniform, SG_COMMAND_MATERIAL_SET_UNIFORM);
+    command->sg_id    = material->id;
+    command->uniform  = material->uniforms[location];
+    command->location = location;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)

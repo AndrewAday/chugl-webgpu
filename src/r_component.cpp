@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include "shaders.h"
 
+#include "core/file.h"
 #include "core/log.h"
 
 #include <unordered_map>
@@ -59,6 +60,9 @@ scenegraph will be skipped every frame!
 // ============================================================================
 // Forward Declarations
 // ============================================================================
+//
+// set for materials to create pipelines for
+static hashmap* materials_with_new_pso = NULL;
 
 static SG_ID _componentIDCounter = 1; // reserve 0 for NULL
 
@@ -684,48 +688,50 @@ void MaterialTextureView::init(MaterialTextureView* view)
     view->scale[1] = 1.0f;
 }
 
-static void _R_Material_Init(R_Material* mat)
-{
-    ASSERT(mat->id == 0);
-    ASSERT(mat->pipelineID == 0);
-    *mat       = {};
-    mat->id    = getNewComponentID();
-    mat->type  = SG_COMPONENT_MATERIAL;
-    mat->stale = true;
+// static void _R_Material_Init(R_Material* mat)
+//{
+//     ASSERT(mat->id == 0);
+//     ASSERT(mat->pipelineID == 0);
+//     *mat       = {};
+//     mat->id    = getNewComponentID();
+//     mat->type  = SG_COMPONENT_MATERIAL;
+//     mat->stale = true;
+//
+//     // initialize primitives arena
+//     Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
+//
+//     // initialize bind entry arenas
+//     Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
+//     Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
+//     Arena::init(&mat->uniformData, 64);
+// }
 
-    // initialize primitives arena
-    Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
+// void R_Material::init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig*
+// config)
+// {
+//     _R_Material_Init(mat);
 
-    // initialize bind entry arenas
-    Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
-    Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
-    Arena::init(&mat->uniformData, 64);
-}
+//     // copy config (TODO do we even need to save this? it's stored in the
+//     // pipeline anyways)
+//     mat->config = *config;
 
-void R_Material::init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig* config)
-{
-    _R_Material_Init(mat);
+//     // get pipeline
+//     R_RenderPipeline* pipeline = Component_GetPipeline(gctx, config);
 
-    // copy config (TODO do we even need to save this? it's stored in the
-    // pipeline anyways)
-    mat->config = *config;
+//     // add material to pipeline
+//     R_RenderPipeline::addMaterial(pipeline, mat);
+//     ASSERT(mat->pipelineID != 0);
 
-    // get pipeline
-    R_RenderPipeline* pipeline = Component_GetPipeline(gctx, config);
+//     // init texture views
+//     // MaterialTextureView::init(&mat->baseColorTextureView);
+//     // MaterialTextureView::init(&mat->metallicRoughnessTextureView);
+//     // MaterialTextureView::init(&mat->normalTextureView);
 
-    // add material to pipeline
-    R_RenderPipeline::addMaterial(pipeline, mat);
-    ASSERT(mat->pipelineID != 0);
+//     // init base color to white
+//     // mat->baseColor = glm::vec4(1.0f);
+// }
 
-    // init texture views
-    // MaterialTextureView::init(&mat->baseColorTextureView);
-    // MaterialTextureView::init(&mat->metallicRoughnessTextureView);
-    // MaterialTextureView::init(&mat->normalTextureView);
-
-    // init base color to white
-    // mat->baseColor = glm::vec4(1.0f);
-}
-
+    #if 0
 static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
                                                   R_Material* mat, R_Binding* binding,
                                                   WGPUBindGroupEntry* entry,
@@ -741,26 +747,26 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
             entry->buffer = mat->gpuUniformBuff;
             break;
         }
-        case R_BIND_SAMPLER: {
-            entry->sampler = Graphics_GetSampler(gctx, binding->as.samplerConfig);
-            break;
-        }
-        case R_BIND_TEXTURE_ID: {
-            R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
-            // TODO: default textures
-            if (rTexture == NULL) {
-                ASSERT(false);
-                log_error("texture not found for binding");
-                return;
-            }
-            entry->textureView = rTexture->gpuTexture.view;
-            break;
-        }
-        case R_BIND_TEXTURE_VIEW: {
-            entry->textureView = binding->as.textureView;
-            break;
-        };
-        case R_BIND_STORAGE:
+        // case R_BIND_SAMPLER: {
+        //     entry->sampler = Graphics_GetSampler(gctx, binding->as.samplerConfig);
+        //     break;
+        // }
+        // case R_BIND_TEXTURE_ID: {
+        //     R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
+        //     // TODO: default textures
+        //     if (rTexture == NULL) {
+        //         ASSERT(false);
+        //         log_error("texture not found for binding");
+        //         return;
+        //     }
+        //     entry->textureView = rTexture->gpuTexture.view;
+        //     break;
+        // }
+        // case R_BIND_TEXTURE_VIEW: {
+        //     entry->textureView = binding->as.textureView;
+        //     break;
+        // };
+        // case R_BIND_STORAGE:
         default: {
             log_error("unsupported binding type %d", binding->type);
             ASSERT(false);
@@ -768,155 +774,123 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
         }
     }
 }
+    #endif
+
+void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
+                           SG_MaterialPipelineState* pso)
+{
+    mat->pso           = *pso;
+    const void* result = hashmap_set(materials_with_new_pso, &mat->id);
+    ASSERT(result != NULL); // ensure material already created
+}
 
 void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                                   WGPUBindGroupLayout layout)
 {
-    if (!mat->stale) return;
-
-    mat->stale = false;
-
-    // rebuild uniform buffer
-    // TODO: only need to do this if a UNIFORM binding is stale
-    {
-        size_t uniformDataSize = ARENA_LENGTH(&mat->uniformData, u8);
-
-        // maybe put this logic in uniformBuffer class in graphics.h
-        if (uniformDataSize > mat->uniformBuffDesc.size) {
-            // free previous buffer
-            WGPU_DESTROY_AND_RELEASE_BUFFER(mat->gpuUniformBuff);
-            // create new descriptor
-            mat->uniformBuffDesc = {};
-            mat->uniformBuffDesc.usage
-              = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-            mat->uniformBuffDesc.size = uniformDataSize;
-            // create buffer
-            mat->gpuUniformBuff
-              = wgpuDeviceCreateBuffer(gctx->device, &mat->uniformBuffDesc);
-        }
-
-        // write data cpu -> gpu
-        wgpuQueueWriteBuffer(gctx->queue, mat->gpuUniformBuff, 0, mat->uniformData.base,
-                             uniformDataSize);
-    }
+    if (mat->fresh_bind_group) return;
+    mat->fresh_bind_group = true;
 
     // TODO: rebuild storageBuffer for storage bindings
     // will need to store a WGPUBuffer for each storage binding
     // for now unsupported
 
     // create bindgroups for all bindings
-    u32 numBindings         = ARENA_LENGTH(&mat->bindings, R_Binding);
-    u32 numBindGroupEntries = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
-    ASSERT(numBindings == numBindGroupEntries); // WGPUBindGroupEntry should
-                                                // exist for each R_Binding
+    WGPUBindGroupEntry new_bind_group_entries[SG_MATERIAL_MAX_UNIFORMS] = {};
+    int bind_group_index                                                = 0;
+    ASSERT(SG_MATERIAL_MAX_UNIFORMS == ARRAY_LENGTH(mat->bindings));
 
-    for (u32 i = 0; i < numBindings; ++i) {
-        R_Binding* binding = ARENA_GET_TYPE(&mat->bindings, R_Binding, i);
-        WGPUBindGroupEntry* entryDesc
-          = ARENA_GET_TYPE(&mat->bindGroupEntries, WGPUBindGroupEntry, i);
-        _R_Material_BindGroupEntryFromBinding(gctx, mat, binding, entryDesc, i);
+    for (u32 i = 0; i < SG_MATERIAL_MAX_UNIFORMS; ++i) {
+        // _R_Material_BindGroupEntryFromBinding(gctx, mat, binding, entryDesc, i);
+        R_Binding* binding = &mat->bindings[i];
+        if (binding->type == R_BIND_EMPTY) continue;
+
+        WGPUBindGroupEntry* bind_group_entry
+          = &new_bind_group_entries[bind_group_index++];
+
+        bind_group_entry->binding = i; // binding location
+
+        switch (binding->type) {
+            case R_BIND_UNIFORM: {
+                bind_group_entry->offset = sizeof(SG_MaterialUniformData) * i;
+                bind_group_entry->size   = sizeof(SG_MaterialUniformData);
+                bind_group_entry->buffer = mat->uniform_buffer.buf;
+            } break;
+                // case R_BIND_SAMPLER: {
+                //     bind_group_entry->sampler = Graphics_GetSampler(gctx,
+                //     binding->as.samplerConfig); break;
+                // }
+                // case R_BIND_TEXTURE_ID: {
+                //     R_Texture* rTexture =
+                //     Component_GetTexture(binding->as.textureID);
+            default: ASSERT(false);
+        }
     }
 
-    // release previous bindgroup
-    WGPU_RELEASE_RESOURCE(BindGroup, mat->bindGroup);
+	// release previous bindgroup
+	WGPU_RELEASE_RESOURCE(BindGroup, mat->bind_group);
 
-    // get old pipeline
-    R_RenderPipeline* pipeline = Component_GetPipeline(mat->pipelineID);
-    ASSERT(pipeline);
-
-    // create new bindgroup
-    WGPUBindGroupDescriptor bgDesc = {};
-    bgDesc.layout                  = layout;
-    bgDesc.entryCount              = numBindGroupEntries;
-    bgDesc.entries                 = (WGPUBindGroupEntry*)mat->bindGroupEntries.base;
-    mat->bindGroup                 = wgpuDeviceCreateBindGroup(gctx->device, &bgDesc);
+	// create new bindgroup
+	WGPUBindGroupDescriptor bg_desc = {};
+	bg_desc.layout                  = layout;
+	bg_desc.entryCount              = bind_group_index;
+	bg_desc.entries                 = new_bind_group_entries;
+	mat->bind_group = wgpuDeviceCreateBindGroup(gctx->device, &bg_desc);
+	ASSERT(mat->bind_group);
 }
 
 // TODO: this function can take an R_Binding directly, rather than
 // type/data/bytes.
 // Or maybe break this into setUniform, setTexture, setSampler, etc.
 // to simplify the switch statement logic
-void R_Material::setBinding(R_Material* mat, u32 location, R_BindType type, void* data,
-                            size_t bytes)
+void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                            R_BindType type, void* data, size_t bytes)
 {
-    mat->stale = true;
+    R_Binding* binding = &mat->bindings[location];
 
-    // allocate memory in arenas
-    {
-        u32 numBindings   = ARENA_LENGTH(&mat->bindings, R_Binding);
-        u32 numBindGroups = ARENA_LENGTH(&mat->bindGroupEntries, WGPUBindGroupEntry);
-        ASSERT(numBindings == numBindGroups);
-        if (numBindings < location + 1) {
-            // grow bindings arena
-            ARENA_PUSH_COUNT(&mat->bindings, R_Binding, location + 1 - numBindings);
-            // grow bindgroup entries arena
-            ARENA_PUSH_COUNT(&mat->bindGroupEntries, WGPUBindGroupEntry,
-                             location + 1 - numBindings);
-        }
+    // rebuild binding logic
+    // TODO will need to be adjusted to support storage / textures
+    if (binding->type != type) {
+        // need to rebuild bind group, the binding entry at `location` has changed
+        mat->fresh_bind_group = false;
     }
 
-    // TODO can combine R_Binding and WGPUBindGroupEntry into a single struct
-    ASSERT(mat->bindings.cap >= sizeof(R_Binding) * (location + 1));
-    ASSERT(mat->bindGroupEntries.cap >= sizeof(WGPUBindGroupEntry) * (location + 1));
+    binding->type = type;
+    binding->size = bytes;
 
-    { // replace previous binding
-        // NOTE: currently don't allow changing binding type for a given
-        // location
-        // NOTE: don't allow changing binding size for UNIFORM bindings
-        // at same location
-        R_Binding* binding = ARENA_GET_TYPE(&mat->bindings, R_Binding, location);
-        ASSERT(binding->type == R_BIND_EMPTY || binding->type == type);
-        R_BindType prevType = binding->type;
-        size_t prevSize     = binding->size;
-        // create new binding
-        switch (type) {
-            case R_BIND_UNIFORM: {
-                // get offset in uniform buffer
-                ASSERT(prevSize == 0 || prevSize == bytes);
-
-                // first time setting this bindgroup, allocate memory for
-                // uniform
-                if (prevType == R_BIND_EMPTY) {
-                    u8* uniformPtr = ARENA_PUSH_COUNT(&mat->uniformData, u8, bytes);
-                    // set offset pointer
-                    binding->as.uniformOffset
-                      = Arena::offsetOf(&mat->uniformData, uniformPtr);
-                }
-
-                u8* uniformPtr
-                  = ARENA_GET_TYPE(&mat->uniformData, u8, binding->as.uniformOffset);
-
-                // write new data
-                memcpy(uniformPtr, data, bytes);
-                break;
-            }
-            case R_BIND_TEXTURE_ID: {
-                ASSERT(bytes == sizeof(SG_ID));
-                binding->as.textureID = *(SG_ID*)data;
-                // TODO refcount
-                break;
-            }
-            case R_BIND_TEXTURE_VIEW: {
-                ASSERT(bytes == sizeof(WGPUTextureView));
-                binding->as.textureView = *(WGPUTextureView*)data;
-                break;
-            }
-            case R_BIND_SAMPLER: {
-                ASSERT(bytes == sizeof(SamplerConfig));
-                binding->as.samplerConfig = *(SamplerConfig*)data;
-                break;
-            }
-            case R_BIND_STORAGE:
-            default:
-                // if the new binding is also STORAGE reuse the memory, don't
-                // free
-                log_error("unsupported binding type %d", type);
-                ASSERT(false);
-                break;
-        }
-
-        binding->type = type;
-        binding->size = bytes;
+    R_BindType prevType = binding->type;
+    size_t prevSize     = binding->size;
+    // create new binding
+    switch (type) {
+        case R_BIND_UNIFORM: {
+            size_t offset = sizeof(SG_MaterialUniformData) * location;
+            // write unfiform data to corresponding GPU location
+            bool recreated = GPU_Buffer::write(
+              gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform, offset, data, bytes);
+            ASSERT(!recreated);
+        } break;
+        // case R_BIND_TEXTURE_ID: {
+        //     ASSERT(bytes == sizeof(SG_ID));
+        //     binding->as.textureID = *(SG_ID*)data;
+        //     // TODO refcount
+        //     break;
+        // }
+        // case R_BIND_TEXTURE_VIEW: {
+        //     ASSERT(bytes == sizeof(WGPUTextureView));
+        //     binding->as.textureView = *(WGPUTextureView*)data;
+        //     break;
+        // }
+        // case R_BIND_SAMPLER: {
+        //     ASSERT(bytes == sizeof(SamplerConfig));
+        //     binding->as.samplerConfig = *(SamplerConfig*)data;
+        //     break;
+        // }
+        // case R_BIND_STORAGE:
+        default:
+            // if the new binding is also STORAGE reuse the memory, don't
+            // free
+            log_error("unsupported binding type %d", type);
+            ASSERT(false);
+            break;
     }
 }
 
@@ -925,6 +899,8 @@ void R_Material::setTextureAndSamplerBinding(R_Material* mat, u32 location,
                                              SG_ID textureID,
                                              WGPUTextureView defaultView)
 {
+    ASSERT(false);
+#if 0
     SamplerConfig defaultSampler = {};
 
     R_Texture* rTexture = Component_GetTexture(textureID);
@@ -943,6 +919,7 @@ void R_Material::setTextureAndSamplerBinding(R_Material* mat, u32 location,
         R_Material::setBinding(mat, location + 1, R_BIND_SAMPLER, &defaultSampler,
                                sizeof(SamplerConfig));
     }
+#endif
 }
 
 u32 R_Material::numPrimitives(R_Material* mat)
@@ -960,20 +937,22 @@ void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xfo
     if (mat == NULL || geo == NULL || xform == NULL) return;
 
     // check if primitive for geoID already exists
-    u32 numPrims = R_Material::numPrimitives(mat);
+    Material_Primitive* prim = NULL;
+    u32 numPrims             = R_Material::numPrimitives(mat);
     for (u32 i = 0; i < numPrims; ++i) {
-        Material_Primitive* prim
+        Material_Primitive* _prim
           = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, i);
-        if (prim->geoID == geo->id) {
-            Material_Primitive::addXform(prim, xform);
-            ASSERT(prim->stale);
-            return;
+        if (_prim->geoID == geo->id) {
+            prim = _prim;
+            break;
         }
     }
+
     // else create new primitive for this geometry
-    Material_Primitive* prim
-      = ARENA_PUSH_ZERO_TYPE(&mat->primitives, Material_Primitive);
-    Material_Primitive::init(prim, mat, geo->id);
+    if (!prim) {
+        prim = ARENA_PUSH_ZERO_TYPE(&mat->primitives, Material_Primitive);
+        Material_Primitive::init(prim, mat, geo->id);
+    }
 
     // add xform to new primitive
     Material_Primitive::addXform(prim, xform);
@@ -1087,30 +1066,127 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 // Render Pipeline Definitions
 // ============================================================================
 
+GPU_Buffer R_RenderPipeline::frame_uniform_buffer = {};
+
 void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
-                            const R_MaterialConfig* config, ptrdiff_t offset)
+                            const SG_MaterialPipelineState* config)
 {
-    ASSERT(pipeline->pipeline.pipeline == NULL);
+    ASSERT(pipeline->gpu_pipeline == NULL);
     ASSERT(pipeline->rid == 0);
 
     pipeline->rid = getNewRID();
     ASSERT(pipeline->rid < 0);
 
-    memcpy(&pipeline->config, config, sizeof(R_MaterialConfig));
-    pipeline->offset = offset;
+    pipeline->pso = *config;
 
-    const char* vertShaderCode = NULL;
-    const char* fragShaderCode = NULL;
-    switch (config->material_type) {
-        case SG_MATERIAL_PBR: {
-            vertShaderCode = shaderCode;
-            fragShaderCode = shaderCode;
-            break;
+    // const char* vertShaderCode = NULL;
+    // const char* fragShaderCode = NULL;
+    // switch (config->material_type) {
+    //     case SG_MATERIAL_PBR: {
+    //         vertShaderCode = shaderCode;
+    //         fragShaderCode = shaderCode;
+    //         break;
+    //     }
+    //     default: ASSERT(false && "unsupported shader type");
+    // }
+
+    WGPUPrimitiveState primitiveState = {};
+    primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
+    primitiveState.stripIndexFormat
+      = (primitiveState.topology == WGPUPrimitiveTopology_TriangleStrip
+         || primitiveState.topology == WGPUPrimitiveTopology_LineStrip) ?
+          WGPUIndexFormat_Uint32 :
+          WGPUIndexFormat_Undefined;
+    primitiveState.frontFace = WGPUFrontFace_CCW;
+    primitiveState.cullMode  = config->cull_mode;
+
+    // TODO transparency (dissallow partial transparency, see if fragment discard
+    // writes to the depth buffer)
+    WGPUBlendState blendState = G_createBlendState(true);
+
+    WGPUColorTargetState colorTargetState = {};
+    colorTargetState.format               = gctx->swapChainFormat;
+    colorTargetState.blend                = &blendState;
+    colorTargetState.writeMask            = WGPUColorWriteMask_All;
+
+    WGPUDepthStencilState depth_stencil_state
+      = G_createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
+
+    // Setup shader module
+    R_Shader* shader = Component_GetShader(config->sg_shader_id);
+    ASSERT(shader);
+
+    VertexBufferLayout vertexBufferLayout = {};
+    VertexBufferLayout::init(&vertexBufferLayout, ARRAY_LENGTH(shader->vertex_layout),
+                             (u32*)shader->vertex_layout);
+
+    // vertex state
+    WGPUVertexState vertexState = {};
+    vertexState.bufferCount     = vertexBufferLayout.attribute_count;
+    vertexState.buffers         = vertexBufferLayout.layouts;
+    vertexState.module          = shader->vertex_shader_module;
+    vertexState.entryPoint      = VS_ENTRY_POINT;
+
+    // fragment state
+    WGPUFragmentState fragmentState = {};
+    fragmentState.module            = shader->fragment_shader_module;
+    fragmentState.entryPoint        = FS_ENTRY_POINT;
+    fragmentState.targetCount       = 1;
+    fragmentState.targets           = &colorTargetState;
+
+    // multisample state
+    WGPUMultisampleState multisampleState   = {};
+    multisampleState.count                  = 1;
+    multisampleState.mask                   = 0xFFFFFFFF;
+    multisampleState.alphaToCoverageEnabled = false;
+
+    char pipeline_label[64] = {};
+    snprintf(pipeline_label, sizeof(pipeline_label), "RenderPipeline %lld %s",
+             (i64)shader->id, shader->name.c_str());
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.label                        = pipeline_label;
+    pipeline_desc.layout                       = NULL; // Using layout: auto
+    pipeline_desc.primitive                    = primitiveState;
+    pipeline_desc.vertex                       = vertexState;
+    pipeline_desc.fragment                     = &fragmentState;
+    pipeline_desc.depthStencil                 = &depth_stencil_state;
+    pipeline_desc.multisample                  = multisampleState;
+
+    pipeline->gpu_pipeline
+      = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
+    ASSERT(pipeline->gpu_pipeline);
+
+    { // create per-frame bindgroup
+        // implicit layouts cannot share bindgroups, so need to create one per
+        // render pipeline
+
+        // initialize shared frame buffer
+        if (!R_RenderPipeline::frame_uniform_buffer.buf) {
+            FrameUniforms frame_uniforms = {};
+            GPU_Buffer::write(gctx, &R_RenderPipeline::frame_uniform_buffer,
+                              WGPUBufferUsage_Uniform, &frame_uniforms,
+                              sizeof(frame_uniforms));
         }
-        default: ASSERT(false && "unsupported shader type");
-    }
 
-    RenderPipeline::init(gctx, &pipeline->pipeline, vertShaderCode, fragShaderCode);
+        // create bind group entry (TODO shader globally in renderer)
+        WGPUBindGroupEntry frame_group_entry = {};
+        frame_group_entry                    = {};
+        frame_group_entry.binding            = 0;
+        frame_group_entry.buffer             = pipeline->frame_uniform_buffer.buf;
+        frame_group_entry.size               = pipeline->frame_uniform_buffer.size;
+
+        // create bind group
+        WGPUBindGroupDescriptor frameGroupDesc;
+        frameGroupDesc        = {};
+        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
+          pipeline->gpu_pipeline, PER_FRAME_GROUP);
+        frameGroupDesc.entries    = &frame_group_entry;
+        frameGroupDesc.entryCount = 1;
+
+        pipeline->frame_group
+          = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
+        ASSERT(pipeline->frame_group);
+    }
 
     Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
 }
@@ -1213,6 +1289,7 @@ bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline, size_t* indexPtr
 static Arena xformArena;
 static Arena sceneArena;
 static Arena geoArena;
+static Arena shaderArena;
 static Arena materialArena;
 static Arena textureArena;
 static Arena _RenderPipelineArena;
@@ -1248,12 +1325,23 @@ static u64 R_HashLocation(const void* item, uint64_t seed0, uint64_t seed1)
     // return hashmap_murmur(item, sizeof(int), seed0, seed1);
 }
 
+static int compareSGIDs(const void* a, const void* b, void* udata)
+{
+    return *(SG_ID*)a - *(SG_ID*)b;
+}
+
+static uint64_t hashSGID(const void* item, uint64_t seed0, uint64_t seed1)
+{
+    return hashmap_xxhash3(item, sizeof(SG_ID), seed0, seed1);
+}
+
 void Component_Init(GraphicsContext* gctx)
 {
     // initialize arena memory
     Arena::init(&xformArena, sizeof(R_Transform) * 128);
     Arena::init(&sceneArena, sizeof(R_Scene) * 128);
     Arena::init(&geoArena, sizeof(R_Geometry) * 128);
+    Arena::init(&shaderArena, sizeof(R_Shader) * 64);
     Arena::init(&materialArena, sizeof(R_Material) * 64);
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
@@ -1271,6 +1359,8 @@ void Component_Init(GraphicsContext* gctx)
     srand(seed);
     r_locator = hashmap_new(sizeof(R_Location), 0, seed, seed, R_HashLocation,
                             R_CompareLocation, NULL, NULL);
+    materials_with_new_pso
+      = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID, compareSGIDs, NULL, NULL);
 }
 
 void Component_Free()
@@ -1281,6 +1371,7 @@ void Component_Free()
     Arena::free(&xformArena);
     Arena::free(&sceneArena);
     Arena::free(&geoArena);
+    Arena::free(&shaderArena);
     Arena::free(&materialArena);
     Arena::free(&_RenderPipelineArena);
     Arena::free(&textureArena);
@@ -1415,21 +1506,54 @@ R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate
     return geo;
 }
 
-R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig* config)
+R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate* cmd)
 {
-    R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
-    R_Material::init(gctx, mat, config);
+    R_Shader* shader = ARENA_PUSH_ZERO_TYPE(&shaderArena, R_Shader);
 
-    ASSERT(mat->id != 0);                       // ensure id is set
-    ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
+    shader->id   = cmd->sg_id;
+    shader->type = SG_COMPONENT_SHADER;
+
+    // shader member vars
+    const char* vertex_string
+      = (const char*)CQ_ReadCommandGetOffset(cmd->vertex_string_offset);
+    const char* fragment_string
+      = (const char*)CQ_ReadCommandGetOffset(cmd->fragment_string_offset);
+    const char* vertex_filepath
+      = (const char*)CQ_ReadCommandGetOffset(cmd->vertex_filepath_offset);
+    const char* fragment_filepath
+      = (const char*)CQ_ReadCommandGetOffset(cmd->fragment_filepath_offset);
+
+    ASSERT(sizeof(cmd->vertex_layout) == sizeof(shader->vertex_layout));
+    R_Shader::init(gctx, shader, vertex_string, vertex_filepath, fragment_string,
+                   fragment_filepath, cmd->vertex_layout);
 
     // store offset
-    R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    R_Location loc
+      = { shader->id, Arena::offsetOf(&shaderArena, shader), &shaderArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
 
-    return mat;
+    return shader;
 }
+
+// only called by renderer tester
+// R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig*
+// config)
+// {
+//     R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
+//     R_Material::init(gctx, mat, config);
+
+//     ASSERT(mat->id != 0);                       // ensure id is set
+//     ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
+
+//     // store offset
+//     R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat),
+//     &materialArena
+//     }; const void* result = hashmap_set(r_locator, &loc); ASSERT(result == NULL);
+//     // ensure id is unique
+
+//     return mat;
+// }
 
 // TODO: refactor so that R_Component doesn't know about SG_Command
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
@@ -1439,60 +1563,62 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
     // initialize
     {
-        *mat       = {};
-        mat->id    = cmd->sg_id;
-        mat->type  = SG_COMPONENT_MATERIAL;
-        mat->stale = true;
+        *mat      = {};
+        mat->id   = cmd->sg_id;
+        mat->type = SG_COMPONENT_MATERIAL;
+
+        GPU_Buffer::init(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
+                         sizeof(SG_MaterialUniformData) * ARRAY_LENGTH(mat->bindings));
 
         // build config
-        // TODO: pass config from SG_Material
-        mat->config               = {};
-        mat->config.material_type = cmd->material_type;
+        mat->pso = cmd->pso;
 
         // initialize primitives arena
         Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
 
         // initialize bind entry arenas
-        Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
-        Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
-        Arena::init(&mat->uniformData, 64);
+        // Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
+        // Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
+        // Arena::init(&mat->uniformData, 64);
 
-        // get pipeline
-        R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->config);
-
-        // add material to pipeline
-        R_RenderPipeline::addMaterial(pipeline, mat);
-        ASSERT(mat->pipelineID != 0);
+        // defer pipeline (lazily created)
+        const void* result = hashmap_set(materials_with_new_pso, &mat->id);
+        ASSERT(result == NULL); // ensure id is unique
     }
 
     // set material params/uniforms
     // TODO this only works for PBR for now
-    {
-        // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
-        // make the SG_MaterialParams struct alignment work for webgpu
-        // uniforms
-        MaterialUniforms pbr_uniforms  = {};
-        SG_Material_PBR_Params* params = &cmd->params.pbr;
-        pbr_uniforms.baseColor         = params->baseColor;
-        pbr_uniforms.emissiveFactor    = params->emissiveFactor;
-        pbr_uniforms.metallic          = params->metallic;
-        pbr_uniforms.roughness         = params->roughness;
-        pbr_uniforms.normalFactor      = params->normalFactor;
-        pbr_uniforms.aoFactor          = params->aoFactor;
+    // {
+    //     // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
+    //     // make the SG_MaterialParams struct alignment work for webgpu
+    //     // uniforms
+    //     MaterialUniforms pbr_uniforms  = {};
+    //     SG_Material_PBR_Params* params = &cmd->params.pbr;
+    //     pbr_uniforms.baseColor         = params->baseColor;
+    //     pbr_uniforms.emissiveFactor    = params->emissiveFactor;
+    //     pbr_uniforms.metallic          = params->metallic;
+    //     pbr_uniforms.roughness         = params->roughness;
+    //     pbr_uniforms.normalFactor      = params->normalFactor;
+    //     pbr_uniforms.aoFactor          = params->aoFactor;
 
-        R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
-                               sizeof(pbr_uniforms));
+    //     R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
+    //                            sizeof(pbr_uniforms));
 
-        R_Material::setTextureAndSamplerBinding(mat, 1, 0, opaqueWhitePixel.view);
+    //     R_Material::setTextureAndSamplerBinding(mat, 1, 0,
+    //     opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 3, 0, defaultNormalPixel.view);
+    //     R_Material::setTextureAndSamplerBinding(mat, 3, 0,
+    //     defaultNormalPixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 5, 0, opaqueWhitePixel.view);
+    //     R_Material::setTextureAndSamplerBinding(mat, 5, 0,
+    //     opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 7, 0, opaqueWhitePixel.view);
+    //     R_Material::setTextureAndSamplerBinding(mat, 7, 0,
+    //     opaqueWhitePixel.view);
 
-        R_Material::setTextureAndSamplerBinding(mat, 9, 0, transparentBlackPixel.view);
-    }
+    //     R_Material::setTextureAndSamplerBinding(mat, 9, 0,
+    //     transparentBlackPixel.view);
+    // }
 
     // store offset
     R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
@@ -1500,6 +1626,24 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
     ASSERT(result == NULL); // ensure id is unique
 
     return mat;
+}
+
+// called by renderer after flushing all commands
+void Material_batchUpdatePipelines(GraphicsContext* gctx)
+{
+    size_t index = 0;
+    SG_ID* sg_id;
+    while (hashmap_iter(materials_with_new_pso, &index, (void**)&sg_id)) {
+        R_Material* mat            = Component_GetMaterial(*sg_id);
+        R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->pso);
+
+        // add material to pipeline
+        R_RenderPipeline::addMaterial(pipeline, mat);
+        ASSERT(mat->pipelineID != 0);
+    }
+
+    // clear hashmap
+    hashmap_clear(materials_with_new_pso, true);
 }
 
 R_Texture* Component_CreateTexture()
@@ -1550,6 +1694,13 @@ R_Geometry* Component_GetGeometry(SG_ID id)
     return (R_Geometry*)comp;
 }
 
+R_Shader* Component_GetShader(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_SHADER);
+    return (R_Shader*)comp;
+}
+
 R_Material* Component_GetMaterial(SG_ID id)
 {
     R_Component* comp = Component_GetComponent(id);
@@ -1590,17 +1741,23 @@ bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline)
     return true;
 }
 
-R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx, R_MaterialConfig* config)
+int Component_RenderPipelineCount()
 {
-    // TODO figure out a better way to search (augment with a hashmap?)
-    // for now just doing linear search
+    return ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
+}
+
+R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
+                                        SG_MaterialPipelineState* pso)
+{
+    // TODO ==optimization== figure out a better way to search (augment with a
+    // hashmap?) for now just doing linear search
 
     u32 numPipelines = ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
     for (u32 i = 0; i < numPipelines; ++i) {
         R_RenderPipeline* pipeline
           = ARENA_GET_TYPE(&_RenderPipelineArena, R_RenderPipeline, i);
         // compare config
-        if (memcmp(&pipeline->config, &config, sizeof(R_MaterialConfig)) == 0) {
+        if (memcmp(&pipeline->pso, pso, sizeof(*pso)) == 0) {
             return pipeline;
         }
     }
@@ -1609,9 +1766,9 @@ R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx, R_MaterialConfig*
     R_RenderPipeline* rPipeline
       = ARENA_PUSH_ZERO_TYPE(&_RenderPipelineArena, R_RenderPipeline);
     u64 pipelineOffset = Arena::offsetOf(&_RenderPipelineArena, rPipeline);
-    R_RenderPipeline::init(gctx, rPipeline, config, pipelineOffset);
+    R_RenderPipeline::init(gctx, rPipeline, pso);
 
-    // TODO consolidate with hashmap?
+    // TODO move off of std::unordered_map to hashmap.c
     ASSERT(_RenderPipelineMap.find(rPipeline->rid) == _RenderPipelineMap.end());
     _RenderPipelineMap[rPipeline->rid] = pipelineOffset;
 
@@ -1623,4 +1780,63 @@ R_RenderPipeline* Component_GetPipeline(R_ID rid)
     if (_RenderPipelineMap.find(rid) == _RenderPipelineMap.end()) return NULL;
     return (R_RenderPipeline*)Arena::get(&_RenderPipelineArena,
                                          _RenderPipelineMap[rid]);
+}
+
+// =============================================================================
+// R_Shader
+// =============================================================================
+
+void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
+                    const char* vertex_filepath, const char* fragment_string,
+                    const char* fragment_filepath, int* vertex_layout)
+{
+    char vertex_shader_label[32] = {};
+    snprintf(vertex_shader_label, sizeof(vertex_shader_label), "vertex shader %d",
+             (int)shader->id);
+    char fragment_shader_label[32] = {};
+    snprintf(fragment_shader_label, sizeof(fragment_shader_label), "fragment shader %d",
+             (int)shader->id);
+
+    if (vertex_string && strlen(vertex_string) > 0) {
+        shader->vertex_shader_module
+          = G_createShaderModule(gctx, vertex_string, vertex_shader_label);
+    } else if (vertex_filepath && strlen(vertex_filepath) > 0) {
+        // read entire file contents
+        FileReadResult vertex_file = File_read(vertex_filepath, true);
+        if (vertex_file.data_owned) {
+            shader->vertex_shader_module = G_createShaderModule(
+              gctx, (const char*)vertex_file.data_owned, vertex_shader_label);
+            FREE(vertex_file.data_owned);
+        } else {
+            log_error("failed to read vertex shader file %s", vertex_filepath);
+        }
+    } else {
+        ASSERT(false);
+    }
+
+    if (fragment_string && strlen(fragment_string) > 0) {
+        shader->fragment_shader_module
+          = G_createShaderModule(gctx, fragment_string, fragment_shader_label);
+    } else if (fragment_filepath && strlen(fragment_filepath) > 0) {
+        // read entire file contents
+        FileReadResult fragment_file = File_read(fragment_filepath, true);
+        if (fragment_file.data_owned) {
+            shader->fragment_shader_module = G_createShaderModule(
+              gctx, (const char*)fragment_file.data_owned, fragment_shader_label);
+            FREE(fragment_file.data_owned);
+        } else {
+            log_error("failed to read fragment shader file %s", fragment_filepath);
+        }
+    } else {
+        ASSERT(false);
+    }
+
+    // copy vertex layout
+    memcpy(shader->vertex_layout, vertex_layout, sizeof(shader->vertex_layout));
+}
+
+void R_Shader::free(R_Shader* shader)
+{
+    WGPU_RELEASE_RESOURCE(ShaderModule, shader->vertex_shader_module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, shader->fragment_shader_module);
 }

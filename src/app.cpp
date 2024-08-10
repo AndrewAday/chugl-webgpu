@@ -619,6 +619,8 @@ struct App {
             SG_Command* cmd = NULL;
             while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
             CQ_ReadCommandQueueClear();
+            // tasks to do after command queue is flushed (batched)
+            Material_batchUpdatePipelines(&app->gctx);
         }
 
         // process any glfw options passed from chuck
@@ -792,6 +794,9 @@ struct App {
 
 static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
 {
+    // early out if no pipelines
+    if (Component_RenderPipelineCount() == 0) return;
+
     R_Scene* main_scene = Component_GetScene(app->mainScene);
 
     { // Update all transforms
@@ -816,6 +821,12 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
     frameUniforms.dirLight      = VEC_FORWARD;
     frameUniforms.time          = time;
 
+    // update frame-level uniforms
+    bool frame_uniforms_recreated = GPU_Buffer::write(
+      &app->gctx, &R_RenderPipeline::frame_uniform_buffer, WGPUBufferUsage_Uniform,
+      &frameUniforms, sizeof(frameUniforms));
+    ASSERT(!frame_uniforms_recreated);
+
     // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
     // Test render loop
     R_RenderPipeline* renderPipeline = NULL;
@@ -827,24 +838,20 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
         // early out if numMaterials == 0;
         if (R_RenderPipeline::numMaterials(renderPipeline) == 0) continue;
 
-        WGPURenderPipeline gpuPipeline = renderPipeline->pipeline.pipeline;
-        // TODO: cache the bindGroupLayout in the pipeline after creation (it
-        // will never change)
+        WGPURenderPipeline gpu_pipeline = renderPipeline->gpu_pipeline;
+
+        // ==optimize== cache layouts in R_RenderPipeline struct upon creation
         WGPUBindGroupLayout perMaterialLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_MATERIAL_GROUP);
+          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_MATERIAL_GROUP);
         WGPUBindGroupLayout perDrawLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_DRAW_GROUP);
+          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_DRAW_GROUP);
 
         // set shader
-        wgpuRenderPassEncoderSetPipeline(renderPass, gpuPipeline);
+        // TODO only set shader if we actually have anything to render
+        wgpuRenderPassEncoderSetPipeline(renderPass, gpu_pipeline);
 
-        // set frame bind group (needs to be set per renderpipeline as long
-        // as we use implicit layout:auto)
-        wgpuQueueWriteBuffer(app->gctx.queue,
-                             renderPipeline->pipeline.frameUniformBuffer, 0,
-                             &frameUniforms, sizeof(frameUniforms));
         wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-                                          renderPipeline->pipeline.frameGroup, 0, NULL);
+                                          renderPipeline->frame_group, 0, NULL);
 
         // per-material render loop
         size_t materialIdx    = 0;
@@ -864,7 +871,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             // set per_material bind group
             R_Material::rebuildBindGroup(rMaterial, &app->gctx, perMaterialLayout);
             wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
-                                              rMaterial->bindGroup, 0, NULL);
+                                              rMaterial->bind_group, 0, NULL);
 
             // iterate over material primitives
             size_t primitiveIdx           = 0;
@@ -884,9 +891,6 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 ASSERT(geo);
 
                 // set vertex attributes
-                // TODO: what happens if a vertex attribute is not set in for
-                // the shader?
-
                 for (int location = 0; location < R_Geometry::vertexAttributeCount(geo);
                      location++) {
                     GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
@@ -1172,9 +1176,28 @@ static void _R_HandleCommand(App* app, SG_Command* command)
 
             R_Geometry::setIndices(&app->gctx, geo, indices, cmd->index_count);
         } break;
+        // shaders
+        case SG_COMMAND_SHADER_CREATE: {
+            SG_Command_ShaderCreate* cmd = (SG_Command_ShaderCreate*)command;
+            Component_CreateShader(&app->gctx, cmd);
+        } break;
         case SG_COMMAND_MATERIAL_CREATE: {
             SG_Command_MaterialCreate* cmd = (SG_Command_MaterialCreate*)command;
             Component_CreateMaterial(&app->gctx, cmd);
+        } break;
+        case SG_COMMAND_MATERIAL_UPDATE_PSO: {
+            SG_Command_MaterialUpdatePSO* cmd = (SG_Command_MaterialUpdatePSO*)command;
+            R_Material* material              = Component_GetMaterial(cmd->sg_id);
+            R_Material::updatePSO(&app->gctx, material, &cmd->pso);
+        } break;
+        case SG_COMMAND_MATERIAL_SET_UNIFORM: {
+            SG_Command_MaterialSetUniform* cmd
+              = (SG_Command_MaterialSetUniform*)command;
+            R_Material* material = Component_GetMaterial(cmd->sg_id);
+            SG_MaterialUniformPtrAndSize u_ptr_size
+              = SG_MaterialUniform::data(&cmd->uniform);
+            R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_UNIFORM,
+                                   u_ptr_size.ptr, u_ptr_size.size);
         } break;
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;

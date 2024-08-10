@@ -6,6 +6,7 @@
 #include "ulib_component.cpp"
 #include "ulib_geometry.cpp"
 #include "ulib_imgui.cpp"
+#include "ulib_material.cpp"
 #include "ulib_texture.cpp"
 #include "ulib_window.cpp"
 

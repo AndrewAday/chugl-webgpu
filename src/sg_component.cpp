@@ -2,6 +2,8 @@
 #include "core/hashmap.h"
 #include "geometry.h"
 
+#include "ulib_helper.h"
+
 #include <glm/gtx/quaternion.hpp>
 
 // ============================================================================
@@ -459,6 +461,7 @@ static Arena* _gc_queue_write = &_gc_queue_b;
 static Arena SG_XformArena;
 static Arena SG_SceneArena;
 static Arena SG_GeoArena;
+static Arena SG_ShaderArena;
 static Arena SG_MaterialArena;
 static Arena SG_MeshArena;
 // static Arena textureArena;
@@ -540,6 +543,7 @@ SG_Transform* SG_CreateTransform(Chuck_Object* ckobj)
 {
     size_t offset       = SG_XformArena.curr;
     SG_Transform* xform = ARENA_PUSH_TYPE(&SG_XformArena, SG_Transform);
+    *xform              = {};
     SG_Transform::_init(xform, ckobj);
 
     xform->id   = SG_GetNewComponentID();
@@ -557,6 +561,7 @@ SG_Scene* SG_CreateScene(Chuck_Object* ckobj)
     Arena* arena    = &SG_SceneArena;
     size_t offset   = arena->curr;
     SG_Scene* scene = ARENA_PUSH_TYPE(arena, SG_Scene);
+    *scene          = {};
 
     SG_Scene::_init(scene, ckobj);
 
@@ -587,31 +592,61 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj)
     return geo;
 }
 
+SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
+                           Chuck_String* fragment_string, Chuck_String* vertex_filepath,
+                           Chuck_String* fragment_filepath,
+                           Chuck_ArrayInt* ck_vertex_layout)
+{
+    Arena* arena      = &SG_ShaderArena;
+    size_t offset     = arena->curr;
+    SG_Shader* shader = ARENA_PUSH_TYPE(arena, SG_Shader);
+    *shader           = {};
+
+    // set base component values
+    shader->id    = SG_GetNewComponentID();
+    shader->type  = SG_COMPONENT_SHADER;
+    shader->ckobj = ckobj;
+
+    // set shader values
+    shader->vertex_string_owned     = chugin_copyCkString(vertex_string);
+    shader->fragment_string_owned   = chugin_copyCkString(fragment_string);
+    shader->vertex_filepath_owned   = chugin_copyCkString(vertex_filepath);
+    shader->fragment_filepath_owned = chugin_copyCkString(fragment_filepath);
+    chugin_copyCkIntArray(ck_vertex_layout, shader->vertex_layout,
+                          ARRAY_LENGTH(shader->vertex_layout));
+
+    // store in map
+    SG_Location loc = { shader->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return shader;
+}
+
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params)
 {
     Arena* arena     = &SG_MaterialArena;
     size_t offset    = arena->curr;
-    SG_Material* mat = ARENA_PUSH_TYPE(arena, SG_Material);
+    SG_Material* mat = ARENA_PUSH_ZERO_TYPE(arena, SG_Material);
 
     mat->ckobj         = ckobj;
     mat->id            = SG_GetNewComponentID();
     mat->type          = SG_COMPONENT_MATERIAL;
     mat->material_type = material_type;
 
-    switch (material_type) {
-        case SG_MATERIAL_PBR: {
-            if (params == NULL) {
-                // copy default values
-                SG_Material_PBR_Params p = {};
-                COPY_STRUCT(&mat->params.pbr, &p, SG_Material_PBR_Params);
-            } else {
-                COPY_STRUCT(&mat->params.pbr, (SG_Material_PBR_Params*)params,
-                            SG_Material_PBR_Params);
-            }
-        } break;
-        default: ASSERT(false);
-    }
+    // switch (material_type) {
+    //     case SG_MATERIAL_PBR: {
+    //         if (params == NULL) {
+    //             // copy default values
+    //             SG_Material_PBR_Params p = {};
+    //             COPY_STRUCT(&mat->params.pbr, &p, SG_Material_PBR_Params);
+    //         } else {
+    //             COPY_STRUCT(&mat->params.pbr, (SG_Material_PBR_Params*)params,
+    //                         SG_Material_PBR_Params);
+    //         }
+    //     } break;
+    //     default: ASSERT(false);
+    // }
 
     // store in map
     SG_Location loc = { mat->id, offset, arena };
@@ -625,6 +660,7 @@ SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg
     Arena* arena  = &SG_MeshArena;
     size_t offset = arena->curr;
     SG_Mesh* mesh = ARENA_PUSH_TYPE(arena, SG_Mesh);
+    *mesh         = {};
     SG_Transform::_init(mesh, ckobj); // init transform data
 
     mesh->ckobj = ckobj;
@@ -671,6 +707,13 @@ SG_Geometry* SG_GetGeometry(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component->type == SG_COMPONENT_GEOMETRY);
     return (SG_Geometry*)component;
+}
+
+SG_Shader* SG_GetShader(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    if (component) ASSERT(component->type == SG_COMPONENT_SHADER);
+    return (SG_Shader*)component;
 }
 
 SG_Material* SG_GetMaterial(SG_ID id)
@@ -727,4 +770,39 @@ void SG_GC()
 
     // clear read queue
     Arena::clear(_gc_queue_read);
+}
+
+// ============================================================================
+// SG_Material
+// ============================================================================
+
+void SG_Material::removeUniform(SG_Material* mat, int location)
+{
+    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_NONE;
+    // zero out
+    memset(&mat->uniforms[location].as, 0, sizeof(mat->uniforms[location].as));
+}
+
+void SG_Material::uniformFloat(SG_Material* mat, int location, f32 f)
+{
+    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_FLOAT;
+    mat->uniforms[location].as.f = f;
+}
+
+f32 SG_Material::uniformFloat(SG_Material* mat, int location)
+{
+    ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_FLOAT);
+    return mat->uniforms[location].as.f;
+}
+
+void SG_Material::shader(SG_Material* mat, SG_Shader* shader)
+{
+    // refcount incoming shader
+    SG_AddRef(shader);
+
+    // deref old shader
+    if (mat->pso.sg_shader_id) SG_DecrementRef(mat->pso.sg_shader_id);
+
+    // set new shader
+    mat->pso.sg_shader_id = shader->id;
 }

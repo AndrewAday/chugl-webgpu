@@ -77,7 +77,16 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_SCALE,
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
+
+    // shader
+    SG_COMMAND_SHADER_CREATE,
+
+    // material
     SG_COMMAND_MATERIAL_CREATE,
+    SG_COMMAND_MATERIAL_UPDATE_PSO,
+    SG_COMMAND_MATERIAL_SET_UNIFORM,
+
+    // mesh
     SG_COMMAND_MESH_CREATE,
 
     // geometry
@@ -244,11 +253,32 @@ struct SG_Command_GeoSetIndices : public SG_Command {
     ptrdiff_t indices_offset;
 };
 
-// TODO: need way to specify config (doublesided, alpha, etc)
+struct SG_Command_ShaderCreate : public SG_Command {
+    SG_ID sg_id;
+    // strings to be freed by render thread
+    ptrdiff_t vertex_string_offset;
+    ptrdiff_t vertex_filepath_offset;
+    ptrdiff_t fragment_string_offset;
+    ptrdiff_t fragment_filepath_offset;
+    int vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+};
+
 struct SG_Command_MaterialCreate : public SG_Command {
     SG_ID sg_id;
-    SG_MaterialParams params;
+    // SG_MaterialParams params;
     SG_MaterialType material_type;
+    SG_MaterialPipelineState pso;
+};
+
+struct SG_Command_MaterialUpdatePSO : public SG_Command {
+    SG_ID sg_id;
+    SG_MaterialPipelineState pso;
+};
+
+struct SG_Command_MaterialSetUniform : public SG_Command {
+    SG_ID sg_id;
+    SG_MaterialUniform uniform;
+    int location;
 };
 
 struct SG_Command_Mesh_Create : public SG_Command {
@@ -336,8 +366,15 @@ void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
                                                int data_len);
 void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count);
 
+// shader
+void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
+
 // material
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
+void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material);
+void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
+
+// mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
 
 // b2

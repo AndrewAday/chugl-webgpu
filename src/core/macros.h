@@ -119,3 +119,6 @@ typedef double f64;
 #define CLAMP(x, lo, hi) (MIN(hi, MAX(lo, x)))
 
 #define NEXT_POW2(x) (1 << (u32)ceil(log2(x)));
+
+// next multiple of m, m must be power of 2
+#define NEXT_MULT(x, m) (((x) + (m) - 1) & ~((m) - 1))

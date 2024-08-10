@@ -2,6 +2,7 @@
 
 #include <chuck/chugin.h>
 #include <unordered_map>
+#include <webgpu/webgpu.h>
 
 #include "core/macros.h"
 #include "core/memory.h"
@@ -26,6 +27,11 @@
 #define GET_NEXT_FLOAT_ARRAY(ptr) (*((Chuck_ArrayFloat**&)ptr)++)
 #define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 
+#define OBJ_MEMBER_INT_ARRAY(obj, offset)                                              \
+    (*(Chuck_ArrayInt**)OBJ_MEMBER_DATA(obj, offset))
+#define OBJ_MEMBER_FLOAT_ARRAY(obj, offset)                                            \
+    (*(Chuck_ArrayFloat**)OBJ_MEMBER_DATA(obj, offset))
+
 // log levels (copied from
 // https://github.com/ccrma/chuck/blob/90f966cb8649840bc05f5d77219867593eb7fe94/src/core/chuck_errmsg.h#L78)
 #define CK_LOG_ALL 10 // set this to log everything
@@ -41,12 +47,12 @@
 #define CK_LOG_NONE 0 // set this to log nothing
 
 #define CK_LOG(level, text) g_chuglAPI->vm->em_log(level, text)
-#define CK_THROW(exception, desc, shred)                                       \
+#define CK_THROW(exception, desc, shred)                                               \
     g_chuglAPI->vm->throw_exception(exception, desc, shred)
 
-#define CHUGIN_SAFE_DELETE(type, data_offset)                                  \
-    type* obj = (type*)OBJ_MEMBER_UINT(SELF, data_offset);                     \
-    if (obj) delete obj;                                                       \
+#define CHUGIN_SAFE_DELETE(type, data_offset)                                          \
+    type* obj = (type*)OBJ_MEMBER_UINT(SELF, data_offset);                             \
+    if (obj) delete obj;                                                               \
     OBJ_MEMBER_UINT(SELF, data_offset) = 0;
 
 // references to VM and API
@@ -73,8 +79,7 @@ void chugin_setVTableOffset(t_CKINT* offset, const char* type_name,
     // update() vt offset
     Chuck_Type* cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
     // find the offset for update
-    *offset
-      = g_chuglAPI->type->get_vtable_offset(g_chuglVM, cktype, method_name);
+    *offset = g_chuglAPI->type->get_vtable_offset(g_chuglVM, cktype, method_name);
 }
 
 // store ckobj --> ancestor shred mapping
@@ -108,4 +113,58 @@ Chuck_Object* chugin_createCkObj(const char* type_name, bool add_ref,
 {
     Chuck_DL_Api::Type cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
     return g_chuglAPI->object->create(shred, cktype, add_ref);
+}
+
+Chuck_Object* chugin_createCkObj(const char* type_name, bool add_ref)
+{
+    Chuck_DL_Api::Type cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
+    return g_chuglAPI->object->create_without_shred(g_chuglVM, cktype, add_ref);
+}
+
+const char* chugin_copyCkString(Chuck_String* ck_str)
+{
+    return strdup(g_chuglAPI->object->str(ck_str));
+}
+
+Chuck_String* chugin_createCkString(const char* str)
+{
+    return g_chuglAPI->object->create_string(g_chuglVM, str, false);
+}
+
+// copies up to count elements from ck_arr to arr
+void chugin_copyCkIntArray(Chuck_ArrayInt* ck_arr, int* arr, int count)
+{
+    int size = MIN(g_chuglAPI->object->array_int_size(ck_arr), count);
+    for (int i = 0; i < size; i++) {
+        arr[i] = (int)g_chuglAPI->object->array_int_get_idx(ck_arr, i);
+    }
+}
+
+// copies up to count elements from ck_arr to arr
+void chugin_copyCkFloatArray(Chuck_ArrayFloat* ck_arr, float* arr, int count)
+{
+    int size = MIN(g_chuglAPI->object->array_float_size(ck_arr), count);
+    for (int i = 0; i < size; i++) {
+        arr[i] = (float)g_chuglAPI->object->array_float_get_idx(ck_arr, i);
+    }
+}
+
+Chuck_ArrayInt* chugin_createCkIntArray(int* arr, int count)
+{
+    Chuck_ArrayInt* ck_arr = (Chuck_ArrayInt*)chugin_createCkObj("int[]", false);
+    ASSERT(g_chuglAPI->object->array_int_size(ck_arr) == 0);
+    for (int i = 0; i < count; i++) {
+        g_chuglAPI->object->array_int_push_back(ck_arr, arr[i]);
+    }
+    return ck_arr;
+}
+
+Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count)
+{
+    Chuck_ArrayFloat* ck_arr = (Chuck_ArrayFloat*)chugin_createCkObj("float[]", false);
+    ASSERT(g_chuglAPI->object->array_float_size(ck_arr) == 0);
+    for (int i = 0; i < count; i++) {
+        g_chuglAPI->object->array_float_push_back(ck_arr, arr[i]);
+    }
+    return ck_arr;
 }

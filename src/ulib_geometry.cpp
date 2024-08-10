@@ -14,6 +14,7 @@ CK_DLL_CTOR(geo_ctor);
 
 CK_DLL_MFUN(geo_set_vertex_attribute);
 CK_DLL_MFUN(geo_get_vertex_attribute_num_components);
+CK_DLL_MFUN(geo_get_vertex_attribute_num_components_all);
 CK_DLL_MFUN(geo_get_vertex_attribute_data);
 
 CK_DLL_MFUN(geo_set_indices);
@@ -70,6 +71,10 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
          "vertexAttributeNumComponents");
     ARG("int", "location");
     DOC_FUNC("Get the number of components for a vertex attribute. Default 0.");
+
+    MFUN(geo_get_vertex_attribute_num_components_all, "int[]",
+         "vertexAttributeNumComponents");
+    DOC_FUNC("Get the number of components for all vertex attributes.");
 
     MFUN(geo_get_vertex_attribute_data, "float[]", "vertexAttributeData");
     ARG("int", "location");
@@ -167,6 +172,17 @@ CK_DLL_MFUN(geo_get_vertex_attribute_num_components)
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     RETURN->v_int = geo->vertex_attribute_num_components[location];
+}
+
+CK_DLL_MFUN(geo_get_vertex_attribute_num_components_all)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    Chuck_ArrayInt* ck_arr
+      = chugin_createCkIntArray(geo->vertex_attribute_num_components,
+                                ARRAY_LENGTH(geo->vertex_attribute_num_components));
+
+    RETURN->v_object = (Chuck_Object*)ck_arr;
 }
 
 CK_DLL_MFUN(geo_get_vertex_attribute_data)

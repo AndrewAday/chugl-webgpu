@@ -26,14 +26,20 @@ static_assert(sizeof(b2BodyId) <= sizeof(t_CKINT), "b2Body size mismatch");
 static_assert(sizeof(b2ShapeId) <= sizeof(t_CKINT), "b2Shape size mismatch");
 
 // accessors
+// custom accessor because size of the b2Id may be less than the corresponding ckobj
+// member field (e.g. 32 byte b2WorldId is stored in the slot of a 64byte t_CKINT)
+// TODO today: refactor GET_B2_ID out and replace
+#define GET_NEXT_B2_ID(type, args, val)                                                \
+    *val = (*(type*)args);                                                             \
+    ASSERT(sizeof(type <= sizeof(t_CKINT)));                                           \
+    GET_NEXT_INT(args) // advance the pointer by amount allocate
+
 #define GET_B2_ID(type, ptr) (*(type*)ptr)
 #define RETURN_B2_ID(type, id) *((type*)&(RETURN->v_int)) = (id)
 
-#define OBJ_MEMBER_B2_ID(type, ckobj, offset)                                  \
-    (*(type*)OBJ_MEMBER_DATA(ckobj, offset))
+#define OBJ_MEMBER_B2_ID(type, ckobj, offset) (*(type*)OBJ_MEMBER_DATA(ckobj, offset))
 
-#define OBJ_MEMBER_B2_PTR(type, ckobj, offset)                                 \
-    (*(type**)OBJ_MEMBER_DATA(ckobj, offset))
+#define OBJ_MEMBER_B2_PTR(type, ckobj, offset) (*(type**)OBJ_MEMBER_DATA(ckobj, offset))
 
 #define B2_ID_TO_CKINT(id) (*(t_CKINT*)&(id))
 
@@ -62,8 +68,7 @@ static t_CKUINT b2_WorldDef_enableContinous_offset        = 0;
 static t_CKUINT b2_WorldDef_workerCount_offset            = 0;
 CK_DLL_CTOR(b2_WorldDef_ctor);
 
-static void ckobj_to_b2WorldDef(CK_DL_API API, b2WorldDef* obj,
-                                Chuck_Object* ckobj);
+static void ckobj_to_b2WorldDef(CK_DL_API API, b2WorldDef* obj, Chuck_Object* ckobj);
 // static void b2WorldDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
 //                                 b2WorldDef* obj);
 
@@ -84,9 +89,8 @@ static t_CKUINT b2_ContactHitEvent_point_offset         = 0;
 static t_CKUINT b2_ContactHitEvent_normal_offset        = 0;
 static t_CKUINT b2_ContactHitEvent_approachSpeed_offset = 0;
 
-static Arena
-  b2_contact_hit_event_pool; // used so we don't have to malloc a ton of contact
-                             // hit event ckobjs every frame
+static Arena b2_contact_hit_event_pool; // used so we don't have to malloc a ton of
+                                        // contact hit event ckobjs every frame
 static void b2ContactHitEvent_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
                                        b2ContactHitEvent* obj);
 // static void ckobj_to_b2ContactHitEvent(CK_DL_API  API, b2ContactHitEvent*
@@ -98,10 +102,8 @@ static t_CKUINT b2_Filter_maskBits_offset     = 0;
 static t_CKUINT b2_Filter_groupIndex_offset   = 0;
 CK_DLL_CTOR(b2_Filter_ctor);
 
-static void b2Filter_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                              b2Filter* obj);
-static void ckobj_to_b2Filter(CK_DL_API API, b2Filter* obj,
-                              Chuck_Object* ckobj);
+static void b2Filter_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Filter* obj);
+static void ckobj_to_b2Filter(CK_DL_API API, b2Filter* obj, Chuck_Object* ckobj);
 
 // b2_ShapeDef
 static t_CKUINT b2_ShapeDef_friction_offset             = 0;
@@ -116,15 +118,12 @@ static t_CKUINT b2_ShapeDef_enablePreSolveEvents_offset = 0;
 static t_CKUINT b2_ShapeDef_forceContactCreation_offset = 0;
 CK_DLL_CTOR(b2_ShapeDef_ctor);
 
-static void b2ShapeDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                                b2ShapeDef* obj);
-static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj,
-                                Chuck_Object* ckobj);
+static void b2ShapeDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2ShapeDef* obj);
+static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj, Chuck_Object* ckobj);
 
 // b2_Polygon
 static t_CKUINT b2_polygon_data_offset = 0;
-static Chuck_Object* b2_polygon_create(Chuck_VM_Shred* shred,
-                                       b2Polygon* polygon)
+static Chuck_Object* b2_polygon_create(Chuck_VM_Shred* shred, b2Polygon* polygon)
 {
     CK_DL_API API             = g_chuglAPI;
     b2Polygon* poly           = new b2Polygon(*polygon);
@@ -151,10 +150,8 @@ static t_CKUINT b2_BodyDef_isEnabled_offset       = 0;
 static t_CKUINT b2_BodyDef_automaticMass_offset   = 0;
 CK_DLL_CTOR(b2_BodyDef_ctor);
 
-static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2BodyDef* obj);
-static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj,
-                               Chuck_Object* ckobj);
+static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2BodyDef* obj);
+static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj, Chuck_Object* ckobj);
 
 // b2_CastOutput
 static t_CKUINT b2_CastOutput_normal_offset     = 0;
@@ -195,10 +192,8 @@ static t_CKUINT b2_Circle_position_offset = 0;
 static t_CKUINT b2_Circle_radius_offset   = 0;
 CK_DLL_CTOR(b2_Circle_ctor);
 
-static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                              b2Circle* obj);
-static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj,
-                              Chuck_Object* ckobj);
+static void b2Circle_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Circle* obj);
+static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj, Chuck_Object* ckobj);
 
 // b2_Capsule
 static t_CKUINT b2_Capsule_center1_offset = 0;
@@ -206,20 +201,16 @@ static t_CKUINT b2_Capsule_center2_offset = 0;
 static t_CKUINT b2_Capsule_radius_offset  = 0;
 CK_DLL_CTOR(b2_Capsule_ctor);
 
-static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2Capsule* obj);
-static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
-                               Chuck_Object* ckobj);
+static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Capsule* obj);
+static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj, Chuck_Object* ckobj);
 
 // b2_Segment
 static t_CKUINT b2_Segment_point1_offset = 0;
 static t_CKUINT b2_Segment_point2_offset = 0;
 CK_DLL_CTOR(b2_Segment_ctor);
 
-static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2Segment* obj);
-static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
-                               Chuck_Object* ckobj);
+static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment* obj);
+static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj, Chuck_Object* ckobj);
 
 // b2_Shape
 // shape creation
@@ -361,14 +352,12 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     // b2_BodyDef --------------------------------------
     BEGIN_CLASS("b2_BodyDef", "Object");
-    DOC_CLASS(
-      "https://box2d.org/documentation_v3/group__body.html#structb2_body_def");
+    DOC_CLASS("https://box2d.org/documentation_v3/group__body.html#structb2_body_def");
 
     CTOR(b2_BodyDef_ctor);
 
     b2_BodyDef_type_offset = MVAR("int", "type", false);
-    DOC_VAR(
-      "The body type: static, kinematic, or dynamic. Pass a b2_BodyType enum");
+    DOC_VAR("The body type: static, kinematic, or dynamic. Pass a b2_BodyType enum");
 
     b2_BodyDef_position_offset = MVAR("vec2", "position", false);
     DOC_VAR(
@@ -418,8 +407,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     DOC_VAR("Is this body initially awake or sleeping?");
 
     b2_BodyDef_fixedRotation_offset = MVAR("int", "fixedRotation", false);
-    DOC_VAR(
-      "Should this body be prevented from rotating? Useful for characters.");
+    DOC_VAR("Should this body be prevented from rotating? Useful for characters.");
 
     b2_BodyDef_isBullet_offset = MVAR("int", "isBullet", false);
     DOC_VAR(
@@ -430,8 +418,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "may interfere with joint constraints.");
 
     b2_BodyDef_isEnabled_offset = MVAR("int", "isEnabled", false);
-    DOC_VAR(
-      "Used to disable a body. A disabled body does not move or collide.");
+    DOC_VAR("Used to disable a body. A disabled body does not move or collide.");
 
     b2_BodyDef_automaticMass_offset = MVAR("int", "automaticMass", false);
     DOC_VAR(
@@ -486,8 +473,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     SFUN(b2_polygon_make_box, "b2_Polygon", "makeBox");
     ARG("float", "hx");
     ARG("float", "hy");
-    DOC_FUNC(
-      "Make a box (rectangle) polygon, bypassing the need for a convex hull.");
+    DOC_FUNC("Make a box (rectangle) polygon, bypassing the need for a convex hull.");
 
     // TODO other helpers
 
@@ -553,8 +539,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     // b2_Filter --------------------------------------
     BEGIN_CLASS("b2_Filter", "Object");
-    DOC_CLASS(
-      "https://box2d.org/documentation_v3/group__shape.html#structb2_filter");
+    DOC_CLASS("https://box2d.org/documentation_v3/group__shape.html#structb2_filter");
 
     CTOR(b2_Filter_ctor);
 
@@ -578,8 +563,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     CTOR(b2_ShapeDef_ctor);
 
     b2_ShapeDef_friction_offset = MVAR("float", "friction", false);
-    DOC_VAR(
-      "The Coulomb (dry) friction coefficient, usually in the range [0,1]");
+    DOC_VAR("The Coulomb (dry) friction coefficient, usually in the range [0,1]");
 
     b2_ShapeDef_restitution_offset = MVAR("float", "restitution", false);
     DOC_VAR("The restitution (bounce) usually in the range [0,1]");
@@ -595,14 +579,12 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "A sensor shape generates overlap events but never generates a collision "
       "response");
 
-    b2_ShapeDef_enableSensorEvents_offset
-      = MVAR("int", "enableSensorEvents", false);
+    b2_ShapeDef_enableSensorEvents_offset = MVAR("int", "enableSensorEvents", false);
     DOC_VAR(
       "Enable sensor events for this shape. Only applies to kinematic and "
       "dynamic bodies. Ignored for sensors");
 
-    b2_ShapeDef_enableContactEvents_offset
-      = MVAR("int", "enableContactEvents", false);
+    b2_ShapeDef_enableContactEvents_offset = MVAR("int", "enableContactEvents", false);
     DOC_VAR(
       "Enable contact events for this shape. Only applies to kinematic and "
       "dynamic bodies. Ignored for sensors");
@@ -650,8 +632,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
       "This parameter controls how fast overlap is resolved and has units of "
       "meters per second");
 
-    b2_WorldDef_hitEventThreshold_offset
-      = MVAR("float", "hitEventThreshold", false);
+    b2_WorldDef_hitEventThreshold_offset = MVAR("float", "hitEventThreshold", false);
     DOC_VAR("Threshold velocity for hit events. Usually meters per second.");
 
     b2_WorldDef_contactHertz_offset = MVAR("float", "contactHertz", false);
@@ -664,8 +645,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     b2_WorldDef_jointHertz_offset = MVAR("float", "jointHertz", false);
     DOC_VAR("Joint stiffness. Cycles per second.");
 
-    b2_WorldDef_jointDampingRatio_offset
-      = MVAR("float", "jointDampingRatio", false);
+    b2_WorldDef_jointDampingRatio_offset = MVAR("float", "jointDampingRatio", false);
     DOC_VAR("Joint bounciness. Non-dimensional.");
 
     b2_WorldDef_enableSleep_offset = MVAR("int", "enableSleep", false);
@@ -740,8 +720,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     b2_ContactHitEvent_normal_offset = MVAR("vec2", "normal", false);
     DOC_VAR("Normal vector pointing from shape A to shape B");
 
-    b2_ContactHitEvent_approachSpeed_offset
-      = MVAR("float", "approachSpeed", false);
+    b2_ContactHitEvent_approachSpeed_offset = MVAR("float", "approachSpeed", false);
     DOC_VAR(
       "The speed the shapes are approaching. Always positive. Typically in "
       "meters per second.");
@@ -870,8 +849,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
     SFUN(b2_body_set_linear_velocity, "void", "linearVelocity");
     ARG("int", "b2_body_id");
     ARG("vec2", "linearVelocity");
-    DOC_FUNC(
-      "Set the linear velocity of a body. Typically in meters per second.");
+    DOC_FUNC("Set the linear velocity of a body. Typically in meters per second.");
 
     SFUN(b2_body_get_angular_velocity, "float", "angularVelocity");
     ARG("int", "b2_body_id");
@@ -1084,8 +1062,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     SFUN(b2_body_enable, "void", "enable");
     ARG("int", "b2_body_id");
-    DOC_FUNC(
-      "Enable a body by adding it to the simulation. This is expensive.");
+    DOC_FUNC("Enable a body by adding it to the simulation. This is expensive.");
 
     SFUN(b2_body_set_fixed_rotation, "void", "fixedRotation");
     ARG("int", "b2_body_id");
@@ -1323,8 +1300,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     SFUN(b2_Shape_GetSegment, "b2_Segment", "segment");
     ARG("int", "shape_id");
-    DOC_FUNC(
-      "Get a copy of the shape's line segment. Asserts the type is correct.");
+    DOC_FUNC("Get a copy of the shape's line segment. Asserts the type is correct.");
 
     // TODO
     // SFUN(b2_Shape_GetSmoothSegment, "b2_SmoothSegment", "smoothSegment");
@@ -1339,8 +1315,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     SFUN(b2_Shape_GetPolygon, "b2_Polygon", "polygon");
     ARG("int", "shape_id");
-    DOC_FUNC(
-      "Get a copy of the shape's convex polygon. Asserts the type is correct.");
+    DOC_FUNC("Get a copy of the shape's convex polygon. Asserts the type is correct.");
 
     SFUN(b2_Shape_SetCircle, "void", "circle");
     ARG("int", "shape_id");
@@ -1418,8 +1393,7 @@ void ulib_box2d_query(Chuck_DL_Query* QUERY)
 
     SFUN(b2_World_IsValid, "int", "isValid");
     ARG("int", "world_id");
-    DOC_FUNC(
-      "World id validation. Provides validation for up to 64K allocations.");
+    DOC_FUNC("World id validation. Provides validation for up to 64K allocations.");
 
     // TODO debug draw
 
@@ -1478,9 +1452,8 @@ static void b2BodyMoveEvent_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
     // convert complex rot to radians
     OBJ_MEMBER_FLOAT(ckobj, b2_BodyMoveEvent_rot_offset)
       = atan2(obj->transform.q.s, obj->transform.q.c);
-    OBJ_MEMBER_B2_ID(b2BodyId, ckobj, b2_BodyMoveEvent_bodyId_offset)
-      = obj->bodyId;
-    OBJ_MEMBER_INT(ckobj, b2_BodyMoveEvent_fellAsleep_offset) = obj->fellAsleep;
+    OBJ_MEMBER_B2_ID(b2BodyId, ckobj, b2_BodyMoveEvent_bodyId_offset) = obj->bodyId;
+    OBJ_MEMBER_INT(ckobj, b2_BodyMoveEvent_fellAsleep_offset)         = obj->fellAsleep;
 }
 
 // ============================================================================
@@ -1597,11 +1570,9 @@ CK_DLL_SFUN(b2_World_GetSensorEvents)
 
     for (int i = 0; i < sensor_events.endCount; i++) {
         API->object->array_int_push_back(
-          end_sensor_events,
-          B2_ID_TO_CKINT(sensor_events.endEvents[i].sensorShapeId));
+          end_sensor_events, B2_ID_TO_CKINT(sensor_events.endEvents[i].sensorShapeId));
         API->object->array_int_push_back(
-          end_sensor_events,
-          B2_ID_TO_CKINT(sensor_events.endEvents[i].visitorShapeId));
+          end_sensor_events, B2_ID_TO_CKINT(sensor_events.endEvents[i].visitorShapeId));
     }
 
     ASSERT(API->object->array_int_size(end_sensor_events)
@@ -1626,19 +1597,15 @@ CK_DLL_SFUN(b2_World_GetContactEvents)
     // populate begin_contact_events and end_contact_events
     for (int i = 0; i < contact_events.beginCount; i++) {
         API->object->array_int_push_back(
-          begin_contact_events,
-          B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdA));
+          begin_contact_events, B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdA));
         API->object->array_int_push_back(
-          begin_contact_events,
-          B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdB));
+          begin_contact_events, B2_ID_TO_CKINT(contact_events.beginEvents[i].shapeIdB));
     }
     for (int i = 0; i < contact_events.endCount; i++) {
         API->object->array_int_push_back(
-          end_contact_events,
-          B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdA));
+          end_contact_events, B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdA));
         API->object->array_int_push_back(
-          end_contact_events,
-          B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdB));
+          end_contact_events, B2_ID_TO_CKINT(contact_events.endEvents[i].shapeIdB));
     }
 
     // populate hit_events
@@ -1664,8 +1631,7 @@ CK_DLL_SFUN(b2_World_GetContactEvents)
 // ============================================================================
 // b2_WorldDef
 // ============================================================================
-static void b2WorldDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                                b2WorldDef* obj)
+static void b2WorldDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2WorldDef* obj)
 {
     OBJ_MEMBER_VEC2(ckobj, b2_WorldDef_gravity_offset)
       = { obj->gravity.x, obj->gravity.y };
@@ -1675,42 +1641,36 @@ static void b2WorldDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
       = obj->contactPushoutVelocity;
     OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_hitEventThreshold_offset)
       = obj->hitEventThreshold;
-    OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactHertz_offset)
-      = obj->contactHertz;
+    OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactHertz_offset) = obj->contactHertz;
     OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactDampingRatio_offset)
       = obj->contactDampingRatio;
     OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_jointHertz_offset) = obj->jointHertz;
     OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_jointDampingRatio_offset)
       = obj->jointDampingRatio;
-    OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableSleep_offset) = obj->enableSleep;
-    OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableContinous_offset)
-      = obj->enableContinous;
-    OBJ_MEMBER_INT(ckobj, b2_WorldDef_workerCount_offset) = obj->workerCount;
+    OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableSleep_offset)     = obj->enableSleep;
+    OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableContinous_offset) = obj->enableContinous;
+    OBJ_MEMBER_INT(ckobj, b2_WorldDef_workerCount_offset)     = obj->workerCount;
 }
 
-static void ckobj_to_b2WorldDef(CK_DL_API API, b2WorldDef* obj,
-                                Chuck_Object* ckobj)
+static void ckobj_to_b2WorldDef(CK_DL_API API, b2WorldDef* obj, Chuck_Object* ckobj)
 {
     t_CKVEC2 gravity_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_WorldDef_gravity_offset);
     obj->gravity          = { (float)gravity_vec2.x, (float)gravity_vec2.y };
     obj->restitutionThreshold
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_restitutionThreshold_offset);
-    obj->contactPushoutVelocity = (float)OBJ_MEMBER_FLOAT(
-      ckobj, b2_WorldDef_contactPushoutVelocity_offset);
+    obj->contactPushoutVelocity
+      = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactPushoutVelocity_offset);
     obj->hitEventThreshold
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_hitEventThreshold_offset);
-    obj->contactHertz
-      = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactHertz_offset);
+    obj->contactHertz = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactHertz_offset);
     obj->contactDampingRatio
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_contactDampingRatio_offset);
-    obj->jointHertz
-      = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_jointHertz_offset);
+    obj->jointHertz = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_jointHertz_offset);
     obj->jointDampingRatio
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_WorldDef_jointDampingRatio_offset);
-    obj->enableSleep = OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableSleep_offset);
-    obj->enableContinous
-      = OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableContinous_offset);
-    obj->workerCount = OBJ_MEMBER_INT(ckobj, b2_WorldDef_workerCount_offset);
+    obj->enableSleep     = OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableSleep_offset);
+    obj->enableContinous = OBJ_MEMBER_INT(ckobj, b2_WorldDef_enableContinous_offset);
+    obj->workerCount     = OBJ_MEMBER_INT(ckobj, b2_WorldDef_workerCount_offset);
 }
 
 CK_DLL_CTOR(b2_WorldDef_ctor)
@@ -1748,8 +1708,7 @@ CK_DLL_CTOR(b2_Filter_ctor)
 // b2_ShapeDef
 // ============================================================================
 
-static void b2ShapeDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                                b2ShapeDef* obj)
+static void b2ShapeDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2ShapeDef* obj)
 {
     OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_friction_offset)    = obj->friction;
     OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_restitution_offset) = obj->restitution;
@@ -1757,29 +1716,26 @@ static void b2ShapeDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
     // b2Filter_to_ckobj(API, OBJ_MEMBER_OBJECT(ckobj,
     // b2_ShapeDef_filter_offset),
     //                   &obj->filter);
-    b2Filter_to_ckobj(
-      API, (Chuck_Object*)OBJ_MEMBER_UINT(ckobj, b2_ShapeDef_filter_offset),
-      &obj->filter);
+    b2Filter_to_ckobj(API,
+                      (Chuck_Object*)OBJ_MEMBER_UINT(ckobj, b2_ShapeDef_filter_offset),
+                      &obj->filter);
     OBJ_MEMBER_INT(ckobj, b2_ShapeDef_isSensor_offset) = obj->isSensor;
     OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableSensorEvents_offset)
       = obj->enableSensorEvents;
     OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableContactEvents_offset)
       = obj->enableContactEvents;
-    OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableHitEvents_offset)
-      = obj->enableHitEvents;
+    OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableHitEvents_offset) = obj->enableHitEvents;
     OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enablePreSolveEvents_offset)
       = obj->enablePreSolveEvents;
     OBJ_MEMBER_INT(ckobj, b2_ShapeDef_forceContactCreation_offset)
       = obj->forceContactCreation;
 }
 
-static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj,
-                                Chuck_Object* ckobj)
+static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj, Chuck_Object* ckobj)
 {
-    obj->friction = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_friction_offset);
-    obj->restitution
-      = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_restitution_offset);
-    obj->density = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_density_offset);
+    obj->friction    = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_friction_offset);
+    obj->restitution = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_restitution_offset);
+    obj->density     = (float)OBJ_MEMBER_FLOAT(ckobj, b2_ShapeDef_density_offset);
     ckobj_to_b2Filter(API, &obj->filter,
                       OBJ_MEMBER_OBJECT(ckobj, b2_ShapeDef_filter_offset));
     obj->isSensor = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_isSensor_offset);
@@ -1787,8 +1743,7 @@ static void ckobj_to_b2ShapeDef(CK_DL_API API, b2ShapeDef* obj,
       = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableSensorEvents_offset);
     obj->enableContactEvents
       = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableContactEvents_offset);
-    obj->enableHitEvents
-      = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableHitEvents_offset);
+    obj->enableHitEvents = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enableHitEvents_offset);
     obj->enablePreSolveEvents
       = OBJ_MEMBER_INT(ckobj, b2_ShapeDef_enablePreSolveEvents_offset);
     obj->forceContactCreation
@@ -1856,8 +1811,7 @@ CK_DLL_SFUN(b2_CreateSegmentShape)
     b2Segment segment         = {};
     ckobj_to_b2Segment(API, &segment, segment_obj);
 
-    RETURN_B2_ID(b2ShapeId,
-                 b2CreateSegmentShape(body_id, &shape_def, &segment));
+    RETURN_B2_ID(b2ShapeId, b2CreateSegmentShape(body_id, &shape_def, &segment));
 }
 
 CK_DLL_SFUN(b2_CreateCapsuleShape)
@@ -1872,8 +1826,7 @@ CK_DLL_SFUN(b2_CreateCapsuleShape)
     b2Capsule capsule         = {};
     ckobj_to_b2Capsule(API, &capsule, capsule_obj);
 
-    RETURN_B2_ID(b2ShapeId,
-                 b2CreateCapsuleShape(body_id, &shape_def, &capsule));
+    RETURN_B2_ID(b2ShapeId, b2CreateCapsuleShape(body_id, &shape_def, &capsule));
 }
 
 CK_DLL_SFUN(b2_CreatePolygonShape)
@@ -1884,8 +1837,8 @@ CK_DLL_SFUN(b2_CreatePolygonShape)
     b2ShapeDef shape_def = b2DefaultShapeDef();
     ckobj_to_b2ShapeDef(API, &shape_def, GET_NEXT_OBJECT(ARGS));
 
-    b2Polygon* polygon = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS),
-                                           b2_polygon_data_offset);
+    b2Polygon* polygon
+      = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS), b2_polygon_data_offset);
     // b2Polygon polygon = b2MakeBox(.5f, .5f);
 
     RETURN_B2_ID(b2ShapeId, b2CreatePolygonShape(body_id, &shape_def, polygon));
@@ -2006,8 +1959,7 @@ CK_DLL_SFUN(b2_Shape_EnablePreSolveEvents)
 
 CK_DLL_SFUN(b2_Shape_ArePreSolveEventsEnabled)
 {
-    RETURN->v_int
-      = b2Shape_ArePreSolveEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
+    RETURN->v_int = b2Shape_ArePreSolveEventsEnabled(GET_B2_ID(b2ShapeId, ARGS));
 }
 
 CK_DLL_SFUN(b2_Shape_EnableHitEvents)
@@ -2028,8 +1980,7 @@ CK_DLL_SFUN(b2_Shape_TestPoint)
     b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
     GET_NEXT_INT(ARGS); // advance
     t_CKVEC2 point = GET_NEXT_VEC2(ARGS);
-    RETURN->v_int
-      = b2Shape_TestPoint(shape_id, { (float)point.x, (float)point.y });
+    RETURN->v_int  = b2Shape_TestPoint(shape_id, { (float)point.x, (float)point.y });
 }
 
 CK_DLL_SFUN(b2_Shape_RayCast)
@@ -2117,8 +2068,8 @@ CK_DLL_SFUN(b2_Shape_SetPolygon)
 {
     b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
     GET_NEXT_INT(ARGS); // advance
-    b2Polygon* polygon = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS),
-                                           b2_polygon_data_offset);
+    b2Polygon* polygon
+      = OBJ_MEMBER_B2_PTR(b2Polygon, GET_NEXT_OBJECT(ARGS), b2_polygon_data_offset);
     b2Shape_SetPolygon(shape_id, polygon);
 }
 
@@ -2154,8 +2105,8 @@ CK_DLL_SFUN(b2_Shape_GetAABB)
 {
     b2ShapeId shape_id = GET_B2_ID(b2ShapeId, ARGS);
     b2AABB aabb        = b2Shape_GetAABB(shape_id);
-    RETURN->v_vec4 = { aabb.lowerBound.x, aabb.lowerBound.y, aabb.upperBound.x,
-                       aabb.upperBound.y };
+    RETURN->v_vec4
+      = { aabb.lowerBound.x, aabb.lowerBound.y, aabb.upperBound.x, aabb.upperBound.y };
 }
 
 CK_DLL_SFUN(b2_Shape_GetClosestPoint)
@@ -2172,8 +2123,7 @@ CK_DLL_SFUN(b2_Shape_GetClosestPoint)
 // b2_BodyDef
 // ============================================================================
 
-static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2BodyDef* obj)
+static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2BodyDef* obj)
 {
     OBJ_MEMBER_INT(ckobj, b2_BodyDef_type_offset) = obj->type;
     OBJ_MEMBER_VEC2(ckobj, b2_BodyDef_position_offset)
@@ -2181,30 +2131,25 @@ static void b2BodyDef_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
     OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angle_offset) = obj->angle;
     OBJ_MEMBER_VEC2(ckobj, b2_BodyDef_linearVelocity_offset)
       = { obj->linearVelocity.x, obj->linearVelocity.y };
-    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angularVelocity_offset)
-      = obj->angularVelocity;
-    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_linearDamping_offset)
-      = obj->linearDamping;
-    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angularDamping_offset)
-      = obj->angularDamping;
-    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_gravityScale_offset) = obj->gravityScale;
-    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_sleepThreshold_offset)
-      = obj->sleepThreshold;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_enableSleep_offset)   = obj->enableSleep;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isAwake_offset)       = obj->isAwake;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_fixedRotation_offset) = obj->fixedRotation;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isBullet_offset)      = obj->isBullet;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isEnabled_offset)     = obj->isEnabled;
-    OBJ_MEMBER_INT(ckobj, b2_BodyDef_automaticMass_offset) = obj->automaticMass;
+    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angularVelocity_offset) = obj->angularVelocity;
+    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_linearDamping_offset)   = obj->linearDamping;
+    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angularDamping_offset)  = obj->angularDamping;
+    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_gravityScale_offset)    = obj->gravityScale;
+    OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_sleepThreshold_offset)  = obj->sleepThreshold;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_enableSleep_offset)       = obj->enableSleep;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isAwake_offset)           = obj->isAwake;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_fixedRotation_offset)     = obj->fixedRotation;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isBullet_offset)          = obj->isBullet;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_isEnabled_offset)         = obj->isEnabled;
+    OBJ_MEMBER_INT(ckobj, b2_BodyDef_automaticMass_offset)     = obj->automaticMass;
 }
 
-static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj,
-                               Chuck_Object* ckobj)
+static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj, Chuck_Object* ckobj)
 {
-    obj->type = (b2BodyType)OBJ_MEMBER_INT(ckobj, b2_BodyDef_type_offset);
+    obj->type              = (b2BodyType)OBJ_MEMBER_INT(ckobj, b2_BodyDef_type_offset);
     t_CKVEC2 position_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_BodyDef_position_offset);
     obj->position          = { (float)position_vec2.x, (float)position_vec2.y };
-    obj->angle = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angle_offset);
+    obj->angle             = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angle_offset);
     t_CKVEC2 linearVelocity_vec2
       = OBJ_MEMBER_VEC2(ckobj, b2_BodyDef_linearVelocity_offset);
     obj->linearVelocity
@@ -2215,8 +2160,7 @@ static void ckobj_to_b2BodyDef(CK_DL_API API, b2BodyDef* obj,
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_linearDamping_offset);
     obj->angularDamping
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_angularDamping_offset);
-    obj->gravityScale
-      = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_gravityScale_offset);
+    obj->gravityScale = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_gravityScale_offset);
     obj->sleepThreshold
       = (float)OBJ_MEMBER_FLOAT(ckobj, b2_BodyDef_sleepThreshold_offset);
     obj->enableSleep   = OBJ_MEMBER_INT(ckobj, b2_BodyDef_enableSleep_offset);
@@ -2293,8 +2237,8 @@ CK_DLL_SFUN(b2_body_get_local_point)
     b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
     GET_NEXT_INT(ARGS); // advance
     t_CKVEC2 world_point = GET_NEXT_VEC2(ARGS);
-    b2Vec2 local_point   = b2Body_GetLocalPoint(
-      body_id, { (float)world_point.x, (float)world_point.y });
+    b2Vec2 local_point
+      = b2Body_GetLocalPoint(body_id, { (float)world_point.x, (float)world_point.y });
     RETURN->v_vec2 = { local_point.x, local_point.y };
 }
 
@@ -2303,8 +2247,8 @@ CK_DLL_SFUN(b2_body_get_world_point)
     b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
     GET_NEXT_INT(ARGS); // advance
     t_CKVEC2 local_point = GET_NEXT_VEC2(ARGS);
-    b2Vec2 world_point   = b2Body_GetWorldPoint(
-      body_id, { (float)local_point.x, (float)local_point.y });
+    b2Vec2 world_point
+      = b2Body_GetWorldPoint(body_id, { (float)local_point.x, (float)local_point.y });
     RETURN->v_vec2 = { world_point.x, world_point.y };
 }
 
@@ -2375,8 +2319,7 @@ CK_DLL_SFUN(b2_body_apply_force_to_center)
     GET_NEXT_INT(ARGS); // advance
     t_CKVEC2 force = GET_NEXT_VEC2(ARGS);
     t_CKINT wake   = GET_NEXT_INT(ARGS);
-    b2Body_ApplyForceToCenter(body_id, { (float)force.x, (float)force.y },
-                              wake);
+    b2Body_ApplyForceToCenter(body_id, { (float)force.x, (float)force.y }, wake);
 }
 
 CK_DLL_SFUN(b2_body_apply_torque)
@@ -2405,8 +2348,8 @@ CK_DLL_SFUN(b2_body_apply_linear_impulse_to_center)
     GET_NEXT_INT(ARGS); // advance
     t_CKVEC2 impulse = GET_NEXT_VEC2(ARGS);
     t_CKINT wake     = GET_NEXT_INT(ARGS);
-    b2Body_ApplyLinearImpulseToCenter(
-      body_id, { (float)impulse.x, (float)impulse.y }, wake);
+    b2Body_ApplyLinearImpulseToCenter(body_id, { (float)impulse.x, (float)impulse.y },
+                                      wake);
 }
 
 CK_DLL_SFUN(b2_body_apply_angular_impulse)
@@ -2683,9 +2626,9 @@ CK_DLL_SFUN(b2_body_compute_aabb)
 {
     b2BodyId body_id = GET_B2_ID(b2BodyId, ARGS);
     GET_NEXT_INT(ARGS); // advance
-    b2AABB box     = b2Body_ComputeAABB(body_id);
-    RETURN->v_vec4 = { box.lowerBound.x, box.lowerBound.y, box.upperBound.x,
-                       box.upperBound.y };
+    b2AABB box = b2Body_ComputeAABB(body_id);
+    RETURN->v_vec4
+      = { box.lowerBound.x, box.lowerBound.y, box.upperBound.x, box.upperBound.y };
 }
 
 // ============================================================================
@@ -2703,7 +2646,7 @@ static void ckobj_to_b2Circle(CK_DL_API API, b2Circle* obj, Chuck_Object* ckobj)
 {
     t_CKVEC2 position_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Circle_position_offset);
     obj->center            = { (float)position_vec2.x, (float)position_vec2.y };
-    obj->radius = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset);
+    obj->radius            = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Circle_radius_offset);
 }
 
 CK_DLL_CTOR(b2_Circle_ctor)
@@ -2716,8 +2659,7 @@ CK_DLL_CTOR(b2_Circle_ctor)
 // b2_Capsule
 // ============================================================================
 
-static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2Capsule* obj)
+static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Capsule* obj)
 {
     OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset)
       = { obj->center1.x, obj->center1.y };
@@ -2726,14 +2668,13 @@ static void b2Capsule_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
     OBJ_MEMBER_FLOAT(ckobj, b2_Capsule_radius_offset) = obj->radius;
 }
 
-static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj,
-                               Chuck_Object* ckobj)
+static void ckobj_to_b2Capsule(CK_DL_API API, b2Capsule* obj, Chuck_Object* ckobj)
 {
     t_CKVEC2 center1_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center1_offset);
     obj->center1          = { (float)center1_vec2.x, (float)center1_vec2.y };
     t_CKVEC2 center2_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Capsule_center2_offset);
     obj->center2          = { (float)center2_vec2.x, (float)center2_vec2.y };
-    obj->radius = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Capsule_radius_offset);
+    obj->radius           = (float)OBJ_MEMBER_FLOAT(ckobj, b2_Capsule_radius_offset);
 }
 
 CK_DLL_CTOR(b2_Capsule_ctor)
@@ -2747,17 +2688,13 @@ CK_DLL_CTOR(b2_Capsule_ctor)
 // b2_Segment
 // ============================================================================
 
-static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                               b2Segment* obj)
+static void b2Segment_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2Segment* obj)
 {
-    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset)
-      = { obj->point1.x, obj->point1.y };
-    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset)
-      = { obj->point2.x, obj->point2.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset) = { obj->point1.x, obj->point1.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_Segment_point2_offset) = { obj->point2.x, obj->point2.y };
 }
 
-static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj,
-                               Chuck_Object* ckobj)
+static void ckobj_to_b2Segment(CK_DL_API API, b2Segment* obj, Chuck_Object* ckobj)
 {
     t_CKVEC2 point1_vec2 = OBJ_MEMBER_VEC2(ckobj, b2_Segment_point1_offset);
     obj->point1          = { (float)point1_vec2.x, (float)point1_vec2.y };
@@ -2775,13 +2712,11 @@ CK_DLL_CTOR(b2_Segment_ctor)
 // b2_CastOutput
 // ============================================================================
 
-static void b2CastOutput_to_ckobj(CK_DL_API API, Chuck_Object* ckobj,
-                                  b2CastOutput* obj)
+static void b2CastOutput_to_ckobj(CK_DL_API API, Chuck_Object* ckobj, b2CastOutput* obj)
 {
     OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_normal_offset)
       = { obj->normal.x, obj->normal.y };
-    OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_point_offset)
-      = { obj->point.x, obj->point.y };
+    OBJ_MEMBER_VEC2(ckobj, b2_CastOutput_point_offset) = { obj->point.x, obj->point.y };
     OBJ_MEMBER_FLOAT(ckobj, b2_CastOutput_fraction_offset) = obj->fraction;
     OBJ_MEMBER_INT(ckobj, b2_CastOutput_iterations_offset) = obj->iterations;
     OBJ_MEMBER_INT(ckobj, b2_CastOutput_hit_offset)        = obj->hit;

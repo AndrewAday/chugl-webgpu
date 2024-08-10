@@ -32,6 +32,7 @@ typedef t_CKUINT SG_ID;
     X(SG_COMPONENT_TRANSFORM, "GGen")                                                  \
     X(SG_COMPONENT_SCENE, "GScene")                                                    \
     X(SG_COMPONENT_GEOMETRY, "Geometry")                                               \
+    X(SG_COMPONENT_SHADER, "Shader")                                                   \
     X(SG_COMPONENT_MATERIAL, "Material")                                               \
     X(SG_COMPONENT_TEXTURE, "Texture")                                                 \
     X(SG_COMPONENT_MESH, "GMesh")
@@ -203,13 +204,25 @@ struct SG_Geometry : SG_Component {
 };
 
 // ============================================================================
+// SG_Shader
+// ============================================================================
+
+struct SG_Shader : SG_Component {
+    const char* vertex_string_owned;
+    const char* fragment_string_owned;
+    const char* vertex_filepath_owned;
+    const char* fragment_filepath_owned;
+    int vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+};
+
+// ============================================================================
 // SG_Material
 // ============================================================================
 
 enum SG_MaterialType : u8 {
     SG_MATERIAL_INVALID = 0,
-    SG_MATERIAL_PBR,
     SG_MATERIAL_CUSTOM,
+    SG_MATERIAL_PBR,
     SG_MATERIAL_COUNT
 };
 
@@ -227,6 +240,65 @@ struct SG_Material_PBR_Params {
     // SG_Sampler baseColorSampler;
 };
 
+#define SG_MATERIAL_MAX_UNIFORMS 32 // @group(1) @binding(0 - 31)
+
+enum SG_MaterialUniformType : u8 {
+    SG_MATERIAL_UNIFORM_NONE = 0,
+    SG_MATERIAL_UNIFORM_FLOAT,
+    SG_MATERIAL_UNIFORM_VEC2F,
+    SG_MATERIAL_UNIFORM_VEC3F,
+    SG_MATERIAL_UNIFORM_VEC4F,
+    SG_MATERIAL_UNIFORM_INT,
+    SG_MATERIAL_UNIFORM_IVEC2,
+    SG_MATERIAL_UNIFORM_IVEC3,
+    SG_MATERIAL_UNIFORM_IVEC4,
+    SG_MATERIAL_UNIFORM_TEXTURE,
+    SG_MATERIAL_UNIFORM_SAMPLER,
+    SG_MATERIAL_UNIFORM_STORAGE_BUFFER,
+};
+
+union SG_MaterialUniformData {
+    f32 f;
+    glm::vec2 vec2f;
+    glm::vec3 vec3f;
+    glm::vec4 vec4f;
+    i32 i;
+    glm::ivec2 ivec2;
+    glm::ivec3 ivec3;
+    glm::ivec4 ivec4;
+};
+
+struct SG_MaterialUniformPtrAndSize {
+    void* ptr;
+    size_t size;
+};
+
+struct SG_MaterialUniform {
+    SG_MaterialUniformType type;
+    SG_MaterialUniformData as;
+    // TODO: texture, sampler, array, storage buffer (array<int> and array<float>)
+    // for array storage, can we just store a ref to the ck array itself? avoids
+    // duplication
+
+    static SG_MaterialUniformPtrAndSize data(SG_MaterialUniform* u)
+    {
+        // clang-format off
+        switch (u->type) {
+            case SG_MATERIAL_UNIFORM_FLOAT: return {&u->as.f, sizeof(u->as.f)};
+            case SG_MATERIAL_UNIFORM_VEC2F: return {&u->as.vec2f, sizeof(u->as.vec2f)};
+            case SG_MATERIAL_UNIFORM_VEC3F: return {&u->as.vec3f, sizeof(u->as.vec3f)};
+            case SG_MATERIAL_UNIFORM_VEC4F: return {&u->as.vec4f, sizeof(u->as.vec4f)};
+            case SG_MATERIAL_UNIFORM_INT: return {&u->as.i, sizeof(u->as.i)};
+            case SG_MATERIAL_UNIFORM_IVEC2: return {&u->as.ivec2, sizeof(u->as.ivec2)};
+            case SG_MATERIAL_UNIFORM_IVEC3: return {&u->as.ivec3, sizeof(u->as.ivec3)};
+            case SG_MATERIAL_UNIFORM_IVEC4: return {&u->as.ivec4, sizeof(u->as.ivec4)};
+            default: ASSERT(false);
+        }
+        // clang-format on
+        return {};
+    }
+};
+
 // TODO if discrepency between material params too large,
 // switch to allocated void* rather than union
 // Then SG_Command_MaterialCreate will need a pointer too...
@@ -234,9 +306,35 @@ union SG_MaterialParams {
     SG_Material_PBR_Params pbr;
 };
 
+struct SG_MaterialPipelineState {
+    SG_ID sg_shader_id;
+    WGPUCullMode cull_mode;
+};
+
 struct SG_Material : SG_Component {
     SG_MaterialType material_type;
     SG_MaterialParams params;
+
+    // PSO
+    SG_MaterialPipelineState pso; // keep it copy by value
+
+    // uniforms
+    SG_MaterialUniform uniforms[SG_MATERIAL_MAX_UNIFORMS];
+
+    // fns
+    static void removeUniform(SG_Material* mat, int location);
+
+    static void uniformFloat(SG_Material* mat, int location, f32 f);
+    // static void uniform(SG_Material* mat, int location, glm::vec2 f2);
+    // static void uniform(SG_Material* mat, int location, glm::vec3 f3);
+    // static void uniform(SG_Material* mat, int location, glm::vec4 f4);
+    // static void uniform(SG_Material* mat, int location, i32 i);
+    // static void uniform(SG_Material* mat, int location, glm::ivec2 i2);
+    // static void uniform(SG_Material* mat, int location, glm::ivec3 i3);
+    // static void uniform(SG_Material* mat, int location, glm::ivec4 i4);
+    static f32 uniformFloat(SG_Material* mat, int location);
+
+    static void shader(SG_Material* mat, SG_Shader* shader);
 };
 
 // ============================================================================
@@ -265,6 +363,16 @@ void SG_Free();
 SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
+
+// SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
+//                              const char* fragment_string, const char*
+//                              vertex_filepath, const char* fragment_filepath,
+//                              Chuck_ArrayInt* ck_vertex_layout);
+SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
+                           Chuck_String* fragment_string, Chuck_String* vertex_filepath,
+                           Chuck_String* fragment_filepath,
+                           Chuck_ArrayInt* ck_vertex_layout);
+
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);
 SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg_mat);
@@ -273,6 +381,7 @@ SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
 SG_Scene* SG_GetScene(SG_ID id);
 SG_Geometry* SG_GetGeometry(SG_ID id);
+SG_Shader* SG_GetShader(SG_ID id);
 SG_Material* SG_GetMaterial(SG_ID id);
 SG_Mesh* SG_GetMesh(SG_ID id);
 

@@ -50,3 +50,5 @@ A.indices() @=> int plane_indices[];
 for (0 => int i; i < truth_plane_indices.size(); ++i) {
     T.assert(truth_plane_indices[i] == plane_indices[i], "plane indices equality");
 }
+
+T.assert(T.arrayEquals(A.vertexAttributeNumComponents(), [3, 3, 2, 4, 0, 0, 0, 0]), "plane vertexAttributeNumComponents ALL");
