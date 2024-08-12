@@ -18,6 +18,8 @@
 
 struct Vertices;
 struct R_Material;
+struct R_Scene;
+struct hashmap;
 
 typedef i64 R_ID; // negative for R_Components NOT mapped to SG_Components
 
@@ -79,6 +81,8 @@ struct R_Transform : public R_Component {
     SG_ID _geoID;
     SG_ID _matID;
 
+    SG_ID scene_id; // the scene this transform belongs to
+
     static void init(R_Transform* transform);
     static void initFromSG(R_Transform* r_xform, SG_Command_CreateXform* cmd);
 
@@ -96,12 +100,13 @@ struct R_Transform : public R_Component {
     static void sca(R_Transform* xform, const glm::vec3& sca);
 
     // updates all local/world matrices in the scenegraph
-    static void rebuildMatrices(R_Transform* root, Arena* arena);
+    static void rebuildMatrices(R_Scene* root, Arena* arena);
 
     // Scenegraph relationships ----------------------------------------------
     // returns if ancestor is somewhere in the parent chain of descendent,
     // including descendent itself
     static bool isAncestor(R_Transform* ancestor, R_Transform* descendent);
+    static R_Scene* getScene(R_Transform* xform);
     static void removeChild(R_Transform* parent, R_Transform* child);
     static void addChild(R_Transform* parent, R_Transform* child);
     static u32 numChildren(R_Transform* xform);
@@ -201,7 +206,7 @@ struct Material_Primitive {
                                  WGPUBindGroupLayout layout, Arena* arena);
 };
 
-void Material_batchUpdatePipelines(GraphicsContext* gctx);
+void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID main_scene);
 
 // =============================================================================
 // R_Shader
@@ -263,6 +268,7 @@ struct R_Material : public R_Component {
     b32 fresh_bind_group; // set if modified by chuck user, need to rebuild bind groups
 
     R_ID pipelineID; // renderpipeline this material belongs to
+    bool pipeline_stale;
 
     // bindgroup state (uniforms, storage buffers, textures, samplers)
     R_Binding bindings[SG_MATERIAL_MAX_UNIFORMS];
@@ -270,6 +276,9 @@ struct R_Material : public R_Component {
       uniform_buffer; // maps 1:1 with uniform location, size =
                       // sizeof(SG_MaterialUniformData * SG_MATERIAL_MAX_UNIFORMS)
     WGPUBindGroup bind_group;
+
+    // primitive data ---------------
+    Arena primitives; // array of Material_Primitive (geo + xform)
 
     // Arena bindings;         // array of R_Binding
     // Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
@@ -296,9 +305,6 @@ struct R_Material : public R_Component {
     // MaterialTextureView normalTextureView;
     // SG_Texture* occlusionTexture;
     // SG_Texture* emissiveTexture;
-
-    // primitive data ---------------
-    Arena primitives; // array of Material_Primitive (geo + xform)
 
     // constructors ----------------------------------------------
     // static void init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig*
@@ -335,10 +341,113 @@ struct R_Material : public R_Component {
 // =============================================================================
 // R_Scene
 // =============================================================================
+
+struct PipelineToMaterial {
+    R_ID pipeline_id;   // key
+    Arena material_ids; // value, array of SG_IDs
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        return ((PipelineToMaterial*)a)->pipeline_id
+               - ((PipelineToMaterial*)b)->pipeline_id;
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        PipelineToMaterial* key = (PipelineToMaterial*)item;
+        return hashmap_xxhash3(&key->pipeline_id, sizeof(key->pipeline_id), seed0,
+                               seed1);
+    }
+
+    static void free(void* item)
+    {
+        PipelineToMaterial* key = (PipelineToMaterial*)item;
+        Arena::free(&key->material_ids);
+    }
+};
+
+struct MaterialToGeometry {
+    SG_ID material_id; // key
+    Arena geo_ids;     // value, array of SG_IDs
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        return ((MaterialToGeometry*)a)->material_id
+               - ((MaterialToGeometry*)b)->material_id;
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        MaterialToGeometry* key = (MaterialToGeometry*)item;
+        return hashmap_xxhash3(&key->material_id, sizeof(key->material_id), seed0,
+                               seed1);
+    }
+
+    static void free(void* item)
+    {
+        MaterialToGeometry* key = (MaterialToGeometry*)item;
+        Arena::free(&key->geo_ids);
+    }
+};
+
+struct GeometryToXformKey {
+    SG_ID geo_id;
+    SG_ID mat_id;
+};
+
+struct GeometryToXforms {
+    GeometryToXformKey key;
+    Arena xform_ids; // value, array of SG_IDs
+    WGPUBindGroup xform_bind_group;
+    GPU_Buffer xform_storage_buffer;
+    bool stale;
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        GeometryToXforms* ga = (GeometryToXforms*)a;
+        GeometryToXforms* gb = (GeometryToXforms*)b;
+        return memcmp(&ga->key, &gb->key, sizeof(ga->key));
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        GeometryToXforms* g2x = (GeometryToXforms*)item;
+        return hashmap_xxhash3(&g2x->key, sizeof(g2x->key), seed0, seed1);
+    }
+
+    static void free(void* item)
+    {
+        GeometryToXforms* g2x = (GeometryToXforms*)item;
+        Arena::free(&g2x->xform_ids);
+        WGPU_RELEASE_RESOURCE(BindGroup, g2x->xform_bind_group);
+        GPU_Buffer::destroy(&g2x->xform_storage_buffer);
+    }
+
+    static void rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
+                                 GeometryToXforms* g2x, WGPUBindGroupLayout layout,
+                                 Arena* frame_arena);
+};
+
 struct R_Scene : R_Transform {
     glm::vec4 bg_color;
 
+    hashmap* pipeline_to_material; // R_ID -> Arena of R_Material ids
+    hashmap* material_to_geo;      // SG_ID -> Arena of geo ids
+    hashmap* geo_to_xform;         // SG_ID -> Arena of xform ids (for each material)
+
     static void initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd);
+
+    static void removeSubgraphFromRenderState(R_Scene* scene, R_Transform* xform);
+    static void addSubgraphToRenderState(R_Scene* scene, R_Transform* xform);
+
+    static GeometryToXforms* getPrimitive(R_Scene* scene, SG_ID geo_id, SG_ID mat_id)
+    {
+        GeometryToXformKey key = {};
+        key.geo_id             = geo_id;
+        key.mat_id             = mat_id;
+        return (GeometryToXforms*)hashmap_get(scene->geo_to_xform, &key);
+    }
+
     // static void free(R_Scene* scene);
 };
 

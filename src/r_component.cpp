@@ -143,6 +143,17 @@ void R_Transform::setStale(R_Transform* xform, R_Transform_Staleness stale)
     }
 }
 
+R_Scene* R_Transform::getScene(R_Transform* xform)
+{
+    // walk up parent chain until scene is found
+    while (xform) {
+        if (xform->type == SG_COMPONENT_SCENE) return (R_Scene*)xform;
+        xform = Component_GetXform(xform->parentID);
+    }
+
+    return NULL;
+}
+
 bool R_Transform::isAncestor(R_Transform* ancestor, R_Transform* descendent)
 {
     while (descendent != NULL) {
@@ -175,6 +186,10 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
             break;
         }
     }
+
+    // remove child subgraph from scene render state
+    R_Scene* scene = R_Transform::getScene(parent);
+    R_Scene::removeSubgraphFromRenderState(scene, child);
 }
 
 void R_Transform::addChild(R_Transform* parent, R_Transform* child)
@@ -206,6 +221,10 @@ void R_Transform::addChild(R_Transform* parent, R_Transform* child)
     *xformID       = child->id;
 
     R_Transform::setStale(child, R_Transform_STALE_WORLD);
+
+    // add child subgraph to scene render state
+    R_Scene* scene = R_Transform::getScene(parent);
+    R_Scene::addSubgraphToRenderState(scene, child);
 }
 
 glm::mat4 R_Transform::localMatrix(R_Transform* xform)
@@ -261,14 +280,17 @@ void R_Transform::sca(R_Transform* xform, const glm::vec3& sca)
 }
 
 /// @brief recursive helper to regen matrices for xform and all descendents
-static void _Transform_RebuildDescendants(R_Transform* xform,
+static void _Transform_RebuildDescendants(R_Scene* scene, R_Transform* xform,
                                           const glm::mat4* parentWorld)
 {
     // mark primitive as stale since world matrix will change
     if (xform->_geoID && xform->_matID) {
         R_Material* mat = Component_GetMaterial(xform->_matID);
         ASSERT(mat != NULL);
-        R_Material::markPrimitiveStale(mat, xform);
+        R_Material::markPrimitiveStale(
+          mat, xform); // TODO remove material_primitives if new render state works
+
+        R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID)->stale = true;
     }
 
     // rebuild local mat
@@ -289,11 +311,11 @@ static void _Transform_RebuildDescendants(R_Transform* xform,
         R_Transform* child
           = Component_GetXform(*ARENA_GET_TYPE(&xform->children, SG_ID, i));
         ASSERT(child != NULL);
-        _Transform_RebuildDescendants(child, &xform->world);
+        _Transform_RebuildDescendants(scene, child, &xform->world);
     }
 }
 
-void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
+void R_Transform::rebuildMatrices(R_Scene* root, Arena* arena)
 {
     // push root onto stack
     SG_ID* base = ARENA_PUSH_ZERO_TYPE(arena, SG_ID);
@@ -327,7 +349,7 @@ void R_Transform::rebuildMatrices(R_Transform* root, Arena* arena)
             case R_Transform_STALE_LOCAL: {
                 // get parent world matrix
                 R_Transform* parent = Component_GetXform(xform->parentID);
-                _Transform_RebuildDescendants(xform,
+                _Transform_RebuildDescendants(root, xform,
                                               parent ? &parent->world : &identityMat);
                 break;
             }
@@ -476,7 +498,6 @@ void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices
 
 bool R_Geometry::usesVertexPulling(R_Geometry* geo)
 {
-
     for (int i = 0; i < ARRAY_LENGTH(geo->pull_buffers); ++i) {
         if (geo->pull_buffers[i].buf) return true;
     }
@@ -835,8 +856,9 @@ static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
 void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
                            SG_MaterialPipelineState* pso)
 {
-    mat->pso           = *pso;
-    const void* result = hashmap_set(materials_with_new_pso, &mat->id);
+    mat->pso = *pso;
+    hashmap_set(materials_with_new_pso, &mat->id);
+    mat->pipeline_stale = true;
 }
 
 void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
@@ -1108,6 +1130,247 @@ bool R_Material::primitiveIter(R_Material* mat, size_t* indexPtr,
 // R_Scene
 // ============================================================================
 
+// static PipelineToMaterial* R_Scene_getOrCreateP2M(hashmap* p2m_map, R_ID pipeline_id)
+//{
+//     ASSERT(pipeline_id != 0);
+//     PipelineToMaterial* p2m = (PipelineToMaterial*)hashmap_get(p2m_map,
+//     &pipeline_id); if (!p2m) {
+//         PipelineToMaterial new_p2m = {};
+//         new_p2m.pipeline_id        = pipeline_id;
+//         Arena::init(&new_p2m.material_ids, sizeof(SG_ID) * 8);
+//         // add material to pipeline
+//         hashmap_set(p2m_map, &new_p2m);
+//         p2m = (PipelineToMaterial*)hashmap_get(p2m_map, &pipeline_id);
+//     }
+//     return p2m;
+// }
+
+void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
+                                        GeometryToXforms* g2x,
+                                        WGPUBindGroupLayout layout, Arena* frame_arena)
+{
+    if (!g2x->stale) return;
+    g2x->stale = false;
+
+    // build new array of matrices on CPU
+    u64 model_matrices_offset = frame_arena->curr;
+    int matrixCount           = 0;
+
+    int numInstances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
+    SG_ID* xformIDs  = (SG_ID*)g2x->xform_ids.base;
+    // delete and swap any destroyed xforms
+    for (int i = 0; i < numInstances; ++i) {
+        R_Transform* xform = Component_GetXform(xformIDs[i]);
+        // remove NULL xforms and xforms that have been reassigned new mesh params
+        // TODO: impl GMesh.geo() and GMesh.mat() to change geo and mat of mesh
+        // - impl needs to set GeometryToXforms.stale = true
+        // - but does NOT need to linear search the xformIDs arena. because lazy
+        // deletion happens right here
+        bool xform_destroyed = (xform == NULL);
+        bool xform_changed_mesh
+          = (xform->_geoID != g2x->key.geo_id || xform->_matID != g2x->key.mat_id);
+        bool xform_detached_from_scene = (xform->scene_id != scene->id);
+        if (xform_destroyed || xform_changed_mesh || xform_detached_from_scene) {
+            // swap with last element
+            xformIDs[i] = xformIDs[numInstances - 1];
+            // pop last element
+            Arena::pop(&g2x->xform_ids, sizeof(SG_ID));
+            // decrement to reprocess this index
+            --i;
+            --numInstances;
+            continue;
+        }
+        // assert his xform belongs to this material and geometry
+        ASSERT(xform->_geoID == g2x->key.geo_id);
+        ASSERT(xform->_matID == g2x->key.mat_id);
+        // else add xform matrix to arena
+        ++matrixCount; // TODO remove matrixCount variable if this all works
+        // world matrix should already have been computed by now
+        ASSERT(xform->_stale == R_Transform_STALE_NONE);
+        *ARENA_PUSH_TYPE(frame_arena, glm::mat4) = xform->world;
+
+        // TODO add normal matrix
+    }
+    // sanity check that we have the correct number of matrices
+    ASSERT(matrixCount == numInstances);
+    ASSERT(numInstances == ARENA_LENGTH(&g2x->xform_ids, SG_ID));
+
+    u64 write_size = frame_arena->curr - model_matrices_offset;
+    GPU_Buffer::write(gctx, &g2x->xform_storage_buffer, WGPUBufferUsage_Storage,
+                      Arena::get(frame_arena, model_matrices_offset), write_size);
+
+    // pop arena after copying data to GPU
+    Arena::pop(frame_arena, write_size);
+    ASSERT(model_matrices_offset == frame_arena->curr);
+
+    // recreate bindgroup
+    WGPUBindGroupEntry entry = {};
+    entry.binding            = 0;
+    entry.buffer             = g2x->xform_storage_buffer.buf;
+    entry.offset             = 0;
+    entry.size               = g2x->xform_storage_buffer.size;
+
+    WGPUBindGroupDescriptor desc = {};
+    desc.layout                  = layout;
+    desc.entryCount              = 1;
+    desc.entries                 = &entry;
+
+    WGPU_RELEASE_RESOURCE(BindGroup, g2x->xform_bind_group);
+
+    g2x->xform_bind_group = wgpuDeviceCreateBindGroup(gctx->device, &desc);
+    ASSERT(g2x->xform_bind_group);
+}
+
+void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
+{
+    ASSERT(scene->id == root->scene_id);
+
+    if (!scene) return;
+
+    // find all meshes in child subgraph
+    static Arena arena{};
+    defer(Arena::clear(&arena));
+
+    SG_ID* sg_id = ARENA_PUSH_TYPE(&arena, SG_ID);
+    *sg_id       = root->id;
+    while (ARENA_LENGTH(&arena, SG_ID)) {
+        SG_ID xformID = *ARENA_GET_LAST_TYPE(&arena, SG_ID);
+        ARENA_POP_TYPE(&arena, SG_ID);
+        R_Transform* xform = Component_GetXform(xformID);
+
+        // add children to queue
+        for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID); ++i) {
+            *ARENA_PUSH_ZERO_TYPE(&arena, SG_ID)
+              = *ARENA_GET_TYPE(&xform->children, SG_ID, i);
+        }
+
+        // remove scene from xform
+        ASSERT(xform->scene_id == scene->id);
+        xform->scene_id = 0;
+
+        if (xform->type == SG_COMPONENT_MESH) {
+            // get xforms from geometry
+            GeometryToXforms* g2x
+              = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
+            ASSERT(g2x); // GMesh was added, so geometry should exist
+
+            // don't need to remove xform from geometry
+            // just mark the g2x entry as stale; will be lazily deleted in
+            // GeometryToXforms::rebuildBindGroup();
+            g2x->stale = true;
+            ASSERT(Arena::containsItem(&g2x->xform_ids, &xform->id, sizeof(xform->id)));
+
+            // TODO: deletions must cascade upwards to geo-->material-->pipeline
+            // we can only remove an SG_ID from a higher level IF that SG_ID
+            // at the lower level has an empty arena
+
+            // can implement this later. for now deletions will leave a bunch of empty
+            // arenas in the 3 hashmaps.
+            // better yet: batch all deletions and prune the render state in one go
+            // in a separate function like GG.gc()
+        }
+    }
+}
+
+void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
+{
+    // TODO: bug. GeometryToXform needs to be keyed on materialID as well
+    // ==optimize== instead of traversing all 3 maps, go backwards.
+    // check bottom level GeometryToXform first, and only build as necessary
+    // going backwards. If Pipeline and Material render state is already setup,
+    // don't need to rebuild it.
+
+    ASSERT(scene == R_Transform::getScene(root));
+
+    if (!scene) return;
+
+    // find all meshes in child subgraph
+    static Arena arena{};
+    defer(Arena::clear(&arena));
+
+    *ARENA_PUSH_TYPE(&arena, SG_ID) = root->id;
+    while (ARENA_LENGTH(&arena, SG_ID)) {
+        R_Transform* xform = Component_GetXform(*ARENA_GET_LAST_TYPE(&arena, SG_ID));
+        ARENA_POP_TYPE(&arena, SG_ID);
+
+        // add children to queue
+        for (u32 i = 0; i < ARENA_LENGTH(&xform->children, SG_ID); ++i) {
+            *ARENA_PUSH_ZERO_TYPE(&arena, SG_ID)
+              = *ARENA_GET_TYPE(&xform->children, SG_ID, i);
+        }
+
+        // add scene to transform state
+        ASSERT(xform->scene_id != scene->id);
+        xform->scene_id = scene->id;
+
+        if (xform->type == SG_COMPONENT_MESH) {
+            bool add_m2g_and_p2m_entries = false;
+
+            // try adding to bottom level GeometryToXform
+            // if its not present, build up entire chain:
+            // g2x (geo, mat) --> xforms
+            // m2g mat --> geo
+            // p2g pso --> mat
+            // maintain invariant that if a (geo, mat) is present in g2x,
+            // then all higher order entries are also present.
+            // if g2x entry is not found, create it and all corresponding.
+            // invariant holds assuming the deletion in removeSubgraphFromRenderState()
+            // does not delete entire hashmap entries, ONLY pops individual SG_IDs from
+            // the entry arena
+            // that is, if a <geo_id, mat_id> entry is present in g2m hashmap,
+            // even if it has 0 xform ids, all upwards mat_id --> geo_ids and
+            // pipeline_id --> mat_ids entries also exist
+            // this avoids us having to do O(n) search on each xform added/removed
+            // from scenegraph render state
+
+            GeometryToXforms* g2x
+              = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
+            if (g2x == NULL) {
+                // add to hashmap, need to add upward entries material-->geo and
+                // pipeline-->mat
+                GeometryToXforms new_g2x = {};
+                new_g2x.key.geo_id       = xform->_geoID;
+                new_g2x.key.mat_id       = xform->_matID;
+                Arena::init(&new_g2x.xform_ids, sizeof(SG_ID) * 8);
+                hashmap_set(scene->geo_to_xform, &new_g2x);
+                g2x = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
+                add_m2g_and_p2m_entries = true;
+            }
+
+            ASSERT(g2x->key.geo_id == xform->_geoID);
+            ASSERT(g2x->key.mat_id == xform->_matID);
+
+            // check if xform already exists in geometry
+            ASSERT(
+              !Arena::containsItem(&g2x->xform_ids, &xform->id, sizeof(xform->id)));
+
+            // add xform to geometry
+            *ARENA_PUSH_ZERO_TYPE(&g2x->xform_ids, SG_ID) = xform->id;
+            g2x->stale = true; // need to rebuild bindgroup
+
+            if (add_m2g_and_p2m_entries) {
+                // get geometry from material
+                MaterialToGeometry* m2g = (MaterialToGeometry*)hashmap_get(
+                  scene->material_to_geo, &xform->_matID);
+
+                if (m2g == NULL) {
+                    MaterialToGeometry new_m2g = {};
+                    new_m2g.material_id        = xform->_matID;
+                    Arena::init(&new_m2g.geo_ids, sizeof(SG_ID) * 8);
+                    hashmap_set(scene->material_to_geo, &new_m2g);
+                    m2g = (MaterialToGeometry*)hashmap_get(scene->material_to_geo,
+                                                           &xform->_matID);
+                }
+
+                // invariant says entry should not have been added
+                ASSERT(!Arena::containsItem(&m2g->geo_ids, &xform->_matID,
+                                            sizeof(xform->_matID)));
+                *ARENA_PUSH_ZERO_TYPE(&m2g->geo_ids, SG_ID) = xform->_geoID;
+            }
+        }
+    }
+}
+
 void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 {
     ASSERT(r_scene->id == 0); // ensure not initialized twice
@@ -1125,6 +1388,18 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 
     // set stale to force rebuild of matrices
     r_scene->_stale = R_Transform_STALE_LOCAL;
+
+    // initialize arenas
+    int seed = time(NULL);
+    r_scene->pipeline_to_material
+      = hashmap_new(sizeof(PipelineToMaterial), 0, seed, seed, PipelineToMaterial::hash,
+                    PipelineToMaterial::compare, PipelineToMaterial::free, NULL);
+    r_scene->material_to_geo
+      = hashmap_new(sizeof(MaterialToGeometry), 0, seed, seed, MaterialToGeometry::hash,
+                    MaterialToGeometry::compare, MaterialToGeometry::free, NULL);
+    r_scene->geo_to_xform
+      = hashmap_new(sizeof(GeometryToXforms), 0, seed, seed, GeometryToXforms::hash,
+                    GeometryToXforms::compare, GeometryToXforms::free, NULL);
 
     // initialize children array for 8 children
     Arena::init(&r_scene->children, sizeof(SG_ID) * 8);
@@ -1168,8 +1443,8 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     primitiveState.frontFace = WGPUFrontFace_CCW;
     primitiveState.cullMode  = config->cull_mode;
 
-    // TODO transparency (dissallow partial transparency, see if fragment discard
-    // writes to the depth buffer)
+    // TODO transparency (dissallow partial transparency, see if fragment
+    // discard writes to the depth buffer)
     WGPUBlendState blendState = G_createBlendState(true);
 
     WGPUColorTargetState colorTargetState = {};
@@ -1225,8 +1500,8 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     ASSERT(pipeline->gpu_pipeline);
 
     { // create per-frame bindgroup
-        // implicit layouts cannot share bindgroups, so need to create one per
-        // render pipeline
+        // implicit layouts cannot share bindgroups, so need to create one
+        // per render pipeline
 
         // initialize shared frame buffer
         if (!R_RenderPipeline::frame_uniform_buffer.buf) {
@@ -1236,7 +1511,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
                               sizeof(frame_uniforms));
         }
 
-        // create bind group entry (TODO shader globally in renderer)
+        // create bind group entry
         WGPUBindGroupEntry frame_group_entry = {};
         frame_group_entry                    = {};
         frame_group_entry.binding            = 0;
@@ -1251,6 +1526,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
         frameGroupDesc.entries    = &frame_group_entry;
         frameGroupDesc.entryCount = 1;
 
+        // layout:auto requires a bind group per pipeline
         pipeline->frame_group
           = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
         ASSERT(pipeline->frame_group);
@@ -1271,13 +1547,14 @@ Add a function R_MaterialConfig GetRenderPipelineConfig() to R_Material
 Option 1: before rendering, do a pass over all materials in material arena.
 Get its renderPipelineConfig, and see if its tied to the correct pipeline.
 If not, remove from the current and add to the new.
-- cons: requires a second pass over all materials, which is not cache efficient
+- cons: requires a second pass over all materials, which is not cache
+efficient
 
-Option 2: check the material WHEN doing the render pass over all RenderPipeline.
-Same logic, GetRenderPipelineConfig() and if its different, add to correct
-pipeline.
-- cons: if the material gets added to a pipeline that was ALREADY processed, it
-  will be missed and only rendered on the NEXT frame. (that might be fine)
+Option 2: check the material WHEN doing the render pass over all
+RenderPipeline. Same logic, GetRenderPipelineConfig() and if its different,
+add to correct pipeline.
+- cons: if the material gets added to a pipeline that was ALREADY processed,
+it will be missed and only rendered on the NEXT frame. (that might be fine)
 
 Going with option 2 for now
 
@@ -1285,26 +1562,23 @@ Going with option 2 for now
 
 void R_RenderPipeline::addMaterial(R_RenderPipeline* pipeline, R_Material* material)
 {
-    ASSERT(material);
-    // disallow duplicates
-    ASSERT(material->pipelineID != pipeline->rid);
+    if (material->pipelineID == pipeline->rid) {
+        ASSERT(ARENA_CONTAINS(&pipeline->materialIDs, material->id));
+        return;
+    }
 
     // remove material from existing pipeline
     // Lazy deletion. during render loop, pipeline checks if the material
     // ID matches this current pipeline. If not, we know we've switched.
-    // the render pipeline then removes the material from its list of material
-    // IDs.
-    // This avoids the cost of doing a linear search over all materials for
-    // deletion. We postpone the deletion until we're already iterating over the
-    // materials anyways
-
-    // TODO: remember to remove NULL material IDs from the list, AS WELL AS
-    // materials whose pipeline id doesn't match
+    // the render pipeline then removes the material from its list of
+    // material IDs. This avoids the cost of doing a linear search over all
+    // materials for deletion. We postpone the deletion until we're already
+    // iterating over the materials anyways
 
     // add material to new pipeline
-    SG_ID* newMaterialID = ARENA_PUSH_ZERO_TYPE(&pipeline->materialIDs, SG_ID);
-    *newMaterialID       = material->id;
-    material->pipelineID = pipeline->rid;
+    ASSERT(!ARENA_CONTAINS(&pipeline->materialIDs, material->id));
+    *ARENA_PUSH_TYPE(&pipeline->materialIDs, SG_ID) = material->id;
+    material->pipelineID                            = pipeline->rid;
 }
 
 size_t R_RenderPipeline::numMaterials(R_RenderPipeline* pipeline)
@@ -1330,8 +1604,8 @@ bool R_RenderPipeline::materialIter(R_RenderPipeline* pipeline, size_t* indexPtr
     SG_ID* materialID = ARENA_GET_TYPE(&pipeline->materialIDs, SG_ID, *indexPtr);
     *material         = Component_GetMaterial(*materialID);
 
-    // if null or reassigned to different pipeline, swap with last element and
-    // try again
+    // if null or reassigned to different pipeline, swap with last element
+    // and try again
     if (*material == NULL || (*material)->pipelineID != pipeline->rid) {
         SG_ID* lastMatID
           = ARENA_GET_TYPE(&pipeline->materialIDs, SG_ID, numMaterials - 1);
@@ -1606,8 +1880,8 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
 }
 
 // only called by renderer tester
-// R_Material* Component_CreateMaterial(GraphicsContext* gctx, R_MaterialConfig*
-// config)
+// R_Material* Component_CreateMaterial(GraphicsContext* gctx,
+// R_MaterialConfig* config)
 // {
 //     R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
 //     R_Material::init(gctx, mat, config);
@@ -1618,7 +1892,8 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
 //     // store offset
 //     R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat),
 //     &materialArena
-//     }; const void* result = hashmap_set(r_locator, &loc); ASSERT(result == NULL);
+//     }; const void* result = hashmap_set(r_locator, &loc); ASSERT(result
+//     == NULL);
 //     // ensure id is unique
 
 //     return mat;
@@ -1647,8 +1922,8 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
         // initialize bind entry arenas
         // Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
-        // Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
-        // Arena::init(&mat->uniformData, 64);
+        // Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) *
+        // 8); Arena::init(&mat->uniformData, 64);
 
         // defer pipeline (lazily created)
         const void* result = hashmap_set(materials_with_new_pso, &mat->id);
@@ -1698,17 +1973,25 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 }
 
 // called by renderer after flushing all commands
-void Material_batchUpdatePipelines(GraphicsContext* gctx)
+void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID scene_id)
 {
+    R_Scene* main_scene = Component_GetScene(scene_id);
+
+    // TODO:
+    // handle xforms changing geo/mat by marking g2m as stale
     size_t index = 0;
     SG_ID* sg_id;
     while (hashmap_iter(materials_with_new_pso, &index, (void**)&sg_id)) {
         R_Material* mat            = Component_GetMaterial(*sg_id);
         R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->pso);
 
+        ASSERT(mat->pipeline_stale);
+        mat->pipeline_stale = false;
+
         // add material to pipeline
-        R_RenderPipeline::addMaterial(pipeline, mat);
-        ASSERT(mat->pipelineID != 0);
+        R_RenderPipeline::addMaterial(pipeline,
+                                      mat); // TODO remove function after refactor
+        ASSERT(mat->pipelineID == pipeline->rid);
     }
 
     // clear hashmap
@@ -1818,8 +2101,8 @@ int Component_RenderPipelineCount()
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
                                         SG_MaterialPipelineState* pso)
 {
-    // TODO ==optimization== figure out a better way to search (augment with a
-    // hashmap?) for now just doing linear search
+    // TODO ==optimization== figure out a better way to search (augment with
+    // a hashmap?) for now just doing linear search
 
     u32 numPipelines = ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
     for (u32 i = 0; i < numPipelines; ++i) {

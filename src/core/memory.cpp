@@ -121,3 +121,15 @@ u64 Arena::offsetOf(Arena* a, void* ptr)
 
     return (u64)((u8*)ptr - a->base);
 }
+
+bool Arena::containsItem(Arena* a, void* ptr, size_t size)
+{
+    u8* comp = a->base;
+    while (comp < a->base + a->curr) {
+        if (memcmp(comp, ptr, size) == 0) {
+            return true;
+        }
+        comp += size;
+    }
+    return false;
+}

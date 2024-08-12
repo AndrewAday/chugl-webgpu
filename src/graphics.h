@@ -169,6 +169,11 @@ struct GPU_Buffer {
     {
         return write(gctx, gpu_buffer, usage_flags, 0, data, size);
     }
+
+    static void destroy(GPU_Buffer* buffer)
+    {
+        WGPU_DESTROY_AND_RELEASE_BUFFER(buffer->buf);
+    }
 };
 
 // ============================================================================

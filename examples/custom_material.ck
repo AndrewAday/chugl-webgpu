@@ -121,6 +121,7 @@ custom_material.uniformFloat(0, 1.0);
 [0.0, 1.0, 1.0] @=> float storage_buffer[];
 custom_material.storageBuffer(1, storage_buffer);
 
+// test changing material pso
 fun void psoChanger() {
     while (1::second => now) {
         // 1 - custom_material.cullMode() => custom_material.cullMode;
@@ -133,11 +134,31 @@ fun void psoChanger() {
         storage_buffer << 1.0; // update size to force bindgroupentry rebuild
         custom_material.storageBuffer(1, storage_buffer);
     }
-} spork ~ psoChanger();
+} 
+// spork ~ psoChanger();
+
+// test switching scenes AND changing material pso
+// correct behavior: changing the pso of a material that belongs to multiple scenes
+// should update all scenes 
+fun void sceneSwitcher() {
+    GG.scene() @=> GScene@ default_scene;
+    GScene scene1;
+    GMesh mesh(suzanne_geo, custom_material) --> scene1;
+    while (true) {
+        (custom_material.topology() + 1) % (Material.TOPOLOGY_TRIANGLESTRIP + 1) => custom_material.topology;
+        2::second => now; // render current scene for 1 second
+        GG.scene(scene1); // switch to new scene
+        2::second => now;
+        GG.scene(default_scene); // switch back to default scene
+    }
+}
+spork ~ sceneSwitcher();
+
+
 
 while (true) {
     GG.nextFrame() => now;
-    custom_material.uniformFloat(0, .5 * Math.sin(now/second) + 0.5);
+    // custom_material.uniformFloat(0, .5 * Math.sin(now/second) + 0.5);
 
     // get volume
     .75 + Math.sqrt(p.last()) => big_suzanne.sca;

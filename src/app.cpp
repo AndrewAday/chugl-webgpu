@@ -28,6 +28,8 @@
 #include "sg_component.h"
 #include "tests/test_base.h"
 
+#include "core/hashmap.h"
+
 // necessary for copying from command
 static_assert(sizeof(u32) == sizeof(b2WorldId), "b2WorldId != u32");
 
@@ -620,7 +622,7 @@ struct App {
             while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
             CQ_ReadCommandQueueClear();
             // tasks to do after command queue is flushed (batched)
-            Material_batchUpdatePipelines(&app->gctx);
+            Material_batchUpdatePipelines(&app->gctx, app->mainScene);
         }
 
         // process any glfw options passed from chuck
@@ -827,6 +829,143 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
       &frameUniforms, sizeof(frameUniforms));
     ASSERT(!frame_uniforms_recreated);
 
+    // size_t rp_index         = 0;
+    // PipelineToMaterial* p2m = NULL;
+    // while (hashmap_iter(main_scene->pipeline_to_material, &rp_index, (void**)&p2m)) {
+    R_RenderPipeline* render_pipeline = NULL;
+    size_t rpIndex                    = 0;
+    while (Component_RenderPipelineIter(&rpIndex, &render_pipeline)) {
+        // log_trace("drawing materials for render pipeline: %d",
+        //           renderPipeline->rid);
+        ASSERT(render_pipeline->rid != 0);
+
+        // early out if numMaterials == 0;
+        if (R_RenderPipeline::numMaterials(render_pipeline) == 0) continue;
+
+        // default pipeline for materials to be batch assigned in
+        // Material_batchUpdatePipelines
+        // if (p2m->pipeline_id == 0) {
+        //     ASSERT(ARENA_LENGTH(&p2m->material_ids, SG_ID) == 0);
+        //     continue;
+        // }
+
+        // R_RenderPipeline* pipeline = Component_GetPipeline(p2m->pipeline_id);
+
+        // if (ARENA_LENGTH(&p2m->material_ids, SG_ID) == 0) continue;
+
+        WGPURenderPipeline gpu_pipeline = render_pipeline->gpu_pipeline;
+
+        // ==optimize== cache layouts in R_RenderPipeline struct upon creation
+        WGPUBindGroupLayout perMaterialLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_MATERIAL_GROUP);
+        WGPUBindGroupLayout perDrawLayout
+          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_DRAW_GROUP);
+        WGPUBindGroupLayout vertex_pulling_layout
+          = NULL; // set lazily right before draw call
+
+        // set shader
+        // ==optimize== only set shader if we actually have anything to render
+        wgpuRenderPassEncoderSetPipeline(renderPass, gpu_pipeline);
+
+        wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
+                                          render_pipeline->frame_group, 0, NULL);
+
+        // per-material render loop
+        size_t material_idx    = 0;
+        R_Material* r_material = NULL;
+        while (
+          R_RenderPipeline::materialIter(render_pipeline, &material_idx, &r_material)) {
+
+            ASSERT(r_material && r_material->pipelineID == render_pipeline->rid);
+
+            MaterialToGeometry* m2g = (MaterialToGeometry*)hashmap_get(
+              main_scene->material_to_geo, &r_material->id);
+
+            // early out scene doesn't use this material
+            // if (R_Material::numPrimitives(r_material) == 0) continue;
+            if (!m2g) continue;
+            int geo_count = ARENA_LENGTH(&m2g->geo_ids, SG_ID);
+            if (geo_count == 0) continue;
+
+            // R_Material* r_material = Component_GetMaterial(
+            //   *ARENA_GET_TYPE(&p2m->material_ids, SG_ID, material_idx));
+
+            // if pipeline doesn't match material, means material was updated with new
+            // pso, so delete via swapping
+            // if (r_material->pipelineID != pipeline->rid) {
+            //     ARENA_SWAP_DELETE_DEC(&p2m->material_ids, SG_ID, material_idx);
+            //     continue;
+            // }
+
+            // set per_material bind group
+            R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
+
+            wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
+                                              r_material->bind_group, 0, NULL);
+
+            // iterate over geometries attached to this material
+            for (int geo_idx = 0; geo_idx < geo_count; geo_idx++) {
+                R_Geometry* geo = Component_GetGeometry(
+                  *ARENA_GET_TYPE(&m2g->geo_ids, SG_ID, geo_idx));
+                GeometryToXforms* g2x
+                  = R_Scene::getPrimitive(main_scene, geo->id, r_material->id);
+                ASSERT(g2x->key.geo_id == geo->id && g2x->key.mat_id == r_material->id);
+
+                GeometryToXforms::rebuildBindGroup(&app->gctx, main_scene, g2x,
+                                                   perDrawLayout, &app->frameArena);
+
+                // check *after* rebuildBindGroup because some xform ids may be removed
+                int num_instances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
+                if (num_instances == 0) continue;
+
+                // set model bind group
+                wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
+                                                  g2x->xform_bind_group, 0, NULL);
+
+                // set vertex attributes
+                for (int location = 0; location < R_Geometry::vertexAttributeCount(geo);
+                     location++) {
+                    GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
+                    wgpuRenderPassEncoderSetVertexBuffer(
+                      renderPass, location, gpu_buffer->buf, 0, gpu_buffer->size);
+                }
+
+                // set pulled vertex buffers (programmable vertex pulling)
+                if (R_Geometry::usesVertexPulling(geo)) {
+                    if (!vertex_pulling_layout) {
+                        vertex_pulling_layout = wgpuRenderPipelineGetBindGroupLayout(
+                          gpu_pipeline, VERTEX_PULL_GROUP);
+                    }
+                    R_Geometry::rebuildPullBindGroup(&app->gctx, geo,
+                                                     vertex_pulling_layout);
+                    wgpuRenderPassEncoderSetBindGroup(renderPass, VERTEX_PULL_GROUP,
+                                                      geo->pull_bind_group, 0, NULL);
+                }
+
+                // populate index buffer
+                u32 num_indices = R_Geometry::indexCount(geo);
+                if (num_indices > 0) {
+                    // indexed draw
+                    wgpuRenderPassEncoderSetIndexBuffer(
+                      renderPass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
+                      geo->gpu_index_buffer.size);
+
+                    wgpuRenderPassEncoderDrawIndexed(renderPass, num_indices,
+                                                     num_instances, 0, 0, 0);
+                } else {
+                    // non-index draw
+                    int num_vertices = (int)R_Geometry::vertexCount(geo);
+                    int vertex_draw_count
+                      = geo->vertex_count >= 0 ? geo->vertex_count : num_vertices;
+                    wgpuRenderPassEncoderDraw(renderPass, vertex_draw_count,
+                                              num_instances, 0, 0);
+                }
+            }
+        }
+    }
+}
+
+#if 0 // TODO remove after R_Scene state refactor and removing Material_Primitive
     // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
     // Test render loop
     R_RenderPipeline* renderPipeline = NULL;
@@ -933,7 +1072,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             }
         }
     }
-}
+#endif
 
 static void _R_HandleCommand(App* app, SG_Command* command)
 {
@@ -1127,6 +1266,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         }
         case SG_COMMAND_GG_SCENE: {
             app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
+            // update scene's render state
+            R_Scene* scene = Component_GetScene(app->mainScene);
             break;
         }
         case SG_COMMAND_CREATE_XFORM:
@@ -1136,14 +1277,12 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_AddChild* cmd = (SG_Command_AddChild*)command;
             R_Transform::addChild(Component_GetXform(cmd->parent_id),
                                   Component_GetXform(cmd->child_id));
-            break;
-        }
+        } break;
         case SG_COMMAND_REMOVE_CHILD: {
             SG_Command_RemoveChild* cmd = (SG_Command_RemoveChild*)command;
             R_Transform::removeChild(Component_GetXform(cmd->parent),
                                      Component_GetXform(cmd->child));
-            break;
-        }
+        } break;
         case SG_COMMAND_SET_POSITION: {
             SG_Command_SetPosition* cmd = (SG_Command_SetPosition*)command;
             R_Transform::pos(Component_GetXform(cmd->sg_id), cmd->pos);
