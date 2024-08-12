@@ -170,42 +170,6 @@ struct R_Texture : public R_Component {
     static void init(R_Texture* texture);
 };
 
-// =============================================================================
-// Material_Primitive
-// =============================================================================
-
-// groups xform data and geometry under a given R_Material instance
-struct Material_Primitive {
-    // geometry
-    SG_ID geoID;
-    // material this belongs to
-    SG_ID matID;
-
-    // associated xform instances
-    Arena xformIDs; // array of SG_ID
-
-    // bindgroup
-    WGPUBindGroupEntry bindGroupEntry;
-    WGPUBindGroup bindGroup;
-    WGPUBuffer storageBuffer;
-    u32 storageBufferCap; // capacity in number of FrameUniforms NOT bytes
-    b32 stale;            // true if storage buffer needs to be rebuilt with new
-                          // world matrices
-
-    static void init(Material_Primitive* prim, R_Material* mat, SG_ID geoID);
-    static void free(Material_Primitive* prim);
-    static u32 numInstances(Material_Primitive* prim);
-    static void addXform(Material_Primitive* prim, R_Transform* xform);
-    static void removeXform(Material_Primitive* prim, R_Transform* xform);
-
-    // recreates storagebuffer based on #xformIDs and rebuilds bindgroup
-    // populates storage buffer with new xform data
-    // only creates new storage buffer if #xformIDs grows or an existing xformID
-    // is moved
-    static void rebuildBindGroup(GraphicsContext* gctx, Material_Primitive* prim,
-                                 WGPUBindGroupLayout layout, Arena* arena);
-};
-
 void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID main_scene);
 
 // =============================================================================
@@ -277,9 +241,6 @@ struct R_Material : public R_Component {
                       // sizeof(SG_MaterialUniformData * SG_MATERIAL_MAX_UNIFORMS)
     WGPUBindGroup bind_group;
 
-    // primitive data ---------------
-    Arena primitives; // array of Material_Primitive (geo + xform)
-
     // Arena bindings;         // array of R_Binding
     // Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
     // WGPUBindGroup bindGroup;
@@ -328,43 +289,11 @@ struct R_Material : public R_Component {
     static void setTextureAndSamplerBinding(R_Material* mat, u32 location,
                                             SG_ID textureID,
                                             WGPUTextureView defaultView);
-
-    // functions for adding/removing primitives ------------------
-    static u32 numPrimitives(R_Material* mat);
-    static void addPrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform);
-    static void removePrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform);
-    static void markPrimitiveStale(R_Material* mat, R_Transform* xform);
-    static bool primitiveIter(R_Material* mat, size_t* indexPtr,
-                              Material_Primitive** primitive);
 };
 
 // =============================================================================
 // R_Scene
 // =============================================================================
-
-struct PipelineToMaterial {
-    R_ID pipeline_id;   // key
-    Arena material_ids; // value, array of SG_IDs
-
-    static int compare(const void* a, const void* b, void* udata)
-    {
-        return ((PipelineToMaterial*)a)->pipeline_id
-               - ((PipelineToMaterial*)b)->pipeline_id;
-    }
-
-    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
-    {
-        PipelineToMaterial* key = (PipelineToMaterial*)item;
-        return hashmap_xxhash3(&key->pipeline_id, sizeof(key->pipeline_id), seed0,
-                               seed1);
-    }
-
-    static void free(void* item)
-    {
-        PipelineToMaterial* key = (PipelineToMaterial*)item;
-        Arena::free(&key->material_ids);
-    }
-};
 
 struct MaterialToGeometry {
     SG_ID material_id; // key

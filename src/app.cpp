@@ -507,23 +507,6 @@ struct App {
     static void _mainLoop(App* app)
     {
         ASSERT(!app->standalone);
-        // Render initialization ==================================
-        // TODO
-
-        // Copy from CGL scenegraph ====================================
-        // TODO do in main hook
-
-        // fps
-        // const t_CKUINT N = 30;
-        // double deltaTimes[N];
-        // double deltaSum = 0;
-        // memset(deltaTimes, 0, sizeof(deltaTimes));
-        // t_CKUINT dtWrite      = 0;
-        // t_CKUINT dtInitFrames = 0;
-        // bool firstFrame       = true;
-
-        // must happen after window resize
-
         // Render Loop ===========================================
         static u64 prev_lap_time{ stm_now() };
 
@@ -592,7 +575,9 @@ struct App {
             // critical_section_stats.update(stm_since(critical_start));
 
             // physics
-            // TODO: detach timestap from framerate
+            // we intentionally are NOT having a fixed timestap for the sake of
+            // simplicity.
+            // instead, rely on vsync + stable framerate
             // https://gafferongames.com/post/fix_your_timestep/
             if (b2World_IsValid(app->b2_world_id)) {
                 b2World_Step(app->b2_world_id, app->dt, app->b2_substep_count);
@@ -829,29 +814,12 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
       &frameUniforms, sizeof(frameUniforms));
     ASSERT(!frame_uniforms_recreated);
 
-    // size_t rp_index         = 0;
-    // PipelineToMaterial* p2m = NULL;
-    // while (hashmap_iter(main_scene->pipeline_to_material, &rp_index, (void**)&p2m)) {
     R_RenderPipeline* render_pipeline = NULL;
     size_t rpIndex                    = 0;
     while (Component_RenderPipelineIter(&rpIndex, &render_pipeline)) {
-        // log_trace("drawing materials for render pipeline: %d",
-        //           renderPipeline->rid);
         ASSERT(render_pipeline->rid != 0);
 
-        // early out if numMaterials == 0;
         if (R_RenderPipeline::numMaterials(render_pipeline) == 0) continue;
-
-        // default pipeline for materials to be batch assigned in
-        // Material_batchUpdatePipelines
-        // if (p2m->pipeline_id == 0) {
-        //     ASSERT(ARENA_LENGTH(&p2m->material_ids, SG_ID) == 0);
-        //     continue;
-        // }
-
-        // R_RenderPipeline* pipeline = Component_GetPipeline(p2m->pipeline_id);
-
-        // if (ARENA_LENGTH(&p2m->material_ids, SG_ID) == 0) continue;
 
         WGPURenderPipeline gpu_pipeline = render_pipeline->gpu_pipeline;
 
@@ -876,26 +844,15 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
         while (
           R_RenderPipeline::materialIter(render_pipeline, &material_idx, &r_material)) {
 
-            ASSERT(r_material && r_material->pipelineID == render_pipeline->rid);
+            ASSERT(r_material->pipelineID == render_pipeline->rid);
 
             MaterialToGeometry* m2g = (MaterialToGeometry*)hashmap_get(
               main_scene->material_to_geo, &r_material->id);
 
             // early out scene doesn't use this material
-            // if (R_Material::numPrimitives(r_material) == 0) continue;
             if (!m2g) continue;
             int geo_count = ARENA_LENGTH(&m2g->geo_ids, SG_ID);
             if (geo_count == 0) continue;
-
-            // R_Material* r_material = Component_GetMaterial(
-            //   *ARENA_GET_TYPE(&p2m->material_ids, SG_ID, material_idx));
-
-            // if pipeline doesn't match material, means material was updated with new
-            // pso, so delete via swapping
-            // if (r_material->pipelineID != pipeline->rid) {
-            //     ARENA_SWAP_DELETE_DEC(&p2m->material_ids, SG_ID, material_idx);
-            //     continue;
-            // }
 
             // set per_material bind group
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
@@ -964,115 +921,6 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
         }
     }
 }
-
-#if 0 // TODO remove after R_Scene state refactor and removing Material_Primitive
-    // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
-    // Test render loop
-    R_RenderPipeline* renderPipeline = NULL;
-    size_t rpIndex                   = 0;
-    while (Component_RenderPipelineIter(&rpIndex, &renderPipeline)) {
-        // log_trace("drawing materials for render pipeline: %d",
-        //           renderPipeline->rid);
-
-        // early out if numMaterials == 0;
-        if (R_RenderPipeline::numMaterials(renderPipeline) == 0) continue;
-
-        WGPURenderPipeline gpu_pipeline = renderPipeline->gpu_pipeline;
-
-        // ==optimize== cache layouts in R_RenderPipeline struct upon creation
-        WGPUBindGroupLayout perMaterialLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_MATERIAL_GROUP);
-        WGPUBindGroupLayout perDrawLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_DRAW_GROUP);
-        // WGPUBindGroupLayout vertex_pulling_layout
-        //   = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, VERTEX_PULL_GROUP);
-
-        // set shader
-        // TODO only set shader if we actually have anything to render
-        wgpuRenderPassEncoderSetPipeline(renderPass, gpu_pipeline);
-
-        wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-                                          renderPipeline->frame_group, 0, NULL);
-
-        // per-material render loop
-        size_t materialIdx    = 0;
-        R_Material* rMaterial = NULL;
-        while (
-          R_RenderPipeline::materialIter(renderPipeline, &materialIdx, &rMaterial)) {
-            // get material
-            // log_trace("drawing material: %d", rMaterial->id);
-
-            ASSERT(rMaterial && rMaterial->pipelineID == renderPipeline->rid);
-
-            // early out if numPrimitives == 0;
-            if (R_Material::numPrimitives(rMaterial) == 0) continue;
-
-            // TODO: figure out textures / texture views...
-
-            // set per_material bind group
-            R_Material::rebuildBindGroup(rMaterial, &app->gctx, perMaterialLayout);
-            wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
-                                              rMaterial->bind_group, 0, NULL);
-
-            // iterate over material primitives
-            size_t primitiveIdx           = 0;
-            Material_Primitive* primitive = NULL;
-            while (R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
-                u32 numInstances = Material_Primitive::numInstances(primitive);
-                if (numInstances == 0) continue;
-
-                Material_Primitive::rebuildBindGroup(&app->gctx, primitive,
-                                                     perDrawLayout, &app->frameArena);
-
-                // set model bind group
-                wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
-                                                  primitive->bindGroup, 0, NULL);
-
-                R_Geometry* geo = Component_GetGeometry(primitive->geoID);
-                ASSERT(geo);
-
-                // set vertex attributes
-                for (int location = 0; location < R_Geometry::vertexAttributeCount(geo);
-                     location++) {
-                    GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
-                    wgpuRenderPassEncoderSetVertexBuffer(
-                      renderPass, location, gpu_buffer->buf, 0, gpu_buffer->size);
-                }
-
-                // set pulled vertex buffers (programmable vertex pulling)
-                // TODO cache layout in outer loop
-                if (R_Geometry::usesVertexPulling(geo)) {
-                    WGPUBindGroupLayout vertex_pulling_layout
-                      = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline,
-                                                             VERTEX_PULL_GROUP);
-                    R_Geometry::rebuildPullBindGroup(&app->gctx, geo,
-                                                     vertex_pulling_layout);
-                    wgpuRenderPassEncoderSetBindGroup(renderPass, VERTEX_PULL_GROUP,
-                                                      geo->pull_bind_group, 0, NULL);
-                }
-
-                // populate index buffer
-                u32 num_indices = R_Geometry::indexCount(geo);
-                if (num_indices > 0) {
-                    // indexed draw
-                    wgpuRenderPassEncoderSetIndexBuffer(
-                      renderPass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
-                      geo->gpu_index_buffer.size);
-
-                    wgpuRenderPassEncoderDrawIndexed(renderPass, num_indices,
-                                                     numInstances, 0, 0, 0);
-                } else {
-                    // non-index draw
-                    int num_vertices = (int)R_Geometry::vertexCount(geo);
-                    int vertex_draw_count
-                      = geo->vertex_count >= 0 ? geo->vertex_count : num_vertices;
-                    wgpuRenderPassEncoderDraw(renderPass, vertex_draw_count,
-                                              numInstances, 0, 0);
-                }
-            }
-        }
-    }
-#endif
 
 static void _R_HandleCommand(App* app, SG_Command* command)
 {
@@ -1203,7 +1051,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                     glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
                     break;
                 case 1:
-                    // TODO doesn't work on macos?
+                    // doesn't work on macos?
                     glfwSetInputMode(app->window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
                     break;
                 case 2:
@@ -1376,9 +1224,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
               = (SG_Command_MaterialSetStorageBuffer*)command;
             R_Material* material = Component_GetMaterial(cmd->sg_id);
             void* data           = CQ_ReadCommandGetOffset(cmd->data_offset);
-            // TODO: only supports f32 storage buffers currently
             R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_STORAGE,
-                                   data, cmd->data_count * sizeof(f32));
+                                   data, cmd->data_size_bytes);
         } break;
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;

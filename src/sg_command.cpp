@@ -591,9 +591,10 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
                   SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER);
     command->sg_id      = material->id;
     command->location   = location;
-    command->data_count = g_chuglAPI->object->array_float_size(ck_arr);
-    f32* data           = ARENA_PUSH_COUNT(cq.write_q, f32, command->data_count);
-    chugin_copyCkFloatArray(ck_arr, data, command->data_count);
+    int data_count           = g_chuglAPI->object->array_float_size(ck_arr);
+    command->data_size_bytes = data_count * sizeof(f32);
+    f32* data           = ARENA_PUSH_COUNT(cq.write_q, f32, data_count);
+    chugin_copyCkFloatArray(ck_arr, data, data_count);
     command->data_offset = Arena::offsetOf(cq.write_q, data);
     END_COMMAND();
 }

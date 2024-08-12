@@ -285,11 +285,6 @@ static void _Transform_RebuildDescendants(R_Scene* scene, R_Transform* xform,
 {
     // mark primitive as stale since world matrix will change
     if (xform->_geoID && xform->_matID) {
-        R_Material* mat = Component_GetMaterial(xform->_matID);
-        ASSERT(mat != NULL);
-        R_Material::markPrimitiveStale(
-          mat, xform); // TODO remove material_primitives if new render state works
-
         R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID)->stale = true;
     }
 
@@ -562,198 +557,6 @@ void R_Texture::init(R_Texture* texture)
 }
 
 // ============================================================================
-// Material_Primitive
-// ============================================================================
-
-void Material_Primitive::init(Material_Primitive* prim, R_Material* mat, SG_ID geoID)
-{
-    ASSERT(prim->geoID == 0);
-    ASSERT(prim->matID == 0);
-    ASSERT(prim->xformIDs.cap == 0);
-
-    prim->geoID = geoID;
-    prim->matID = mat->id;
-
-    Arena::init(&prim->xformIDs, 8 * sizeof(SG_ID));
-}
-
-void Material_Primitive::free(Material_Primitive* prim)
-{
-    // free arena
-    Arena::free(&prim->xformIDs);
-
-    // free webgpu resources
-    // TODO: consider using macro for all create/release
-    // track counters in debug mode
-    // (like leakcheck but for webgpu resources)
-    wgpuBindGroupRelease(prim->bindGroup);
-    wgpuBufferDestroy(prim->storageBuffer);
-    wgpuBufferRelease(prim->storageBuffer);
-
-    // zero fields
-    *prim = {};
-}
-
-u32 Material_Primitive::numInstances(Material_Primitive* prim)
-{
-    return ARENA_LENGTH(&prim->xformIDs, SG_ID);
-}
-
-void Material_Primitive::addXform(Material_Primitive* prim, R_Transform* xform)
-{
-// check we aren't inserting a duplicate
-#ifdef CHUGL_DEBUG
-    for (u32 i = 0; i < ARENA_LENGTH(&prim->xformIDs, SG_ID); ++i) {
-        if (*ARENA_GET_TYPE(&prim->xformIDs, SG_ID, i) == xform->id) {
-            log_error("xform already exists in geometry");
-            return;
-        }
-    }
-#endif
-    // if xform is already set to this primitive, do nothing
-    if (xform->_geoID == prim->geoID && xform->_matID == prim->matID) return;
-
-    // remove xform from previous material
-    R_Material* prevMat = Component_GetMaterial(xform->_matID);
-    R_Geometry* prevGeo = Component_GetGeometry(xform->_geoID);
-    R_Material::removePrimitive(prevMat, prevGeo, xform);
-    ASSERT(xform->_geoID == 0);
-    ASSERT(xform->_matID == 0);
-
-    // set stale
-    prim->stale = true;
-
-    // add xform to new primitive
-    xform->_geoID  = prim->geoID;
-    xform->_matID  = prim->matID;
-    SG_ID* xformID = ARENA_PUSH_ZERO_TYPE(&prim->xformIDs, SG_ID);
-    *xformID       = xform->id;
-}
-
-void Material_Primitive::removeXform(Material_Primitive* prim, R_Transform* xform)
-{
-    u64 numInstances = Material_Primitive::numInstances(prim);
-    SG_ID* instances = (SG_ID*)prim->xformIDs.base;
-    for (u32 i = 0; i < numInstances; ++i) {
-        SG_ID id = instances[i];
-        if (id == xform->id) {
-            // swap with last element
-            instances[i] = instances[numInstances - 1];
-            // pop last element
-            Arena::popZero(&prim->xformIDs, sizeof(SG_ID));
-            // set stale
-            prim->stale = true;
-            // set xform ids
-            xform->_geoID = 0;
-            xform->_matID = 0;
-            return;
-        }
-    }
-}
-
-void Material_Primitive::rebuildBindGroup(GraphicsContext* gctx,
-                                          Material_Primitive* prim,
-                                          WGPUBindGroupLayout layout, Arena* arena)
-{
-    if (!prim->stale) return;
-
-    // TODO: in transform delete, remember to detach it from its material
-    // primitive
-
-    // log_trace("rebuilding bindgroup for primitive with geo %d", geo->id);
-    prim->stale = false;
-
-    // build new array of matrices on CPU
-    glm::mat4* modelMatrices = (glm::mat4*)Arena::top(arena);
-    u32 matrixCount          = 0;
-
-    u64 numInstances = Material_Primitive::numInstances(prim);
-    SG_ID* xformIDs  = (SG_ID*)prim->xformIDs.base;
-    // delete and swap any destroyed xforms
-    for (u32 i = 0; i < numInstances; ++i) {
-        R_Transform* xform = Component_GetXform(xformIDs[i]);
-        // remove NULL xforms via swapping
-        if (xform == NULL) {
-            // swap with last element
-            xformIDs[i] = xformIDs[numInstances - 1];
-            // pop last element
-            Arena::pop(&prim->xformIDs, sizeof(SG_ID));
-            // decrement to reprocess this index
-            --i;
-            --numInstances;
-            continue;
-        }
-        // assert his xform belongs to this material and geometry
-        ASSERT(xform->_geoID == prim->geoID);
-        ASSERT(xform->_matID == prim->matID);
-        // else add xform matrix to arena
-        ++matrixCount;
-        // world matrix should already have been computed by now
-        ASSERT(xform->_stale == R_Transform_STALE_NONE);
-        glm::mat4* matPtr = ARENA_PUSH_ZERO_TYPE(arena, glm::mat4);
-        *matPtr           = xform->world;
-    }
-    // sanity check that we have the correct number of matrices
-    ASSERT(matrixCount == Material_Primitive::numInstances(prim));
-    // update numInstances after possibly deleting some
-    numInstances = matrixCount;
-
-    // rebuild storage buffer only if it needs to grow
-    if (numInstances > prim->storageBufferCap) {
-        // double capacity (like dynamic array)
-        u32 newCap = MAX(numInstances, prim->storageBufferCap * 2);
-        // round newCap to largest power of 2
-        newCap = NEXT_POW2(newCap);
-
-        log_trace(
-          "growing storage buffer for geometry %d from capacity: %d to "
-          "%d",
-          prim->geoID, prim->storageBufferCap, newCap);
-
-        WGPUBufferDescriptor bufferDesc = {};
-        bufferDesc.size                 = sizeof(DrawUniforms) * newCap;
-        bufferDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Storage;
-        // destroy previous
-        if (prim->storageBuffer != NULL) {
-            wgpuBufferDestroy(prim->storageBuffer);
-            wgpuBufferRelease(prim->storageBuffer);
-        }
-        prim->storageBuffer = wgpuDeviceCreateBuffer(gctx->device, &bufferDesc);
-        // update new capacity
-        prim->storageBufferCap = newCap;
-
-        // create new bindgroup for new storage buffer
-        {
-            prim->bindGroupEntry         = {};
-            prim->bindGroupEntry.binding = 0; // @binding(0)
-            prim->bindGroupEntry.offset  = 0;
-            prim->bindGroupEntry.buffer
-              = prim->storageBuffer; // only supports uniform buffers for now
-            prim->bindGroupEntry.size = bufferDesc.size;
-
-            // release previous
-            if (prim->bindGroup) wgpuBindGroupRelease(prim->bindGroup);
-
-            // A bind group contains one or multiple bindings
-            WGPUBindGroupDescriptor desc = {};
-            desc.layout                  = layout;
-            desc.entries                 = &prim->bindGroupEntry;
-            desc.entryCount              = 1; // force 1 binding per group
-            prim->bindGroup = wgpuDeviceCreateBindGroup(gctx->device, &desc);
-        }
-    }
-
-    // populate storage buffer with new xform data
-    wgpuQueueWriteBuffer(gctx->queue, prim->storageBuffer, 0, modelMatrices,
-                         matrixCount * sizeof(modelMatrices[0]));
-
-    // pop arena after copying data to GPU
-    ARENA_POP_COUNT(arena, glm::mat4, matrixCount);
-    ASSERT(modelMatrices
-           == Arena::top(arena)); // make sure arena is back to original state
-}
-
-// ============================================================================
 // R_Material
 // ============================================================================
 
@@ -920,17 +723,12 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     ASSERT(mat->bind_group);
 }
 
-// TODO: this function can take an R_Binding directly, rather than
-// type/data/bytes.
-// Or maybe break this into setUniform, setTexture, setSampler, etc.
-// to simplify the switch statement logic
 void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                             R_BindType type, void* data, size_t bytes)
 {
     R_Binding* binding = &mat->bindings[location];
 
     // rebuild binding logic
-    // TODO will need to be adjusted to support storage / textures
     if (binding->type != type) {
         // need to rebuild bind group, the binding entry at `location` has changed
         mat->fresh_bind_group = false;
@@ -1012,138 +810,9 @@ void R_Material::setTextureAndSamplerBinding(R_Material* mat, u32 location,
 #endif
 }
 
-u32 R_Material::numPrimitives(R_Material* mat)
-{
-    // TODO: after optimizing with hashmap plus
-    // active / empty regions, may need to change this to a variable
-    return ARENA_LENGTH(&mat->primitives, Material_Primitive);
-}
-
-// TODO: using array linear search for now
-// to improve: use array + hashmap combo for fast lookup
-// and linear iteration
-void R_Material::addPrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform)
-{
-    if (mat == NULL || geo == NULL || xform == NULL) return;
-
-    // check if primitive for geoID already exists
-    Material_Primitive* prim = NULL;
-    u32 numPrims             = R_Material::numPrimitives(mat);
-    for (u32 i = 0; i < numPrims; ++i) {
-        Material_Primitive* _prim
-          = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, i);
-        if (_prim->geoID == geo->id) {
-            prim = _prim;
-            break;
-        }
-    }
-
-    // else create new primitive for this geometry
-    if (!prim) {
-        prim = ARENA_PUSH_ZERO_TYPE(&mat->primitives, Material_Primitive);
-        Material_Primitive::init(prim, mat, geo->id);
-    }
-
-    // add xform to new primitive
-    Material_Primitive::addXform(prim, xform);
-
-    // check ids were set correctly
-    ASSERT(xform->_geoID == geo->id);
-    ASSERT(xform->_matID == mat->id);
-    ASSERT(prim->stale);
-}
-
-/// @brief remove instance of xform from the geo primitive on mat
-// TODO: accelerate with hashmap
-void R_Material::removePrimitive(R_Material* mat, R_Geometry* geo, R_Transform* xform)
-{
-    if (mat == NULL || geo == NULL || xform == NULL) return;
-
-    ASSERT(xform->_geoID == geo->id && xform->_matID == mat->id);
-
-    u32 numPrims = R_Material::numPrimitives(mat);
-    for (u32 i = 0; i < numPrims; ++i) {
-        Material_Primitive* prim
-          = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, i);
-        if (prim->geoID == geo->id) {
-            Material_Primitive::removeXform(prim, xform);
-            ASSERT(prim->stale);
-            ASSERT(xform->_geoID == 0);
-            ASSERT(xform->_matID == 0);
-            // empty primitive, either remove or swap with last
-            if (Material_Primitive::numInstances(prim) == 0) {
-                // TODO: figure out how to handle this.
-                // for now, leaving in place
-            }
-            return;
-        }
-    }
-}
-
-// Linear search
-// TODO use hashmap later
-static Material_Primitive* _R_Material_GetPrimitive(R_Material* mat, SG_ID geoID)
-{
-    u32 numPrims = R_Material::numPrimitives(mat);
-    for (u32 i = 0; i < numPrims; ++i) {
-        Material_Primitive* prim
-          = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, i);
-        if (prim->geoID == geoID) return prim;
-    }
-    return NULL;
-}
-
-void R_Material::markPrimitiveStale(R_Material* mat, R_Transform* xform)
-{
-    ASSERT(xform->_matID == mat->id);
-    if (xform->_geoID == 0) return;
-
-    // find the primitive that this xform belongs to
-    Material_Primitive* prim = _R_Material_GetPrimitive(mat, xform->_geoID);
-    ASSERT(prim != NULL);
-    prim->stale = true;
-}
-
-bool R_Material::primitiveIter(R_Material* mat, size_t* indexPtr,
-                               Material_Primitive** primitive)
-{
-    u32 numPrimitives = ARENA_LENGTH(&mat->primitives, Material_Primitive);
-    if (*indexPtr >= numPrimitives) {
-        *primitive = NULL;
-        return false;
-    }
-
-    // possible optimization:
-    // lazily delete / swap empty primitives in this iter loop.
-    // for now just doing a linear walk
-
-    *primitive = ARENA_GET_TYPE(&mat->primitives, Material_Primitive, *indexPtr);
-
-    ASSERT(*primitive != NULL);
-    ASSERT((*primitive)->matID == mat->id);
-
-    ++(*indexPtr);
-    return true;
-}
-
 // ============================================================================
 // R_Scene
 // ============================================================================
-
-// static PipelineToMaterial* R_Scene_getOrCreateP2M(hashmap* p2m_map, R_ID pipeline_id)
-//{
-//     ASSERT(pipeline_id != 0);
-//     PipelineToMaterial* p2m = (PipelineToMaterial*)hashmap_get(p2m_map,
-//     &pipeline_id); if (!p2m) {
-//         PipelineToMaterial new_p2m = {};
-//         new_p2m.pipeline_id        = pipeline_id;
-//         Arena::init(&new_p2m.material_ids, sizeof(SG_ID) * 8);
-//         // add material to pipeline
-//         hashmap_set(p2m_map, &new_p2m);
-//         p2m = (PipelineToMaterial*)hashmap_get(p2m_map, &pipeline_id);
-//     }
-//     return p2m;
-// }
 
 void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
                                         GeometryToXforms* g2x,
@@ -1391,9 +1060,6 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 
     // initialize arenas
     int seed = time(NULL);
-    r_scene->pipeline_to_material
-      = hashmap_new(sizeof(PipelineToMaterial), 0, seed, seed, PipelineToMaterial::hash,
-                    PipelineToMaterial::compare, PipelineToMaterial::free, NULL);
     r_scene->material_to_geo
       = hashmap_new(sizeof(MaterialToGeometry), 0, seed, seed, MaterialToGeometry::hash,
                     MaterialToGeometry::compare, MaterialToGeometry::free, NULL);
@@ -1778,6 +1444,9 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
         xform->normal = MAT_IDENTITY;
         xform->_stale = R_Transform_STALE_LOCAL;
 
+        xform->_geoID = cmd->geo_id;
+        xform->_matID = cmd->mat_id;
+
         xform->parentID = 0;
         // initialize children array for 8 children
         Arena::init(&xform->children, sizeof(SG_ID) * 8);
@@ -1787,11 +1456,6 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
     R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
     const void* result = hashmap_set(r_locator, &loc);
     ASSERT(result == NULL); // ensure id is unique
-
-    // add geo and mat
-    R_Geometry* geo = Component_GetGeometry(cmd->geo_id);
-    R_Material* mat = Component_GetMaterial(cmd->mat_id);
-    R_Material::addPrimitive(mat, geo, xform);
 
     return xform;
 }
@@ -1917,14 +1581,6 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
         // build config
         mat->pso = cmd->pso;
 
-        // initialize primitives arena
-        Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
-
-        // initialize bind entry arenas
-        // Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
-        // Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) *
-        // 8); Arena::init(&mat->uniformData, 64);
-
         // defer pipeline (lazily created)
         const void* result = hashmap_set(materials_with_new_pso, &mat->id);
         ASSERT(result == NULL); // ensure id is unique
@@ -1989,8 +1645,7 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID scene_id)
         mat->pipeline_stale = false;
 
         // add material to pipeline
-        R_RenderPipeline::addMaterial(pipeline,
-                                      mat); // TODO remove function after refactor
+        R_RenderPipeline::addMaterial(pipeline, mat);
         ASSERT(mat->pipelineID == pipeline->rid);
     }
 

@@ -300,7 +300,7 @@ struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
     SG_ID sg_id;
     int location;
     ptrdiff_t data_offset;
-    int data_count; // number of floats in data array
+    int data_size_bytes;
 };
 
 struct SG_Command_Mesh_Create : public SG_Command {
