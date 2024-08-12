@@ -7,8 +7,6 @@
 #include "core/file.h"
 #include "core/log.h"
 
-#include <unordered_map>
-
 /*
 XForm system:
 - each XForm component is marked with a stale flag NONE/DESCENDENTS/WORLD/LOCAL
@@ -611,51 +609,6 @@ void MaterialTextureView::init(MaterialTextureView* view)
 //     // mat->baseColor = glm::vec4(1.0f);
 // }
 
-#if 0
-static void _R_Material_BindGroupEntryFromBinding(GraphicsContext* gctx,
-                                                  R_Material* mat, R_Binding* binding,
-                                                  WGPUBindGroupEntry* entry,
-                                                  u32 bindIndex)
-{
-    *entry         = {};
-    entry->binding = bindIndex;
-
-    switch (binding->type) {
-        case R_BIND_UNIFORM: {
-            entry->offset = binding->as.uniformOffset;
-            entry->size   = binding->size;
-            entry->buffer = mat->gpuUniformBuff;
-            break;
-        }
-        // case R_BIND_SAMPLER: {
-        //     entry->sampler = Graphics_GetSampler(gctx, binding->as.samplerConfig);
-        //     break;
-        // }
-        // case R_BIND_TEXTURE_ID: {
-        //     R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
-        //     // TODO: default textures
-        //     if (rTexture == NULL) {
-        //         ASSERT(false);
-        //         log_error("texture not found for binding");
-        //         return;
-        //     }
-        //     entry->textureView = rTexture->gpuTexture.view;
-        //     break;
-        // }
-        // case R_BIND_TEXTURE_VIEW: {
-        //     entry->textureView = binding->as.textureView;
-        //     break;
-        // };
-        // case R_BIND_STORAGE:
-        default: {
-            log_error("unsupported binding type %d", binding->type);
-            ASSERT(false);
-            break;
-        }
-    }
-}
-#endif
-
 void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
                            SG_MaterialPipelineState* pso)
 {
@@ -943,12 +896,6 @@ void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
 
 void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
 {
-    // TODO: bug. GeometryToXform needs to be keyed on materialID as well
-    // ==optimize== instead of traversing all 3 maps, go backwards.
-    // check bottom level GeometryToXform first, and only build as necessary
-    // going backwards. If Pipeline and Material render state is already setup,
-    // don't need to rebuild it.
-
     ASSERT(scene == R_Transform::getScene(root));
 
     if (!scene) return;
@@ -1308,13 +1255,50 @@ static Texture transparentBlackPixel = {};
 static Texture defaultNormalPixel    = {};
 
 // maps from id --> offset
-static hashmap* r_locator = NULL;
-std::unordered_map<R_ID, u64> _RenderPipelineMap;
+static hashmap* r_locator                 = NULL;
+static hashmap* render_pipeline_pso_table = NULL; // lookup by pso
+static hashmap* _RenderPipelineMap;               // lookup by rid
 
 struct R_Location {
     SG_ID id;     // key
     u64 offset;   // value (byte offset into arena)
     Arena* arena; // where to find
+};
+
+struct RenderPipelinePSOTableItem {
+    SG_MaterialPipelineState pso; // key
+    u64 pipeline_offset;          // item
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        RenderPipelinePSOTableItem* ga = (RenderPipelinePSOTableItem*)a;
+        RenderPipelinePSOTableItem* gb = (RenderPipelinePSOTableItem*)b;
+        return memcmp(&ga->pso, &gb->pso, sizeof(ga->pso));
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        RenderPipelinePSOTableItem* g2x = (RenderPipelinePSOTableItem*)item;
+        return hashmap_xxhash3(&g2x->pso, sizeof(g2x->pso), seed0, seed1);
+    }
+};
+
+struct RenderPipelineIDTableItem {
+    R_ID id;             // key
+    u64 pipeline_offset; // item
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        RenderPipelineIDTableItem* ga = (RenderPipelineIDTableItem*)a;
+        RenderPipelineIDTableItem* gb = (RenderPipelineIDTableItem*)b;
+        return memcmp(&ga->id, &gb->id, sizeof(ga->id));
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        RenderPipelineIDTableItem* g2x = (RenderPipelineIDTableItem*)item;
+        return hashmap_xxhash3(&g2x->id, sizeof(g2x->id), seed0, seed1);
+    }
 };
 
 static int R_CompareLocation(const void* a, const void* b, void* udata)
@@ -1367,6 +1351,14 @@ void Component_Init(GraphicsContext* gctx)
     srand(seed);
     r_locator = hashmap_new(sizeof(R_Location), 0, seed, seed, R_HashLocation,
                             R_CompareLocation, NULL, NULL);
+    render_pipeline_pso_table
+      = hashmap_new(sizeof(RenderPipelinePSOTableItem), 0, seed, seed,
+                    RenderPipelinePSOTableItem::hash,
+                    RenderPipelinePSOTableItem::compare, NULL, NULL);
+
+    _RenderPipelineMap = hashmap_new(sizeof(RenderPipelineIDTableItem), 0, seed, seed,
+                                     RenderPipelineIDTableItem::hash,
+                                     RenderPipelineIDTableItem::compare, NULL, NULL);
     materials_with_new_pso
       = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID, compareSGIDs, NULL, NULL);
 }
@@ -1756,18 +1748,11 @@ int Component_RenderPipelineCount()
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
                                         SG_MaterialPipelineState* pso)
 {
-    // TODO ==optimization== figure out a better way to search (augment with
-    // a hashmap?) for now just doing linear search
-
-    u32 numPipelines = ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
-    for (u32 i = 0; i < numPipelines; ++i) {
-        R_RenderPipeline* pipeline
-          = ARENA_GET_TYPE(&_RenderPipelineArena, R_RenderPipeline, i);
-        // compare config
-        if (memcmp(&pipeline->pso, pso, sizeof(*pso)) == 0) {
-            return pipeline;
-        }
-    }
+    RenderPipelinePSOTableItem* rp_item
+      = (RenderPipelinePSOTableItem*)hashmap_get(render_pipeline_pso_table, pso);
+    if (rp_item)
+        return (R_RenderPipeline*)Arena::get(&_RenderPipelineArena,
+                                             rp_item->pipeline_offset);
 
     // else create a new one
     R_RenderPipeline* rPipeline
@@ -1776,17 +1761,19 @@ R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
     R_RenderPipeline::init(gctx, rPipeline, pso);
 
     // TODO move off of std::unordered_map to hashmap.c
-    ASSERT(_RenderPipelineMap.find(rPipeline->rid) == _RenderPipelineMap.end());
-    _RenderPipelineMap[rPipeline->rid] = pipelineOffset;
+    ASSERT(!hashmap_get(_RenderPipelineMap, &rPipeline->rid))
+    RenderPipelineIDTableItem new_ri_item = { rPipeline->rid, pipelineOffset };
+    hashmap_set(_RenderPipelineMap, &new_ri_item);
+
+    RenderPipelinePSOTableItem new_rp_item = { *pso, pipelineOffset };
+    hashmap_set(render_pipeline_pso_table, &new_rp_item);
 
     return rPipeline;
 }
 
 R_RenderPipeline* Component_GetPipeline(R_ID rid)
 {
-    if (_RenderPipelineMap.find(rid) == _RenderPipelineMap.end()) return NULL;
-    return (R_RenderPipeline*)Arena::get(&_RenderPipelineArena,
-                                         _RenderPipelineMap[rid]);
+    return (R_RenderPipeline*)hashmap_get(_RenderPipelineMap, &rid);
 }
 
 // =============================================================================

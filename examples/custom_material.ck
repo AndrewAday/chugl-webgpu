@@ -158,7 +158,7 @@ spork ~ sceneSwitcher();
 
 while (true) {
     GG.nextFrame() => now;
-    // custom_material.uniformFloat(0, .5 * Math.sin(now/second) + 0.5);
+    custom_material.uniformFloat(0, .5 * Math.sin(now/second) + 0.5);
 
     // get volume
     .75 + Math.sqrt(p.last()) => big_suzanne.sca;

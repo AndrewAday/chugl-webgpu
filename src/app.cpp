@@ -814,6 +814,10 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
       &frameUniforms, sizeof(frameUniforms));
     ASSERT(!frame_uniforms_recreated);
 
+    // ==optimize== to prevent sparseness, delete render state entries / arena ids
+    // if we find SG_ID arenas are empty
+    // - impl only after render loop architecture has stabilized
+
     R_RenderPipeline* render_pipeline = NULL;
     size_t rpIndex                    = 0;
     while (Component_RenderPipelineIter(&rpIndex, &render_pipeline)) {
