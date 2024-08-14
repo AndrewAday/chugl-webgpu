@@ -164,10 +164,10 @@ struct R_Geometry : public R_Component {
 // =============================================================================
 
 struct R_Texture : public R_Component {
-    Texture gpuTexture;
-    SamplerConfig samplerConfig;
+    Texture gpu_texture;
+    SamplerConfig samplerConfig; // TODO texture: maybe have sampler separate?
 
-    static void init(R_Texture* texture);
+    static void init(R_Texture* texture); // called by Renderer-Tester only
 };
 
 void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID main_scene);
@@ -279,6 +279,10 @@ struct R_Material : public R_Component {
                                  WGPUBindGroupLayout layout);
     static void setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                            R_BindType type, void* data, size_t bytes);
+    static void setSamplerBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                                  SG_Sampler sampler);
+    static void setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                                  SG_ID texture_id);
     static void removeBinding(R_Material* mat, u32 location)
     {
         ASSERT(false);
@@ -437,6 +441,8 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      SG_Command_MaterialCreate* cmd);
 
 R_Texture* Component_CreateTexture();
+R_Texture* Component_CreateTexture(GraphicsContext* gctx,
+                                   SG_Command_TextureCreate* cmd);
 
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);

@@ -64,20 +64,23 @@ struct SG_Component {
 // ============================================================================
 
 enum SG_Sampler_WrapMode : u8 {
-    SG_SAMPLER_WRAP_REPEAT        = 0,
-    SG_SAMPLER_WRAP_MIRROR_REPEAT = 1,
-    SG_SAMPLER_WRAP_CLAMP_TO_EDGE = 2,
+    SG_SAMPLER_WRAP_REPEAT        = WGPUAddressMode_Repeat,
+    SG_SAMPLER_WRAP_MIRROR_REPEAT = WGPUAddressMode_MirrorRepeat,
+    SG_SAMPLER_WRAP_CLAMP_TO_EDGE = WGPUAddressMode_ClampToEdge,
 };
 
 enum SG_Sampler_FilterMode : u8 {
-    SG_SAMPLER_FILTER_NEAREST = 0,
-    SG_SAMPLER_FILTER_LINEAR  = 1,
+    SG_SAMPLER_FILTER_NEAREST = WGPUFilterMode_Nearest,
+    SG_SAMPLER_FILTER_LINEAR  = WGPUFilterMode_Linear,
 };
 
 struct SG_Sampler {
     SG_Sampler_WrapMode wrapU, wrapV, wrapW;
     SG_Sampler_FilterMode filterMin, filterMag, filterMip;
+
+    static SG_Sampler fromCkObj(Chuck_Object* ckobj);
 };
+static_assert(sizeof(SG_Sampler) == 6, "SG_Sampler size mismatch");
 
 static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
   = { SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_WRAP_REPEAT,   SG_SAMPLER_WRAP_REPEAT,
@@ -86,7 +89,13 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
 // ============================================================================
 // SG_Texture
 // ============================================================================
+
 struct SG_Texture : SG_Component {
+    // TODO
+    int width, height;
+    // texture dimension 1d, 2d, 3d (can group together with enum type? e.g. 1d_storage,
+    // 2d_render etc)
+    Arena data;
 };
 
 // ============================================================================
@@ -278,6 +287,10 @@ union SG_MaterialUniformData {
     glm::ivec2 ivec2;
     glm::ivec3 ivec3;
     glm::ivec4 ivec4;
+    SG_Sampler sampler;
+    SG_ID texture_id;
+    // TODO arena for storage buffer
+    // TODO texture SG_ID
 };
 
 struct SG_MaterialUniformPtrAndSize {
@@ -352,6 +365,14 @@ struct SG_Material : SG_Component {
         mat->uniforms[location].type = SG_MATERIAL_UNIFORM_STORAGE_BUFFER;
     }
 
+    static void setSampler(SG_Material* mat, int location, SG_Sampler sampler)
+    {
+        mat->uniforms[location].type       = SG_MATERIAL_UNIFORM_SAMPLER;
+        mat->uniforms[location].as.sampler = sampler;
+    }
+ 
+    static void setTexture(SG_Material* mat, int location, SG_Texture* tex);
+
     static void shader(SG_Material* mat, SG_Shader* shader);
 };
 
@@ -381,6 +402,7 @@ void SG_Free();
 SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
+SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
 
 // SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
 //                              const char* fragment_string, const char*
@@ -406,6 +428,7 @@ SG_Geometry* SG_GetGeometry(SG_ID id);
 SG_Shader* SG_GetShader(SG_ID id);
 SG_Material* SG_GetMaterial(SG_ID id);
 SG_Mesh* SG_GetMesh(SG_ID id);
+SG_Texture* SG_GetTexture(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

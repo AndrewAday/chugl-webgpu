@@ -57,6 +57,8 @@ thread
     - setStorageBuffer() instead of taking a ck_FloatArray, takes a GPUBuffer component
 */
 CK_DLL_MFUN(material_set_storage_buffer);
+CK_DLL_MFUN(material_set_sampler);
+CK_DLL_MFUN(material_set_texture);
 
 CK_DLL_CTOR(lines2d_material_ctor);
 CK_DLL_MFUN(lines2d_material_get_thickness);
@@ -196,6 +198,14 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(material_set_storage_buffer, "void", "storageBuffer");
     ARG("int", "location");
     ARG("float[]", "storageBuffer");
+
+    MFUN(material_set_sampler, "void", "sampler");
+    ARG("int", "location");
+    ARG("TextureSampler", "sampler");
+
+    MFUN(material_set_texture, "void", "texture");
+    ARG("int", "location");
+    ARG("Texture", "texture");
 
     // abstract class, no destructor or constructor
     END_CLASS();
@@ -422,6 +432,29 @@ CK_DLL_MFUN(material_set_storage_buffer)
     SG_Material::setStorageBuffer(material, location);
 
     CQ_PushCommand_MaterialSetStorageBuffer(material, location, ck_arr);
+}
+
+CK_DLL_MFUN(material_set_sampler)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+    SG_Sampler sampler    = SG_Sampler::fromCkObj(GET_NEXT_OBJECT(ARGS));
+
+    SG_Material::setSampler(material, location, sampler);
+
+    CQ_PushCommand_MaterialSetSampler(material, location, sampler);
+}
+
+CK_DLL_MFUN(material_set_texture)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex       = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
+
+    SG_Material::setTexture(material, location, tex);
+
+    CQ_PushCommand_MaterialSetTexture(material, location, tex);
 }
 
 // Lines2DMaterial ===================================================================

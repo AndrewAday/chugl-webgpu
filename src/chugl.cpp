@@ -331,8 +331,8 @@ CK_DLL_QUERY(ChuGL)
     ulib_box2d_query(QUERY);
 
     ulib_window_query(QUERY);
-    ulib_texture_query(QUERY);
     ulib_component_query(QUERY);
+    ulib_texture_query(QUERY);
     ulib_ggen_query(QUERY);
     ulib_gscene_query(QUERY);
     ulib_geometry_query(QUERY);

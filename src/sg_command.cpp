@@ -515,6 +515,34 @@ void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count)
     END_COMMAND();
 }
 
+// Textures ====================================================================
+
+void CQ_PushCommand_TextureCreate(SG_Texture* texture)
+{
+    BEGIN_COMMAND(SG_Command_TextureCreate, SG_COMMAND_TEXTURE_CREATE);
+    command->sg_id = texture->id;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextureData(SG_Texture* texture)
+{
+    BEGIN_COMMAND(SG_Command_TextureData, SG_COMMAND_TEXTURE_DATA);
+    command->sg_id = texture->id;
+    // change to bytes per row?
+    command->width  = texture->width;
+    command->height = texture->height;
+
+    // copy texture data to write_q
+    u8* pixels = ARENA_PUSH_COUNT(cq.write_q, u8, texture->data.curr);
+    memcpy(pixels, texture->data.base, texture->data.curr);
+    ASSERT(texture->data.curr == texture->width * texture->height * 4);
+
+    command->data_offset = Arena::offsetOf(cq.write_q, pixels);
+    END_COMMAND();
+}
+
+// Shader ======================================================================
+
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
 {
     BEGIN_COMMAND(SG_Command_ShaderCreate, SG_COMMAND_SHADER_CREATE);
@@ -589,13 +617,33 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
 {
     BEGIN_COMMAND(SG_Command_MaterialSetStorageBuffer,
                   SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER);
-    command->sg_id      = material->id;
-    command->location   = location;
+    command->sg_id           = material->id;
+    command->location        = location;
     int data_count           = g_chuglAPI->object->array_float_size(ck_arr);
     command->data_size_bytes = data_count * sizeof(f32);
-    f32* data           = ARENA_PUSH_COUNT(cq.write_q, f32, data_count);
+    f32* data                = ARENA_PUSH_COUNT(cq.write_q, f32, data_count);
     chugin_copyCkFloatArray(ck_arr, data, data_count);
     command->data_offset = Arena::offsetOf(cq.write_q, data);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location,
+                                       SG_Sampler sampler)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetSampler, SG_COMMAND_MATERIAL_SET_SAMPLER);
+    command->sg_id    = material->id;
+    command->location = location;
+    command->sampler  = sampler;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location,
+                                       SG_Texture* texture)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetTexture, SG_COMMAND_MATERIAL_SET_TEXTURE);
+    command->sg_id      = material->id;
+    command->location   = location;
+    command->texture_id = texture->id;
     END_COMMAND();
 }
 

@@ -286,6 +286,27 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 }
 
 // ============================================================================
+// SG_Sampler Definitions
+// ============================================================================
+
+SG_Sampler SG_Sampler::fromCkObj(Chuck_Object* ckobj)
+{
+    CK_DL_API API      = g_chuglAPI;
+    SG_Sampler sampler = SG_SAMPLER_DEFAULT;
+
+    sampler.wrapU = (SG_Sampler_WrapMode)OBJ_MEMBER_INT(ckobj, sampler_offset_wrapU);
+    sampler.wrapV = (SG_Sampler_WrapMode)OBJ_MEMBER_INT(ckobj, sampler_offset_wrapV);
+    sampler.wrapW = (SG_Sampler_WrapMode)OBJ_MEMBER_INT(ckobj, sampler_offset_wrapW);
+    sampler.filterMin
+      = (SG_Sampler_FilterMode)OBJ_MEMBER_INT(ckobj, sampler_offset_filterMin);
+    sampler.filterMag
+      = (SG_Sampler_FilterMode)OBJ_MEMBER_INT(ckobj, sampler_offset_filterMag);
+    sampler.filterMip
+      = (SG_Sampler_FilterMode)OBJ_MEMBER_INT(ckobj, sampler_offset_filterMip);
+    return sampler;
+}
+
+// ============================================================================
 // SG_Geometry Definitions
 // ============================================================================
 
@@ -472,6 +493,7 @@ static Arena SG_GeoArena;
 static Arena SG_ShaderArena;
 static Arena SG_MaterialArena;
 static Arena SG_MeshArena;
+static Arena SG_TextureArena;
 // static Arena textureArena;
 
 // locators (TODO switch to table)
@@ -522,6 +544,7 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_GeoArena, sizeof(SG_Geometry) * 32);
     Arena::init(&SG_MaterialArena, sizeof(SG_Material) * 32);
     Arena::init(&SG_MeshArena, sizeof(SG_Mesh) * 64);
+    Arena::init(&SG_TextureArena, sizeof(SG_Texture) * 32);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -538,6 +561,7 @@ void SG_Free()
     Arena::free(&SG_GeoArena);
     Arena::free(&SG_MaterialArena);
     Arena::free(&SG_MeshArena);
+    Arena::free(&SG_TextureArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -598,6 +622,24 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj)
     hashmap_set(locator, &loc);
 
     return geo;
+}
+
+SG_Texture* SG_CreateTexture(Chuck_Object* ckobj)
+{
+    Arena* arena    = &SG_TextureArena;
+    size_t offset   = arena->curr;
+    SG_Texture* tex = ARENA_PUSH_ZERO_TYPE(arena, SG_Texture);
+
+    // init SG_Component base class
+    tex->id    = SG_GetNewComponentID();
+    tex->type  = SG_COMPONENT_TEXTURE;
+    tex->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { tex->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return tex;
 }
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
@@ -769,6 +811,13 @@ SG_Mesh* SG_GetMesh(SG_ID id)
     return (SG_Mesh*)component;
 }
 
+SG_Texture* SG_GetTexture(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component->type == SG_COMPONENT_TEXTURE);
+    return (SG_Texture*)component;
+}
+
 // ============================================================================
 // SG Garbage Collector
 // ============================================================================
@@ -832,6 +881,24 @@ f32 SG_Material::uniformFloat(SG_Material* mat, int location)
 {
     ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_FLOAT);
     return mat->uniforms[location].as.f;
+}
+
+void SG_Material::setTexture(SG_Material* mat, int location, SG_Texture* tex)
+{
+    if (mat->uniforms[location].type == SG_MATERIAL_UNIFORM_TEXTURE
+        && mat->uniforms[location].as.texture_id == tex->id) {
+        return; // no change
+    }
+
+    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_TEXTURE;
+
+    // refcount incoming texture
+    SG_AddRef(tex);
+
+    // decrement refcount of previous texture
+    SG_DecrementRef(mat->uniforms[location].as.texture_id);
+
+    mat->uniforms[location].as.texture_id = tex->id;
 }
 
 void SG_Material::shader(SG_Material* mat, SG_Shader* shader)

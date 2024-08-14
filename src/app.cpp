@@ -1200,7 +1200,19 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
             geo->vertex_count = cmd->count;
         } break;
-        // shaders
+        // textures ---------------------
+        case SG_COMMAND_TEXTURE_CREATE: {
+            SG_Command_TextureCreate* cmd = (SG_Command_TextureCreate*)command;
+            Component_CreateTexture(&app->gctx, cmd);
+        } break;
+        case SG_COMMAND_TEXTURE_DATA: {
+            SG_Command_TextureData* cmd = (SG_Command_TextureData*)command;
+            R_Texture* texture          = Component_GetTexture(cmd->sg_id);
+            void* data                  = CQ_ReadCommandGetOffset(cmd->data_offset);
+            Texture::initFromPixelData(&app->gctx, &texture->gpu_texture, data,
+                                       cmd->width, cmd->height, 4, true, "");
+        } break;
+        // shaders ----------------------
         case SG_COMMAND_SHADER_CREATE: {
             SG_Command_ShaderCreate* cmd = (SG_Command_ShaderCreate*)command;
             Component_CreateShader(&app->gctx, cmd);
@@ -1231,6 +1243,21 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_STORAGE,
                                    data, cmd->data_size_bytes);
         } break;
+        case SG_COMMAND_MATERIAL_SET_SAMPLER: {
+            SG_Command_MaterialSetSampler* cmd
+              = (SG_Command_MaterialSetSampler*)command;
+            R_Material* material = Component_GetMaterial(cmd->sg_id);
+            R_Material::setSamplerBinding(&app->gctx, material, cmd->location,
+                                          cmd->sampler);
+        } break;
+        case SG_COMMAND_MATERIAL_SET_TEXTURE: {
+            SG_Command_MaterialSetTexture* cmd
+              = (SG_Command_MaterialSetTexture*)command;
+            R_Material* material = Component_GetMaterial(cmd->sg_id);
+            R_Material::setTextureBinding(&app->gctx, material, cmd->location,
+                                          cmd->texture_id);
+        } break;
+        // mesh -------------------------
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
             Component_CreateMesh(cmd);

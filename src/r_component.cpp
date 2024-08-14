@@ -623,10 +623,6 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     if (mat->fresh_bind_group) return;
     mat->fresh_bind_group = true;
 
-    // TODO: rebuild storageBuffer for storage bindings
-    // will need to store a WGPUBuffer for each storage binding
-    // for now unsupported
-
     // create bindgroups for all bindings
     WGPUBindGroupEntry new_bind_group_entries[SG_MATERIAL_MAX_UNIFORMS] = {};
     int bind_group_index                                                = 0;
@@ -639,6 +635,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
 
         WGPUBindGroupEntry* bind_group_entry
           = &new_bind_group_entries[bind_group_index++];
+        *bind_group_entry = {};
 
         bind_group_entry->binding = i; // binding location
 
@@ -653,13 +650,14 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                 bind_group_entry->size   = binding->size;
                 bind_group_entry->buffer = binding->as.storage_buffer.buf;
             } break;
-                // case R_BIND_SAMPLER: {
-                //     bind_group_entry->sampler = Graphics_GetSampler(gctx,
-                //     binding->as.samplerConfig); break;
-                // }
-                // case R_BIND_TEXTURE_ID: {
-                //     R_Texture* rTexture =
-                //     Component_GetTexture(binding->as.textureID);
+            case R_BIND_SAMPLER: {
+                bind_group_entry->sampler
+                  = Graphics_GetSampler(gctx, binding->as.samplerConfig);
+            } break;
+            case R_BIND_TEXTURE_ID: {
+                R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
+                bind_group_entry->textureView = rTexture->gpu_texture.view;
+            } break;
             default: ASSERT(false);
         }
     }
@@ -676,6 +674,34 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     ASSERT(mat->bind_group);
 }
 
+static SamplerConfig samplerConfigFromSGSampler(SG_Sampler sg_sampler)
+{
+    // TODO make SamplerConfig and SG_Sampler just use WGPU types
+    SamplerConfig sampler = {};
+    sampler.wrapU         = (SamplerWrapMode)sg_sampler.wrapU;
+    sampler.wrapV         = (SamplerWrapMode)sg_sampler.wrapV;
+    sampler.wrapW         = (SamplerWrapMode)sg_sampler.wrapW;
+    sampler.filterMin     = (SamplerFilterMode)sg_sampler.filterMin;
+    sampler.filterMag     = (SamplerFilterMode)sg_sampler.filterMag;
+    sampler.filterMip     = (SamplerFilterMode)sg_sampler.filterMip;
+    return sampler;
+}
+
+void R_Material::setSamplerBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                                   SG_Sampler sampler)
+{
+    SamplerConfig sampler_config = samplerConfigFromSGSampler(sampler);
+    R_Material::setBinding(gctx, mat, location, R_BIND_SAMPLER, &sampler_config,
+                           sizeof(sampler_config));
+}
+
+void R_Material::setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                                   SG_ID texture_id)
+{
+    R_Material::setBinding(gctx, mat, location, R_BIND_TEXTURE_ID, &texture_id,
+                           sizeof(texture_id));
+}
+
 void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                             R_BindType type, void* data, size_t bytes)
 {
@@ -686,18 +712,32 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         // need to rebuild bind group, the binding entry at `location` has changed
         mat->fresh_bind_group = false;
     }
-
-    if (binding->type == R_BIND_STORAGE && binding->size != bytes) {
+    // rebuild logic for storage bindings
+    else if (binding->type == R_BIND_STORAGE && binding->size != bytes) {
         // for wgsl builtin arrayLength() to work, need to update the
         // corresponding BindGroupEntry size
         mat->fresh_bind_group = false;
+    }
+    // rebuild logic for samplers
+    else if (type == R_BIND_SAMPLER) {
+        ASSERT(bytes == sizeof(SamplerConfig));
+        // if the sampler has changed, need to rebuild bind group
+        if (memcmp(&binding->as.samplerConfig, data, bytes) != 0) {
+            mat->fresh_bind_group = false;
+        }
+    }
+    // rebuild logic for textures
+    // TODO support change in texture type, size, etc
+    else if (type == R_BIND_TEXTURE_ID) {
+        // if the texture has changed, need to rebuild bind group
+        if (binding->as.textureID != *(SG_ID*)data) {
+            mat->fresh_bind_group = false;
+        }
     }
 
     binding->type = type;
     binding->size = bytes;
 
-    R_BindType prevType = binding->type;
-    size_t prevSize     = binding->size;
     // create new binding
     switch (type) {
         case R_BIND_UNIFORM: {
@@ -706,22 +746,21 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
             GPU_Buffer::write(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
                               offset, data, bytes);
         } break;
-        // case R_BIND_TEXTURE_ID: {
-        //     ASSERT(bytes == sizeof(SG_ID));
-        //     binding->as.textureID = *(SG_ID*)data;
-        //     // TODO refcount
-        //     break;
-        // }
+        case R_BIND_TEXTURE_ID: {
+            ASSERT(bytes == sizeof(SG_ID));
+            binding->as.textureID = *(SG_ID*)data;
+            // TODO refcount
+            break;
+        }
         // case R_BIND_TEXTURE_VIEW: {
         //     ASSERT(bytes == sizeof(WGPUTextureView));
         //     binding->as.textureView = *(WGPUTextureView*)data;
         //     break;
         // }
-        // case R_BIND_SAMPLER: {
-        //     ASSERT(bytes == sizeof(SamplerConfig));
-        //     binding->as.samplerConfig = *(SamplerConfig*)data;
-        //     break;
-        // }
+        case R_BIND_SAMPLER: {
+            ASSERT(bytes == sizeof(SamplerConfig));
+            binding->as.samplerConfig = *(SamplerConfig*)data;
+        } break;
         case R_BIND_STORAGE: {
             GPU_Buffer::write(gctx, &binding->as.storage_buffer,
                               WGPUBufferUsage_Storage, data, bytes);
@@ -1485,14 +1524,13 @@ R_Geometry* Component_CreateGeometry()
     return geo;
 }
 
-// TODO delete vertices
 R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd)
 {
     R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
 
     geo->id           = cmd->sg_id;
     geo->type         = SG_COMPONENT_GEOMETRY;
-    geo->vertex_count = -1; // means draw all vertices
+    geo->vertex_count = -1; // -1 means draw all vertices
 
     // for now not storing geo_type (cube, sphere, custom etc.)
     // we only store the GPU vertex data, and don't care about semantics
@@ -1662,6 +1700,23 @@ R_Texture* Component_CreateTexture()
     return texture;
 }
 
+R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCreate* cmd)
+{
+    R_Texture* tex = ARENA_PUSH_ZERO_TYPE(&textureArena, R_Texture);
+
+    tex->id   = cmd->sg_id;
+    tex->type = SG_COMPONENT_TEXTURE;
+
+    // TODO set texture attributes?
+
+    // store offset
+    R_Location loc = { tex->id, Arena::offsetOf(&textureArena, tex), &textureArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return tex;
+}
+
 R_Component* Component_GetComponent(SG_ID id)
 {
     R_Location loc     = { id, 0, NULL };
@@ -1760,7 +1815,6 @@ R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
     u64 pipelineOffset = Arena::offsetOf(&_RenderPipelineArena, rPipeline);
     R_RenderPipeline::init(gctx, rPipeline, pso);
 
-    // TODO move off of std::unordered_map to hashmap.c
     ASSERT(!hashmap_get(_RenderPipelineMap, &rPipeline->rid))
     RenderPipelineIDTableItem new_ri_item = { rPipeline->rid, pipelineOffset };
     hashmap_set(_RenderPipelineMap, &new_ri_item);

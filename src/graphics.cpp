@@ -1039,7 +1039,6 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     ASSERT(generator->pipelines[pipeline_index] != NULL);
 
     // Store the bind group layout of the created pipeline
-    // TODO: can probably re-use a single bindgroup for all pipelines
     generator->pipeline_layouts[pipeline_index]
       = wgpuRenderPipelineGetBindGroupLayout(generator->pipelines[pipeline_index], 0);
     ASSERT(generator->pipeline_layouts[pipeline_index] != NULL)
@@ -1053,6 +1052,8 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
 WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture texture,
                                       WGPUTextureDescriptor* texture_desc)
 {
+    if (texture_desc->mipLevelCount <= 1) return texture;
+
     WGPURenderPipeline pipeline
       = MipMapGenerator::getPipeline(generator, texture_desc->format);
 
@@ -1253,11 +1254,11 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
 // Texture
 // ============================================================================
 
-static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
-                                       u8* pixelData, i32 width, i32 height,
-                                       u8 numComponents, bool genMipMaps,
-                                       const char* filename)
+void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
+                                const void* pixelData, i32 width, i32 height,
+                                u8 numComponents, bool genMipMaps, const char* filename)
 {
+    ASSERT(texture->texture == NULL);
     // save texture info
     texture->width  = width;
     texture->height = height;
@@ -1275,11 +1276,16 @@ static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
     // render attachment usage is used for mip map generation
     textureDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
     // | WGPUTextureUsage_RenderAttachment;
-    textureDesc.dimension       = texture->dimension;
-    textureDesc.size            = { (u32)width, (u32)height, 1 };
-    textureDesc.format          = texture->format;
-    textureDesc.mipLevelCount   = texture->mip_level_count;
-    textureDesc.sampleCount     = 1;
+    textureDesc.dimension     = texture->dimension;
+    textureDesc.size          = { (u32)width, (u32)height, 1 };
+    textureDesc.format        = texture->format;
+    textureDesc.mipLevelCount = texture->mip_level_count;
+    textureDesc.sampleCount   = 1;
+    // https://gpuweb.github.io/gpuweb/#gputexturedescriptor
+    // Specifies what view format values will be allowed when calling createView() on
+    // this texture (in addition to the texture’s actual format). Adding a format to
+    // this list may have a significant performance impact, so it is best to avoid
+    // adding formats unnecessarily.
     textureDesc.viewFormatCount = 0;
     textureDesc.viewFormats     = NULL;
     textureDesc.label           = filename;
@@ -1321,6 +1327,7 @@ static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
     }
 
     /* Create the texture view */
+    // TODO: modify to always create a view that represents the entire texture
     WGPUTextureViewDescriptor textureViewDesc = {};
     textureViewDesc.format                    = textureDesc.format;
     textureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
@@ -1330,24 +1337,6 @@ static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
     textureViewDesc.arrayLayerCount           = 1;
     textureViewDesc.aspect                    = WGPUTextureAspect_All;
     texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
-
-    /* Create the texture sampler */
-    // WGPUSamplerDescriptor samplerDesc = {};
-    // samplerDesc.addressModeU          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
-
-    // // // TODO: make filtering configurable
-    // samplerDesc.minFilter    = WGPUFilterMode_Linear;
-    // samplerDesc.magFilter    = WGPUFilterMode_Linear;
-    // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Linear;
-    // // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
-
-    // samplerDesc.lodMinClamp   = 0.0f;
-    // samplerDesc.lodMaxClamp   = (f32)texture->mip_level_count;
-    // samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
-
-    // texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
 }
 
 void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* filename,
@@ -1381,7 +1370,7 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* f
                   read_comps, desired_comps);
     }
 
-    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
+    Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
                                true, filename);
 
     // free pixel data
@@ -1420,7 +1409,7 @@ void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* dat
                   read_comps, desired_comps);
     }
 
-    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
+    Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
                                true, "data texture");
 
     // free pixel data
@@ -1491,23 +1480,6 @@ void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture, u8 pixelDa
     textureViewDesc.arrayLayerCount           = 1;
     textureViewDesc.aspect                    = WGPUTextureAspect_All;
     texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
-
-    /* Create the texture sampler */
-    // WGPUSamplerDescriptor samplerDesc = {};
-    // samplerDesc.addressModeU          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
-
-    // // TODO: make filtering configurable
-    // samplerDesc.minFilter    = WGPUFilterMode_Nearest;
-    // samplerDesc.magFilter    = WGPUFilterMode_Nearest;
-    // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
-
-    // samplerDesc.lodMinClamp   = 0.0f;
-    // samplerDesc.lodMaxClamp   = (f32)texture->mip_level_count;
-    // samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
-
-    // texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
 }
 
 void Texture::release(Texture* texture)

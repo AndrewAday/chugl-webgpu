@@ -70,7 +70,7 @@ struct DrawUniforms {
 
 @group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
 
-@group(3) @binding(0) var<storage, read> positions : array<f32>;
+@group(3) @binding(0) var<storage, read> positions : array<f32>; // vertex pulling group 
 
 struct VertexOutput {
     @builtin(position) position : vec4f,

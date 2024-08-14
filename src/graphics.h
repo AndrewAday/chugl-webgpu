@@ -290,11 +290,17 @@ struct Texture {
     static void initFromFile(GraphicsContext* ctx, Texture* texture,
                              const char* filename, bool genMipMaps);
 
+    // initializes from image data read into memory, NOT raw buffer
     static void initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* data,
                              u64 dataLen);
 
     static void initSinglePixel(GraphicsContext* ctx, Texture* texture,
                                 u8 pixelData[4]);
+
+    static void initFromPixelData(GraphicsContext* ctx, Texture* texture,
+                                  const void* pixelData, i32 width, i32 height,
+                                  u8 numComponents, bool genMipMaps,
+                                  const char* filename);
 
     static void release(Texture* texture);
 };

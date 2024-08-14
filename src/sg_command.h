@@ -86,6 +86,8 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_UPDATE_PSO,
     SG_COMMAND_MATERIAL_SET_UNIFORM,
     SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
+    SG_COMMAND_MATERIAL_SET_SAMPLER,
+    SG_COMMAND_MATERIAL_SET_TEXTURE,
 
     // mesh
     SG_COMMAND_MESH_CREATE,
@@ -96,6 +98,10 @@ enum SG_CommandType : u32 {
     SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE,
     SG_COMMAND_GEO_SET_VERTEX_COUNT,
     SG_COMMAND_GEO_SET_INDICES,
+
+    // texture
+    SG_COMMAND_TEXTURE_CREATE,
+    SG_COMMAND_TEXTURE_DATA,
 
     SG_COMMAND_COUNT
 };
@@ -268,6 +274,17 @@ struct SG_Command_GeoSetIndices : public SG_Command {
     ptrdiff_t indices_offset;
 };
 
+struct SG_Command_TextureCreate : public SG_Command {
+    SG_ID sg_id;
+};
+
+struct SG_Command_TextureData : public SG_Command {
+    SG_ID sg_id;
+    int width; // for now bytes per row is always width * 4
+    int height;
+    ptrdiff_t data_offset;
+};
+
 struct SG_Command_ShaderCreate : public SG_Command {
     SG_ID sg_id;
     // strings to be freed by render thread
@@ -301,6 +318,18 @@ struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
     int location;
     ptrdiff_t data_offset;
     int data_size_bytes;
+};
+
+struct SG_Command_MaterialSetSampler : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    SG_Sampler sampler;
+};
+
+struct SG_Command_MaterialSetTexture : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    SG_ID texture_id;
 };
 
 struct SG_Command_Mesh_Create : public SG_Command {
@@ -391,6 +420,11 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
                                                      void* data, size_t bytes);
 void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
 
+// texture
+void CQ_PushCommand_TextureCreate(SG_Texture* texture);
+void CQ_PushCommand_TextureData(
+  SG_Texture* texture); // TODO currently assumes texture data is already set
+
 // shader
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
 
@@ -401,6 +435,11 @@ void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
 
 void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
                                              Chuck_ArrayFloat* ck_arr);
+
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location,
+                                       SG_Sampler sampler);
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location,
+                                       SG_Texture* texture);
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);

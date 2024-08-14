@@ -66,6 +66,15 @@ static t_CKUINT component_offset_id = 0;
 // vtable offsets
 static t_CKINT ggen_update_vt_offset = -1;
 
+// SG_Sampler offsets
+// idea: store these as static ints on SG_Sampler struct?
+static t_CKUINT sampler_offset_wrapU     = 0;
+static t_CKUINT sampler_offset_wrapV     = 0;
+static t_CKUINT sampler_offset_wrapW     = 0;
+static t_CKUINT sampler_offset_filterMin = 0;
+static t_CKUINT sampler_offset_filterMag = 0;
+static t_CKUINT sampler_offset_filterMip = 0;
+
 // other shared data offset
 // static t_CKUINT b2_world_data_offset = 0;
 
