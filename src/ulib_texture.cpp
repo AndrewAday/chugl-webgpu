@@ -9,7 +9,10 @@
 CK_DLL_CTOR(sampler_ctor);
 
 CK_DLL_CTOR(texture_ctor);
+CK_DLL_CTOR(texture_ctor_with_desc);
+
 CK_DLL_MFUN(texture_data);
+CK_DLL_MFUN(texture_set_file);
 
 static void ulib_texture_query(Chuck_DL_Query* QUERY)
 {
@@ -47,10 +50,16 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
     CTOR(texture_ctor);
 
+    CTOR(texture_ctor_with_desc);
+    ARG("int", "is_storage");
+
     MFUN(texture_data, "void", "data");
     ARG("int[]", "pixel_data");
     ARG("int", "width");  // in pixels
     ARG("int", "height"); // in pixels
+
+    MFUN(texture_set_file, "void", "file");
+    ARG("string", "filepath");
 
     // TODO: specify in WGPUImageCopyTexture where in texture to write to ?
     // e.g. texture.subData()
@@ -75,7 +84,18 @@ CK_DLL_CTOR(texture_ctor)
 {
     SG_Texture* tex                            = SG_CreateTexture(SELF);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = tex->id;
-    CQ_PushCommand_TextureCreate(tex);
+    CQ_PushCommand_TextureCreate(tex, false);
+}
+
+CK_DLL_CTOR(texture_ctor_with_desc)
+{
+    SG_Texture* tex                            = SG_CreateTexture(SELF);
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = tex->id;
+    bool is_storage                            = GET_NEXT_INT(ARGS);
+
+    // TODO store texture desc state (like material pso)
+
+    CQ_PushCommand_TextureCreate(tex, is_storage);
 }
 
 CK_DLL_MFUN(texture_data)
@@ -109,4 +129,16 @@ CK_DLL_MFUN(texture_data)
 
     // TODO push cq
     CQ_PushCommand_TextureData(tex);
+}
+
+CK_DLL_MFUN(texture_set_file)
+{
+    SG_Texture* tex      = GET_TEXTURE(SELF);
+    Chuck_String* ck_str = GET_NEXT_STRING(ARGS);
+
+    // For now NOT doing stb file IO on audio thread.
+    // 1) don't have to do file IO
+    // 2) don't have to pass texture data over command queue
+
+    CQ_PushCommand_TextureFromFile(tex, API->object->str(ck_str));
 }

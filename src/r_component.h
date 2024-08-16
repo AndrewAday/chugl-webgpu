@@ -165,9 +165,23 @@ struct R_Geometry : public R_Component {
 
 struct R_Texture : public R_Component {
     Texture gpu_texture;
-    SamplerConfig samplerConfig; // TODO texture: maybe have sampler separate?
+    // SamplerConfig samplerConfig; // TODO texture: maybe have sampler separate?
+    u64 generation; // incremented every time texture is modified
+
+    // texture type info
+    bool is_storage = false;
 
     static void init(R_Texture* texture); // called by Renderer-Tester only
+    static void write(GraphicsContext* gctx, R_Texture* texture, void* data, int width,
+                      int height)
+    {
+        Texture::initFromPixelData(gctx, &texture->gpu_texture, data, width, height, 4,
+                                   true, "", texture->is_storage);
+        texture->generation++;
+    }
+
+    static void fromFile(GraphicsContext* gctx, R_Texture* texture,
+                         const char* filepath);
 };
 
 void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID main_scene);
@@ -204,7 +218,9 @@ enum R_BindType : u32 {
 // TODO can we move R_Binding into .cpp
 struct R_Binding {
     R_BindType type;
-    size_t size; // size of data in bytes for UNIFORM and STORAGE types
+    size_t size;    // size of data in bytes for UNIFORM and STORAGE types
+    u64 generation; // currently only used for textures, track generation so we know
+                    // when to rebuild BindGroup
     union {
         SG_ID textureID;
         WGPUTextureView textureView;
@@ -236,9 +252,8 @@ struct R_Material : public R_Component {
 
     // bindgroup state (uniforms, storage buffers, textures, samplers)
     R_Binding bindings[SG_MATERIAL_MAX_UNIFORMS];
-    GPU_Buffer
-      uniform_buffer; // maps 1:1 with uniform location, size =
-                      // sizeof(SG_MaterialUniformData * SG_MATERIAL_MAX_UNIFORMS)
+    GPU_Buffer uniform_buffer; // maps 1:1 with uniform location, initializesd in
+                               // Component_MaterialCreate
     WGPUBindGroup bind_group;
 
     // Arena bindings;         // array of R_Binding

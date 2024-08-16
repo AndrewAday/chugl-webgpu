@@ -351,6 +351,7 @@ struct SG_Material : SG_Component {
     static void removeUniform(SG_Material* mat, int location);
 
     static void uniformFloat(SG_Material* mat, int location, f32 f);
+    static void uniformInt(SG_Material* mat, int location, int i);
     // static void uniform(SG_Material* mat, int location, glm::vec2 f2);
     // static void uniform(SG_Material* mat, int location, glm::vec3 f3);
     // static void uniform(SG_Material* mat, int location, glm::vec4 f4);
@@ -359,6 +360,7 @@ struct SG_Material : SG_Component {
     // static void uniform(SG_Material* mat, int location, glm::ivec3 i3);
     // static void uniform(SG_Material* mat, int location, glm::ivec4 i4);
     static f32 uniformFloat(SG_Material* mat, int location);
+    static int uniformInt(SG_Material* mat, int location);
 
     static void setStorageBuffer(SG_Material* mat, int location)
     {
@@ -370,7 +372,7 @@ struct SG_Material : SG_Component {
         mat->uniforms[location].type       = SG_MATERIAL_UNIFORM_SAMPLER;
         mat->uniforms[location].as.sampler = sampler;
     }
- 
+
     static void setTexture(SG_Material* mat, int location, SG_Texture* tex);
 
     static void shader(SG_Material* mat, SG_Shader* shader);

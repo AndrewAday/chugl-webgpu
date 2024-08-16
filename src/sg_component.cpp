@@ -877,10 +877,22 @@ void SG_Material::uniformFloat(SG_Material* mat, int location, f32 f)
     mat->uniforms[location].as.f = f;
 }
 
+void SG_Material::uniformInt(SG_Material* mat, int location, int i)
+{
+    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_INT;
+    mat->uniforms[location].as.i = i;
+}
+
 f32 SG_Material::uniformFloat(SG_Material* mat, int location)
 {
     ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_FLOAT);
     return mat->uniforms[location].as.f;
+}
+
+int SG_Material::uniformInt(SG_Material* mat, int location)
+{
+    ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_INT);
+    return mat->uniforms[location].as.i;
 }
 
 void SG_Material::setTexture(SG_Material* mat, int location, SG_Texture* tex)

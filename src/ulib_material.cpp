@@ -46,6 +46,8 @@ CK_DLL_MFUN(material_uniform_active_locations);
 
 CK_DLL_MFUN(material_set_uniform_float);
 CK_DLL_MFUN(material_get_uniform_float);
+CK_DLL_MFUN(material_set_uniform_int);
+CK_DLL_MFUN(material_get_uniform_int);
 
 // getting back storage buffers is tricky because it may have been modified by shader
 // so no getter for now (until we figure out compute shaders)
@@ -192,6 +194,13 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("float", "uniform_value");
 
     MFUN(material_get_uniform_float, "float", "uniformFloat");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_int, "void", "uniformInt");
+    ARG("int", "location");
+    ARG("int", "uniform_value");
+
+    MFUN(material_get_uniform_int, "int", "uniformInt");
     ARG("int", "location");
 
     // storage buffers
@@ -421,6 +430,29 @@ CK_DLL_MFUN(material_get_uniform_float)
     }
 
     RETURN->v_float = (t_CKFLOAT)SG_Material::uniformFloat(material, location);
+}
+
+CK_DLL_MFUN(material_set_uniform_int)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+    t_CKINT uniform_value = GET_NEXT_INT(ARGS);
+
+    SG_Material::uniformInt(material, location, uniform_value);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_int)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_INT) {
+        CK_THROW("MaterialGetUniformInt", "Uniform location is not an int", SHRED);
+    }
+
+    RETURN->v_int = (t_CKINT)SG_Material::uniformInt(material, location);
 }
 
 CK_DLL_MFUN(material_set_storage_buffer)

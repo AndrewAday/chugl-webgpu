@@ -102,6 +102,7 @@ enum SG_CommandType : u32 {
     // texture
     SG_COMMAND_TEXTURE_CREATE,
     SG_COMMAND_TEXTURE_DATA,
+    SG_COMMAND_TEXTURE_FROM_FILE,
 
     SG_COMMAND_COUNT
 };
@@ -276,6 +277,8 @@ struct SG_Command_GeoSetIndices : public SG_Command {
 
 struct SG_Command_TextureCreate : public SG_Command {
     SG_ID sg_id;
+    // texture descriptor
+    bool is_storage = false;
 };
 
 struct SG_Command_TextureData : public SG_Command {
@@ -283,6 +286,11 @@ struct SG_Command_TextureData : public SG_Command {
     int width; // for now bytes per row is always width * 4
     int height;
     ptrdiff_t data_offset;
+};
+
+struct SG_Command_TextureFromFile : public SG_Command {
+    SG_ID sg_id;
+    ptrdiff_t filepath_offset;
 };
 
 struct SG_Command_ShaderCreate : public SG_Command {
@@ -421,9 +429,11 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
 void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
 
 // texture
-void CQ_PushCommand_TextureCreate(SG_Texture* texture);
+void CQ_PushCommand_TextureCreate(SG_Texture* texture, bool is_storage);
 void CQ_PushCommand_TextureData(
   SG_Texture* texture); // TODO currently assumes texture data is already set
+
+void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath);
 
 // shader
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader);

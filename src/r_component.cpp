@@ -7,6 +7,8 @@
 #include "core/file.h"
 #include "core/log.h"
 
+#include <stb/stb_image.h>
+
 /*
 XForm system:
 - each XForm component is marked with a stale flag NONE/DESCENDENTS/WORLD/LOCAL
@@ -554,6 +556,43 @@ void R_Texture::init(R_Texture* texture)
     texture->type = SG_COMPONENT_TEXTURE;
 }
 
+void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
+                         const char* filepath)
+{
+    i32 width = 0, height = 0;
+    // Force loading 4 channel images to 3 channel by stb becasue Dawn
+    // doesn't support 3 channel formats currently. The group is discussing
+    // on whether webgpu shoud support 3 channel format.
+    // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
+    i32 read_comps    = 0;
+    i32 desired_comps = STBI_rgb_alpha; // force 4 channels
+
+    stbi_set_flip_vertically_on_load(true);
+    stbi_uc* pixelData = stbi_load(filepath,     //
+                                   &width,       //
+                                   &height,      //
+                                   &read_comps,  //
+                                   desired_comps //
+    );
+
+    if (pixelData == NULL) {
+        log_error("Couldn't load '%s'\n", filepath);
+
+        log_error("Reason: %s\n", stbi_failure_reason());
+        return;
+    } else {
+        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filepath, width, height,
+                  read_comps, desired_comps);
+    }
+
+    Texture::initFromPixelData(gctx, &texture->gpu_texture, pixelData, width, height,
+                               desired_comps, true, filepath, texture->is_storage);
+
+    // free pixel data
+    stbi_image_free(pixelData);
+    texture->generation++;
+}
+
 // ============================================================================
 // R_Material
 // ============================================================================
@@ -620,8 +659,32 @@ void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
 void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                                   WGPUBindGroupLayout layout)
 {
-    if (mat->fresh_bind_group) return;
+    // TODO: can we improve this? maybe assume bindings are consecutive.
+    // at first R_BIND_EMPTY can early-out
+    // check in chugl example if we can skip @binding() numbers
+    // unfortunately wgsl still compiles if there are skips/holes in bindgroup numbering
+    if (mat->fresh_bind_group) {
+        // check all texture bindings and see if generation# changed
+        // ==optimize== have textures track an arena of bound mat IDs, and mark as stale
+        // upon change or have a "bindgroup" manager class do the same this lazy check
+        // is the quickest to implement, and requires the least additional state
+        bool needs_rebuild = false;
+        for (u32 i = 0; i < ARRAY_LENGTH(mat->bindings); ++i) {
+            R_Binding* binding = &mat->bindings[i];
+            if (binding->type == R_BIND_TEXTURE_ID) {
+                R_Texture* tex = Component_GetTexture(binding->as.textureID);
+                if (tex->generation != binding->generation) {
+                    ASSERT(tex->generation > binding->generation);
+                    needs_rebuild = true;
+                    break;
+                }
+            }
+        }
+        if (!needs_rebuild) return;
+    }
     mat->fresh_bind_group = true;
+
+    log_debug("rebuilding bind group\n");
 
     // create bindgroups for all bindings
     WGPUBindGroupEntry new_bind_group_entries[SG_MATERIAL_MAX_UNIFORMS] = {};
@@ -629,7 +692,6 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     ASSERT(SG_MATERIAL_MAX_UNIFORMS == ARRAY_LENGTH(mat->bindings));
 
     for (u32 i = 0; i < SG_MATERIAL_MAX_UNIFORMS; ++i) {
-        // _R_Material_BindGroupEntryFromBinding(gctx, mat, binding, entryDesc, i);
         R_Binding* binding = &mat->bindings[i];
         if (binding->type == R_BIND_EMPTY) continue;
 
@@ -641,7 +703,10 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
 
         switch (binding->type) {
             case R_BIND_UNIFORM: {
-                bind_group_entry->offset = sizeof(SG_MaterialUniformData) * i;
+                bind_group_entry->offset
+                  = MAX(gctx->limits.minUniformBufferOffsetAlignment,
+                        sizeof(SG_MaterialUniformData))
+                    * i;
                 bind_group_entry->size   = sizeof(SG_MaterialUniformData);
                 bind_group_entry->buffer = mat->uniform_buffer.buf;
             } break;
@@ -657,6 +722,8 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
             case R_BIND_TEXTURE_ID: {
                 R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
                 bind_group_entry->textureView = rTexture->gpu_texture.view;
+                ASSERT(binding->size == sizeof(SG_ID));
+                binding->generation = rTexture->generation;
             } break;
             default: ASSERT(false);
         }
@@ -729,9 +796,19 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
     // rebuild logic for textures
     // TODO support change in texture type, size, etc
     else if (type == R_BIND_TEXTURE_ID) {
+        ASSERT(bytes == sizeof(SG_ID));
         // if the texture has changed, need to rebuild bind group
         if (binding->as.textureID != *(SG_ID*)data) {
             mat->fresh_bind_group = false;
+        }
+        // or texture id the same, but generation count is different
+        else {
+            R_Texture* tex = Component_GetTexture(*(SG_ID*)data);
+            if (binding->generation != tex->generation) {
+                ASSERT(tex->generation
+                       > binding->generation); // generation count should only increase
+                mat->fresh_bind_group = false;
+            }
         }
     }
 
@@ -741,17 +818,19 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
     // create new binding
     switch (type) {
         case R_BIND_UNIFORM: {
-            size_t offset = sizeof(SG_MaterialUniformData) * location;
+            size_t offset = MAX(gctx->limits.minUniformBufferOffsetAlignment,
+                                sizeof(SG_MaterialUniformData))
+                            * location;
             // write unfiform data to corresponding GPU location
             GPU_Buffer::write(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
                               offset, data, bytes);
         } break;
         case R_BIND_TEXTURE_ID: {
             ASSERT(bytes == sizeof(SG_ID));
-            binding->as.textureID = *(SG_ID*)data;
-            // TODO refcount
-            break;
-        }
+            R_Texture* tex        = Component_GetTexture(*(SG_ID*)data);
+            binding->as.textureID = tex->id;
+            binding->generation   = tex->generation;
+        } break;
         // case R_BIND_TEXTURE_VIEW: {
         //     ASSERT(bytes == sizeof(WGPUTextureView));
         //     binding->as.textureView = *(WGPUTextureView*)data;
@@ -1605,8 +1684,11 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
         mat->id   = cmd->sg_id;
         mat->type = SG_COMPONENT_MATERIAL;
 
+        // init uniform buffer
         GPU_Buffer::init(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
-                         sizeof(SG_MaterialUniformData) * ARRAY_LENGTH(mat->bindings));
+                         MAX(sizeof(SG_MaterialUniformData),
+                             gctx->limits.minUniformBufferOffsetAlignment)
+                           * ARRAY_LENGTH(mat->bindings));
 
         // build config
         mat->pso = cmd->pso;
@@ -1708,6 +1790,7 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
     tex->type = SG_COMPONENT_TEXTURE;
 
     // TODO set texture attributes?
+    tex->is_storage = cmd->is_storage;
 
     // store offset
     R_Location loc = { tex->id, Arena::offsetOf(&textureArena, tex), &textureArena };

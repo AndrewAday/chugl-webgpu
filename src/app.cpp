@@ -621,27 +621,30 @@ struct App {
         // now renderer can work on drawing the copied scenegraph
         // renderer.RenderScene(&scene, scene.GetMainCamera());
 
-        GraphicsContext::prepareFrame(&app->gctx);
+        // if window not minimized, render
+        if (GraphicsContext::prepareFrame(&app->gctx)) {
 
-        WGPURenderPassEncoder render_pass = NULL;
-        { // render pass
-            render_pass = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
-                                                            &app->gctx.renderPassDesc);
+            WGPURenderPassEncoder render_pass = NULL;
+            { // render pass
+                render_pass = wgpuCommandEncoderBeginRenderPass(
+                  app->gctx.commandEncoder, &app->gctx.renderPassDesc);
 
-            // scene
-            _R_RenderScene(app, render_pass);
+                // scene
+                _R_RenderScene(app, render_pass);
 
-            // UI
-            if (do_ui) ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+                // UI
+                if (do_ui)
+                    ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
 
-            wgpuRenderPassEncoderEnd(render_pass);
+                wgpuRenderPassEncoderEnd(render_pass);
+            }
+
+            // submit and present
+            GraphicsContext::presentFrame(&app->gctx);
+
+            // cleanup
+            wgpuRenderPassEncoderRelease(render_pass);
         }
-
-        // submit and present
-        GraphicsContext::presentFrame(&app->gctx);
-
-        // cleanup
-        wgpuRenderPassEncoderRelease(render_pass);
     }
 
     static void _calculateFPS(GLFWwindow* window, bool print_to_title)
@@ -1209,8 +1212,14 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_TextureData* cmd = (SG_Command_TextureData*)command;
             R_Texture* texture          = Component_GetTexture(cmd->sg_id);
             void* data                  = CQ_ReadCommandGetOffset(cmd->data_offset);
-            Texture::initFromPixelData(&app->gctx, &texture->gpu_texture, data,
-                                       cmd->width, cmd->height, 4, true, "");
+            R_Texture::write(&app->gctx, texture, data, cmd->width, cmd->height);
+        } break;
+        case SG_COMMAND_TEXTURE_FROM_FILE: {
+            SG_Command_TextureFromFile* cmd = (SG_Command_TextureFromFile*)command;
+            R_Texture* texture              = Component_GetTexture(cmd->sg_id);
+            const char* path
+              = (const char*)CQ_ReadCommandGetOffset(cmd->filepath_offset);
+            R_Texture::fromFile(&app->gctx, texture, path);
         } break;
         // shaders ----------------------
         case SG_COMMAND_SHADER_CREATE: {

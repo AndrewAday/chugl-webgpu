@@ -226,6 +226,8 @@ static void logWGPULimits(WGPULimits const* limits)
     log_trace("Supported limits:");
     log_trace("maxBindGroups: %d", limits->maxBindGroups);
     log_trace("maxBindingsPerBindGroup: %d", limits->maxBindingsPerBindGroup);
+    log_trace("minUniformBufferOffsetAlignment %d",
+              limits->minUniformBufferOffsetAlignment);
 }
 
 bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
@@ -273,7 +275,7 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
 
     WGPURequiredLimits requiredLimits = {};
     requiredLimits.limits             = context->limits;
-    ;
+
     WGPUFeatureName requiredFeatures[] = {
         (WGPUFeatureName)WGPUNativeFeature_VertexWritableStorage,
     };
@@ -347,8 +349,15 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     return true;
 }
 
-void GraphicsContext::prepareFrame(GraphicsContext* ctx)
+bool GraphicsContext::prepareFrame(GraphicsContext* ctx)
 {
+    if (ctx->window_minimized) {
+        ctx->backbufferView       = NULL;
+        ctx->commandEncoder       = NULL;
+        ctx->colorAttachment.view = NULL;
+        return false;
+    }
+
     // get target texture view
     ctx->backbufferView = wgpuSwapChainGetCurrentTextureView(ctx->swapChain);
     ASSERT(ctx->backbufferView != NULL);
@@ -357,6 +366,7 @@ void GraphicsContext::prepareFrame(GraphicsContext* ctx)
     // initialize encoder
     WGPUCommandEncoderDescriptor encoderDesc = {};
     ctx->commandEncoder = wgpuDeviceCreateCommandEncoder(ctx->device, &encoderDesc);
+    return true;
 }
 
 void GraphicsContext::presentFrame(GraphicsContext* ctx)
@@ -381,7 +391,10 @@ void GraphicsContext::presentFrame(GraphicsContext* ctx)
 
 void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
 {
-
+    if (width == 0 || height == 0) {
+        ctx->window_minimized = true;
+        return;
+    }
     // terminate depth buffer
     WGPU_RELEASE_RESOURCE(TextureView, ctx->depthTextureView);
     WGPU_DESTROY_RESOURCE(Texture, ctx->depthTexture);
@@ -1256,16 +1269,25 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
 
 void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
                                 const void* pixelData, i32 width, i32 height,
-                                u8 numComponents, bool genMipMaps, const char* filename)
+                                u8 numComponents, bool genMipMaps, const char* filename,
+                                bool is_storage)
 {
-    ASSERT(texture->texture == NULL);
+    // For now do the dumbest thing:
+    // delete the previous texture entirely, and remake from scratch
+    // ==optimization==: check size, don't delete if new data is same format / fits
+    // within extents of previous texture
+    WGPU_RELEASE_RESOURCE(Texture, texture->texture);
+    WGPU_RELEASE_RESOURCE(TextureView, texture->view);
+
     // save texture info
     texture->width  = width;
     texture->height = height;
     texture->depth  = 1;
 
     // default always gen mipmaps
-    texture->mip_level_count = genMipMaps ? mipLevelCount(width, height) : 1u;
+    // except storage textures can't have mipmaps
+    texture->mip_level_count
+      = genMipMaps && !is_storage ? mipLevelCount(width, height) : 1u;
 
     // TODO: support compressed texture formats
     texture->format    = WGPUTextureFormat_RGBA8Unorm;
@@ -1275,6 +1297,7 @@ void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
     WGPUTextureDescriptor textureDesc = {};
     // render attachment usage is used for mip map generation
     textureDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    if (is_storage) textureDesc.usage |= WGPUTextureUsage_StorageBinding;
     // | WGPUTextureUsage_RenderAttachment;
     textureDesc.dimension     = texture->dimension;
     textureDesc.size          = { (u32)width, (u32)height, 1 };
@@ -1342,8 +1365,6 @@ void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
 void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* filename,
                            bool genMipMaps)
 {
-    ASSERT(texture->texture == NULL);
-
     i32 width = 0, height = 0;
     // Force loading 4 channel images to 3 channel by stb becasue Dawn
     // doesn't support 3 channel formats currently. The group is discussing
@@ -1371,7 +1392,7 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* f
     }
 
     Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
-                               true, filename);
+                               true, filename, false);
 
     // free pixel data
     stbi_image_free(pixelData);
@@ -1410,7 +1431,7 @@ void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* dat
     }
 
     Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
-                               true, "data texture");
+                               true, "data texture", false);
 
     // free pixel data
     stbi_image_free(pixelData);

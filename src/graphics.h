@@ -51,6 +51,7 @@ struct GraphicsContext {
 
     // Window and surface --------
     WGPUSurface surface;
+    bool window_minimized;
 
     // Device limits --------
     WGPULimits limits;
@@ -59,7 +60,7 @@ struct GraphicsContext {
 
     // Methods --------
     static bool init(GraphicsContext* context, GLFWwindow* window);
-    static void prepareFrame(GraphicsContext* ctx);
+    static bool prepareFrame(GraphicsContext* ctx);
     static void presentFrame(GraphicsContext* ctx);
     static void resize(GraphicsContext* ctx, u32 width, u32 height);
     static void release(GraphicsContext* ctx);
@@ -300,7 +301,7 @@ struct Texture {
     static void initFromPixelData(GraphicsContext* ctx, Texture* texture,
                                   const void* pixelData, i32 width, i32 height,
                                   u8 numComponents, bool genMipMaps,
-                                  const char* filename);
+                                  const char* filename, bool is_storage);
 
     static void release(Texture* texture);
 };
