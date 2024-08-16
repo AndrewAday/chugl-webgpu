@@ -795,17 +795,23 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
     }
 
     // update camera
-    // TODO switch to GCamera
+    R_Camera* main_camera = Component_GetCamera(main_scene->main_camera_id);
     i32 width, height;
     glfwGetWindowSize(app->window, &width, &height);
     f32 aspect = (f32)width / (f32)height;
-    app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
+    if (!main_camera) {
+        // if camera not set by chugl user, use default camera
+        app->camera.update(&app->camera, (f32)app->dt);
+    }
 
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
-    frameUniforms.projectionMat = Camera::projectionMatrix(&app->camera, aspect);
-    frameUniforms.viewMat       = Entity::viewMatrix(&app->camera.entity);
+    frameUniforms.projectionMat = main_camera ?
+                                    R_Camera::projectionMatrix(main_camera, aspect) :
+                                    Camera::projectionMatrix(&app->camera, aspect);
+    frameUniforms.viewMat       = main_camera ? R_Camera::viewMatrix(main_camera) :
+                                                Entity::viewMatrix(&app->camera.entity);
     frameUniforms.projViewMat   = frameUniforms.projectionMat * frameUniforms.viewMat;
     frameUniforms.camPos        = app->camera.entity.pos;
     frameUniforms.dirLight      = VEC_FORWARD;
@@ -929,6 +935,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
     }
 }
 
+// TODO make sure switch statement is in correct order?
 static void _R_HandleCommand(App* app, SG_Command* command)
 {
     switch (command->type) {
@@ -1162,8 +1169,13 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_SceneBGColor* cmd = (SG_Command_SceneBGColor*)command;
             R_Scene* scene               = Component_GetScene(cmd->sg_id);
             scene->bg_color              = cmd->color;
-            break;
-        }
+        } break;
+        case SG_COMMAND_SCENE_SET_MAIN_CAMERA: {
+            SG_Command_SceneSetMainCamera* cmd
+              = (SG_Command_SceneSetMainCamera*)command;
+            R_Scene* scene        = Component_GetScene(cmd->scene_id);
+            scene->main_camera_id = cmd->camera_id;
+        } break;
         case SG_COMMAND_GEO_CREATE: {
             SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
             Component_CreateGeometry(&app->gctx, cmd);
@@ -1270,8 +1282,16 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
             Component_CreateMesh(cmd);
-            break;
-        }
+        } break;
+        case SG_COMMAND_CAMERA_CREATE: {
+            SG_Command_CameraCreate* cmd = (SG_Command_CameraCreate*)command;
+            Component_CreateCamera(cmd);
+        } break;
+        case SG_COMMAND_CAMERA_SET_PARAMS: {
+            SG_Command_CameraSetParams* cmd = (SG_Command_CameraSetParams*)command;
+            R_Camera* camera                = Component_GetCamera(cmd->camera_id);
+            camera->params                  = cmd->params;
+        } break;
         // b2
         case SG_COMMAND_b2_WORLD_SET: {
             SG_Command_b2World_Set* cmd = (SG_Command_b2World_Set*)command;

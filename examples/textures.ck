@@ -15,6 +15,13 @@ IDEA: wrap repeat, sample OFF The grid with scaling factor n*m for INIFINITE con
 Add audio waveform to gameboard via storage buffer
 */
 
+GCamera camera --> GG.scene();
+camera.orthographic();
+camera.size(10.0);
+camera.posZ(1.0);
+camera => GG.scene().camera;
+null => GG.scene().camera;
+
 // audio stuff -----------------------------------------
 GWindow.fullscreen();
 256 => int WINDOW_SIZE;

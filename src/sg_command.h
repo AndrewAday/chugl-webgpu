@@ -77,6 +77,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_SCALE,
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
+    SG_COMMAND_SCENE_SET_MAIN_CAMERA,
 
     // shader
     SG_COMMAND_SHADER_CREATE,
@@ -91,6 +92,10 @@ enum SG_CommandType : u32 {
 
     // mesh
     SG_COMMAND_MESH_CREATE,
+
+    // camera
+    SG_COMMAND_CAMERA_CREATE,
+    SG_COMMAND_CAMERA_SET_PARAMS,
 
     // geometry
     SG_COMMAND_GEO_CREATE,
@@ -243,6 +248,11 @@ struct SG_Command_SceneBGColor : public SG_Command {
     glm::vec4 color;
 };
 
+struct SG_Command_SceneSetMainCamera : public SG_Command {
+    SG_ID scene_id;
+    SG_ID camera_id;
+};
+
 struct SG_Command_GeoCreate : public SG_Command {
     SG_ID sg_id;
     SG_GeometryParams params;
@@ -346,6 +356,19 @@ struct SG_Command_Mesh_Create : public SG_Command {
     SG_ID mat_id;
 };
 
+// camera commands -----------------------------------------------------
+
+struct SG_Command_CameraCreate : public SG_Command {
+    SG_Camera camera;
+};
+
+struct SG_Command_CameraSetParams : public SG_Command {
+    SG_ID camera_id;
+    SG_CameraParams params;
+};
+
+// b2 physics commands -----------------------------------------------------
+
 struct SG_Command_b2World_Set : public SG_Command {
     u32 b2_world_id;
 };
@@ -417,6 +440,7 @@ SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_off
                                      CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
+void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera);
 
 // geometry
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
@@ -453,6 +477,10 @@ void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location,
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
+
+// camera
+void CQ_PushCommand_CameraCreate(SG_Camera* camera);
+void CQ_PushCommand_CameraSetParams(SG_Camera* camera);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);

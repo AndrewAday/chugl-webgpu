@@ -417,6 +417,14 @@ void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color)
     spinlock::unlock(&cq.write_q_lock);
 }
 
+void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera)
+{
+    BEGIN_COMMAND(SG_Command_SceneSetMainCamera, SG_COMMAND_SCENE_SET_MAIN_CAMERA);
+    command->scene_id  = scene->id;
+    command->camera_id = camera ? camera->id : 0;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
 {
     spinlock::lock(&cq.write_q_lock);
@@ -669,6 +677,21 @@ void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
         command->mat_id            = mesh->_mat_id;
     }
     spinlock::unlock(&cq.write_q_lock);
+}
+
+void CQ_PushCommand_CameraCreate(SG_Camera* camera)
+{
+    BEGIN_COMMAND(SG_Command_CameraCreate, SG_COMMAND_CAMERA_CREATE);
+    command->camera = *camera;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_CameraSetParams(SG_Camera* cam)
+{
+    BEGIN_COMMAND(SG_Command_CameraSetParams, SG_COMMAND_CAMERA_SET_PARAMS);
+    command->camera_id = cam->id;
+    command->params    = cam->params;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_b2World_Set(u32 world_id)

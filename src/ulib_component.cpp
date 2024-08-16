@@ -977,62 +977,6 @@ CK_DLL_MFUN(ggen_get_num_children)
 }
 
 // ===============================================================
-// GScene
-// ===============================================================
-CK_DLL_CTOR(gscene_ctor);
-CK_DLL_DTOR(gscene_dtor);
-
-CK_DLL_MFUN(gscene_set_background_color);
-CK_DLL_MFUN(gscene_get_background_color);
-
-static void ulib_gscene_query(Chuck_DL_Query* QUERY)
-{
-    // EM_log(CK_LOG_INFO, "ChuGL scene");
-    // CGL scene
-    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_SCENE],
-                       SG_CKNames[SG_COMPONENT_TRANSFORM]);
-    QUERY->add_ctor(QUERY, gscene_ctor);
-
-    // background color
-    QUERY->add_mfun(QUERY, gscene_set_background_color, "vec4", "backgroundColor");
-    QUERY->add_arg(QUERY, "vec4", "color");
-    QUERY->doc_func(QUERY, "Set the background color of the scene");
-
-    QUERY->add_mfun(QUERY, gscene_get_background_color, "vec4", "backgroundColor");
-    QUERY->doc_func(QUERY, "Get the background color of the scene");
-
-    // end class -----------------------------------------------------
-    QUERY->end_class(QUERY);
-}
-
-CK_DLL_CTOR(gscene_ctor)
-{
-    CQ_PushCommand_SceneCreate(SELF, component_offset_id, API);
-}
-
-CK_DLL_DTOR(gscene_dtor)
-{
-    // TODO
-}
-
-CK_DLL_MFUN(gscene_get_background_color)
-{
-    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec4 color = scene->bg_color;
-    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
-}
-
-CK_DLL_MFUN(gscene_set_background_color)
-{
-    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC4 color  = GET_NEXT_VEC4(ARGS);
-
-    CQ_PushCommand_SceneBGColor(scene, color);
-
-    RETURN->v_vec4 = color;
-}
-
-// ===============================================================
 // GMesh
 // ===============================================================
 

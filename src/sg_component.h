@@ -35,7 +35,8 @@ typedef t_CKUINT SG_ID;
     X(SG_COMPONENT_SHADER, "Shader")                                                   \
     X(SG_COMPONENT_MATERIAL, "Material")                                               \
     X(SG_COMPONENT_TEXTURE, "Texture")                                                 \
-    X(SG_COMPONENT_MESH, "GMesh")
+    X(SG_COMPONENT_MESH, "GMesh")                                                      \
+    X(SG_COMPONENT_CAMERA, "GCamera")
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -157,6 +158,7 @@ struct SG_Transform : public SG_Component {
 
 struct SG_Scene : public SG_Transform {
     glm::vec4 bg_color;
+    SG_ID main_camera_id;
 };
 
 // ============================================================================
@@ -395,6 +397,28 @@ struct SG_Mesh : SG_Transform {
 };
 
 // ============================================================================
+// SG_Camera
+// ============================================================================
+
+enum SG_CameraType : u8 {
+    SG_CameraType_PERPSECTIVE  = 0,
+    SG_CameraType_ORTHOGRAPHIC = 1,
+};
+
+struct SG_CameraParams {
+    SG_CameraType camera_type;
+    float fov_radians = PI / 4.0f; // radians (45deg)
+    float size = 6.6f; // orthographic size (scales view volume while preserving ratio
+                       // of width to height)
+    float far_plane  = .1f;
+    float near_plane = 100.0f;
+};
+
+struct SG_Camera : SG_Transform {
+    SG_CameraParams params;
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -405,6 +429,7 @@ SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
 SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
+SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_Camera* camera_params);
 
 // SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
 //                              const char* fragment_string, const char*
@@ -431,6 +456,7 @@ SG_Shader* SG_GetShader(SG_ID id);
 SG_Material* SG_GetMaterial(SG_ID id);
 SG_Mesh* SG_GetMesh(SG_ID id);
 SG_Texture* SG_GetTexture(SG_ID id);
+SG_Camera* SG_GetCamera(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

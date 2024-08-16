@@ -494,6 +494,7 @@ static Arena SG_ShaderArena;
 static Arena SG_MaterialArena;
 static Arena SG_MeshArena;
 static Arena SG_TextureArena;
+static Arena SG_CameraArena;
 // static Arena textureArena;
 
 // locators (TODO switch to table)
@@ -545,6 +546,7 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_MaterialArena, sizeof(SG_Material) * 32);
     Arena::init(&SG_MeshArena, sizeof(SG_Mesh) * 64);
     Arena::init(&SG_TextureArena, sizeof(SG_Texture) * 32);
+    Arena::init(&SG_CameraArena, sizeof(SG_Camera) * 4);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -562,6 +564,7 @@ void SG_Free()
     Arena::free(&SG_MaterialArena);
     Arena::free(&SG_MeshArena);
     Arena::free(&SG_TextureArena);
+    Arena::free(&SG_CameraArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -640,6 +643,27 @@ SG_Texture* SG_CreateTexture(Chuck_Object* ckobj)
     hashmap_set(locator, &loc);
 
     return tex;
+}
+
+SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_Camera* cam_params)
+{
+    Arena* arena   = &SG_CameraArena;
+    size_t offset  = arena->curr;
+    SG_Camera* cam = ARENA_PUSH_ZERO_TYPE(arena, SG_Camera);
+
+    // copy camera params
+    *cam = *cam_params;
+
+    // init SG_Component base class
+    cam->id    = SG_GetNewComponentID();
+    cam->type  = SG_COMPONENT_CAMERA;
+    cam->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { cam->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return cam;
 }
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
@@ -772,7 +796,8 @@ SG_Transform* SG_GetTransform(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component == NULL || component->type == SG_COMPONENT_TRANSFORM
            || component->type == SG_COMPONENT_SCENE
-           || component->type == SG_COMPONENT_MESH);
+           || component->type == SG_COMPONENT_MESH
+           || component->type == SG_COMPONENT_CAMERA);
     return (SG_Transform*)component;
 }
 
@@ -816,6 +841,13 @@ SG_Texture* SG_GetTexture(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component->type == SG_COMPONENT_TEXTURE);
     return (SG_Texture*)component;
+}
+
+SG_Camera* SG_GetCamera(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_CAMERA);
+    return (SG_Camera*)component;
 }
 
 // ============================================================================

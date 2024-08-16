@@ -46,3 +46,6 @@ chuck*.exe
 
 # imgui
 imgui.ini
+
+# assets
+assets/

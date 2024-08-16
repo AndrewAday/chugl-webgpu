@@ -311,6 +311,45 @@ struct R_Material : public R_Component {
 };
 
 // =============================================================================
+// R_Camera
+// =============================================================================
+
+struct R_Camera : public R_Transform {
+    SG_CameraParams params;
+
+    static glm::mat4 projectionMatrix(R_Camera* camera, f32 aspect)
+    {
+        switch (camera->params.camera_type) {
+            case SG_CameraType_PERPSECTIVE:
+                return glm::perspective(camera->params.fov_radians, aspect,
+                                        camera->params.near_plane,
+                                        camera->params.far_plane);
+            case SG_CameraType_ORTHOGRAPHIC: {
+                float width  = camera->params.size * aspect;
+                float height = camera->params.size;
+                return glm::ortho( // extents in WORLD SPACE units
+                  -width / 2.0f, width / 2.0f, -height / 2.0f, height / 2.0f,
+                  camera->params.near_plane, camera->params.far_plane);
+            }
+            default: ASSERT(false); return glm::mat4(1.0f);
+        }
+    }
+
+    static glm::mat4 viewMatrix(R_Camera* cam)
+    {
+        ASSERT(cam->_stale == R_Transform_STALE_NONE);
+        return glm::inverse(cam->world);
+        // accounts for scale
+        // return glm::inverse(modelMatrix(entity));
+
+        // optimized version for camera only (doesn't take scale into account)
+        // glm::mat4 invT = glm::translate(MAT_IDENTITY, -cam->_pos);
+        // glm::mat4 invR = glm::toMat4(glm::conjugate(cam->_rot));
+        // return invR * invT;
+    }
+};
+
+// =============================================================================
 // R_Scene
 // =============================================================================
 
@@ -383,6 +422,8 @@ struct R_Scene : R_Transform {
     hashmap* material_to_geo;      // SG_ID -> Arena of geo ids
     hashmap* geo_to_xform;         // SG_ID -> Arena of xform ids (for each material)
 
+    SG_ID main_camera_id;
+
     static void initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd);
 
     static void removeSubgraphFromRenderState(R_Scene* scene, R_Transform* xform);
@@ -442,6 +483,7 @@ R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 
 R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
+R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd);
 
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 
@@ -466,6 +508,7 @@ R_Geometry* Component_GetGeometry(SG_ID id);
 R_Shader* Component_GetShader(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
+R_Camera* Component_GetCamera(SG_ID id);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,

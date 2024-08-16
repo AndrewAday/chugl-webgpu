@@ -1366,6 +1366,7 @@ static Arena shaderArena;
 static Arena materialArena;
 static Arena textureArena;
 static Arena _RenderPipelineArena;
+static Arena cameraArena;
 
 // default textures
 static Texture opaqueWhitePixel      = {};
@@ -1455,6 +1456,7 @@ void Component_Init(GraphicsContext* gctx)
     Arena::init(&materialArena, sizeof(R_Material) * 64);
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
+    Arena::init(&cameraArena, sizeof(R_Camera) * 4);
 
     // initialize default textures
     static u8 white[4]  = { 255, 255, 255, 255 };
@@ -1493,6 +1495,7 @@ void Component_Free()
     Arena::free(&materialArena);
     Arena::free(&_RenderPipelineArena);
     Arena::free(&textureArena);
+    Arena::free(&cameraArena);
 
     // free default textures
     Texture::release(&opaqueWhitePixel);
@@ -1568,6 +1571,42 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
     ASSERT(result == NULL); // ensure id is unique
 
     return xform;
+}
+
+R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
+{
+    // TODO: does camera also need to live in xform arena?
+    R_Camera* cam = ARENA_PUSH_ZERO_TYPE(&cameraArena, R_Camera);
+
+    { // xform init
+        cam->id         = cmd->camera.id;
+        cam->type       = SG_COMPONENT_CAMERA;
+        cam->xform_type = R_TRANSFORM_CAMERA;
+
+        cam->_pos = glm::vec3(0.0f);
+        cam->_rot = QUAT_IDENTITY;
+        cam->_sca = glm::vec3(1.0f);
+
+        cam->world  = MAT_IDENTITY;
+        cam->local  = MAT_IDENTITY;
+        cam->normal = MAT_IDENTITY;
+        cam->_stale = R_Transform_STALE_LOCAL;
+
+        // initialize children array for 8 children
+        Arena::init(&cam->children, sizeof(SG_ID) * 8);
+    }
+
+    { // camera init
+        // copy camera params
+        cam->params = cmd->camera.params;
+    }
+
+    // store offset
+    R_Location loc     = { cam->id, Arena::offsetOf(&cameraArena, cam), &cameraArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return cam;
 }
 
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
@@ -1812,7 +1851,7 @@ R_Transform* Component_GetXform(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     if (comp) {
         ASSERT(comp->type == SG_COMPONENT_TRANSFORM || comp->type == SG_COMPONENT_SCENE
-               || comp->type == SG_COMPONENT_MESH);
+               || comp->type == SG_COMPONENT_MESH || comp->type == SG_COMPONENT_CAMERA);
     }
     return (R_Transform*)comp;
 }
@@ -1850,6 +1889,13 @@ R_Texture* Component_GetTexture(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     ASSERT(comp == NULL || comp->type == SG_COMPONENT_TEXTURE);
     return (R_Texture*)comp;
+}
+
+R_Camera* Component_GetCamera(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_CAMERA);
+    return (R_Camera*)comp;
 }
 
 bool Component_MaterialIter(size_t* i, R_Material** material)

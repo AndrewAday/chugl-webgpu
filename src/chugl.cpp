@@ -1,9 +1,12 @@
+// clang-format off
 #include "all.cpp"
 #include "ulib_helper.h"
 
 // ulibs
 #include "ulib_box2d.cpp"
 #include "ulib_component.cpp"
+#include "ulib_camera.cpp"
+#include "ulib_scene.cpp"
 #include "ulib_geometry.cpp"
 #include "ulib_imgui.cpp"
 #include "ulib_material.cpp"
@@ -12,6 +15,7 @@
 
 // vendor
 #include <sokol/sokol_time.h>
+// clang-format on
 
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
@@ -334,6 +338,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_component_query(QUERY);
     ulib_texture_query(QUERY);
     ulib_ggen_query(QUERY);
+    ulib_camera_query(QUERY);
     ulib_gscene_query(QUERY);
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
