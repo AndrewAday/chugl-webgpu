@@ -17,10 +17,9 @@ Add audio waveform to gameboard via storage buffer
 
 GCamera camera --> GG.scene();
 camera.orthographic();
-camera.size(10.0);
+camera.size(10.0 / 16);
 camera.posZ(1.0);
 camera => GG.scene().camera;
-null => GG.scene().camera;
 
 // audio stuff -----------------------------------------
 GWindow.fullscreen();
@@ -149,8 +148,6 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         // all other cases cell dies (don't need to program)
 
         textureStore(dst, coords, vec4f(s)); // store for next generation
-    } else {
-        // textureStore(dst, coords, cell); // render current generation
     }
 
     return vec4f(cell); // render current generation
@@ -168,7 +165,6 @@ Shader custom_shader(shader_desc); // create shader from shader_desc
 custom_shader => material.shader; // connect shader to material
 
 GMesh mesh(plane_geo, material) --> GG.scene();
-mesh.sca(4.0);
 
 Texture conway_tex_a(true);
 Texture conway_tex_b(true);

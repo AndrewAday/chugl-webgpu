@@ -19,18 +19,18 @@ CK_DLL_MFUN(gcamera_get_clip_far);
 
 // perspective camera params
 // (no aspect, that's set automatically by renderer window resize callback)
-CK_DLL_MFUN(gcamera_set_pers_fov); // set in degrees // TODO make radians
+CK_DLL_MFUN(gcamera_set_pers_fov);
 CK_DLL_MFUN(gcamera_get_pers_fov);
 
 // ortho camera params
 CK_DLL_MFUN(gcamera_set_ortho_size); // view volume size (preserves screen aspect ratio)
 CK_DLL_MFUN(gcamera_get_ortho_size);
 
-// mouse cast from camera TODO
-// CK_DLL_MFUN(chugl_cam_screen_coord_to_world_ray);
-// CK_DLL_MFUN(chugl_cam_world_pos_to_screen_coord);
+CK_DLL_MFUN(gcamera_screen_coord_to_world_pos);
+CK_DLL_MFUN(gcamera_world_pos_to_screen_coord);
 
 // TODO overridable update(dt) (actualy don't we already get this from GGen?)
+// add mouse click state to GWindow
 // impl arcball Camera
 
 static void ulib_camera_query(Chuck_DL_Query* QUERY)
@@ -84,14 +84,32 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
     DOC_FUNC(
       "(orthographic mode) get the height of the view volume in world space units.");
 
+    // raycast
+    MFUN(gcamera_screen_coord_to_world_pos, "vec3", "screenCoordToWorldPos");
+    ARG("vec2", "screen_pos");
+    ARG("float", "distance");
+    DOC_FUNC(
+      "Returns the world position of a point in screen space at a given distance from "
+      "the camera. "
+      "Useful in combination with GWindow.mousePos() for mouse picking.");
+
+    MFUN(gcamera_world_pos_to_screen_coord, "vec2", "worldPosToScreenCoord");
+    ARG("vec3", "world_pos");
+    DOC_FUNC(
+      "Get a screen coordinate from a world position by casting a ray from worldPos "
+      "back to the camera and finding the intersection with the near clipping plane"
+      "world_pos is a vec3 representing a world position."
+      "Returns a vec2 screen coordinate."
+      "Remember, screen coordinates have origin at the top-left corner of the window");
+
     END_CLASS();
 }
 
 CK_DLL_CTOR(gcamera_ctor)
 {
-    SG_Camera default_cam = {}; // passing direclty for now rather than creating
-                                // separate CameraParams struct
-    SG_Camera* cam                             = SG_CreateCamera(SELF, &default_cam);
+    SG_CameraParams default_cam_params = {}; // passing direclty for now rather than
+                                             // creating separate CameraParams struct
+    SG_Camera* cam = SG_CreateCamera(SELF, default_cam_params);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = cam->id;
     CQ_PushCommand_CameraCreate(cam);
 }
@@ -165,4 +183,88 @@ CK_DLL_MFUN(gcamera_get_ortho_size)
 {
     SG_Camera* cam  = GET_CAMERA(SELF);
     RETURN->v_float = cam->params.size;
+}
+
+CK_DLL_MFUN(gcamera_screen_coord_to_world_pos)
+{
+    SG_Camera* cam      = GET_CAMERA(SELF);
+    t_CKVEC2 screen_pos = GET_NEXT_VEC2(ARGS);
+    float distance      = GET_NEXT_FLOAT(ARGS);
+
+    t_CKVEC2 windowSize = CHUGL_Window_WindowSize();
+    int screenWidth     = windowSize.x;
+    int screenHeight    = windowSize.y;
+    float aspect        = (float)screenWidth / (float)screenHeight;
+
+    if (cam->params.camera_type == SG_CameraType_ORTHOGRAPHIC) {
+        // calculate camera frustrum size in world space
+
+        float frustrum_height = cam->params.size;
+        float frustrum_width  = frustrum_height * aspect;
+
+        // convert from normalized mouse coords to view space coords
+        // (we negate viewY so that 0,0 is bottom left instead of top left)
+        float view_x = frustrum_width * (screen_pos.x / screenWidth - 0.5f);
+        float view_y = -frustrum_height * (screen_pos.y / screenHeight - 0.5f);
+
+        // convert from view space coords to world space coords
+        glm::vec3 world_pos
+          = SG_Transform::worldMatrix(cam) * glm::vec4(view_x, view_y, -distance, 1.0f);
+
+        RETURN->v_vec3 = { world_pos.x, world_pos.y, world_pos.z };
+        return;
+    } else if (cam->params.camera_type
+               == SG_CameraType_PERPSECTIVE) { // perspective camera
+        glm::vec2 ndc = { (screen_pos.x / screenWidth) * 2.0f - 1.0f,
+                          1.0f - (screen_pos.y / screenHeight) * 2.0f };
+
+        // first convert to normalized device coordinates in range [-1, 1]
+        glm::vec4 lRayStart_NDC(
+          ndc,
+          -1.0, // The near plane maps to Z=-1 in Normalized Device Coordinates
+          1.0f);
+        glm::vec4 lRayEnd_NDC(ndc, 1.0, 1.0f); // The far plane maps to Z=1 in NDC
+
+        glm::mat4 M = glm::inverse(SG_Camera::projectionMatrix(cam, aspect)
+                                   * SG_Camera::viewMatrix(cam));
+
+        // convert to world space
+        // glm::vec4 lRayStart_world = M * lRayStart_NDC;
+        // lRayStart_world /= lRayStart_world.w;
+
+        glm::vec3 lRayStart_world = SG_Transform::worldPosition(cam);
+        glm::vec4 lRayEnd_world   = M * lRayEnd_NDC;
+        lRayEnd_world /= lRayEnd_world.w;
+
+        glm::vec3 lRayDir_world
+          = glm::normalize(glm::vec3(lRayEnd_world) - lRayStart_world);
+        glm::vec3 world_pos = lRayStart_world + distance * lRayDir_world;
+        RETURN->v_vec3      = { world_pos.x, world_pos.y, world_pos.z };
+        return;
+    }
+    ASSERT(false); // unsupported camera type
+}
+
+CK_DLL_MFUN(gcamera_world_pos_to_screen_coord)
+{
+    SG_Camera* cam    = GET_CAMERA(SELF);
+    t_CKVEC3 worldPos = GET_NEXT_VEC3(ARGS);
+
+    t_CKVEC2 windowSize = CHUGL_Window_WindowSize();
+    float aspect        = windowSize.x / windowSize.y;
+
+    // first convert to clip space
+    glm::mat4 view = SG_Camera::viewMatrix(cam);
+
+    glm::mat4 proj = SG_Camera::projectionMatrix(cam, aspect);
+    glm::vec4 clipPos
+      = proj * view * glm::vec4(worldPos.x, worldPos.y, worldPos.z, 1.0f);
+
+    // convert to screen space
+    float x = (clipPos.x / clipPos.w + 1.0f) / 2.0f * windowSize.x;
+    // need to invert y because screen coordinates are top-left origin
+    float y = (1.0f - clipPos.y / clipPos.w) / 2.0f * windowSize.y;
+    // z is depth value (buggy)
+    // float z        = clipPos.z / clipPos.w;
+    RETURN->v_vec2 = { x, y };
 }

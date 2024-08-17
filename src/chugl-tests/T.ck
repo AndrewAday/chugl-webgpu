@@ -87,6 +87,18 @@ public class T {
         return Math.fabs(a - b) < 0.0001;
     }
 
+    fun static int veq(vec2 a, vec2 b) {
+        return T.feq(a.x, b.x) && T.feq(a.y, b.y);
+    }
+
+    fun static int veq(vec3 a, vec3 b) {
+        return T.feq(a.x, b.x) && T.feq(a.y, b.y) && T.feq(a.z, b.z);
+    }
+
+    fun static int veq(vec4 a, vec4 b) {
+        return T.feq(a.x, b.x) && T.feq(a.y, b.y) && T.feq(a.z, b.z) && T.feq(a.w, b.w);
+    }
+
     fun void assert(string code) {
         Machine.eval(
             this.context + 

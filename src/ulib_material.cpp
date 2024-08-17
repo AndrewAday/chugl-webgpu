@@ -10,6 +10,7 @@
 
 struct chugl_MaterialBuiltinShaders {
     SG_ID lines2d_shader_id;
+    SG_ID flat_shader_id;
 };
 
 static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
@@ -46,6 +47,13 @@ CK_DLL_MFUN(material_uniform_active_locations);
 
 CK_DLL_MFUN(material_set_uniform_float);
 CK_DLL_MFUN(material_get_uniform_float);
+CK_DLL_MFUN(material_set_uniform_float2);
+CK_DLL_MFUN(material_get_uniform_float2);
+CK_DLL_MFUN(material_set_uniform_float3);
+CK_DLL_MFUN(material_get_uniform_float3);
+CK_DLL_MFUN(material_set_uniform_float4);
+CK_DLL_MFUN(material_get_uniform_float4);
+
 CK_DLL_MFUN(material_set_uniform_int);
 CK_DLL_MFUN(material_get_uniform_int);
 
@@ -65,6 +73,10 @@ CK_DLL_MFUN(material_set_texture);
 CK_DLL_CTOR(lines2d_material_ctor);
 CK_DLL_MFUN(lines2d_material_get_thickness);
 CK_DLL_MFUN(lines2d_material_set_thickness);
+
+CK_DLL_CTOR(flat_material_ctor);
+CK_DLL_MFUN(flat_material_get_color);
+CK_DLL_MFUN(flat_material_set_color);
 
 CK_DLL_CTOR(pbr_material_ctor);
 
@@ -203,6 +215,27 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(material_get_uniform_int, "int", "uniformInt");
     ARG("int", "location");
 
+    MFUN(material_set_uniform_float2, "void", "uniformVec2");
+    ARG("int", "location");
+    ARG("vec2", "uniform_value");
+
+    MFUN(material_get_uniform_float2, "vec2", "uniformVec2");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_float3, "void", "uniformVec3");
+    ARG("int", "location");
+    ARG("vec3", "uniform_value");
+
+    MFUN(material_get_uniform_float3, "vec3", "uniformVec3");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_float4, "void", "uniformVec4");
+    ARG("int", "location");
+    ARG("vec4", "uniform_value");
+
+    MFUN(material_get_uniform_float4, "vec4", "uniformVec4");
+    ARG("int", "location");
+
     // storage buffers
     MFUN(material_set_storage_buffer, "void", "storageBuffer");
     ARG("int", "location");
@@ -231,6 +264,22 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(lines2d_material_set_thickness, "void", "thickness");
     ARG("float", "thickness");
     DOC_FUNC("Set the thickness of the lines in the material.");
+
+    END_CLASS();
+
+    // FlatMaterial -----------------------------------------------------
+
+    BEGIN_CLASS("FlatMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+
+    CTOR(flat_material_ctor);
+
+    // color uniform
+    MFUN(flat_material_get_color, "vec4", "color");
+    DOC_FUNC("Get the color of the material.");
+
+    MFUN(flat_material_set_color, "void", "color");
+    ARG("vec4", "color");
+    DOC_FUNC("Set the color of the material.");
 
     END_CLASS();
 
@@ -414,8 +463,10 @@ CK_DLL_MFUN(material_set_uniform_float)
     SG_Material* material   = GET_MATERIAL(SELF);
     t_CKINT location        = GET_NEXT_INT(ARGS);
     t_CKFLOAT uniform_value = GET_NEXT_FLOAT(ARGS);
+    float uniform_value_f32 = (float)uniform_value;
 
-    SG_Material::uniformFloat(material, location, (f32)uniform_value);
+    SG_Material::setUniform(material, location, &uniform_value_f32,
+                            SG_MATERIAL_UNIFORM_FLOAT);
 
     CQ_PushCommand_MaterialSetUniform(material, location);
 }
@@ -429,7 +480,87 @@ CK_DLL_MFUN(material_get_uniform_float)
         CK_THROW("MaterialGetUniformFloat", "Uniform location is not a float", SHRED);
     }
 
-    RETURN->v_float = (t_CKFLOAT)SG_Material::uniformFloat(material, location);
+    RETURN->v_float = material->uniforms[location].as.f;
+}
+
+CK_DLL_MFUN(material_set_uniform_float2)
+{
+    SG_Material* material       = GET_MATERIAL(SELF);
+    t_CKINT location            = GET_NEXT_INT(ARGS);
+    t_CKVEC2 uniform_value      = GET_NEXT_VEC2(ARGS);
+    glm::vec2 uniform_value_f32 = { uniform_value.x, uniform_value.y };
+
+    SG_Material::setUniform(material, location, &uniform_value_f32,
+                            SG_MATERIAL_UNIFORM_VEC2F);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_float2)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_VEC2F) {
+        CK_THROW("MaterialGetUniformFloat2", "Uniform location is not a vec2", SHRED);
+    }
+
+    glm::vec2 uniform_value = material->uniforms[location].as.vec2f;
+    RETURN->v_vec2          = { uniform_value.x, uniform_value.y };
+}
+
+CK_DLL_MFUN(material_set_uniform_float3)
+{
+    SG_Material* material       = GET_MATERIAL(SELF);
+    t_CKINT location            = GET_NEXT_INT(ARGS);
+    t_CKVEC3 uniform_value      = GET_NEXT_VEC3(ARGS);
+    glm::vec3 uniform_value_f32 = { uniform_value.x, uniform_value.y, uniform_value.z };
+
+    SG_Material::setUniform(material, location, &uniform_value_f32,
+                            SG_MATERIAL_UNIFORM_VEC3F);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_float3)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_VEC3F) {
+        CK_THROW("MaterialGetUniformFloat3", "Uniform location is not a vec3", SHRED);
+    }
+
+    glm::vec3 uniform_value = material->uniforms[location].as.vec3f;
+    RETURN->v_vec3          = { uniform_value.x, uniform_value.y, uniform_value.z };
+}
+
+CK_DLL_MFUN(material_set_uniform_float4)
+{
+    SG_Material* material  = GET_MATERIAL(SELF);
+    t_CKINT location       = GET_NEXT_INT(ARGS);
+    t_CKVEC4 uniform_value = GET_NEXT_VEC4(ARGS);
+    glm::vec4 uniform_value_f32
+      = { uniform_value.x, uniform_value.y, uniform_value.z, uniform_value.w };
+
+    SG_Material::setUniform(material, location, &uniform_value_f32,
+                            SG_MATERIAL_UNIFORM_VEC4F);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_float4)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_VEC4F) {
+        CK_THROW("MaterialGetUniformFloat4", "Uniform location is not a vec4", SHRED);
+    }
+
+    glm::vec4 uniform_value = material->uniforms[location].as.vec4f;
+    RETURN->v_vec4
+      = { uniform_value.x, uniform_value.y, uniform_value.z, uniform_value.w };
 }
 
 CK_DLL_MFUN(material_set_uniform_int)
@@ -437,8 +568,10 @@ CK_DLL_MFUN(material_set_uniform_int)
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKINT location      = GET_NEXT_INT(ARGS);
     t_CKINT uniform_value = GET_NEXT_INT(ARGS);
+    i32 uniform_value_i32 = (i32)uniform_value;
 
-    SG_Material::uniformInt(material, location, uniform_value);
+    SG_Material::setUniform(material, location, &uniform_value_i32,
+                            SG_MATERIAL_UNIFORM_INT);
 
     CQ_PushCommand_MaterialSetUniform(material, location);
 }
@@ -452,7 +585,7 @@ CK_DLL_MFUN(material_get_uniform_int)
         CK_THROW("MaterialGetUniformInt", "Uniform location is not an int", SHRED);
     }
 
-    RETURN->v_int = (t_CKINT)SG_Material::uniformInt(material, location);
+    RETURN->v_int = material->uniforms[location].as.i;
 }
 
 CK_DLL_MFUN(material_set_storage_buffer)
@@ -518,7 +651,7 @@ CK_DLL_CTOR(lines2d_material_ctor)
 
 CK_DLL_MFUN(lines2d_material_get_thickness)
 {
-    RETURN->v_float = (t_CKFLOAT)SG_Material::uniformFloat(GET_MATERIAL(SELF), 0);
+    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[0].as.f;
 }
 
 CK_DLL_MFUN(lines2d_material_set_thickness)
@@ -527,6 +660,47 @@ CK_DLL_MFUN(lines2d_material_set_thickness)
     t_CKFLOAT thickness   = GET_NEXT_FLOAT(ARGS);
 
     SG_Material::uniformFloat(material, 0, (f32)thickness);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+// FlatMaterial ===================================================================
+
+CK_DLL_CTOR(flat_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_FLAT;
+
+    // init shader
+    // Shader lines2d_shader(lines2d_shader_desc);
+    SG_Shader* lines2d_shader = SG_GetShader(g_material_builtin_shaders.flat_shader_id);
+    ASSERT(lines2d_shader);
+
+    chugl_materialSetShader(material, lines2d_shader);
+
+    // set pso
+    // material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
+    // CQ_PushCommand_MaterialUpdatePSO(material);
+
+    // set uniform
+    // TODO where to store default uniform values + locations?
+    SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // thickness
+
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(flat_material_get_color)
+{
+    glm::vec4 color = GET_MATERIAL(SELF)->uniforms[0].as.vec4f;
+    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
+}
+
+CK_DLL_MFUN(flat_material_set_color)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKVEC4 color        = GET_NEXT_VEC4(ARGS);
+
+    SG_Material::uniformVec4f(material, 0,
+                              glm::vec4(color.x, color.y, color.z, color.w));
     CQ_PushCommand_MaterialSetUniform(material, 0);
 }
 
@@ -555,8 +729,9 @@ static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_SHADER], true);
 
     // create shader on audio side
-    SG_Shader* shader = SG_CreateShader(shader_ckobj, vertex_string, fragment_string,
-                                        vertex_filepath, fragment_filepath, NULL, 0);
+    SG_Shader* shader
+      = SG_CreateShader(shader_ckobj, vertex_string, fragment_string, vertex_filepath,
+                        fragment_filepath, vertex_layout, vertex_layout_count);
 
     // save component id
     OBJ_MEMBER_UINT(shader_ckobj, component_offset_id) = shader->id;
@@ -569,6 +744,15 @@ static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
 
 void chugl_initDefaultMaterials()
 {
+    static int standard_vertex_layout[] = {
+        3, // position
+        3, // normal
+        2, // uv
+        4, // tangent
+    };
     g_material_builtin_shaders.lines2d_shader_id = chugl_createShader(
       g_chuglAPI, lines2d_shader_string, lines2d_shader_string, NULL, NULL, NULL, 0);
+    g_material_builtin_shaders.flat_shader_id = chugl_createShader(
+      g_chuglAPI, flat_shader_string, flat_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout));
 }

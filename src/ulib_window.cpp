@@ -60,6 +60,14 @@ CK_DLL_SFUN(gwindow_opacity);
 CK_DLL_SFUN(gwindow_get_mouse_pos);
 CK_DLL_SFUN(gwindow_get_mouse_delta_pos);
 CK_DLL_SFUN(gwindow_set_mouse_mode); // normal, disabled, hidden
+
+CK_DLL_SFUN(gwindow_get_mouse_left_button);
+CK_DLL_SFUN(gwindow_get_mouse_right_button);
+CK_DLL_SFUN(gwindow_get_mouse_left_button_click);
+CK_DLL_SFUN(gwindow_get_mouse_right_button_click);
+CK_DLL_SFUN(gwindow_get_mouse_left_button_release);
+CK_DLL_SFUN(gwindow_get_mouse_right_button_release);
+
 // TODO: custom cursor
 CK_DLL_SFUN(gwindow_set_mouse_cursor);
 CK_DLL_SFUN(gwindow_revert_mouse_cursor);
@@ -80,8 +88,7 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     monitor_info_refresh_rate_offset = MVAR("int", "refreshRate", false);
     DOC_VAR("refresh rate of the monitor in Hz");
     monitor_info_virtual_pos_offset = MVAR("vec2", "virtualPos", false);
-    DOC_VAR(
-      "position of the monitor on the virtual desktop, in screen coordinates");
+    DOC_VAR("position of the monitor on the virtual desktop, in screen coordinates");
     monitor_info_physical_size_mm_offset = MVAR("vec2", "physicalSize", false);
     DOC_VAR("physical size of the monitor in millimeters");
     monitor_info_content_scale_offset = MVAR("vec2", "contentScale", false);
@@ -131,8 +138,7 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
 
     // callbacks ------------------------------------------------------
     SFUN(gwindow_close_event, CHUGL_EventTypeNames[WINDOW_CLOSE], "closeEvent");
-    DOC_FUNC(
-      "Event triggered whenever the user attempts to close the ChuGL window");
+    DOC_FUNC("Event triggered whenever the user attempts to close the ChuGL window");
 
     SFUN(gwindow_window_resize_event, CHUGL_EventTypeNames[WINDOW_RESIZE],
          "resizeEvent");
@@ -172,8 +178,7 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     SFUN(gwindow_windowed, "void", "windowed");
     ARG("int", "width");
     ARG("int", "height");
-    DOC_FUNC(
-      "Set the window to windowed mode with the specified width and height");
+    DOC_FUNC("Set the window to windowed mode with the specified width and height");
 
     SFUN(gwindow_get_window_size, "vec2", "windowSize");
     DOC_FUNC("Get the window size in screen coordinates");
@@ -294,6 +299,24 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
       "Hidden mode hides the cursor when it is focused and hovering over the "
       "window, but does not lock it to the window.");
 
+    SFUN(gwindow_get_mouse_left_button, "int", "mouseLB");
+    DOC_FUNC("Get the state of the left mouse button. 1 if pressed, 0 if not.");
+
+    SFUN(gwindow_get_mouse_right_button, "int", "mouseRB");
+    DOC_FUNC("Get the state of the right mouse button. 1 if pressed, 0 if not.");
+
+    SFUN(gwindow_get_mouse_left_button_click, "int", "mouseLBClicked");
+    DOC_FUNC("1 on the frame the left mouse button is clicked, 0 otherwise");
+
+    SFUN(gwindow_get_mouse_right_button_click, "int", "mouseRBClicked");
+    DOC_FUNC("1 on the frame the right mouse button is clicked, 0 otherwise");
+
+    SFUN(gwindow_get_mouse_left_button_release, "int", "mouseLBReleased");
+    DOC_FUNC("1 on the frame the left mouse button is released, 0 otherwise");
+
+    SFUN(gwindow_get_mouse_right_button_release, "int", "mouseRBReleased");
+    DOC_FUNC("1 on the frame the right mouse button is released, 0 otherwise");
+
     // TODO: not working (tried on macOS)
     SFUN(gwindow_set_mouse_cursor, "void", "customCursor");
     ARG("int[]", "image_data");
@@ -333,8 +356,7 @@ CK_DLL_SFUN(gwindow_monitor_info)
 
 CK_DLL_SFUN(gwindow_close_event)
 {
-    RETURN->v_object
-      = (Chuck_Object*)Event_Get(CHUGL_EventType::WINDOW_CLOSE, API, VM);
+    RETURN->v_object = (Chuck_Object*)Event_Get(CHUGL_EventType::WINDOW_CLOSE, API, VM);
 }
 
 CK_DLL_SFUN(gwindow_window_resize_event)
@@ -430,9 +452,8 @@ CK_DLL_SFUN(gwindow_set_window_size_limits)
     t_CKINT max_height    = GET_NEXT_INT(ARGS);
     t_CKVEC2 aspect_ratio = GET_NEXT_VEC2(ARGS);
 
-    CQ_PushCommand_WindowSizeLimits(min_width, min_height, max_width,
-                                    max_height, (int)aspect_ratio.x,
-                                    (int)aspect_ratio.y);
+    CQ_PushCommand_WindowSizeLimits(min_width, min_height, max_width, max_height,
+                                    (int)aspect_ratio.x, (int)aspect_ratio.y);
 }
 
 // ============================================================================
@@ -526,6 +547,36 @@ CK_DLL_SFUN(gwindow_get_mouse_delta_pos)
 CK_DLL_SFUN(gwindow_set_mouse_mode)
 {
     CQ_PushCommand_MouseMode(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_left_button)
+{
+    RETURN->v_int = CHUGL_Mouse_LeftButton();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_right_button)
+{
+    RETURN->v_int = CHUGL_Mouse_RightButton();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_left_button_click)
+{
+    RETURN->v_int = CHUGL_Mouse_LeftButtonClick();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_right_button_click)
+{
+    RETURN->v_int = CHUGL_Mouse_RightButtonClick();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_left_button_release)
+{
+    RETURN->v_int = CHUGL_Mouse_LeftButtonReleased();
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_right_button_release)
+{
+    RETURN->v_int = CHUGL_Mouse_RightButtonReleased();
 }
 
 CK_DLL_SFUN(gwindow_set_mouse_cursor)

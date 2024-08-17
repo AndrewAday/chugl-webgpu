@@ -80,4 +80,9 @@ T.assert(lines2d_material.topology() == material.TOPOLOGY_TRIANGLESTRIP, "lines2
 T.assert(lines2d_material.shader().vertexLayout()[0] == 0, "lines2d_material no vertex layout");
 lines2d_material.shader().fragmentString() @=> string lines2d_frag;
 
-
+// Flat
+FlatMaterial flat_material;
+T.assert(T.veq(flat_material.uniformVec4(0), @(1.0, 1.0, 1.0, 1.0)), "flat_material default");
+T.assert(T.veq(flat_material.color(), @(1.0, 1.0, 1.0, 1.0)), "flat_material color default");
+flat_material.color(@(0.1, 0.2, 0.3, 0.4));
+T.assert(T.veq(flat_material.color(), @(0.1, 0.2, 0.3, 0.4)), "flat_material color");

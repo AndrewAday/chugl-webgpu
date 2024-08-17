@@ -558,7 +558,7 @@ struct App {
             }
 
             // imgui and window callbacks
-            CHUGL_Zero_Mouse_Deltas();
+            CHUGL_Zero_MouseDeltasAndClickState();
             glfwPollEvents();
 
             if (do_ui) {
@@ -757,6 +757,18 @@ struct App {
             app->callbacks.onMouseButton(button, action, mods);
 
         app->camera.onMouseButton(&app->camera, button, action, mods);
+
+        // update chugl state
+        if (!app->standalone) {
+            switch (button) {
+                case GLFW_MOUSE_BUTTON_LEFT:
+                    CHUGL_Mouse_LeftButton(action == GLFW_PRESS);
+                    break;
+                case GLFW_MOUSE_BUTTON_RIGHT:
+                    CHUGL_Mouse_RightButton(action == GLFW_PRESS);
+                    break;
+            }
+        }
     }
 
     static void _scrollCallback(GLFWwindow* window, double xoffset, double yoffset)

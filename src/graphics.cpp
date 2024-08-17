@@ -598,9 +598,10 @@ WGPUMultisampleState G_createMultisampleState(u8 sample_count)
 WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
                                       const char* label)
 {
+    std::string preprocessed_code = Shaders_genSource(code);
     WGPUShaderModuleWGSLDescriptor desc
       = { { NULL, WGPUSType_ShaderModuleWGSLDescriptor }, // base class
-          code };
+          preprocessed_code.c_str() };
 
     WGPUShaderModuleDescriptor moduleDesc = {};
     moduleDesc.label                      = label;

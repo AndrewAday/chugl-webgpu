@@ -212,6 +212,13 @@ struct CHUGL_Mouse {
     double xpos = 0.0, ypos = 0.0;
     double dx = 0.0, dy = 0.0;
 
+    bool left_button           = false;
+    bool right_button          = false;
+    bool left_button_click     = false;
+    bool right_button_click    = false;
+    bool left_button_released  = false;
+    bool right_button_released = false;
+
     spinlock mouse_lock;
 };
 CHUGL_Mouse chugl_mouse;
@@ -247,12 +254,82 @@ t_CKVEC2 CHUGL_Mouse_Delta()
     return delta;
 }
 
-void CHUGL_Zero_Mouse_Deltas()
+void CHUGL_Zero_MouseDeltasAndClickState()
 {
     spinlock::lock(&chugl_mouse.mouse_lock);
-    chugl_mouse.dx = 0.0;
-    chugl_mouse.dy = 0.0;
+    chugl_mouse.dx                    = 0.0;
+    chugl_mouse.dy                    = 0.0;
+    chugl_mouse.left_button_click     = false;
+    chugl_mouse.right_button_click    = false;
+    chugl_mouse.left_button_released  = false;
+    chugl_mouse.right_button_released = false;
     spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_LeftButton()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button = chugl_mouse.left_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button;
+}
+
+void CHUGL_Mouse_LeftButton(bool left_button)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.left_button          = left_button;
+    chugl_mouse.left_button_click    = left_button;
+    chugl_mouse.left_button_released = !left_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_RightButton()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button = chugl_mouse.right_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button;
+}
+
+void CHUGL_Mouse_RightButton(bool right_button)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.right_button          = right_button;
+    chugl_mouse.right_button_click    = right_button;
+    chugl_mouse.right_button_released = !right_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_LeftButtonClick()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button_click = chugl_mouse.left_button_click;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button_click;
+}
+
+bool CHUGL_Mouse_RightButtonClick()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button_click = chugl_mouse.right_button_click;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button_click;
+}
+
+bool CHUGL_Mouse_LeftButtonReleased()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button_released = chugl_mouse.left_button_released;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button_released;
+}
+
+bool CHUGL_Mouse_RightButtonReleased()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button_released = chugl_mouse.right_button_released;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button_released;
 }
 
 // ============================================================================

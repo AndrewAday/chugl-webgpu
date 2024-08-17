@@ -30,6 +30,23 @@ true => GWindow.floating;
 // false => GWindow.decorated;
 // false => GWindow.resizable;
 
+fun void mouseListener() {
+    while (true) {
+        GG.nextFrame() => now;
+        if (GWindow.mouseLBClicked()) {
+            <<< "left mouse button clicked" >>>;
+        }
+        if (GWindow.mouseRBClicked()) {
+            <<< "right mouse button clicked" >>>;
+        }
+        if (GWindow.mouseLBReleased()) {
+            <<< "left mouse button released" >>>;
+        }
+        if (GWindow.mouseRBReleased()) {
+            <<< "right mouse button released" >>>;
+        }
+    }
+} spork ~ mouseListener();
 
 fun void closeCallback() {
     while (1) {

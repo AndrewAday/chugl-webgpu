@@ -645,14 +645,16 @@ SG_Texture* SG_CreateTexture(Chuck_Object* ckobj)
     return tex;
 }
 
-SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_Camera* cam_params)
+SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams cam_params)
 {
     Arena* arena   = &SG_CameraArena;
     size_t offset  = arena->curr;
     SG_Camera* cam = ARENA_PUSH_ZERO_TYPE(arena, SG_Camera);
+    *cam= {};
+    SG_Transform::_init(cam, ckobj);
 
     // copy camera params
-    *cam = *cam_params;
+    cam->params = cam_params;
 
     // init SG_Component base class
     cam->id    = SG_GetNewComponentID();
@@ -903,28 +905,37 @@ void SG_Material::removeUniform(SG_Material* mat, int location)
     memset(&mat->uniforms[location].as, 0, sizeof(mat->uniforms[location].as));
 }
 
-void SG_Material::uniformFloat(SG_Material* mat, int location, f32 f)
+void SG_Material::setUniform(SG_Material* mat, int location, void* uniform,
+                             SG_MaterialUniformType type)
 {
-    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_FLOAT;
-    mat->uniforms[location].as.f = f;
-}
-
-void SG_Material::uniformInt(SG_Material* mat, int location, int i)
-{
-    mat->uniforms[location].type = SG_MATERIAL_UNIFORM_INT;
-    mat->uniforms[location].as.i = i;
-}
-
-f32 SG_Material::uniformFloat(SG_Material* mat, int location)
-{
-    ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_FLOAT);
-    return mat->uniforms[location].as.f;
-}
-
-int SG_Material::uniformInt(SG_Material* mat, int location)
-{
-    ASSERT(mat->uniforms[location].type == SG_MATERIAL_UNIFORM_INT);
-    return mat->uniforms[location].as.i;
+    mat->uniforms[location].type = type;
+    switch (type) {
+        case SG_MATERIAL_UNIFORM_FLOAT:
+            mat->uniforms[location].as.f = *(f32*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_VEC2F:
+            mat->uniforms[location].as.vec2f = *(glm::vec2*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_VEC3F:
+            mat->uniforms[location].as.vec3f = *(glm::vec3*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_VEC4F:
+            mat->uniforms[location].as.vec4f = *(glm::vec4*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_INT:
+            mat->uniforms[location].as.i = *(i32*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_IVEC2:
+            mat->uniforms[location].as.ivec2 = *(glm::ivec2*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_IVEC3:
+            mat->uniforms[location].as.ivec3 = *(glm::ivec3*)uniform;
+            break;
+        case SG_MATERIAL_UNIFORM_IVEC4:
+            mat->uniforms[location].as.ivec4 = *(glm::ivec4*)uniform;
+            break;
+        default: ASSERT(false);
+    }
 }
 
 void SG_Material::setTexture(SG_Material* mat, int location, SG_Texture* tex)

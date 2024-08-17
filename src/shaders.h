@@ -4,6 +4,13 @@
 
 #include "core/macros.h"
 
+#include <unordered_map>
+
+struct ShaderEntry {
+    const char* name;
+    const char* code;
+};
+
 #define PER_FRAME_GROUP 0
 #define PER_MATERIAL_GROUP 1
 #define PER_DRAW_GROUP 2
@@ -32,7 +39,7 @@ struct FrameUniforms {
     f32 time;           // at byte offset 220
 };
 
-struct MaterialUniforms {
+struct MaterialUniforms {     // PBR
     glm::vec4 baseColor;      // at byte offset 0
     glm::vec3 emissiveFactor; // at byte offset 16
     f32 metallic;             // at byte offset 28
@@ -48,41 +55,138 @@ struct DrawUniforms {
 
 // clang-format off
 
-static const char* lines2d_shader_string  = R"glsl(
+static std::unordered_map<std::string, std::string> shader_table = {
+    {
+        "FRAME_UNIFORMS", 
+        R"glsl(
 
-struct FrameUniforms {
-    projectionMat: mat4x4f,
-    viewMat: mat4x4f,
-    projViewMat: mat4x4f,
-    camPos: vec3f, // camera
-    dirLight: vec3f, // lighting
-    time: f32,
+        struct FrameUniforms {
+            projectionMat: mat4x4f,
+            viewMat: mat4x4f,
+            projViewMat: mat4x4f,
+            camPos: vec3f, // camera
+            dirLight: vec3f, // lighting
+            time: f32,
+        };
+
+        @group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
+
+        )glsl"
+    },
+
+    {
+        "DRAW_UNIFORMS", 
+        R"glsl(
+
+        struct DrawUniforms {
+            modelMat: mat4x4f,
+        };
+
+        @group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
+
+        )glsl"
+    },
+
+    {
+        "STANDARD_VERTEX_INPUT", // vertex input for standard 3D objects (pos, normal, uv, tangent)
+        R"glsl(
+
+        struct VertexInput {
+            @location(0) position : vec3f,
+            @location(1) normal : vec3f,
+            @location(2) uv : vec2f,
+            @location(3) tangent : vec4f,
+            @builtin(instance_index) instance : u32,
+        };
+
+        )glsl"
+    },
+
+    {
+        "STANDARD_VERTEX_OUTPUT", // vertex output for standard 3D objects (pos, normal, uv, tangent)
+        R"glsl(
+
+        struct VertexOutput {
+            @builtin(position) position : vec4f,
+            @location(0) v_worldPos : vec3f,
+            @location(1) v_normal : vec3f,
+            @location(2) v_uv : vec2f,
+            @location(3) v_tangent : vec4f,
+        };
+
+        )glsl"
+    },
+
+    {
+        "STANDARD_VERTEX_SHADER",
+        R"glsl(
+        @vertex 
+        fn vs_main(in : VertexInput) -> VertexOutput
+        {
+            var out : VertexOutput;
+            var u_Draw : DrawUniforms = drawInstances[in.instance];
+
+            let modelMat3 : mat3x3<f32> = mat3x3(
+                u_Draw.modelMat[0].xyz,
+                u_Draw.modelMat[1].xyz,
+                u_Draw.modelMat[2].xyz
+            );
+
+            var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+            out.v_worldPos = worldPos.xyz;
+            // TODO handle non-uniform scaling
+            // TODO: restore to normal Mat. need to pass normal mat from cpu side
+            // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
+            out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
+            // tangent vectors aren't impacted by non-uniform scaling or translation
+            out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
+            out.v_uv     = in.uv;
+            out.position = worldPos;
+
+            return out;
+        }
+        )glsl"
+    }
+
+    // TODO lighting
+    // TODO normal matrix
+    // TODO helper fns (srgb to linear, linear to srgb, etc)
 };
 
-@group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
+static const char* flat_shader_string  = R"glsl(
+#include FRAME_UNIFORMS
+#include DRAW_UNIFORMS
+#include STANDARD_VERTEX_INPUT
+#include STANDARD_VERTEX_OUTPUT
+#include STANDARD_VERTEX_SHADER
+
+// our custom material uniforms
+@group(1) @binding(0) var<uniform> flat_color: vec4f;
+
+// don't actually need normals/tangents
+@fragment 
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    return flat_color;
+}
+)glsl";
+
+static const char* lines2d_shader_string  = R"glsl(
+
+#include FRAME_UNIFORMS
 
 // our custom material uniforms
 @group(1) @binding(0) var<uniform> line_width: f32;
 
-struct DrawUniforms {
-    modelMat: mat4x4f,
-};
-
-@group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
+#include DRAW_UNIFORMS
 
 @group(3) @binding(0) var<storage, read> positions : array<f32>; // vertex pulling group 
-
-struct VertexOutput {
-    @builtin(position) position : vec4f,
-    @location(0) v_worldPos : vec3f,
-    @location(1) v_normal : vec3f,
-    @location(2) v_uv : vec2f,
-    @location(3) v_tangent : vec4f,
-};
 
 struct VertexInput {
     @builtin(instance_index) instance : u32,
 };
+
+#include STANDARD_VERTEX_OUTPUT
 
 fn calculate_line_pos(vertex_id : u32) -> vec2f
 {
@@ -210,22 +314,9 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
 
 // ----------------------------------------------------------------------------
 
-static const char* shaderCode = R"glsl(
-    struct FrameUniforms {
-        projectionMat: mat4x4f,
-        viewMat: mat4x4f,
-        projViewMat: mat4x4f,
+static const char* shaderCode_ = R"glsl(
 
-        // camera
-        camPos: vec3f,
-
-        // lighting
-        dirLight: vec3f,
-
-        time: f32,
-    };
-
-    @group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
+    #include FRAME_UNIFORMS
 
     struct MaterialUniforms {
         baseColor: vec4f,
@@ -251,39 +342,11 @@ static const char* shaderCode = R"glsl(
     @group(1) @binding(9) var emissiveMap: texture_2d<f32>;
     @group(1) @binding(10) var emissiveSampler: sampler;
 
-    struct DrawUniforms {
-        modelMat: mat4x4f,
-        // normalMat: mat4x4f,  // needed to account for non-uniform scaling
-    };
+    #include DRAW_UNIFORMS
 
-    @group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
-    // @group(PER_DRAW_GROUP) @binding(0) var<uniform> u_Draw: DrawUniforms;
+    #include STANDARD_VERTEX_INPUT
 
-    struct VertexInput {
-        @location(0) position : vec3f,
-        @location(1) normal : vec3f,
-        @location(2) uv : vec2f,
-        @location(3) tangent : vec4f,
-        @builtin(instance_index) instance : u32,
-        // TODO add color
-    };
-
-    /**
-     * A structure with fields labeled with builtins and locations can also be used
-     * as *output* of the vertex shader, which is also the input of the fragment
-     * shader.
-     */
-    struct VertexOutput {
-        @builtin(position) position : vec4f,
-        // The location here does not refer to a vertex attribute, it
-        // just means that this field must be handled by the
-        // rasterizer. (It can also refer to another field of another
-        // struct that would be used as input to the fragment shader.)
-        @location(0) v_worldPos : vec3f,
-        @location(1) v_normal : vec3f,
-        @location(2) v_uv : vec2f,
-        @location(3) v_tangent : vec4f,
-    };
+    #include STANDARD_VERTEX_OUTPUT
 
     @vertex 
     fn vs_main(in : VertexInput) -> VertexOutput
@@ -524,3 +587,19 @@ static const char* mipMapShader = CODE(
 );
 
 // clang-format on
+
+std::string Shaders_genSource(const char* src)
+{
+    std::string source(src);
+    size_t pos = source.find("#include");
+    while (pos != std::string::npos) {
+        size_t start              = source.find_first_of(' ', pos);
+        size_t end                = source.find_first_of('\n', start + 1);
+        std::string includeName   = source.substr(start + 1, end - start - 1);
+        std::string includeSource = shader_table[includeName];
+        source.replace(pos, end - pos + 1, includeSource);
+        pos = source.find("#include");
+    }
+
+    return source;
+}

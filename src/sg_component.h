@@ -240,6 +240,7 @@ enum SG_MaterialType : u8 {
     SG_MATERIAL_INVALID = 0,
     SG_MATERIAL_CUSTOM,
     SG_MATERIAL_LINES2D,
+    SG_MATERIAL_FLAT,
     SG_MATERIAL_PBR,
     SG_MATERIAL_COUNT
 };
@@ -351,18 +352,31 @@ struct SG_Material : SG_Component {
 
     // fns
     static void removeUniform(SG_Material* mat, int location);
+    static void setUniform(SG_Material* mat, int location, void* uniform,
+                           SG_MaterialUniformType type);
+    static void uniformFloat(SG_Material* mat, int location, f32 value)
+    {
+        mat->uniforms[location].type = SG_MATERIAL_UNIFORM_FLOAT;
+        mat->uniforms[location].as.f = value;
+    }
 
-    static void uniformFloat(SG_Material* mat, int location, f32 f);
-    static void uniformInt(SG_Material* mat, int location, int i);
-    // static void uniform(SG_Material* mat, int location, glm::vec2 f2);
-    // static void uniform(SG_Material* mat, int location, glm::vec3 f3);
-    // static void uniform(SG_Material* mat, int location, glm::vec4 f4);
-    // static void uniform(SG_Material* mat, int location, i32 i);
-    // static void uniform(SG_Material* mat, int location, glm::ivec2 i2);
-    // static void uniform(SG_Material* mat, int location, glm::ivec3 i3);
-    // static void uniform(SG_Material* mat, int location, glm::ivec4 i4);
-    static f32 uniformFloat(SG_Material* mat, int location);
-    static int uniformInt(SG_Material* mat, int location);
+    static void uniformVec2f(SG_Material* mat, int location, glm::vec2 value)
+    {
+        mat->uniforms[location].type     = SG_MATERIAL_UNIFORM_VEC2F;
+        mat->uniforms[location].as.vec2f = value;
+    }
+
+    static void uniformVec3f(SG_Material* mat, int location, glm::vec3 value)
+    {
+        mat->uniforms[location].type     = SG_MATERIAL_UNIFORM_VEC3F;
+        mat->uniforms[location].as.vec3f = value;
+    }
+
+    static void uniformVec4f(SG_Material* mat, int location, glm::vec4 value)
+    {
+        mat->uniforms[location].type     = SG_MATERIAL_UNIFORM_VEC4F;
+        mat->uniforms[location].as.vec4f = value;
+    }
 
     static void setStorageBuffer(SG_Material* mat, int location)
     {
@@ -416,6 +430,29 @@ struct SG_CameraParams {
 
 struct SG_Camera : SG_Transform {
     SG_CameraParams params;
+
+    static glm::mat4 projectionMatrix(SG_Camera* camera, float aspect)
+    {
+        switch (camera->params.camera_type) {
+            case SG_CameraType_PERPSECTIVE:
+                return glm::perspective(camera->params.fov_radians, aspect,
+                                        camera->params.near_plane,
+                                        camera->params.far_plane);
+            case SG_CameraType_ORTHOGRAPHIC: {
+                float width  = camera->params.size * aspect;
+                float height = camera->params.size;
+                return glm::ortho( // extents in WORLD SPACE units
+                  -width / 2.0f, width / 2.0f, -height / 2.0f, height / 2.0f,
+                  camera->params.near_plane, camera->params.far_plane);
+            }
+            default: ASSERT(false); return glm::mat4(1.0f);
+        }
+    }
+
+    static glm::mat4 viewMatrix(SG_Camera* cam)
+    {
+        return glm::inverse(SG_Transform::worldMatrix(cam));
+    }
 };
 
 // ============================================================================
@@ -429,7 +466,7 @@ SG_Transform* SG_CreateTransform(Chuck_Object* ckobj);
 SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
 SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
-SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_Camera* camera_params);
+SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams camera_params);
 
 // SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
 //                              const char* fragment_string, const char*
