@@ -586,6 +586,173 @@ static const char* mipMapShader = CODE(
     }
 );
 
+const char* gtext_shader_string = R"glsl(
+
+    // Based on: http://wdobbie.com/post/gpu-text-rendering-with-vector-textures/
+
+    #include FRAME_UNIFORMS
+    #include DRAW_UNIFORMS
+
+    // custom material uniforms
+    @group(1) @binding(0) var<storage> u_Glyphs: array<vec4i>;
+    @group(1) @binding(1) var<storage> u_Curves: array<vec4f>;
+    @group(1) @binding(2) var<uniform> u_Color: vec4f;
+
+    // Controls for debugging and exploring:
+
+    // Size of the window (in pixels) used for 1-dimensional anti-aliasing along each rays.
+    //   0 - no anti-aliasing
+    //   1 - normal anti-aliasing
+    // >=2 - exaggerated effect 
+    @group(1) @binding(3) var<uniform> antiAliasingWindowSize: f32 = 1.0;
+
+    // Enable a second ray along the y-axis to achieve 2-dimensional anti-aliasing.
+    @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
+
+    struct VertexInput {
+        @location(0) position : vec3f,
+        @location(1) uv : vec2f,
+        @location(2) glyph_index : i32, // index into glyphs array (which itself is slice into curves array)
+        @builtin(instance_index) instance : u32,
+    };
+
+    struct VertexOutput {
+        @builtin(position) position : vec4f,
+        @location(0) v_uv : vec2f,
+        @location(1) @interpolate(flat) v_buffer_index: u32,
+    };
+
+    @vertex 
+    fn vs_main(in : VertexInput) -> VertexOutput
+    {
+        var out : VertexOutput;
+        var u_Draw : DrawUniforms = drawInstances[in.instance];
+        out.position = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+        out.v_uv     = in.uv;
+        out.v_buffer_index = in.glyph_index;
+
+        return out;
+    }
+
+
+    struct Glyph {
+        start : u32,
+        count : u32,
+    };
+
+    struct Curve {
+        p0 : vec2f,
+        p1 : vec2f,
+        p2 : vec2f,
+    };
+
+    fn loadGlyph(index : u32) -> Glyph {
+        var result : Glyph;
+        let data = u_Glyphs[index].xy;
+        result.start = u32(data.x);
+        result.count = u32(data.y);
+        return result;
+    }
+
+    fn loadCurve(index : u32) -> Curve {
+        var result : Curve;
+        result.p0 = u_Curves[3u * index + 0u].xy;
+        result.p1 = u_Curves[3u * index + 1u].xy;
+        result.p2 = u_Curves[3u * index + 2u].xy;
+        return result;
+    }
+
+    fn computeCoverage(inverseDiameter : f32, p0 : vec2f, p1 : vec2f, p2 : vec2f) -> f32 {
+        if (p0.y > 0.0 && p1.y > 0.0 && p2.y > 0.0) { return 0.0; }
+        if (p0.y < 0.0 && p1.y < 0.0 && p2.y < 0.0) { return 0.0; }
+
+        // Note: Simplified from abc formula by extracting a factor of (-2) from b.
+        let a = p0 - 2.0*p1 + p2;
+        let b = p0 - p1;
+        let c = p0;
+
+        var t0 : f32;
+        var t1 : f32;
+        if (abs(a.y) >= 1e-5) {
+            // Quadratic segment, solve abc formula to find roots.
+            let radicand : f32 = b.y*b.y - a.y*c.y;
+            if (radicand <= 0.0) { return 0.0; }
+        
+            let s : f32 = sqrt(radicand);
+            t0 = (b.y - s) / a.y;
+            t1 = (b.y + s) / a.y;
+        } else {
+            // Linear segment, avoid division by a.y, which is near zero.
+            // There is only one root, so we have to decide which variable to
+            // assign it to based on the direction of the segment, to ensure that
+            // the ray always exits the shape at t0 and enters at t1. For a
+            // quadratic segment this works 'automatically', see readme.
+            let t : f32 = p0.y / (p0.y - p2.y);
+            if (p0.y < p2.y) {
+                t0 = -1.0;
+                t1 = t;
+            } else {
+                t0 = t;
+                t1 = -1.0;
+            }
+        }
+
+        var alpha : f32 = 0.0;
+        
+        if (t0 >= 0.0 && t0 < 1.0) {
+            let x : f32 = (a.x*t0 - 2.0*b.x)*t0 + c.x;
+            alpha += clamp(x * inverseDiameter + 0.5, 0.0, 1.0);
+        }
+
+        if (t1 >= 0.0 && t1 < 1.0) {
+            let x = (a.x*t1 - 2.0*b.x)*t1 + c.x;
+            alpha -= clamp(x * inverseDiameter + 0.5, 0.0, 1.0);
+        }
+
+        return alpha;
+    }
+
+    fn rotate(v : vec2f) -> vec2f {
+        return vec2f(v.y, -v.x);
+    }
+
+    @fragment
+    fn fs_main(in : VertexOutput) -> @location(0) vec4f {
+        var alpha : f32 = 0.0;
+
+        // Inverse of the diameter of a pixel in uv units for anti-aliasing.
+        let inverseDiameter = 1.0 / (antiAliasingWindowSize * fwidth(in.v_uv));
+
+        let glyph = loadGlyph(in.v_buffer_index);
+        for (var i : u32 = 0u; i < glyph.count; i++) {
+            let curve = loadCurve(glyph.start + i);
+
+            let p0 = curve.p0 - in.v_uv;
+            let p1 = curve.p1 - in.v_uv;
+            let p2 = curve.p2 - in.v_uv;
+
+            alpha += computeCoverage(inverseDiameter.x, p0, p1, p2);
+            if (bool(enableSuperSamplingAntiAliasing)) {
+                alpha += computeCoverage(inverseDiameter.y, rotate(p0), rotate(p1), rotate(p2));
+            }
+        }
+
+        if (bool(enableSuperSamplingAntiAliasing)) {
+            alpha *= 0.5;
+        }
+
+        alpha = clamp(alpha, 0.0, 1.0);
+        let result = u_Color * alpha;
+
+        // alpha test
+        if (result.a < 0.001) {
+            discard;
+        }
+
+        return result;
+    }
+)glsl";
+
 // clang-format on
 
 std::string Shaders_genSource(const char* src)

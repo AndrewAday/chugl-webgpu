@@ -11,6 +11,7 @@
 struct chugl_MaterialBuiltinShaders {
     SG_ID lines2d_shader_id;
     SG_ID flat_shader_id;
+    SG_ID gtext_shader_id;
 };
 
 static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
@@ -750,9 +751,18 @@ void chugl_initDefaultMaterials()
         2, // uv
         4, // tangent
     };
+
+    static int gtext_vertex_layout[] = {
+        3, // position
+        2, // uv
+    };
+
     g_material_builtin_shaders.lines2d_shader_id = chugl_createShader(
       g_chuglAPI, lines2d_shader_string, lines2d_shader_string, NULL, NULL, NULL, 0);
     g_material_builtin_shaders.flat_shader_id = chugl_createShader(
       g_chuglAPI, flat_shader_string, flat_shader_string, NULL, NULL,
       standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout));
+    g_material_builtin_shaders.gtext_shader_id = chugl_createShader(
+      g_chuglAPI, gtext_shader_string, gtext_shader_string, NULL, NULL,
+      gtext_vertex_layout, ARRAY_LENGTH(gtext_vertex_layout));
 }

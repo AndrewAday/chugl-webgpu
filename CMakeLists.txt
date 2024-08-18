@@ -241,6 +241,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(webgpu)
 
+# FreeType font rendering
+# set default freetype options
+set(FT_DISABLE_BROTLI   ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2    ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG      ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB     ON  CACHE BOOL "" FORCE)
+set(FT_ENABLE_ERROR_STRINGS ON CACHE BOOL "" FORCE)
+# add_subdirectory("dependencies/freetype")
+# fetch freetype
+FetchContent_Declare (
+    freetype 
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG VER-2-13-2
+)
+# make available
+FetchContent_MakeAvailable (freetype)
+
 # box2d v3.0
 # FetchContent_Declare(
 #   box2d
@@ -271,7 +289,7 @@ add_subdirectory(vendor/box2d/src)
 
 # linking
 # target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
-target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu box2d)
+target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu box2d freetype)
 target_link_libraries(${PROJECT_NAME} PRIVATE chugl_shared_properties)
 if (CHUGL_BUILD_RENDERER_TESTS)
     target_link_libraries(ChuGL-Renderer-Tester PRIVATE chugl_shared_properties)

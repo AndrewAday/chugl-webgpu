@@ -17,6 +17,10 @@
 
 #include <sokol/sokol_time.h>
 
+// freetype font library
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -245,6 +249,9 @@ struct App {
     u32 b2_substep_count = 4;
     // f64 b2_time_step_accum  = 0;
 
+    // FreeType
+    FT_Library FTLibrary;
+
     // memory
     Arena frameArena;
 
@@ -356,6 +363,12 @@ struct App {
             return;
         }
 
+        // Initialize FT
+        FT_Error error = FT_Init_FreeType(&app->FTLibrary);
+        if (error) {
+            log_fatal("Failed to initialize FreeType\n");
+            return;
+        }
         // initialize R_Component manager
         Component_Init(&app->gctx);
 
