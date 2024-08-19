@@ -23,7 +23,9 @@
 #define VEC_BACKWARD (glm::vec3(0.0f, 0.0f, 1.0f))
 #define VEC_ONES (glm::vec3(1.0f, 1.0f, 1.0f))
 
-typedef t_CKUINT SG_ID;
+// chugl will only ever use positive SG_IDs
+// but making signed to allow renderer to use negative IDs for internal impl
+typedef i64 SG_ID;
 
 // (enum, ckname)
 #define SG_ComponentTable                                                              \
@@ -36,7 +38,8 @@ typedef t_CKUINT SG_ID;
     X(SG_COMPONENT_MATERIAL, "Material")                                               \
     X(SG_COMPONENT_TEXTURE, "Texture")                                                 \
     X(SG_COMPONENT_MESH, "GMesh")                                                      \
-    X(SG_COMPONENT_CAMERA, "GCamera")
+    X(SG_COMPONENT_CAMERA, "GCamera")                                                  \
+    X(SG_COMPONENT_TEXT, "GText")
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -456,6 +459,19 @@ struct SG_Camera : SG_Transform {
 };
 
 // ============================================================================
+// SG_Text
+// TODO is it possible to fit this into the geo, mat, mesh system?
+// this, like GLines is a renderable that *doesn't* have normal geometry (pos, uv, etc)
+// rather, the geometry and visuals are procedurally calculated on graphics thread and
+// gpu
+// ============================================================================
+
+struct SG_Text : public SG_Transform {
+    std::string font_path;
+    std::string text;
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -467,19 +483,16 @@ SG_Scene* SG_CreateScene(Chuck_Object* ckobj);
 SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
 SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
 SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams camera_params);
+SG_Text* SG_CreateText(Chuck_Object* ckobj);
 
-// SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
-//                              const char* fragment_string, const char*
-//                              vertex_filepath, const char* fragment_filepath,
-//                              Chuck_ArrayInt* ck_vertex_layout);
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,
                            Chuck_String* fragment_filepath,
                            Chuck_ArrayInt* ck_vertex_layout);
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
-                           const char* fragment_filepath, int* vertex_layout,
-                           int vertex_layout_len);
+                           const char* fragment_filepath,
+                           WGPUVertexFormat* vertex_layout, int vertex_layout_len);
 
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);

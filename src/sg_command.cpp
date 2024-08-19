@@ -556,35 +556,35 @@ void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath)
 
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
 {
-    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_ShaderCreate, SG_COMMAND_SHADER_CREATE,
-                                    strlen(shader->vertex_filepath_owned) + 1
-                                      + strlen(shader->fragment_filepath_owned) + 1
-                                      + strlen(shader->vertex_string_owned) + 1
-                                      + strlen(shader->fragment_string_owned) + 1);
+    size_t vertex_filepath_len
+      = shader->vertex_filepath_owned ? strlen(shader->vertex_filepath_owned) + 1 : 1;
+    size_t fragment_filepath_len = shader->fragment_filepath_owned ?
+                                  strlen(shader->fragment_filepath_owned) + 1 :
+                                  1;
+    size_t vertex_string_len
+      = shader->vertex_string_owned ? strlen(shader->vertex_string_owned) + 1 : 1;
+    size_t fragment_string_len
+      = shader->fragment_string_owned ? strlen(shader->fragment_string_owned) + 1 : 1;
 
-    // make sure no strings are null
-    ASSERT(
-      shader->vertex_filepath_owned != NULL && shader->fragment_filepath_owned != NULL
-      && shader->vertex_string_owned != NULL && shader->fragment_string_owned != NULL);
+    size_t additional_memory = vertex_filepath_len + fragment_filepath_len
+                            + vertex_string_len + fragment_string_len;
+
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_ShaderCreate,
+                                         SG_COMMAND_SHADER_CREATE, additional_memory);
 
     command->sg_id = shader->id;
 
-    char* vertex_filepath = (char*)memory;
-    char* fragment_filepath
-      = vertex_filepath + strlen(shader->vertex_filepath_owned) + 1;
-    char* vertex_string
-      = fragment_filepath + strlen(shader->fragment_filepath_owned) + 1;
-    char* fragment_string = vertex_string + strlen(shader->vertex_string_owned) + 1;
+    char* vertex_filepath   = (char*)memory;
+    char* fragment_filepath = vertex_filepath + vertex_filepath_len;
+    char* vertex_string     = fragment_filepath + fragment_filepath_len;
+    char* fragment_string   = vertex_string + vertex_string_len;
 
     // copy strings (leaving space for null terminators)
-    strncpy(vertex_filepath, shader->vertex_filepath_owned,
-            strlen(shader->vertex_filepath_owned));
+    strncpy(vertex_filepath, shader->vertex_filepath_owned, vertex_filepath_len - 1);
     strncpy(fragment_filepath, shader->fragment_filepath_owned,
-            strlen(shader->fragment_filepath_owned));
-    strncpy(vertex_string, shader->vertex_string_owned,
-            strlen(shader->vertex_string_owned));
-    strncpy(fragment_string, shader->fragment_string_owned,
-            strlen(shader->fragment_string_owned));
+            fragment_filepath_len - 1);
+    strncpy(vertex_string, shader->vertex_string_owned, vertex_string_len - 1);
+    strncpy(fragment_string, shader->fragment_string_owned, fragment_string_len - 1);
 
     // set offsets
     command->vertex_filepath_offset   = Arena::offsetOf(cq.write_q, vertex_filepath);
@@ -592,8 +592,9 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
     command->vertex_string_offset     = Arena::offsetOf(cq.write_q, vertex_string);
     command->fragment_string_offset   = Arena::offsetOf(cq.write_q, fragment_string);
 
-    memcpy(command->vertex_layout, shader->vertex_layout,
-           sizeof(shader->vertex_layout));
+    for (int i = 0; i < ARRAY_LENGTH(shader->vertex_layout); i++) {
+        command->vertex_layout[i] = (WGPUVertexFormat)shader->vertex_layout[i];
+    }
 
     END_COMMAND();
 }
@@ -691,6 +692,27 @@ void CQ_PushCommand_CameraSetParams(SG_Camera* cam)
     BEGIN_COMMAND(SG_Command_CameraSetParams, SG_COMMAND_CAMERA_SET_PARAMS);
     command->camera_id = cam->id;
     command->params    = cam->params;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextCreate(SG_Text* text, SG_ID font_shader_id)
+{
+    size_t additional_bytes = text->text.length() + 1 + text->font_path.length() + 1;
+
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_TextCreate, SG_COMMAND_TEXT_CREATE,
+                                         additional_bytes);
+    command->text_id        = text->id;
+    command->text_shader_id = font_shader_id;
+
+    char* text_copy = (char*)memory;
+    char* font_path = text_copy + text->text.length() + 1;
+
+    // copy strings
+    strncpy(text_copy, text->text.c_str(), text->text.length());
+    strncpy(font_path, text->font_path.c_str(), text->font_path.length());
+
+    command->text_offset      = Arena::offsetOf(cq.write_q, text_copy);
+    command->font_path_offset = Arena::offsetOf(cq.write_q, font_path);
     END_COMMAND();
 }
 

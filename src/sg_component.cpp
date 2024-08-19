@@ -495,7 +495,7 @@ static Arena SG_MaterialArena;
 static Arena SG_MeshArena;
 static Arena SG_TextureArena;
 static Arena SG_CameraArena;
-// static Arena textureArena;
+static Arena SG_TextArena;
 
 // locators (TODO switch to table)
 static hashmap* locator = NULL;
@@ -547,6 +547,7 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_MeshArena, sizeof(SG_Mesh) * 64);
     Arena::init(&SG_TextureArena, sizeof(SG_Texture) * 32);
     Arena::init(&SG_CameraArena, sizeof(SG_Camera) * 4);
+    Arena::init(&SG_TextArena, sizeof(SG_Text) * 32);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -565,6 +566,7 @@ void SG_Free()
     Arena::free(&SG_MeshArena);
     Arena::free(&SG_TextureArena);
     Arena::free(&SG_CameraArena);
+    Arena::free(&SG_TextArena);
 
     hashmap_free(locator);
     locator = NULL;
@@ -650,7 +652,7 @@ SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams cam_params)
     Arena* arena   = &SG_CameraArena;
     size_t offset  = arena->curr;
     SG_Camera* cam = ARENA_PUSH_ZERO_TYPE(arena, SG_Camera);
-    *cam= {};
+    *cam           = {};
     SG_Transform::_init(cam, ckobj);
 
     // copy camera params
@@ -666,6 +668,26 @@ SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams cam_params)
     hashmap_set(locator, &loc);
 
     return cam;
+}
+
+SG_Text* SG_CreateText(Chuck_Object* ckobj)
+{
+    Arena* arena  = &SG_TextArena;
+    size_t offset = arena->curr;
+    SG_Text* text = ARENA_PUSH_ZERO_TYPE(arena, SG_Text);
+    *text         = {};
+    SG_Transform::_init(text, ckobj);
+
+    // init SG_Component base class
+    text->id    = SG_GetNewComponentID();
+    text->type  = SG_COMPONENT_TEXT;
+    text->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { text->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return text;
 }
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
@@ -700,8 +722,8 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
-                           const char* fragment_filepath, int* vertex_layout,
-                           int vertex_layout_len)
+                           const char* fragment_filepath,
+                           WGPUVertexFormat* vertex_layout, int vertex_layout_len)
 {
     Arena* arena      = &SG_ShaderArena;
     size_t offset     = arena->curr;
@@ -716,10 +738,10 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
     // set shader values
     shader->vertex_string_owned     = strdup(vertex_string);
     shader->fragment_string_owned   = strdup(fragment_string);
-    shader->vertex_filepath_owned   = strdup(fragment_string);
-    shader->fragment_filepath_owned = strdup(fragment_string);
-    memcpy(shader->vertex_layout, vertex_layout,
-           sizeof(*vertex_layout) * vertex_layout_len);
+    shader->vertex_filepath_owned   = strdup(vertex_filepath);
+    shader->fragment_filepath_owned = strdup(fragment_filepath);
+    for (int i = 0; i < vertex_layout_len; i++)
+        shader->vertex_layout[i] = vertex_layout[i];
 
     // store in map
     SG_Location loc = { shader->id, offset, arena };
@@ -799,7 +821,9 @@ SG_Transform* SG_GetTransform(SG_ID id)
     ASSERT(component == NULL || component->type == SG_COMPONENT_TRANSFORM
            || component->type == SG_COMPONENT_SCENE
            || component->type == SG_COMPONENT_MESH
-           || component->type == SG_COMPONENT_CAMERA);
+           || component->type == SG_COMPONENT_CAMERA
+           || component->type == SG_COMPONENT_TEXT
+   );
     return (SG_Transform*)component;
 }
 

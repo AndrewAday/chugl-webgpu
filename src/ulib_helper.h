@@ -78,6 +78,13 @@ static t_CKUINT sampler_offset_filterMip = 0;
 // other shared data offset
 // static t_CKUINT b2_world_data_offset = 0;
 
+struct chugl_MaterialBuiltinShaders {
+    SG_ID lines2d_shader_id;
+    SG_ID flat_shader_id;
+    SG_ID gtext_shader_id;
+};
+static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
+
 Arena audio_frame_arena;
 
 // map from ckobj to shred

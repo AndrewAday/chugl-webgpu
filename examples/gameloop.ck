@@ -9,18 +9,6 @@
 //-----------------------------------------------------------------------------
 
 // uncomment to run in fullscreen
-// GG.fullscreen();
-
-SphereGeometry sphereGeo;
-PlaneGeometry planeGeo;
-PBRMaterial mat;
-GMesh plane(planeGeo, mat) --> GG.scene();
-
-GMesh sphere(sphereGeo, mat) --> GG.scene();
-sphere.translateX(2.0);
-
-// UI.disabled(true);
-
 
 // some variables for printing time; not needed for game loop
 0 => int fc;
@@ -41,9 +29,4 @@ while( true )
     // must be called at the beginning of every frame,
     // so the chuck VM can properly mark this shred as a graphics shred
     GG.nextFrame() => now;
-    
-    // print
-    // <<< "fc:", fc++ , "now:", now, "dt:", dt, "fps:", GG.fps() >>>;
-
-    plane.rotateY(0.5*GG.dt());
 }

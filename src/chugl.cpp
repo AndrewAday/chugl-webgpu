@@ -11,6 +11,7 @@
 #include "ulib_imgui.cpp"
 #include "ulib_material.cpp"
 #include "ulib_texture.cpp"
+#include "ulib_text.cpp"
 #include "ulib_window.cpp"
 
 // vendor
@@ -343,6 +344,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
+    ulib_text_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions

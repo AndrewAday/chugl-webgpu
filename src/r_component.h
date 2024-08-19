@@ -11,6 +11,11 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <iostream>
+#include <unordered_map>
+
+// freetype font library
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 // =============================================================================
 // scenegraph data structures
@@ -21,7 +26,7 @@ struct R_Material;
 struct R_Scene;
 struct hashmap;
 
-typedef i64 R_ID; // negative for R_Components NOT mapped to SG_Components
+typedef SG_ID R_ID; // negative for R_Components NOT mapped to SG_Components
 
 struct R_Component {
     SG_ID id; // SG_Component this R_Component is mapped to
@@ -57,7 +62,6 @@ struct R_Transform : public R_Component {
     // staleness flag has priority hiearchy, don't set directly!
     // instead use setStale()
     R_Transform_Staleness _stale;
-    R_Transform_Type xform_type = R_TRANSFORM_NONE;
 
     // transform
     // don't update directly, otherwise staleness will be incorrect
@@ -144,6 +148,9 @@ struct R_Geometry : public R_Component {
 
     static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo, u32 location,
                                    u32 num_components, f32* data, u32 data_count);
+    static void setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo, u32 location,
+                                   u32 num_components_per_attrib, void* data,
+                                   size_t size);
 
     // TODO if works, move into cpp
     // TODO move vertexPulling reflection check into state of ck ShaderDesc
@@ -194,11 +201,12 @@ struct R_Shader : public R_Component {
     WGPUShaderModule vertex_shader_module;
     WGPUShaderModule fragment_shader_module;
     // e.g. [3, 3, 2, 4] for [POSITION, NORMAL, TEXCOORD_0, TANGENT]
-    int vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+    WGPUVertexFormat vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
     static void init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
                      const char* vertex_filepath, const char* fragment_string,
-                     const char* fragment_filepath, int* vertex_layout);
+                     const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
+                     int vertex_layout_count);
     static void free(R_Shader* shader);
 };
 
@@ -212,7 +220,8 @@ enum R_BindType : u32 {
     R_BIND_SAMPLER,
     R_BIND_TEXTURE_ID,   // for scenegraph textures
     R_BIND_TEXTURE_VIEW, // default textures (e.g. white pixel)
-    R_BIND_STORAGE
+    R_BIND_STORAGE,
+    R_BIND_STORAGE_EXTERNAL // pointer to external storage buffer (ref)
 };
 
 // TODO can we move R_Binding into .cpp
@@ -221,11 +230,13 @@ struct R_Binding {
     size_t size;    // size of data in bytes for UNIFORM and STORAGE types
     u64 generation; // currently only used for textures, track generation so we know
                     // when to rebuild BindGroup
+                    // eventually can use to track GPU_Buffer generation
     union {
         SG_ID textureID;
         WGPUTextureView textureView;
         SamplerConfig samplerConfig;
         GPU_Buffer storage_buffer;
+        GPU_Buffer* storage_external; // ptr here might be dangerous...
     } as;
 };
 
@@ -294,10 +305,17 @@ struct R_Material : public R_Component {
                                  WGPUBindGroupLayout layout);
     static void setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                            R_BindType type, void* data, size_t bytes);
+    static void setUniformBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
+                                  void* data, size_t bytes)
+    {
+        setBinding(gctx, mat, location, R_BIND_UNIFORM, data, bytes);
+    }
     static void setSamplerBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                                   SG_Sampler sampler);
     static void setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                                   SG_ID texture_id);
+    static void setExternalStorageBinding(GraphicsContext* gctx, R_Material* mat,
+                                          u32 location, GPU_Buffer* buffer);
     static void removeBinding(R_Material* mat, u32 location)
     {
         ASSERT(false);
@@ -476,6 +494,123 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 };
 
 // =============================================================================
+// R_Font
+// =============================================================================
+
+// TODO change names of structs later
+
+struct Glyph {
+    FT_UInt index;
+    i32 bufferIndex;
+
+    i32 curveCount;
+
+    // Important glyph metrics in font units.
+    FT_Pos width, height;
+    FT_Pos bearingX;
+    FT_Pos bearingY;
+    FT_Pos advance;
+};
+
+struct BufferGlyph {
+    i32 start, count; // range of bezier curves belonging to this glyph
+};
+static_assert(sizeof(BufferGlyph) == (2 * sizeof(i32)), "bufferglyph size");
+
+struct BufferCurve {
+    float x0, y0, x1, y1, x2, y2;
+};
+static_assert(sizeof(BufferCurve) == 6 * sizeof(float), "buffercurve size");
+
+struct BoundingBox {
+    float minX, minY, maxX, maxY;
+};
+
+// struct BufferVertex { // TODO terrible name
+//     float   x, y, u, v;
+//     i32 bufferIndex;
+// };
+
+struct R_Text : public R_Transform {
+    std::string text;
+};
+
+struct R_Font {
+    std::string font_path;
+    FT_Face face; // TODO multiplex faces across R_Font. multiple R_Font with same font
+                  // but different text can share the same face
+
+    // Whether hinting is enabled for this instance.
+    // Note that hinting changes how we operate FreeType:
+    // If hinting is not enabled, we scale all coordinates ourselves (see comment for
+    // emSize). If hinting is enabled, we must let FreeType scale the outlines for the
+    // hinting to work properly. The variables loadFlags and kerningMode are set in the
+    // constructor and control this scaling behavior.
+    bool hinting = false; // TODO probably remove
+    FT_Int32 loadFlags;
+    FT_Kerning_Mode kerningMode;
+
+    // Size of the em square used to convert metrics into em-relative values,
+    // which can then be scaled to the worldSize. We do the scaling ourselves in
+    // floating point to support arbitrary world sizes (whereas the fixed-point
+    // numbers used by FreeType do not have enough resolution if the world size
+    // is small).
+    // Following the FreeType convention, if hinting (and therefore scaling) is enabled,
+    // this value is in 1/64th of a pixel (compatible with 26.6 fixed point numbers).
+    // If hinting/scaling is not enabled, this value is in font units.
+    float emSize;
+
+    float worldSize = 1.0f;
+
+    // TODO store per font
+    GPU_Buffer glyph_buffer;
+    GPU_Buffer curve_buffer;
+
+    // TODO change to arenas and hashmap
+    // TODO these should also be stored per font, not per R_Font
+    std::vector<BufferGlyph> bufferGlyphs;
+    std::vector<BufferCurve> bufferCurves;
+    std::unordered_map<u32, Glyph> glyphs;
+
+    // The glyph quads are expanded by this amount to enable proper
+    // anti-aliasing. Value is relative to emSize.
+    float dilation = 0.1f; // TODO fix to 0.1?
+
+    // Arena r_text_ids; // array of SG_IDs TODO implement next
+    // then impl render loop that walks over component_fonts array and renders each
+    // r_text remember to lazy delete r_text from component_fonts array during walk if
+    // they no longer point to this font
+
+    // static bool rtextIter(R_Font* font, size_t* index, R_Text** rtext);
+
+    // given a text object, updates its geo vertex buffers
+    // and material bindgroup
+    static void updateText(GraphicsContext* gctx, R_Font* font, R_Text* text);
+    static bool init(GraphicsContext* gctx, FT_Library library, R_Font* font,
+                     const char* font_path);
+
+    static void free(R_Font* text)
+    {
+        GPU_Buffer::destroy(&text->glyph_buffer);
+        GPU_Buffer::destroy(&text->curve_buffer);
+        FT_Done_Face(text->face);
+    }
+
+    static void prepareGlyphsForText(GraphicsContext* gctx, R_Font* font,
+                                     const char* text);
+
+    // given text and a starting model-space coordinate (x,y)
+    // reconstructs the vertex and index buffers for the text
+    // (used to batch draw a single GText object)
+    static void rebuildBuffers(R_Font* font, const char* mainText, float x, float y,
+                               Arena* positions, Arena* uvs, Arena* glyph_indices,
+                               Arena* indices, float verticalScale = 1.0f);
+
+    BoundingBox measure(R_Font* font, float x, float y, const char* text,
+                        float verticalScale = 1.0f);
+};
+
+// =============================================================================
 // Component Manager API
 // =============================================================================
 
@@ -484,6 +619,8 @@ R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 
 R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
 R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd);
+R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
+                             SG_Command_TextCreate* cmd);
 
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 
@@ -509,6 +646,9 @@ R_Shader* Component_GetShader(SG_ID id);
 R_Material* Component_GetMaterial(SG_ID id);
 R_Texture* Component_GetTexture(SG_ID id);
 R_Camera* Component_GetCamera(SG_ID id);
+R_Text* Component_GetText(SG_ID id);
+R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
+                          const char* font_path);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
@@ -524,6 +664,9 @@ R_RenderPipeline* Component_GetPipeline(R_ID rid);
 bool Component_MaterialIter(size_t* i, R_Material** material);
 bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline);
 int Component_RenderPipelineCount();
+
+R_RenderPipeline* Component_GetFontRenderPipeline(GraphicsContext* gctx);
+bool Component_FontIter(size_t* i, R_Font** font);
 
 // component manager initialization
 void Component_Init(GraphicsContext* gctx);

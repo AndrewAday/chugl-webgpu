@@ -594,8 +594,8 @@ const char* gtext_shader_string = R"glsl(
     #include DRAW_UNIFORMS
 
     // custom material uniforms
-    @group(1) @binding(0) var<storage> u_Glyphs: array<vec4i>;
-    @group(1) @binding(1) var<storage> u_Curves: array<vec4f>;
+    @group(1) @binding(0) var<storage, read> u_Glyphs: array<i32>;
+    @group(1) @binding(1) var<storage, read> u_Curves: array<f32>;
     @group(1) @binding(2) var<uniform> u_Color: vec4f;
 
     // Controls for debugging and exploring:
@@ -610,7 +610,7 @@ const char* gtext_shader_string = R"glsl(
     @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
 
     struct VertexInput {
-        @location(0) position : vec3f,
+        @location(0) position : vec2f,
         @location(1) uv : vec2f,
         @location(2) glyph_index : i32, // index into glyphs array (which itself is slice into curves array)
         @builtin(instance_index) instance : u32,
@@ -619,7 +619,7 @@ const char* gtext_shader_string = R"glsl(
     struct VertexOutput {
         @builtin(position) position : vec4f,
         @location(0) v_uv : vec2f,
-        @location(1) @interpolate(flat) v_buffer_index: u32,
+        @location(1) @interpolate(flat) v_buffer_index: i32,
     };
 
     @vertex 
@@ -627,7 +627,7 @@ const char* gtext_shader_string = R"glsl(
     {
         var out : VertexOutput;
         var u_Draw : DrawUniforms = drawInstances[in.instance];
-        out.position = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+        out.position = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 0.0f, 1.0f);
         out.v_uv     = in.uv;
         out.v_buffer_index = in.glyph_index;
 
@@ -636,8 +636,8 @@ const char* gtext_shader_string = R"glsl(
 
 
     struct Glyph {
-        start : u32,
-        count : u32,
+        start : i32,
+        count : i32,
     };
 
     struct Curve {
@@ -646,19 +646,24 @@ const char* gtext_shader_string = R"glsl(
         p2 : vec2f,
     };
 
-    fn loadGlyph(index : u32) -> Glyph {
+    fn loadGlyph(index : i32) -> Glyph {
         var result : Glyph;
-        let data = u_Glyphs[index].xy;
-        result.start = u32(data.x);
-        result.count = u32(data.y);
+        // let data = u_Glyphs[index].xy;
+        // result.start = u32(data.x);
+        // result.count = u32(data.y);
+        result.start = u_Glyphs[2 * index + 0];
+        result.count = u_Glyphs[2 * index + 1];
         return result;
     }
 
-    fn loadCurve(index : u32) -> Curve {
+    fn loadCurve(index : i32) -> Curve {
         var result : Curve;
-        result.p0 = u_Curves[3u * index + 0u].xy;
-        result.p1 = u_Curves[3u * index + 1u].xy;
-        result.p2 = u_Curves[3u * index + 2u].xy;
+        // result.p0 = u_Curves[3u * index + 0u].xy;
+        // result.p1 = u_Curves[3u * index + 1u].xy;
+        // result.p2 = u_Curves[3u * index + 2u].xy;
+        result.p0 = vec2f(u_Curves[6 * index + 0], u_Curves[6 * index + 1]);
+        result.p1 = vec2f(u_Curves[6 * index + 2], u_Curves[6 * index + 3]);
+        result.p2 = vec2f(u_Curves[6 * index + 4], u_Curves[6 * index + 5]);
         return result;
     }
 
@@ -724,7 +729,7 @@ const char* gtext_shader_string = R"glsl(
         let inverseDiameter = 1.0 / (antiAliasingWindowSize * fwidth(in.v_uv));
 
         let glyph = loadGlyph(in.v_buffer_index);
-        for (var i : u32 = 0u; i < glyph.count; i++) {
+        for (var i : i32 = 0; i < glyph.count; i++) {
             let curve = loadCurve(glyph.start + i);
 
             let p0 = curve.p0 - in.v_uv;

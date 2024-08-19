@@ -74,4 +74,10 @@ struct Arena {
         i--;                                                                           \
     }
 
+#define ARENA_SWAP_DELETE(a, type, i)                                                  \
+    {                                                                                  \
+        *ARENA_GET_TYPE(a, type, i) = *ARENA_GET_LAST_TYPE(a, type);                   \
+        ARENA_POP_TYPE(a, type);                                                       \
+    }
+
 #define ARENA_CONTAINS(a, item) Arena::containsItem(a, &item, sizeof(item))

@@ -97,6 +97,9 @@ enum SG_CommandType : u32 {
     SG_COMMAND_CAMERA_CREATE,
     SG_COMMAND_CAMERA_SET_PARAMS,
 
+    // text
+    SG_COMMAND_TEXT_CREATE,
+
     // geometry
     SG_COMMAND_GEO_CREATE,
     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
@@ -310,7 +313,7 @@ struct SG_Command_ShaderCreate : public SG_Command {
     ptrdiff_t vertex_filepath_offset;
     ptrdiff_t fragment_string_offset;
     ptrdiff_t fragment_filepath_offset;
-    int vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+    WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 };
 
 struct SG_Command_MaterialCreate : public SG_Command {
@@ -354,6 +357,15 @@ struct SG_Command_Mesh_Create : public SG_Command {
     SG_ID mesh_id; // gmesh id
     SG_ID geo_id;
     SG_ID mat_id;
+};
+
+// text commands -----------------------------------------------------
+
+struct SG_Command_TextCreate : public SG_Command {
+    SG_ID text_id;
+    SG_ID text_shader_id;
+    ptrdiff_t font_path_offset; // not owned, pointer to ck_string
+    ptrdiff_t text_offset;      // not owned, pointer to ck_string;
 };
 
 // camera commands -----------------------------------------------------
@@ -481,6 +493,9 @@ void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
 // camera
 void CQ_PushCommand_CameraCreate(SG_Camera* camera);
 void CQ_PushCommand_CameraSetParams(SG_Camera* camera);
+
+// text
+void CQ_PushCommand_TextCreate(SG_Text* text, SG_ID font_shader_id);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);

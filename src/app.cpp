@@ -17,10 +17,6 @@
 
 #include <sokol/sokol_time.h>
 
-// freetype font library
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -893,6 +889,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             if (geo_count == 0) continue;
 
             // set per_material bind group
+            R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
 
             wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
@@ -955,9 +952,9 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                     wgpuRenderPassEncoderDraw(renderPass, vertex_draw_count,
                                               num_instances, 0, 0);
                 }
-            }
-        }
-    }
+            } // foreach geometry
+        } // foreach material
+    } // foreach pipeline
 }
 
 // TODO make sure switch statement is in correct order?
@@ -1316,6 +1313,11 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_CameraSetParams* cmd = (SG_Command_CameraSetParams*)command;
             R_Camera* camera                = Component_GetCamera(cmd->camera_id);
             camera->params                  = cmd->params;
+        } break;
+        // text
+        case SG_COMMAND_TEXT_CREATE: {
+            SG_Command_TextCreate* cmd = (SG_Command_TextCreate*)command;
+            Component_CreateText(&app->gctx, app->FTLibrary, cmd);
         } break;
         // b2
         case SG_COMMAND_b2_WORLD_SET: {

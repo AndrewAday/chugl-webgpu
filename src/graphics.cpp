@@ -228,6 +228,8 @@ static void logWGPULimits(WGPULimits const* limits)
     log_trace("maxBindingsPerBindGroup: %d", limits->maxBindingsPerBindGroup);
     log_trace("minUniformBufferOffsetAlignment %d",
               limits->minUniformBufferOffsetAlignment);
+    log_trace("minStorageBufferOffsetAlignment %d",
+              limits->minStorageBufferOffsetAlignment);
 }
 
 bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
@@ -486,6 +488,84 @@ void VertexBufferLayout::init(VertexBufferLayout* layout, u8 attribute_count,
             WGPUVertexStepMode_Vertex,          // stepMode
             1,                                  // attribute count
             layout->attributes + i,             // vertexAttribute
+        };
+    }
+}
+
+static u64 wgpuVertexFormatSize(WGPUVertexFormat format)
+{
+    switch (format) {
+        case WGPUVertexFormat_Uint8x2:
+        case WGPUVertexFormat_Sint8x2:
+        case WGPUVertexFormat_Unorm8x2:
+        case WGPUVertexFormat_Snorm8x2: {
+            return 2;
+        } break;
+        case WGPUVertexFormat_Uint8x4:
+        case WGPUVertexFormat_Sint8x4:
+        case WGPUVertexFormat_Unorm8x4:
+        case WGPUVertexFormat_Snorm8x4: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Uint16x2:
+        case WGPUVertexFormat_Sint16x2:
+        case WGPUVertexFormat_Float16x2:
+        case WGPUVertexFormat_Unorm16x2:
+        case WGPUVertexFormat_Snorm16x2: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Uint16x4:
+        case WGPUVertexFormat_Sint16x4:
+        case WGPUVertexFormat_Float16x4:
+        case WGPUVertexFormat_Unorm16x4:
+        case WGPUVertexFormat_Snorm16x4: {
+            return 8;
+        } break;
+        case WGPUVertexFormat_Float32:
+        case WGPUVertexFormat_Uint32:
+        case WGPUVertexFormat_Sint32: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Float32x2:
+        case WGPUVertexFormat_Uint32x2:
+        case WGPUVertexFormat_Sint32x2: {
+            return 8;
+        } break;
+        case WGPUVertexFormat_Float32x3:
+        case WGPUVertexFormat_Uint32x3:
+        case WGPUVertexFormat_Sint32x3: {
+            return 12;
+        } break;
+        case WGPUVertexFormat_Float32x4:
+        case WGPUVertexFormat_Uint32x4:
+        case WGPUVertexFormat_Sint32x4: {
+            return 16;
+        } break;
+        default: ASSERT(false); return 0;
+    }
+}
+
+void VertexBufferLayout::init(VertexBufferLayout* layout, u8 format_count,
+                              WGPUVertexFormat* formats)
+{
+    layout->attribute_count = 0;
+    for (u32 i = 0; i < format_count; i++) {
+        if (formats[i] == 0) {
+            layout->attribute_count = i;
+            return;
+        }
+
+        layout->attributes[i] = {
+            formats[i], // format
+            0,          // offset
+            i,          // shader location
+        };
+
+        layout->layouts[i] = {
+            wgpuVertexFormatSize(formats[i]), // arrayStride
+            WGPUVertexStepMode_Vertex,        // stepMode
+            1,                                // attribute count
+            layout->attributes + i,           // vertexAttribute
         };
     }
 }

@@ -8,13 +8,6 @@
 #define GET_SHADER(ckobj) SG_GetShader(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 #define GET_MATERIAL(ckobj) SG_GetMaterial(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 
-struct chugl_MaterialBuiltinShaders {
-    SG_ID lines2d_shader_id;
-    SG_ID flat_shader_id;
-    SG_ID gtext_shader_id;
-};
-
-static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
 void chugl_initDefaultMaterials();
 
 CK_DLL_CTOR(shader_desc_ctor);
@@ -85,12 +78,38 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 {
     // TODO today: documentation
 
+    BEGIN_CLASS("VertexFormat", "Object");
+    DOC_CLASS("Vertex format enum. Used to describe vertex data layout in ShaderDesc.");
+
+    static t_CKINT format_float  = WGPUVertexFormat_Float32;
+    static t_CKINT format_float2 = WGPUVertexFormat_Float32x2;
+    static t_CKINT format_float3 = WGPUVertexFormat_Float32x3;
+    static t_CKINT format_float4 = WGPUVertexFormat_Float32x4;
+    static t_CKINT format_int    = WGPUVertexFormat_Sint32;
+    static t_CKINT format_int2   = WGPUVertexFormat_Sint32x2;
+    static t_CKINT format_int3   = WGPUVertexFormat_Sint32x3;
+    static t_CKINT format_int4   = WGPUVertexFormat_Sint32x4;
+
+    SVAR("int", "FLOAT", &format_float);
+    SVAR("int", "FLOAT2", &format_float2);
+    SVAR("int", "FLOAT3", &format_float3);
+    SVAR("int", "FLOAT4", &format_float4);
+    SVAR("int", "INT", &format_int);
+    SVAR("int", "INT2", &format_int2);
+    SVAR("int", "INT3", &format_int3);
+    SVAR("int", "INT4", &format_int4);
+
+    END_CLASS();
+
     // ShaderDesc -----------------------------------------------------
     BEGIN_CLASS("ShaderDesc", "Object");
     DOC_CLASS(
       "Shader description object. Used to create a Shader component."
       "Set either vertexString or vertexFilepath, and either fragmentString or "
-      "fragmentFilepath.");
+      "fragmentFilepath. `vertexLayout` field describes the vertex data layout "
+      "of buffers going into the vertex shader--use the VertexFormat enum."
+      "E.g. if your vertex shader takes a vec3 position and a vec2 uv, set "
+      "`vertexLayout` to [VertexFormat.FLOAT3, VertexFormat.FLOAT2].");
 
     CTOR(shader_desc_ctor);
 
@@ -723,7 +742,8 @@ CK_DLL_CTOR(pbr_material_ctor)
 static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
                                 const char* fragment_string,
                                 const char* vertex_filepath,
-                                const char* fragment_filepath, int* vertex_layout,
+                                const char* fragment_filepath,
+                                WGPUVertexFormat* vertex_layout,
                                 int vertex_layout_count)
 {
     Chuck_Object* shader_ckobj
@@ -745,16 +765,17 @@ static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
 
 void chugl_initDefaultMaterials()
 {
-    static int standard_vertex_layout[] = {
-        3, // position
-        3, // normal
-        2, // uv
-        4, // tangent
+    static WGPUVertexFormat standard_vertex_layout[] = {
+        WGPUVertexFormat_Float32x3, // position
+        WGPUVertexFormat_Float32x3, // normal
+        WGPUVertexFormat_Float32x2, // uv
+        WGPUVertexFormat_Float32x4, // tangent
     };
 
-    static int gtext_vertex_layout[] = {
-        3, // position
-        2, // uv
+    static WGPUVertexFormat gtext_vertex_layout[] = {
+        WGPUVertexFormat_Float32x2, // position
+        WGPUVertexFormat_Float32x2, // uv
+        WGPUVertexFormat_Sint32,    // glyph_index
     };
 
     g_material_builtin_shaders.lines2d_shader_id = chugl_createShader(

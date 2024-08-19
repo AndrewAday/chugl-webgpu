@@ -192,6 +192,10 @@ struct VertexBufferLayout {
     static void init(VertexBufferLayout* layout, u8 attribute_count,
                      u32* attribute_strides // stride in count NOT bytes
     );
+
+    static void init(VertexBufferLayout* layout, u8 format_count,
+                     WGPUVertexFormat* formats // stride in count NOT bytes
+    );
 };
 
 // ============================================================================

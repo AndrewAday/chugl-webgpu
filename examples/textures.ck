@@ -159,7 +159,7 @@ PlaneGeometry plane_geo;
 ShaderDesc shader_desc;
 lambert_shader_string => shader_desc.vertexString;
 lambert_shader_string => shader_desc.fragmentString;
-plane_geo.vertexAttributeNumComponents() @=> shader_desc.vertexLayout; // TODO make this default to builtin geometry layout
+[VertexFormat.FLOAT3, VertexFormat.FLOAT3, VertexFormat.FLOAT2, VertexFormat.FLOAT4] @=> shader_desc.vertexLayout; // TODO make this default to builtin geometry layout
 
 Shader custom_shader(shader_desc); // create shader from shader_desc
 custom_shader => material.shader; // connect shader to material

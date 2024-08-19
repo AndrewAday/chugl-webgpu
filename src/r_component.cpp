@@ -4,6 +4,8 @@
 #include "graphics.h"
 #include "shaders.h"
 
+#include "compressed_fonts.h"
+
 #include "core/file.h"
 #include "core/log.h"
 
@@ -82,6 +84,28 @@ static R_ID getNewRID()
 // ============================================================================
 // Transform Component
 // ============================================================================
+
+static void R_Transform_init(R_Transform* xform, SG_ID id, SG_ComponentType comp_type)
+{
+    *xform = {};
+
+    xform->id   = id;
+    xform->type = comp_type;
+
+    xform->_pos = glm::vec3(0.0f);
+    xform->_rot = QUAT_IDENTITY;
+    xform->_sca = glm::vec3(1.0f);
+
+    xform->world  = MAT_IDENTITY;
+    xform->local  = MAT_IDENTITY;
+    xform->normal = MAT_IDENTITY;
+    xform->_stale = R_Transform_STALE_LOCAL;
+
+    xform->parentID = 0;
+
+    // initialize children array for 8 children
+    Arena::init(&xform->children, sizeof(SG_ID) * 8);
+}
 
 void R_Transform::init(R_Transform* transform)
 {
@@ -483,6 +507,18 @@ void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
                       data_count * sizeof(f32));
 }
 
+void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
+                                    u32 location, u32 num_components_per_attrib,
+                                    void* data, size_t size)
+{
+    ASSERT(location >= 0
+           && location < ARRAY_LENGTH(geo->vertex_attribute_num_components));
+
+    geo->vertex_attribute_num_components[location] = num_components_per_attrib;
+    GPU_Buffer::write(gctx, &geo->gpu_vertex_buffers[location],
+                      (WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst), data, size);
+}
+
 void R_Geometry::setIndices(GraphicsContext* gctx, R_Geometry* geo, u32* indices,
                             u32 indices_count)
 {
@@ -666,8 +702,9 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     if (mat->fresh_bind_group) {
         // check all texture bindings and see if generation# changed
         // ==optimize== have textures track an arena of bound mat IDs, and mark as stale
-        // upon change or have a "bindgroup" manager class do the same this lazy check
-        // is the quickest to implement, and requires the least additional state
+        // upon change or have a "bindgroup" manager class do the same
+        // this lazy check is the quickest to implement, and requires the least
+        // additional state
         bool needs_rebuild = false;
         for (u32 i = 0; i < ARRAY_LENGTH(mat->bindings); ++i) {
             R_Binding* binding = &mat->bindings[i];
@@ -725,6 +762,11 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                 ASSERT(binding->size == sizeof(SG_ID));
                 binding->generation = rTexture->generation;
             } break;
+            case R_BIND_STORAGE_EXTERNAL: {
+                bind_group_entry->offset = 0;
+                bind_group_entry->size   = binding->size;
+                bind_group_entry->buffer = binding->as.storage_external->buf;
+            } break;
             default: ASSERT(false);
         }
     }
@@ -769,6 +811,14 @@ void R_Material::setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 l
                            sizeof(texture_id));
 }
 
+void R_Material::setExternalStorageBinding(GraphicsContext* gctx, R_Material* mat,
+                                           u32 location, GPU_Buffer* buffer)
+{
+    ASSERT(buffer->usage & WGPUBufferUsage_Storage);
+    R_Material::setBinding(gctx, mat, location, R_BIND_STORAGE_EXTERNAL, buffer,
+                           buffer->size);
+}
+
 void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                             R_BindType type, void* data, size_t bytes)
 {
@@ -810,6 +860,10 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
                 mat->fresh_bind_group = false;
             }
         }
+    } else if (type == R_BIND_STORAGE_EXTERNAL) {
+        // for now, always rebuild (external buffer may have changed but maintained same
+        // size)
+        mat->fresh_bind_group = false;
     }
 
     binding->type = type;
@@ -843,6 +897,10 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         case R_BIND_STORAGE: {
             GPU_Buffer::write(gctx, &binding->as.storage_buffer,
                               WGPUBufferUsage_Storage, data, bytes);
+        } break;
+        case R_BIND_STORAGE_EXTERNAL: {
+            // external storage buffer
+            binding->as.storage_external = (GPU_Buffer*)data;
         } break;
         default:
             // if the new binding is also STORAGE reuse the memory, don't
@@ -1037,7 +1095,7 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
         ASSERT(xform->scene_id != scene->id);
         xform->scene_id = scene->id;
 
-        if (xform->type == SG_COMPONENT_MESH) {
+        if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
             bool add_m2g_and_p2m_entries = false;
 
             // try adding to bottom level GeometryToXform
@@ -1153,17 +1211,6 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
 
     pipeline->pso = *config;
 
-    // const char* vertShaderCode = NULL;
-    // const char* fragShaderCode = NULL;
-    // switch (config->material_type) {
-    //     case SG_MATERIAL_PBR: {
-    //         vertShaderCode = shaderCode;
-    //         fragShaderCode = shaderCode;
-    //         break;
-    //     }
-    //     default: ASSERT(false && "unsupported shader type");
-    // }
-
     WGPUPrimitiveState primitiveState = {};
     primitiveState.topology           = config->primitive_topology;
     primitiveState.stripIndexFormat
@@ -1192,7 +1239,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
 
     VertexBufferLayout vertexBufferLayout = {};
     VertexBufferLayout::init(&vertexBufferLayout, ARRAY_LENGTH(shader->vertex_layout),
-                             (u32*)shader->vertex_layout);
+                             shader->vertex_layout);
 
     // vertex state
     WGPUVertexState vertexState = {};
@@ -1234,13 +1281,8 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
         // implicit layouts cannot share bindgroups, so need to create one
         // per render pipeline
 
-        // initialize shared frame buffer
-        if (!R_RenderPipeline::frame_uniform_buffer.buf) {
-            FrameUniforms frame_uniforms = {};
-            GPU_Buffer::write(gctx, &R_RenderPipeline::frame_uniform_buffer,
-                              WGPUBufferUsage_Uniform, &frame_uniforms,
-                              sizeof(frame_uniforms));
-        }
+        // makes sure shared frame buffer is initialized
+        ASSERT(R_RenderPipeline::frame_uniform_buffer.size == sizeof(FrameUniforms));
 
         // create bind group entry
         WGPUBindGroupEntry frame_group_entry = {};
@@ -1367,6 +1409,7 @@ static Arena materialArena;
 static Arena textureArena;
 static Arena _RenderPipelineArena;
 static Arena cameraArena;
+static Arena textArena;
 
 // default textures
 static Texture opaqueWhitePixel      = {};
@@ -1377,6 +1420,11 @@ static Texture defaultNormalPixel    = {};
 static hashmap* r_locator                 = NULL;
 static hashmap* render_pipeline_pso_table = NULL; // lookup by pso
 static hashmap* _RenderPipelineMap;               // lookup by rid
+
+// fonts
+// each font is 600bytes, 128 fonts is 76.8KB
+static R_Font component_fonts[128];
+static int component_font_count = 0;
 
 struct R_Location {
     SG_ID id;     // key
@@ -1457,6 +1505,7 @@ void Component_Init(GraphicsContext* gctx)
     Arena::init(&_RenderPipelineArena, sizeof(R_RenderPipeline) * 8);
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
     Arena::init(&cameraArena, sizeof(R_Camera) * 4);
+    Arena::init(&textArena, sizeof(R_Text) * 64);
 
     // initialize default textures
     static u8 white[4]  = { 255, 255, 255, 255 };
@@ -1481,6 +1530,11 @@ void Component_Init(GraphicsContext* gctx)
                                      RenderPipelineIDTableItem::compare, NULL, NULL);
     materials_with_new_pso
       = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID, compareSGIDs, NULL, NULL);
+
+    // init frame uniform buffer
+    FrameUniforms frame_uniforms = {};
+    GPU_Buffer::write(gctx, &R_RenderPipeline::frame_uniform_buffer,
+                      WGPUBufferUsage_Uniform, &frame_uniforms, sizeof(frame_uniforms));
 }
 
 void Component_Free()
@@ -1496,6 +1550,7 @@ void Component_Free()
     Arena::free(&_RenderPipelineArena);
     Arena::free(&textureArena);
     Arena::free(&cameraArena);
+    Arena::free(&textArena);
 
     // free default textures
     Texture::release(&opaqueWhitePixel);
@@ -1543,27 +1598,11 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
 {
     R_Transform* xform = ARENA_PUSH_ZERO_TYPE(&xformArena, R_Transform);
 
-    {
-        xform->id         = cmd->mesh_id;
-        xform->type       = SG_COMPONENT_MESH;
-        xform->xform_type = R_TRANSFORM_MESH;
+    R_Transform_init(xform, cmd->mesh_id, SG_COMPONENT_MESH);
 
-        xform->_pos = glm::vec3(0.0f);
-        xform->_rot = QUAT_IDENTITY;
-        xform->_sca = glm::vec3(1.0f);
-
-        xform->world  = MAT_IDENTITY;
-        xform->local  = MAT_IDENTITY;
-        xform->normal = MAT_IDENTITY;
-        xform->_stale = R_Transform_STALE_LOCAL;
-
-        xform->_geoID = cmd->geo_id;
-        xform->_matID = cmd->mat_id;
-
-        xform->parentID = 0;
-        // initialize children array for 8 children
-        Arena::init(&xform->children, sizeof(SG_ID) * 8);
-    }
+    // init mesh
+    xform->_geoID = cmd->geo_id;
+    xform->_matID = cmd->mat_id;
 
     // store offset
     R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
@@ -1578,23 +1617,7 @@ R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
     // TODO: does camera also need to live in xform arena?
     R_Camera* cam = ARENA_PUSH_ZERO_TYPE(&cameraArena, R_Camera);
 
-    { // xform init
-        cam->id         = cmd->camera.id;
-        cam->type       = SG_COMPONENT_CAMERA;
-        cam->xform_type = R_TRANSFORM_CAMERA;
-
-        cam->_pos = glm::vec3(0.0f);
-        cam->_rot = QUAT_IDENTITY;
-        cam->_sca = glm::vec3(1.0f);
-
-        cam->world  = MAT_IDENTITY;
-        cam->local  = MAT_IDENTITY;
-        cam->normal = MAT_IDENTITY;
-        cam->_stale = R_Transform_STALE_LOCAL;
-
-        // initialize children array for 8 children
-        Arena::init(&cam->children, sizeof(SG_ID) * 8);
-    }
+    R_Transform_init(cam, cmd->camera.id, SG_COMPONENT_CAMERA);
 
     { // camera init
         // copy camera params
@@ -1607,6 +1630,78 @@ R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
     ASSERT(result == NULL); // ensure id is unique
 
     return cam;
+}
+
+// ==optimize== group materials by font
+// GText which share the same font_path can share the same material
+R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
+                             SG_Command_TextCreate* cmd)
+{
+    R_Text* text = ARENA_PUSH_ZERO_TYPE(
+      &textArena, R_Text); // can also add void* udata to R_Transform to support these
+                           // kinds of renderables
+    R_Transform_init(text, cmd->text_id, SG_COMPONENT_MESH); // text or mesh type?
+
+    // store offset
+    R_Location loc     = { text->id, Arena::offsetOf(&textArena, text), &textArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    // create internal geo and mesh for GText
+    R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
+
+    // initialize material
+    {
+        *mat      = {};
+        mat->id   = getNewRID();
+        mat->type = SG_COMPONENT_MATERIAL;
+
+        // init uniform buffer
+        GPU_Buffer::init(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
+                         MAX(sizeof(SG_MaterialUniformData),
+                             gctx->limits.minUniformBufferOffsetAlignment)
+                           * ARRAY_LENGTH(mat->bindings));
+
+        // build config
+        SG_MaterialPipelineState pso = { cmd->text_shader_id, WGPUCullMode_None,
+                                         WGPUPrimitiveTopology_TriangleList };
+        R_Material::updatePSO(gctx, mat, &pso);
+    }
+
+    // store offset
+    loc    = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
+    result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    // init geometry
+    R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
+
+    geo->id           = getNewRID();
+    geo->type         = SG_COMPONENT_GEOMETRY;
+    geo->vertex_count = -1; // -1 means draw all vertices
+
+    // store offset
+    loc    = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+    result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    // init mesh
+    text->_geoID = geo->id;
+    text->_matID = mat->id;
+
+    // make sure these are internal
+    ASSERT(text->_matID < 0);
+    ASSERT(text->_geoID < 0);
+
+    { // text init
+        // text->text = cmd->text; // hardcode for now
+        text->text            = std::string("hello world");
+        const char* font_path = "chugl:cousine-regular";
+        // R_Font::updateText(gctx, Component_GetFont(gctx, ft, cmd->font_path), text);
+        R_Font::updateText(gctx, Component_GetFont(gctx, ft, font_path), text);
+    }
+
+    return text;
 }
 
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
@@ -1680,7 +1775,8 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
 
     ASSERT(sizeof(cmd->vertex_layout) == sizeof(shader->vertex_layout));
     R_Shader::init(gctx, shader, vertex_string, vertex_filepath, fragment_string,
-                   fragment_filepath, cmd->vertex_layout);
+                   fragment_filepath, cmd->vertex_layout,
+                   ARRAY_LENGTH(cmd->vertex_layout));
 
     // store offset
     R_Location loc
@@ -1691,27 +1787,6 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
     return shader;
 }
 
-// only called by renderer tester
-// R_Material* Component_CreateMaterial(GraphicsContext* gctx,
-// R_MaterialConfig* config)
-// {
-//     R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
-//     R_Material::init(gctx, mat, config);
-
-//     ASSERT(mat->id != 0);                       // ensure id is set
-//     ASSERT(mat->type == SG_COMPONENT_MATERIAL); // ensure type is set
-
-//     // store offset
-//     R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat),
-//     &materialArena
-//     }; const void* result = hashmap_set(r_locator, &loc); ASSERT(result
-//     == NULL);
-//     // ensure id is unique
-
-//     return mat;
-// }
-
-// TODO: refactor so that R_Component doesn't know about SG_Command
 R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                                      SG_Command_MaterialCreate* cmd)
 {
@@ -1839,6 +1914,26 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
     return tex;
 }
 
+// linear search by font path, lazily creates if not found
+R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
+                          const char* font_path)
+{
+    for (int i = 0; i < component_font_count; ++i) {
+        // this lookup won't work for loading fonts from memory
+        // actually it will if we give builtin fonts special names
+        if (component_fonts[i].font_path == font_path) {
+            return &component_fonts[i];
+        }
+    }
+
+    R_Font* font = &component_fonts[component_font_count];
+    if (R_Font::init(gctx, library, font, font_path)) {
+        component_font_count++;
+        return font;
+    }
+    return NULL;
+}
+
 R_Component* Component_GetComponent(SG_ID id)
 {
     R_Location loc     = { id, 0, NULL };
@@ -1898,6 +1993,13 @@ R_Camera* Component_GetCamera(SG_ID id)
     return (R_Camera*)comp;
 }
 
+R_Text* Component_GetText(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_TEXT);
+    return (R_Text*)comp;
+}
+
 bool Component_MaterialIter(size_t* i, R_Material** material)
 {
     if (*i >= ARENA_LENGTH(&materialArena, R_Material)) {
@@ -1927,6 +2029,143 @@ bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline)
 int Component_RenderPipelineCount()
 {
     return ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
+}
+
+static R_RenderPipeline font_pipeline = {};
+static R_Shader font_shader           = {};
+
+static void Component_InitFontRenderPipeline(GraphicsContext* gctx)
+{
+    ASSERT(false);
+#if 0
+    // special case renderpipeline
+    // no pso
+    // no material ids arena
+
+    R_RenderPipeline* pipeline = &font_pipeline;
+
+    ASSERT(pipeline->gpu_pipeline == NULL);
+    ASSERT(pipeline->rid == 0);
+
+    pipeline->rid = getNewRID();
+    ASSERT(pipeline->rid < 0);
+
+    // TODO support other vertex types (int, uint)
+    static int layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES] = { 3, 2, 1, 0, 0, 0, 0, 0 };
+
+    static WGPUVertexFormat vertex_layout[] = {
+        WGPUVertexFormat_Float32x2,
+        WGPUVertexFormat_Float32x2,
+        WGPUVertexFormat_Uint32,
+    };
+
+    R_Shader::init(gctx, &font_shader, gtext_shader_string, NULL, gtext_shader_string,
+                   NULL, layout);
+
+    WGPUPrimitiveState primitiveState = {};
+    primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
+    primitiveState.stripIndexFormat   = WGPUIndexFormat_Uint32;
+    primitiveState.frontFace          = WGPUFrontFace_CCW;
+    primitiveState.cullMode           = WGPUCullMode_None;
+
+    WGPUBlendState blendState = G_createBlendState(true);
+
+    WGPUColorTargetState colorTargetState = {};
+    colorTargetState.format               = gctx->swapChainFormat;
+    colorTargetState.blend                = &blendState;
+    colorTargetState.writeMask            = WGPUColorWriteMask_All;
+
+    WGPUDepthStencilState depth_stencil_state
+      = G_createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
+
+    VertexBufferLayout vertexBufferLayout = {};
+    VertexBufferLayout::init(&vertexBufferLayout, ARRAY_LENGTH(vertex_layout),
+                             vertex_layout);
+
+    // vertex state
+    WGPUVertexState vertexState = {};
+    vertexState.bufferCount     = vertexBufferLayout.attribute_count;
+    vertexState.buffers         = vertexBufferLayout.layouts;
+    vertexState.module          = font_shader.vertex_shader_module;
+    vertexState.entryPoint      = VS_ENTRY_POINT;
+
+    // fragment state
+    WGPUFragmentState fragmentState = {};
+    fragmentState.module            = font_shader.fragment_shader_module;
+    fragmentState.entryPoint        = FS_ENTRY_POINT;
+    fragmentState.targetCount       = 1;
+    fragmentState.targets           = &colorTargetState;
+
+    // multisample state
+    WGPUMultisampleState multisampleState   = {};
+    multisampleState.count                  = 1;
+    multisampleState.mask                   = 0xFFFFFFFF;
+    multisampleState.alphaToCoverageEnabled = false;
+
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.label                        = "Font Render Pipeline";
+    pipeline_desc.layout                       = NULL; // Using layout: auto
+    pipeline_desc.primitive                    = primitiveState;
+    pipeline_desc.vertex                       = vertexState;
+    pipeline_desc.fragment                     = &fragmentState;
+    pipeline_desc.depthStencil                 = &depth_stencil_state;
+    pipeline_desc.multisample                  = multisampleState;
+
+    pipeline->gpu_pipeline
+      = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
+    ASSERT(pipeline->gpu_pipeline);
+
+    { // create per-frame bindgroup
+        // implicit layouts cannot share bindgroups, so need to create one
+        // per render pipeline
+
+        // makes sure shared frame buffer is initialized
+        ASSERT(R_RenderPipeline::frame_uniform_buffer.size == sizeof(FrameUniforms));
+
+        // create bind group entry
+        WGPUBindGroupEntry frame_group_entry = {};
+        frame_group_entry                    = {};
+        frame_group_entry.binding            = 0;
+        frame_group_entry.buffer             = pipeline->frame_uniform_buffer.buf;
+        frame_group_entry.size               = pipeline->frame_uniform_buffer.size;
+
+        // create bind group
+        WGPUBindGroupDescriptor frameGroupDesc;
+        frameGroupDesc        = {};
+        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
+          pipeline->gpu_pipeline, PER_FRAME_GROUP);
+        frameGroupDesc.entries    = &frame_group_entry;
+        frameGroupDesc.entryCount = 1;
+
+        // layout:auto requires a bind group per pipeline
+        pipeline->frame_group
+          = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
+        ASSERT(pipeline->frame_group);
+    }
+
+    // Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
+#endif
+}
+
+R_RenderPipeline* Component_GetFontRenderPipeline(GraphicsContext* gctx)
+{
+    if (font_pipeline.gpu_pipeline == NULL) {
+        Component_InitFontRenderPipeline(gctx);
+    }
+    return &font_pipeline;
+}
+
+bool Component_FontIter(size_t* i, R_Font** font)
+{
+    if (*i >= component_font_count) {
+        *font = NULL;
+        return false;
+    }
+
+    *font = &component_fonts[*i];
+    ++(*i);
+    ASSERT(*font);
+    return true;
 }
 
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,
@@ -1965,7 +2204,8 @@ R_RenderPipeline* Component_GetPipeline(R_ID rid)
 
 void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
                     const char* vertex_filepath, const char* fragment_string,
-                    const char* fragment_filepath, int* vertex_layout)
+                    const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
+                    int vertex_layout_count)
 {
     char vertex_shader_label[32] = {};
     snprintf(vertex_shader_label, sizeof(vertex_shader_label), "vertex shader %d",
@@ -2009,11 +2249,667 @@ void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_
     }
 
     // copy vertex layout
-    memcpy(shader->vertex_layout, vertex_layout, sizeof(shader->vertex_layout));
+    ASSERT(sizeof(*shader->vertex_layout) == sizeof(*vertex_layout));
+    memcpy(shader->vertex_layout, vertex_layout,
+           sizeof(*vertex_layout) * vertex_layout_count);
 }
 
 void R_Shader::free(R_Shader* shader)
 {
     WGPU_RELEASE_RESOURCE(ShaderModule, shader->vertex_shader_module);
     WGPU_RELEASE_RESOURCE(ShaderModule, shader->fragment_shader_module);
+}
+
+// =============================================================================
+// R_Font
+// =============================================================================
+
+// Decodes the first Unicode code point from the null-terminated UTF-8 string *text and
+// advances *text to point at the next code point. If the encoding is invalid, advances
+// *text by one byte and returns 0. *text should not be empty, because it will be
+// advanced past the null terminator.
+static u32 R_Font_decodeCharcode(char** text)
+{
+    uint8_t first = static_cast<uint8_t>((*text)[0]);
+
+    // Fast-path for ASCII.
+    if (first < 128) {
+        (*text)++;
+        return static_cast<uint32_t>(first);
+    }
+
+    // This could probably be optimized a bit.
+    uint32_t result;
+    int size;
+    if ((first & 0xE0) == 0xC0) { // 110xxxxx
+        result = first & 0x1F;
+        size   = 2;
+    } else if ((first & 0xF0) == 0xE0) { // 1110xxxx
+        result = first & 0x0F;
+        size   = 3;
+    } else if ((first & 0xF8) == 0xF0) { // 11110xxx
+        result = first & 0x07;
+        size   = 4;
+    } else {
+        // Invalid encoding.
+        (*text)++;
+        return 0;
+    }
+
+    for (int i = 1; i < size; i++) {
+        uint8_t value = static_cast<uint8_t>((*text)[i]);
+        // Invalid encoding (also catches a null terminator in the middle of a code
+        // point).
+        if ((value & 0xC0) != 0x80) { // 10xxxxxx
+            (*text)++;
+            return 0;
+        }
+        result = (result << 6) | (value & 0x3F);
+    }
+
+    (*text) += size;
+    return result;
+}
+
+FT_Face R_Font_loadFace(FT_Library library, const char* filename)
+{
+    FT_Face face = NULL;
+
+    FT_Error ftError = FT_New_Face(library, filename, 0, &face);
+    if (ftError) {
+        const char* ftErrorStr = FT_Error_String(ftError);
+        log_error("Error loading font face [error number %d] for file %s: %s", ftError,
+                  filename, ftErrorStr);
+        return NULL;
+    }
+
+    if (!(face->face_flags & FT_FACE_FLAG_SCALABLE)) {
+        log_error("non-scalable fonts are not supported. Font file: %s", filename);
+        FT_Done_Face(face);
+        return NULL;
+    }
+
+    return face;
+}
+
+void R_Font::rebuildBuffers(R_Font* font, const char* mainText, float x, float y,
+                            Arena* positions, Arena* uvs, Arena* glyph_indices,
+                            Arena* indices, float verticalScale)
+{
+    float originalX = x;
+
+    FT_UInt previous = 0;
+    char* textIt     = (char*)mainText;
+    while (*textIt != '\0') {
+        uint32_t charcode = R_Font_decodeCharcode(&textIt);
+
+        if (charcode == '\r') continue;
+
+        if (charcode == '\n') {
+            x = originalX;
+            y -= verticalScale
+                 * ((float)font->face->height / (float)font->face->units_per_EM
+                    * font->worldSize);
+            if (font->hinting) y = std::round(y);
+            continue;
+        }
+
+        auto glyphIt = font->glyphs.find(charcode);
+        Glyph& glyph
+          = (glyphIt == font->glyphs.end()) ? font->glyphs[0] : glyphIt->second;
+
+        if (previous != 0 && glyph.index != 0) {
+            FT_Vector kerning;
+            FT_Error error = FT_Get_Kerning(font->face, previous, glyph.index,
+                                            font->kerningMode, &kerning);
+            if (!error) {
+                x += (float)kerning.x / font->emSize * font->worldSize;
+            }
+        }
+
+        // Do not emit quad for empty glyphs (whitespace).
+        if (glyph.curveCount) {
+            FT_Pos d = (FT_Pos)(font->emSize * font->dilation);
+
+            float u0 = (float)(glyph.bearingX - d) / font->emSize;
+            float v0 = (float)(glyph.bearingY - glyph.height - d) / font->emSize;
+            float u1 = (float)(glyph.bearingX + glyph.width + d) / font->emSize;
+            float v1 = (float)(glyph.bearingY + d) / font->emSize;
+
+            float x0 = x + u0 * font->worldSize;
+            float y0 = y + v0 * font->worldSize;
+            float x1 = x + u1 * font->worldSize;
+            float y1 = y + v1 * font->worldSize;
+
+            u32 base                               = ARENA_LENGTH(positions, glm::vec2);
+            *ARENA_PUSH_TYPE(positions, glm::vec2) = glm::vec2(x0, y0);
+            *ARENA_PUSH_TYPE(positions, glm::vec2) = glm::vec2(x1, y0);
+            *ARENA_PUSH_TYPE(positions, glm::vec2) = glm::vec2(x1, y1);
+            *ARENA_PUSH_TYPE(positions, glm::vec2) = glm::vec2(x0, y1);
+
+            *ARENA_PUSH_TYPE(uvs, glm::vec2) = glm::vec2(u0, v0);
+            *ARENA_PUSH_TYPE(uvs, glm::vec2) = glm::vec2(u1, v0);
+            *ARENA_PUSH_TYPE(uvs, glm::vec2) = glm::vec2(u1, v1);
+            *ARENA_PUSH_TYPE(uvs, glm::vec2) = glm::vec2(u0, v1);
+
+            *ARENA_PUSH_TYPE(glyph_indices, u32) = glyph.bufferIndex;
+            *ARENA_PUSH_TYPE(glyph_indices, u32) = glyph.bufferIndex;
+            *ARENA_PUSH_TYPE(glyph_indices, u32) = glyph.bufferIndex;
+            *ARENA_PUSH_TYPE(glyph_indices, u32) = glyph.bufferIndex;
+
+            *ARENA_PUSH_TYPE(indices, u32) = base;
+            *ARENA_PUSH_TYPE(indices, u32) = base + 1;
+            *ARENA_PUSH_TYPE(indices, u32) = base + 2;
+            *ARENA_PUSH_TYPE(indices, u32) = base + 2;
+            *ARENA_PUSH_TYPE(indices, u32) = base + 3;
+            *ARENA_PUSH_TYPE(indices, u32) = base;
+        }
+
+        x += (float)glyph.advance / font->emSize * font->worldSize;
+        previous = glyph.index;
+    }
+}
+
+// TODO: consolidate with R_Font::rebuildBuffers
+// calculate vertices assuming control point 0,0, and determine BB at same time
+// after calculating bb, apply translation to vertices.
+BoundingBox R_Font::measure(R_Font* font, float x, float y, const char* text,
+                            float verticalScale)
+{
+    BoundingBox bb = {};
+    bb.minX        = +std::numeric_limits<float>::infinity();
+    bb.minY        = +std::numeric_limits<float>::infinity();
+    bb.maxX        = -std::numeric_limits<float>::infinity();
+    bb.maxY        = -std::numeric_limits<float>::infinity();
+
+    float originalX = x;
+
+    FT_UInt previous = 0;
+    char* textIt     = (char*)text;
+    while (*textIt != '\0') {
+        uint32_t charcode = R_Font_decodeCharcode(&textIt);
+
+        if (charcode == '\r') continue;
+
+        if (charcode == '\n') {
+            x = originalX;
+            y -= verticalScale
+                 * ((float)face->height / (float)face->units_per_EM * worldSize);
+            if (hinting) y = std::round(y);
+            continue;
+        }
+
+        auto glyphIt = glyphs.find(charcode);
+        Glyph& glyph = (glyphIt == glyphs.end()) ? glyphs[0] : glyphIt->second;
+
+        if (previous != 0 && glyph.index != 0) {
+            FT_Vector kerning;
+            FT_Error error
+              = FT_Get_Kerning(face, previous, glyph.index, kerningMode, &kerning);
+            if (!error) {
+                x += (float)kerning.x / emSize * worldSize;
+            }
+        }
+
+        // Note: Do not apply dilation here, we want to calculate exact bounds.
+        float u0 = (float)(glyph.bearingX) / emSize;
+        float v0 = (float)(glyph.bearingY - glyph.height) / emSize;
+        float u1 = (float)(glyph.bearingX + glyph.width) / emSize;
+        float v1 = (float)(glyph.bearingY) / emSize;
+
+        float x0 = x + u0 * worldSize;
+        float y0 = y + v0 * worldSize;
+        float x1 = x + u1 * worldSize;
+        float y1 = y + v1 * worldSize;
+
+        if (x0 < bb.minX) bb.minX = x0;
+        if (y0 < bb.minY) bb.minY = y0;
+        if (x1 > bb.maxX) bb.maxX = x1;
+        if (y1 > bb.maxY) bb.maxY = y1;
+
+        x += (float)glyph.advance / emSize * worldSize;
+        previous = glyph.index;
+    }
+
+    return bb;
+}
+
+// This function takes a single contour (defined by firstIndex and
+// lastIndex, both inclusive) from outline and converts it into individual
+// quadratic bezier curves, which are added to the curves vector.
+static void convertContour(std::vector<BufferCurve>& curves, const FT_Outline* outline,
+                           short firstIndex, short lastIndex, float emSize)
+{
+    // See https://freetype.org/freetype2/docs/glyphs/glyphs-6.html
+    // for a detailed description of the outline format.
+    //
+    // In short, a contour is a list of points describing line segments
+    // and quadratic or cubic bezier curves that form a closed shape.
+    //
+    // TrueType fonts only contain quadratic bezier curves. OpenType fonts
+    // may contain outline data in TrueType format or in Compact Font
+    // Format, which also allows cubic beziers. However, in FreeType it is
+    // (theoretically) possible to mix the two types of bezier curves, so
+    // we handle both at the same time.
+    //
+    // Each point in the contour has a tag specifying its type
+    // (FT_CURVE_TAG_ON, FT_CURVE_TAG_CONIC or FT_CURVE_TAG_CUBIC).
+    // FT_CURVE_TAG_ON points sit exactly on the outline, whereas the
+    // other types are control points for quadratic/conic bezier curves,
+    // which in general do not sit exactly on the outline and are also
+    // called off points.
+    //
+    // Some examples of the basic segments:
+    // ON - ON ... line segment
+    // ON - CONIC - ON ... quadratic bezier curve
+    // ON - CUBIC - CUBIC - ON ... cubic bezier curve
+    //
+    // Cubic bezier curves must always be described by two CUBIC points
+    // inbetween two ON points. For the points used in the TrueType format
+    // (ON, CONIC) there is a special rule, that two consecutive points of
+    // the same type imply a virtual point of the opposite type at their
+    // exact midpoint.
+    //
+    // For example the sequence ON - CONIC - CONIC - ON describes two
+    // quadratic bezier curves where the virtual point forms the joining
+    // end point of the two curves: ON - CONIC - [ON] - CONIC - ON.
+    //
+    // Similarly the sequence ON - ON can be thought of as a line segment
+    // or a quadratic bezier curve (ON - [CONIC] - ON). Because the
+    // virtual point is at the exact middle of the two endpoints, the
+    // bezier curve is identical to the line segment.
+    //
+    // The font shader only supports quadratic bezier curves, so we use
+    // this virtual point rule to represent line segments as quadratic
+    // bezier curves.
+    //
+    // Cubic bezier curves are slightly more difficult, since they have a
+    // higher degree than the shader supports. Each cubic curve is
+    // approximated by two quadratic curves according to the following
+    // paper. This preserves C1-continuity (location of and tangents at
+    // the end points of the cubic curve) and the paper even proves that
+    // splitting at the parametric center minimizes the error due to the
+    // degree reduction. One could also analyze the approximation error
+    // and split the cubic curve, if the error is too large. However,
+    // almost all fonts use "nice" cubic curves, resulting in very small
+    // errors already (see also the section on Font Design in the paper).
+    //
+    // Quadratic Approximation of Cubic Curves
+    // Nghia Truong, Cem Yuksel, Larry Seiler
+    // https://ttnghia.github.io/pdf/QuadraticApproximation.pdf
+    // https://doi.org/10.1145/3406178
+
+    if (firstIndex == lastIndex) return;
+
+    short dIndex = 1;
+    if (outline->flags & FT_OUTLINE_REVERSE_FILL) {
+        short tmpIndex = lastIndex;
+        lastIndex      = firstIndex;
+        firstIndex     = tmpIndex;
+        dIndex         = -1;
+    }
+
+    auto convert = [emSize](const FT_Vector& v) {
+        return glm::vec2((float)v.x / emSize, (float)v.y / emSize);
+    };
+
+    auto makeMidpoint
+      = [](const glm::vec2& a, const glm::vec2& b) { return 0.5f * (a + b); };
+
+    auto makeCurve = [](const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2) {
+        BufferCurve result;
+        result.x0 = p0.x;
+        result.y0 = p0.y;
+        result.x1 = p1.x;
+        result.y1 = p1.y;
+        result.x2 = p2.x;
+        result.y2 = p2.y;
+        return result;
+    };
+
+    // Find a point that is on the curve and remove it from the list.
+    glm::vec2 first;
+    bool firstOnCurve = (outline->tags[firstIndex] & FT_CURVE_TAG_ON);
+    if (firstOnCurve) {
+        first = convert(outline->points[firstIndex]);
+        firstIndex += dIndex;
+    } else {
+        bool lastOnCurve = (outline->tags[lastIndex] & FT_CURVE_TAG_ON);
+        if (lastOnCurve) {
+            first = convert(outline->points[lastIndex]);
+            lastIndex -= dIndex;
+        } else {
+            first = makeMidpoint(convert(outline->points[firstIndex]),
+                                 convert(outline->points[lastIndex]));
+            // This is a virtual point, so we don't have to remove it.
+        }
+    }
+
+    glm::vec2 start    = first;
+    glm::vec2 control  = first;
+    glm::vec2 previous = first;
+    char previousTag   = FT_CURVE_TAG_ON;
+    for (short index = firstIndex; index != lastIndex + dIndex; index += dIndex) {
+        glm::vec2 current = convert(outline->points[index]);
+        char currentTag   = FT_CURVE_TAG(outline->tags[index]);
+        if (currentTag == FT_CURVE_TAG_CUBIC) {
+            // No-op, wait for more points.
+            control = previous;
+        } else if (currentTag == FT_CURVE_TAG_ON) {
+            if (previousTag == FT_CURVE_TAG_CUBIC) {
+                glm::vec2& b0 = start;
+                glm::vec2& b1 = control;
+                glm::vec2& b2 = previous;
+                glm::vec2& b3 = current;
+
+                glm::vec2 c0 = b0 + 0.75f * (b1 - b0);
+                glm::vec2 c1 = b3 + 0.75f * (b2 - b3);
+
+                glm::vec2 d = makeMidpoint(c0, c1);
+
+                curves.push_back(makeCurve(b0, c0, d));
+                curves.push_back(makeCurve(d, c1, b3));
+            } else if (previousTag == FT_CURVE_TAG_ON) {
+                // Linear segment.
+                curves.push_back(
+                  makeCurve(previous, makeMidpoint(previous, current), current));
+            } else {
+                // Regular bezier curve.
+                curves.push_back(makeCurve(start, previous, current));
+            }
+            start   = current;
+            control = current;
+        } else /* currentTag == FT_CURVE_TAG_CONIC */
+        {
+            if (previousTag == FT_CURVE_TAG_ON) {
+                // No-op, wait for third point.
+            } else {
+                // Create virtual on point.
+                glm::vec2 mid = makeMidpoint(previous, current);
+                curves.push_back(makeCurve(start, previous, mid));
+                start   = mid;
+                control = mid;
+            }
+        }
+        previous    = current;
+        previousTag = currentTag;
+    }
+
+    // Close the contour.
+    if (previousTag == FT_CURVE_TAG_CUBIC) {
+        glm::vec2& b0 = start;
+        glm::vec2& b1 = control;
+        glm::vec2& b2 = previous;
+        glm::vec2& b3 = first;
+
+        glm::vec2 c0 = b0 + 0.75f * (b1 - b0);
+        glm::vec2 c1 = b3 + 0.75f * (b2 - b3);
+
+        glm::vec2 d = makeMidpoint(c0, c1);
+
+        curves.push_back(makeCurve(b0, c0, d));
+        curves.push_back(makeCurve(d, c1, b3));
+    } else if (previousTag == FT_CURVE_TAG_ON) {
+        // Linear segment.
+        curves.push_back(makeCurve(previous, makeMidpoint(previous, first), first));
+    } else {
+        curves.push_back(makeCurve(start, previous, first));
+    }
+}
+
+static void R_Font_buildGlyph(R_Font* font, u32 charcode, FT_UInt glyphIndex)
+{
+    BufferGlyph bufferGlyph;
+    bufferGlyph.start = (i32)font->bufferCurves.size();
+
+    short start = 0;
+    for (int i = 0; i < font->face->glyph->outline.n_contours; i++) {
+        // Note: The end indices in face->glyph->outline.contours are inclusive.
+        convertContour(font->bufferCurves, &font->face->glyph->outline, start,
+                       font->face->glyph->outline.contours[i], font->emSize);
+        start = font->face->glyph->outline.contours[i] + 1;
+    }
+
+    bufferGlyph.count = (i32)font->bufferCurves.size() - bufferGlyph.start;
+
+    i32 bufferIndex = (i32)font->bufferGlyphs.size();
+    font->bufferGlyphs.push_back(bufferGlyph);
+
+    Glyph glyph;
+    glyph.index            = glyphIndex;
+    glyph.bufferIndex      = bufferIndex;
+    glyph.curveCount       = bufferGlyph.count;
+    glyph.width            = font->face->glyph->metrics.width;
+    glyph.height           = font->face->glyph->metrics.height;
+    glyph.bearingX         = font->face->glyph->metrics.horiBearingX;
+    glyph.bearingY         = font->face->glyph->metrics.horiBearingY;
+    glyph.advance          = font->face->glyph->metrics.horiAdvance;
+    font->glyphs[charcode] = glyph;
+}
+
+static void R_Font_uploadBuffers(GraphicsContext* gctx, R_Font* font)
+{
+    // Reupload the full buffer contents. To make this even more
+    // dynamic, the buffers could be overallocated and only the added
+    // data could be uploaded.
+
+    // TODO: only write new data (can calculate offset from bufferGlyphs.size - gpu
+    // buffer curr size)
+    // check limits->minStorageBufferOffsetAlignment first
+
+    // make sure we only rewrite on getting new glyph data
+    ASSERT(sizeof(BufferGlyph) * font->bufferGlyphs.size() > font->glyph_buffer.size);
+    ASSERT(sizeof(BufferCurve) * font->bufferCurves.size() > font->curve_buffer.size);
+
+    GPU_Buffer::write(gctx, &font->glyph_buffer, WGPUBufferUsage_Storage,
+                      font->bufferGlyphs.data(),
+                      sizeof(BufferGlyph) * font->bufferGlyphs.size());
+    GPU_Buffer::write(gctx, &font->curve_buffer, WGPUBufferUsage_Storage,
+                      font->bufferCurves.data(),
+                      sizeof(BufferCurve) * font->bufferCurves.size());
+}
+
+// iterates through rtext components, lazily deleting as needed
+// bool R_Font::rtextIter(R_Font* font, size_t* index, R_Text** rtext)
+//{
+//    // can be improved by changing entire function to iterative, no recursion
+//
+//    if (*index >= ARENA_LENGTH(&font->r_text_ids, SG_ID)) {
+//        *rtext = NULL;
+//        return false;
+//    }
+//
+//    // TODO impl
+//    *rtext = Component_GetText(*ARENA_GET_TYPE(&font->r_text_ids, SG_ID, *index));
+//
+//    // if null or reassigned to different font, swap with last element
+//    // and try again
+//    if (*rtext == NULL || (*rtext)->font != font) {
+//        ARENA_SWAP_DELETE(&font->r_text_ids, SG_ID, *index);
+//        // try again with same index
+//        return R_Font::rtextIter(font, index, rtext);
+//    }
+//
+//    // else return normally
+//    ++(*index);
+//    return true;
+//}
+
+// impl in imgui_draw.cpp
+unsigned char* imgui_decompressBase85TTF(const char* compressed_ttf_data_base85,
+                                         int* out_size);
+
+bool R_Font::init(GraphicsContext* gctx, FT_Library library, R_Font* font,
+                  const char* font_path)
+{
+    ASSERT(font->face == NULL);
+    *font           = {}; // init defaults
+    font->font_path = std::string(font_path);
+    ASSERT(font->worldSize > 0.0f);
+
+    log_debug("Creating new R_Font with font path: %s", font_path);
+
+    // if font path starts with chugl:
+    // then it is a builtin font we load from memory
+    if (strncmp(font_path, "chugl:", 6) == 0) {
+        unsigned char* font_data = NULL;
+        int font_memory_size     = 0;
+        if (strncmp(&font_path[6], "cousine-regular", 15) == 0) {
+            font_data = imgui_decompressBase85TTF(
+              cousine_regular_compressed_data_base85, &font_memory_size);
+            ASSERT(font_memory_size == 43912);
+        }
+        FT_Error error = FT_New_Memory_Face(library, (const FT_Byte*)font_data,
+                                            font_memory_size, 0, &font->face);
+
+        if (error) {
+            log_error("error while loading font face from memory: %d", error);
+            return false;
+        }
+    } else {
+        font->face = R_Font_loadFace(library, font_path);
+    }
+
+    FT_Face face = font->face;
+
+    // TODO R_Font:: remove hinting
+    if (font->hinting) {
+        font->loadFlags   = FT_LOAD_NO_BITMAP;
+        font->kerningMode = FT_KERNING_DEFAULT;
+
+        font->emSize   = font->worldSize * 64;
+        FT_Error error = FT_Set_Pixel_Sizes(
+          font->face, 0, static_cast<FT_UInt>(std::ceil(font->worldSize)));
+        if (error) {
+            log_error("error while setting pixel size: %d", error);
+            return false;
+        }
+    } else {
+        font->loadFlags   = FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP;
+        font->kerningMode = FT_KERNING_UNSCALED;
+        font->emSize      = font->face->units_per_EM;
+    }
+
+    { // build undefined glyph
+        uint32_t charcode  = 0;
+        FT_UInt glyphIndex = 0;
+        FT_Error error     = FT_Load_Glyph(font->face, glyphIndex, font->loadFlags);
+        if (error) {
+            log_error("error while loading undefined glyph: %d", error);
+            return false;
+            // Continue, because we always want an entry for the undefined glyph in our
+            // glyphs map!
+        }
+
+        R_Font_buildGlyph(font, charcode, glyphIndex);
+    }
+
+    // build glyphs for ASCII characters
+    // 32-127 are printable ASCII characters
+    for (uint32_t charcode = 32; charcode < 128; charcode++) {
+        FT_UInt glyphIndex = FT_Get_Char_Index(face, charcode);
+        if (!glyphIndex) continue;
+
+        FT_Error error = FT_Load_Glyph(face, glyphIndex, font->loadFlags);
+        if (error) {
+            log_error("error while loading glyph for character %d: %d", charcode,
+                      error);
+            continue;
+        }
+
+        R_Font_buildGlyph(font, charcode, glyphIndex);
+    }
+
+    R_Font_uploadBuffers(gctx, font);
+    return true;
+}
+
+void R_Font::updateText(GraphicsContext* gctx, R_Font* font, R_Text* text)
+{
+    // ==optimize== defer glyph generation until AFTER flushing all commands
+    // just like material update
+    // if so, don't even need to store std::String on R_Text
+
+    static Arena positions;
+    static Arena uvs;
+    static Arena glyph_indices;
+    static Arena indices;
+
+    // clear the buffers
+    Arena::clear(&positions);
+    Arena::clear(&uvs);
+    Arena::clear(&glyph_indices);
+    Arena::clear(&indices);
+
+    // generate new glyps for this font
+    R_Font::prepareGlyphsForText(gctx, font, text->text.c_str());
+
+    // update material bindgroup
+    R_Material* mat = Component_GetMaterial(text->_matID);
+    R_Material::setExternalStorageBinding(gctx, mat, 0, &font->glyph_buffer);
+    R_Material::setExternalStorageBinding(gctx, mat, 1, &font->curve_buffer);
+
+    // TODO bridge from chugl gtext to set these uniforms (probably add an SG command)
+    glm::vec4 white                     = glm::vec4(1.0, 0.0, 1.0, 1.0);
+    f32 antialiasingwindowSize          = 1.0;
+    i32 enableSuperSamplingAntiAliasing = 1;
+    R_Material::setBinding(gctx, mat, 2, R_BIND_UNIFORM, &white, sizeof(white));
+    R_Material::setBinding(gctx, mat, 3, R_BIND_UNIFORM, &antialiasingwindowSize,
+                           sizeof(antialiasingwindowSize));
+    R_Material::setBinding(gctx, mat, 4, R_BIND_UNIFORM,
+                           &enableSuperSamplingAntiAliasing,
+                           sizeof(enableSuperSamplingAntiAliasing));
+
+    // @group(1) @binding(2) var<uniform> u_Color: vec4f;
+    // @group(1) @binding(3) var<uniform> antiAliasingWindowSize: f32 = 1.0;
+    // @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
+
+    // TODO consolidate bb measure and rebuild buffers
+    // for now making control point always top left
+    // TODO rename to rebuildVertexBuffers
+    R_Font::rebuildBuffers(font, text->text.c_str(), 0, 0, &positions, &uvs,
+                           &glyph_indices, &indices);
+
+    // write buffer data to geometry
+    R_Geometry* geo = Component_GetGeometry(text->_geoID);
+    R_Geometry::setVertexAttribute(gctx, geo, 0, 2, positions.base, positions.curr);
+    R_Geometry::setVertexAttribute(gctx, geo, 1, 2, uvs.base, uvs.curr);
+    R_Geometry::setVertexAttribute(gctx, geo, 2, 1, glyph_indices.base,
+                                   glyph_indices.curr);
+    R_Geometry::setIndices(gctx, geo, (u32*)indices.base, indices.curr);
+}
+
+// build new glyphs if text has unseen characters
+void R_Font::prepareGlyphsForText(GraphicsContext* gctx, R_Font* font, const char* text)
+{
+    bool changed = false;
+
+    char* textIt = (char*)text;
+    while (*textIt != '\0') {
+        uint32_t charcode = R_Font_decodeCharcode(&textIt);
+
+        if (charcode == '\r' || charcode == '\n') continue;
+        if (font->glyphs.count(charcode) != 0) continue; // if already exists, move on
+
+        FT_UInt glyphIndex = FT_Get_Char_Index(font->face, charcode);
+        if (!glyphIndex) continue;
+
+        FT_Error error = FT_Load_Glyph(font->face, glyphIndex, font->loadFlags);
+        if (error) {
+            log_error("error while loading glyph for character %d: %d", charcode,
+                      error);
+            continue;
+        }
+
+        R_Font_buildGlyph(font, charcode, glyphIndex);
+        changed = true;
+    }
+
+    if (changed) {
+        // Reupload the full buffer contents. To make this even more
+        // dynamic, the buffers could be overallocated and only the added
+        // data could be uploaded.
+        R_Font_uploadBuffers(gctx,
+                             font); // updates gpu buffers with new glyph/curve data
+    }
 }
