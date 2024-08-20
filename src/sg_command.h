@@ -98,7 +98,8 @@ enum SG_CommandType : u32 {
     SG_COMMAND_CAMERA_SET_PARAMS,
 
     // text
-    SG_COMMAND_TEXT_CREATE,
+    SG_COMMAND_TEXT_REBUILD,
+    SG_COMMAND_TEXT_DEFAULT_FONT,
 
     // geometry
     SG_COMMAND_GEO_CREATE,
@@ -361,11 +362,17 @@ struct SG_Command_Mesh_Create : public SG_Command {
 
 // text commands -----------------------------------------------------
 
-struct SG_Command_TextCreate : public SG_Command {
-    SG_ID text_id;
-    SG_ID text_shader_id;
-    ptrdiff_t font_path_offset; // not owned, pointer to ck_string
-    ptrdiff_t text_offset;      // not owned, pointer to ck_string;
+struct SG_Command_TextDefaultFont : public SG_Command {
+    ptrdiff_t font_path_str_offset;
+};
+
+struct SG_Command_TextRebuild : public SG_Command {
+    SG_ID text_id; // lazily create text if not found
+    SG_ID material_id;
+    glm::vec2 control_point; // TODO do as material uniform
+    float vertical_spacing;
+    ptrdiff_t font_path_str_offset;
+    ptrdiff_t text_str_offset;
 };
 
 // camera commands -----------------------------------------------------
@@ -495,7 +502,8 @@ void CQ_PushCommand_CameraCreate(SG_Camera* camera);
 void CQ_PushCommand_CameraSetParams(SG_Camera* camera);
 
 // text
-void CQ_PushCommand_TextCreate(SG_Text* text, SG_ID font_shader_id);
+void CQ_PushCommand_TextRebuild(SG_Text* text);
+void CQ_PushCommand_TextDefaultFont(const char* font_path);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);

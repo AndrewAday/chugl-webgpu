@@ -247,6 +247,7 @@ struct App {
 
     // FreeType
     FT_Library FTLibrary;
+    R_Font* default_font;
 
     // memory
     Arena frameArena;
@@ -359,12 +360,21 @@ struct App {
             return;
         }
 
-        // Initialize FT
-        FT_Error error = FT_Init_FreeType(&app->FTLibrary);
-        if (error) {
-            log_fatal("Failed to initialize FreeType\n");
-            return;
+        { // Initialize FT and builtin fonts
+            FT_Error error = FT_Init_FreeType(&app->FTLibrary);
+            if (error) {
+                log_fatal("Failed to initialize FreeType\n");
+                return;
+            }
+
+            R_Font* builtin_font
+              = Component_GetFont(&app->gctx, app->FTLibrary, "chugl:cousine-regular");
+            ASSERT(builtin_font);
+
+            app->default_font = builtin_font; // safe to store ptr because all fonts are
+                                              // kept in static array
         }
+
         // initialize R_Component manager
         Component_Init(&app->gctx);
 
@@ -616,7 +626,8 @@ struct App {
             while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
             CQ_ReadCommandQueueClear();
             // tasks to do after command queue is flushed (batched)
-            Material_batchUpdatePipelines(&app->gctx, app->mainScene);
+            Material_batchUpdatePipelines(&app->gctx, app->FTLibrary, app->default_font,
+                                          app->mainScene);
         }
 
         // process any glfw options passed from chuck
@@ -1315,9 +1326,16 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             camera->params                  = cmd->params;
         } break;
         // text
-        case SG_COMMAND_TEXT_CREATE: {
-            SG_Command_TextCreate* cmd = (SG_Command_TextCreate*)command;
+        case SG_COMMAND_TEXT_REBUILD: {
+            SG_Command_TextRebuild* cmd = (SG_Command_TextRebuild*)command;
             Component_CreateText(&app->gctx, app->FTLibrary, cmd);
+        } break;
+        case SG_COMMAND_TEXT_DEFAULT_FONT: {
+            SG_Command_TextDefaultFont* cmd = (SG_Command_TextDefaultFont*)command;
+            R_Font* default_font            = Component_GetFont(
+              &app->gctx, app->FTLibrary,
+              (char*)CQ_ReadCommandGetOffset(cmd->font_path_str_offset));
+            if (default_font) app->default_font = default_font;
         } break;
         // b2
         case SG_COMMAND_b2_WORLD_SET: {

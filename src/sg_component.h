@@ -245,6 +245,7 @@ enum SG_MaterialType : u8 {
     SG_MATERIAL_LINES2D,
     SG_MATERIAL_FLAT,
     SG_MATERIAL_PBR,
+    SG_MATERIAL_TEXT3D,
     SG_MATERIAL_COUNT
 };
 
@@ -357,6 +358,13 @@ struct SG_Material : SG_Component {
     static void removeUniform(SG_Material* mat, int location);
     static void setUniform(SG_Material* mat, int location, void* uniform,
                            SG_MaterialUniformType type);
+
+    static void uniformInt(SG_Material* mat, int location, int value)
+    {
+        mat->uniforms[location].type = SG_MATERIAL_UNIFORM_INT;
+        mat->uniforms[location].as.i = value;
+    }
+
     static void uniformFloat(SG_Material* mat, int location, f32 value)
     {
         mat->uniforms[location].type = SG_MATERIAL_UNIFORM_FLOAT;
@@ -466,9 +474,11 @@ struct SG_Camera : SG_Transform {
 // gpu
 // ============================================================================
 
-struct SG_Text : public SG_Transform {
-    std::string font_path;
-    std::string text;
+struct SG_Text : public SG_Mesh {
+    std::string font_path   = "";
+    std::string text        = "";
+    t_CKVEC2 control_points = { 0.5f, 0.5f };
+    float vertical_spacing  = 1.0f;
 };
 
 // ============================================================================
@@ -507,6 +517,7 @@ SG_Material* SG_GetMaterial(SG_ID id);
 SG_Mesh* SG_GetMesh(SG_ID id);
 SG_Texture* SG_GetTexture(SG_ID id);
 SG_Camera* SG_GetCamera(SG_ID id);
+SG_Text* SG_GetText(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

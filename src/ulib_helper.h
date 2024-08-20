@@ -218,3 +218,6 @@ Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count)
     }
     return ck_arr;
 }
+
+// impl in ulib_material.cpp
+void chugl_materialSetShader(SG_Material* material, SG_Shader* shader);

@@ -160,7 +160,7 @@ struct GPU_Buffer {
         }
 
         wgpuQueueWriteBuffer(gctx->queue, gpu_buffer->buf, offset, data, size);
-        gpu_buffer->size = size;
+        gpu_buffer->size = offset + size;
         return recreated;
     }
 

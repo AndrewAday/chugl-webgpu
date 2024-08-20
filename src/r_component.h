@@ -24,6 +24,7 @@
 struct Vertices;
 struct R_Material;
 struct R_Scene;
+struct R_Font;
 struct hashmap;
 
 typedef SG_ID R_ID; // negative for R_Components NOT mapped to SG_Components
@@ -191,7 +192,8 @@ struct R_Texture : public R_Component {
                          const char* filepath);
 };
 
-void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID main_scene);
+void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
+                                   R_Font* default_font, SG_ID main_scene_id);
 
 // =============================================================================
 // R_Shader
@@ -497,8 +499,6 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 // R_Font
 // =============================================================================
 
-// TODO change names of structs later
-
 struct Glyph {
     FT_UInt index;
     i32 bufferIndex;
@@ -526,13 +526,11 @@ struct BoundingBox {
     float minX, minY, maxX, maxY;
 };
 
-// struct BufferVertex { // TODO terrible name
-//     float   x, y, u, v;
-//     i32 bufferIndex;
-// };
-
 struct R_Text : public R_Transform {
     std::string text;
+    std::string font_path;
+    glm::vec2 control_points;
+    float vertical_spacing;
 };
 
 struct R_Font {
@@ -540,13 +538,6 @@ struct R_Font {
     FT_Face face; // TODO multiplex faces across R_Font. multiple R_Font with same font
                   // but different text can share the same face
 
-    // Whether hinting is enabled for this instance.
-    // Note that hinting changes how we operate FreeType:
-    // If hinting is not enabled, we scale all coordinates ourselves (see comment for
-    // emSize). If hinting is enabled, we must let FreeType scale the outlines for the
-    // hinting to work properly. The variables loadFlags and kerningMode are set in the
-    // constructor and control this scaling behavior.
-    bool hinting = false; // TODO probably remove
     FT_Int32 loadFlags;
     FT_Kerning_Mode kerningMode;
 
@@ -562,26 +553,16 @@ struct R_Font {
 
     float worldSize = 1.0f;
 
-    // TODO store per font
     GPU_Buffer glyph_buffer;
     GPU_Buffer curve_buffer;
 
-    // TODO change to arenas and hashmap
-    // TODO these should also be stored per font, not per R_Font
     std::vector<BufferGlyph> bufferGlyphs;
     std::vector<BufferCurve> bufferCurves;
     std::unordered_map<u32, Glyph> glyphs;
 
     // The glyph quads are expanded by this amount to enable proper
     // anti-aliasing. Value is relative to emSize.
-    float dilation = 0.1f; // TODO fix to 0.1?
-
-    // Arena r_text_ids; // array of SG_IDs TODO implement next
-    // then impl render loop that walks over component_fonts array and renders each
-    // r_text remember to lazy delete r_text from component_fonts array during walk if
-    // they no longer point to this font
-
-    // static bool rtextIter(R_Font* font, size_t* index, R_Text** rtext);
+    float dilation = 0.1f;
 
     // given a text object, updates its geo vertex buffers
     // and material bindgroup
@@ -602,12 +583,12 @@ struct R_Font {
     // given text and a starting model-space coordinate (x,y)
     // reconstructs the vertex and index buffers for the text
     // (used to batch draw a single GText object)
-    static void rebuildBuffers(R_Font* font, const char* mainText, float x, float y,
-                               Arena* positions, Arena* uvs, Arena* glyph_indices,
-                               Arena* indices, float verticalScale = 1.0f);
+    static void rebuildVertexBuffers(R_Font* font, const char* mainText, float x,
+                                     float y, Arena* positions, Arena* uvs,
+                                     Arena* glyph_indices, Arena* indices,
+                                     float verticalScale = 1.0f);
 
-    BoundingBox measure(R_Font* font, float x, float y, const char* text,
-                        float verticalScale = 1.0f);
+    BoundingBox measure(float x, float y, const char* text, float verticalScale = 1.0f);
 };
 
 // =============================================================================
@@ -620,7 +601,7 @@ R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
 R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd);
 R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
-                             SG_Command_TextCreate* cmd);
+                             SG_Command_TextRebuild* cmd);
 
 R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
 

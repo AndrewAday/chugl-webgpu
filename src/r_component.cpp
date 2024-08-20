@@ -1632,73 +1632,77 @@ R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
     return cam;
 }
 
+static void R_Text_updateFromCommand(R_Text* text, SG_Command_TextRebuild* cmd)
+{
+    // TODO other fields (control point, etc)
+    text->text
+      = std::string((const char*)CQ_ReadCommandGetOffset(cmd->text_str_offset));
+    text->font_path
+      = std::string((const char*)CQ_ReadCommandGetOffset(cmd->font_path_str_offset));
+    text->vertical_spacing = cmd->vertical_spacing;
+    text->control_points   = cmd->control_point;
+
+    // defer font construction to end of frame (TODO change name...)
+    hashmap_set(materials_with_new_pso, &text->id);
+}
+
 // ==optimize== group materials by font
 // GText which share the same font_path can share the same material
+// actually we can't: consider two GTexts same fonts but different color.
 R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
-                             SG_Command_TextCreate* cmd)
+                             SG_Command_TextRebuild* cmd)
 {
-    R_Text* text = ARENA_PUSH_ZERO_TYPE(
-      &textArena, R_Text); // can also add void* udata to R_Transform to support these
-                           // kinds of renderables
-    R_Transform_init(text, cmd->text_id, SG_COMPONENT_MESH); // text or mesh type?
-
-    // store offset
-    R_Location loc     = { text->id, Arena::offsetOf(&textArena, text), &textArena };
-    const void* result = hashmap_set(r_locator, &loc);
-    ASSERT(result == NULL); // ensure id is unique
-
-    // create internal geo and mesh for GText
-    R_Material* mat = ARENA_PUSH_ZERO_TYPE(&materialArena, R_Material);
-
-    // initialize material
-    {
-        *mat      = {};
-        mat->id   = getNewRID();
-        mat->type = SG_COMPONENT_MATERIAL;
-
-        // init uniform buffer
-        GPU_Buffer::init(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
-                         MAX(sizeof(SG_MaterialUniformData),
-                             gctx->limits.minUniformBufferOffsetAlignment)
-                           * ARRAY_LENGTH(mat->bindings));
-
-        // build config
-        SG_MaterialPipelineState pso = { cmd->text_shader_id, WGPUCullMode_None,
-                                         WGPUPrimitiveTopology_TriangleList };
-        R_Material::updatePSO(gctx, mat, &pso);
+    // see if text is already created
+    R_Text* text = Component_GetText(cmd->text_id);
+    if (text) {
+        R_Text_updateFromCommand(text, cmd);
+        return text;
     }
 
-    // store offset
-    loc    = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
-    result = hashmap_set(r_locator, &loc);
-    ASSERT(result == NULL); // ensure id is unique
+    // else lazily create
+
+    // OOP is creeping in here....
+    // can factor these out into separate fns: createMaterialImpl, createGeometryImpl,
+    // createMeshImpl
+
+    // initialize material
+    R_Material* mat = Component_GetMaterial(cmd->material_id);
+    ASSERT(mat);
 
     // init geometry
-    R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
+    R_Geometry* geo = ARENA_PUSH_TYPE(&geoArena, R_Geometry);
+    {
+        *geo              = {};
+        geo->id           = getNewRID();
+        geo->type         = SG_COMPONENT_GEOMETRY;
+        geo->vertex_count = -1; // -1 means draw all vertices
 
-    geo->id           = getNewRID();
-    geo->type         = SG_COMPONENT_GEOMETRY;
-    geo->vertex_count = -1; // -1 means draw all vertices
+        // store offset
+        R_Location loc     = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
+        const void* result = hashmap_set(r_locator, &loc);
+        ASSERT(result == NULL); // ensure id is unique
+    }
 
-    // store offset
-    loc    = { geo->id, Arena::offsetOf(&geoArena, geo), &geoArena };
-    result = hashmap_set(r_locator, &loc);
-    ASSERT(result == NULL); // ensure id is unique
+    // init text
+    text = ARENA_PUSH_ZERO_TYPE(&textArena,
+                                R_Text); // can also add void* udata to R_Transform to
+                                         // support these kinds of renderables
+    {
+        R_Transform_init(text, cmd->text_id, SG_COMPONENT_TEXT); // text or mesh type?
 
-    // init mesh
-    text->_geoID = geo->id;
-    text->_matID = mat->id;
+        // init mesh
+        text->_geoID = geo->id;
+        text->_matID = mat->id;
 
-    // make sure these are internal
-    ASSERT(text->_matID < 0);
-    ASSERT(text->_geoID < 0);
+        // store offset
+        R_Location loc = { text->id, Arena::offsetOf(&textArena, text), &textArena };
+        const void* result = hashmap_set(r_locator, &loc);
+        ASSERT(result == NULL); // ensure id is unique
 
-    { // text init
-        // text->text = cmd->text; // hardcode for now
-        text->text            = std::string("hello world");
-        const char* font_path = "chugl:cousine-regular";
-        // R_Font::updateText(gctx, Component_GetFont(gctx, ft, cmd->font_path), text);
-        R_Font::updateText(gctx, Component_GetFont(gctx, ft, font_path), text);
+        // make sure these are internal
+        ASSERT(text->_geoID < 0);
+
+        R_Text_updateFromCommand(text, cmd);
     }
 
     return text;
@@ -1804,12 +1808,7 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
                              gctx->limits.minUniformBufferOffsetAlignment)
                            * ARRAY_LENGTH(mat->bindings));
 
-        // build config
-        mat->pso = cmd->pso;
-
-        // defer pipeline (lazily created)
-        const void* result = hashmap_set(materials_with_new_pso, &mat->id);
-        ASSERT(result == NULL); // ensure id is unique
+        R_Material::updatePSO(gctx, mat, &cmd->pso);
     }
 
     // set material params/uniforms
@@ -1855,24 +1854,38 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 }
 
 // called by renderer after flushing all commands
-void Material_batchUpdatePipelines(GraphicsContext* gctx, SG_ID scene_id)
+void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
+                                   R_Font* default_font, SG_ID main_scene_id)
 {
-    R_Scene* main_scene = Component_GetScene(scene_id);
+    R_Scene* main_scene = Component_GetScene(main_scene_id);
 
     // TODO:
     // handle xforms changing geo/mat by marking g2m as stale
     size_t index = 0;
     SG_ID* sg_id;
     while (hashmap_iter(materials_with_new_pso, &index, (void**)&sg_id)) {
-        R_Material* mat            = Component_GetMaterial(*sg_id);
-        R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->pso);
+        R_Component* comp = Component_GetComponent(*sg_id);
+        switch (comp->type) {
+            case SG_COMPONENT_MATERIAL: {
+                R_Material* mat            = (R_Material*)comp;
+                R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->pso);
 
-        ASSERT(mat->pipeline_stale);
-        mat->pipeline_stale = false;
+                ASSERT(mat->pipeline_stale);
+                mat->pipeline_stale = false;
 
-        // add material to pipeline
-        R_RenderPipeline::addMaterial(pipeline, mat);
-        ASSERT(mat->pipelineID == pipeline->rid);
+                // add material to pipeline
+                R_RenderPipeline::addMaterial(pipeline, mat);
+                ASSERT(mat->pipelineID == pipeline->rid);
+            } break;
+            case SG_COMPONENT_TEXT: {
+                R_Text* rtext = (R_Text*)comp;
+                R_Font* font
+                  = Component_GetFont(gctx, ft_lib, rtext->font_path.c_str());
+                if (!font) font = default_font;
+                R_Font::updateText(gctx, font, rtext);
+            } break;
+            default: ASSERT(false);
+        }
     }
 
     // clear hashmap
@@ -1918,6 +1931,8 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
 R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path)
 {
+    if (font_path == NULL || strlen(font_path) == 0) return NULL;
+
     for (int i = 0; i < component_font_count; ++i) {
         // this lookup won't work for loading fonts from memory
         // actually it will if we give builtin fonts special names
@@ -1946,7 +1961,8 @@ R_Transform* Component_GetXform(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     if (comp) {
         ASSERT(comp->type == SG_COMPONENT_TRANSFORM || comp->type == SG_COMPONENT_SCENE
-               || comp->type == SG_COMPONENT_MESH || comp->type == SG_COMPONENT_CAMERA);
+               || comp->type == SG_COMPONENT_MESH || comp->type == SG_COMPONENT_CAMERA
+               || comp->type == SG_COMPONENT_TEXT);
     }
     return (R_Transform*)comp;
 }
@@ -2332,9 +2348,9 @@ FT_Face R_Font_loadFace(FT_Library library, const char* filename)
     return face;
 }
 
-void R_Font::rebuildBuffers(R_Font* font, const char* mainText, float x, float y,
-                            Arena* positions, Arena* uvs, Arena* glyph_indices,
-                            Arena* indices, float verticalScale)
+void R_Font::rebuildVertexBuffers(R_Font* font, const char* mainText, float x, float y,
+                                  Arena* positions, Arena* uvs, Arena* glyph_indices,
+                                  Arena* indices, float verticalScale)
 {
     float originalX = x;
 
@@ -2350,7 +2366,6 @@ void R_Font::rebuildBuffers(R_Font* font, const char* mainText, float x, float y
             y -= verticalScale
                  * ((float)font->face->height / (float)font->face->units_per_EM
                     * font->worldSize);
-            if (font->hinting) y = std::round(y);
             continue;
         }
 
@@ -2410,11 +2425,10 @@ void R_Font::rebuildBuffers(R_Font* font, const char* mainText, float x, float y
     }
 }
 
-// TODO: consolidate with R_Font::rebuildBuffers
+// ==optimize== consolidate with R_Font::rebuildBuffers
 // calculate vertices assuming control point 0,0, and determine BB at same time
 // after calculating bb, apply translation to vertices.
-BoundingBox R_Font::measure(R_Font* font, float x, float y, const char* text,
-                            float verticalScale)
+BoundingBox R_Font::measure(float x, float y, const char* text, float verticalScale)
 {
     BoundingBox bb = {};
     bb.minX        = +std::numeric_limits<float>::infinity();
@@ -2435,7 +2449,6 @@ BoundingBox R_Font::measure(R_Font* font, float x, float y, const char* text,
             x = originalX;
             y -= verticalScale
                  * ((float)face->height / (float)face->units_per_EM * worldSize);
-            if (hinting) y = std::round(y);
             continue;
         }
 
@@ -2687,15 +2700,13 @@ static void R_Font_buildGlyph(R_Font* font, u32 charcode, FT_UInt glyphIndex)
     font->glyphs[charcode] = glyph;
 }
 
+// updates gpu buffers with new glyph/curve data
 static void R_Font_uploadBuffers(GraphicsContext* gctx, R_Font* font)
 {
-    // Reupload the full buffer contents. To make this even more
-    // dynamic, the buffers could be overallocated and only the added
-    // data could be uploaded.
-
-    // TODO: only write new data (can calculate offset from bufferGlyphs.size - gpu
+    // could only write new data (can calculate offset from bufferGlyphs.size - gpu
     // buffer curr size)
     // check limits->minStorageBufferOffsetAlignment first
+    // but not needed as these are small buffers relative to PCIe bandwidth
 
     // make sure we only rewrite on getting new glyph data
     ASSERT(sizeof(BufferGlyph) * font->bufferGlyphs.size() > font->glyph_buffer.size);
@@ -2708,32 +2719,6 @@ static void R_Font_uploadBuffers(GraphicsContext* gctx, R_Font* font)
                       font->bufferCurves.data(),
                       sizeof(BufferCurve) * font->bufferCurves.size());
 }
-
-// iterates through rtext components, lazily deleting as needed
-// bool R_Font::rtextIter(R_Font* font, size_t* index, R_Text** rtext)
-//{
-//    // can be improved by changing entire function to iterative, no recursion
-//
-//    if (*index >= ARENA_LENGTH(&font->r_text_ids, SG_ID)) {
-//        *rtext = NULL;
-//        return false;
-//    }
-//
-//    // TODO impl
-//    *rtext = Component_GetText(*ARENA_GET_TYPE(&font->r_text_ids, SG_ID, *index));
-//
-//    // if null or reassigned to different font, swap with last element
-//    // and try again
-//    if (*rtext == NULL || (*rtext)->font != font) {
-//        ARENA_SWAP_DELETE(&font->r_text_ids, SG_ID, *index);
-//        // try again with same index
-//        return R_Font::rtextIter(font, index, rtext);
-//    }
-//
-//    // else return normally
-//    ++(*index);
-//    return true;
-//}
 
 // impl in imgui_draw.cpp
 unsigned char* imgui_decompressBase85TTF(const char* compressed_ttf_data_base85,
@@ -2749,6 +2734,7 @@ bool R_Font::init(GraphicsContext* gctx, FT_Library library, R_Font* font,
 
     log_debug("Creating new R_Font with font path: %s", font_path);
 
+    // DEFAULT FONTS
     // if font path starts with chugl:
     // then it is a builtin font we load from memory
     if (strncmp(font_path, "chugl:", 6) == 0) {
@@ -2758,7 +2744,20 @@ bool R_Font::init(GraphicsContext* gctx, FT_Library library, R_Font* font,
             font_data = imgui_decompressBase85TTF(
               cousine_regular_compressed_data_base85, &font_memory_size);
             ASSERT(font_memory_size == 43912);
+        } else if (strncmp(&font_path[6], "karla-regular", 13) == 0) {
+            font_data = imgui_decompressBase85TTF(karla_regular_compressed_data_base85,
+                                                  &font_memory_size);
+            ASSERT(font_memory_size == 16848);
+        } else if (strncmp(&font_path[6], "proggy-tiny", 11) == 0) {
+            font_data = imgui_decompressBase85TTF(proggy_tiny_compressed_data_base85,
+                                                  &font_memory_size);
+            ASSERT(font_memory_size == 35656);
+        } else if (strncmp(&font_path[6], "proggy-clean", 12) == 0) {
+            font_data = imgui_decompressBase85TTF(proggy_clean_compressed_data_base85,
+                                                  &font_memory_size);
+            ASSERT(font_memory_size == 41208);
         }
+
         FT_Error error = FT_New_Memory_Face(library, (const FT_Byte*)font_data,
                                             font_memory_size, 0, &font->face);
 
@@ -2772,23 +2771,9 @@ bool R_Font::init(GraphicsContext* gctx, FT_Library library, R_Font* font,
 
     FT_Face face = font->face;
 
-    // TODO R_Font:: remove hinting
-    if (font->hinting) {
-        font->loadFlags   = FT_LOAD_NO_BITMAP;
-        font->kerningMode = FT_KERNING_DEFAULT;
-
-        font->emSize   = font->worldSize * 64;
-        FT_Error error = FT_Set_Pixel_Sizes(
-          font->face, 0, static_cast<FT_UInt>(std::ceil(font->worldSize)));
-        if (error) {
-            log_error("error while setting pixel size: %d", error);
-            return false;
-        }
-    } else {
-        font->loadFlags   = FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP;
-        font->kerningMode = FT_KERNING_UNSCALED;
-        font->emSize      = font->face->units_per_EM;
-    }
+    font->loadFlags   = FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP;
+    font->kerningMode = FT_KERNING_UNSCALED;
+    font->emSize      = font->face->units_per_EM;
 
     { // build undefined glyph
         uint32_t charcode  = 0;
@@ -2821,15 +2806,12 @@ bool R_Font::init(GraphicsContext* gctx, FT_Library library, R_Font* font,
     }
 
     R_Font_uploadBuffers(gctx, font);
+    font->font_path = std::string(font_path);
     return true;
 }
 
 void R_Font::updateText(GraphicsContext* gctx, R_Font* font, R_Text* text)
 {
-    // ==optimize== defer glyph generation until AFTER flushing all commands
-    // just like material update
-    // if so, don't even need to store std::String on R_Text
-
     static Arena positions;
     static Arena uvs;
     static Arena glyph_indices;
@@ -2844,31 +2826,19 @@ void R_Font::updateText(GraphicsContext* gctx, R_Font* font, R_Text* text)
     // generate new glyps for this font
     R_Font::prepareGlyphsForText(gctx, font, text->text.c_str());
 
+    // compute new bounding box
+    BoundingBox bb = font->measure(0, 0, text->text.c_str(), text->vertical_spacing);
+
     // update material bindgroup
     R_Material* mat = Component_GetMaterial(text->_matID);
     R_Material::setExternalStorageBinding(gctx, mat, 0, &font->glyph_buffer);
     R_Material::setExternalStorageBinding(gctx, mat, 1, &font->curve_buffer);
 
-    // TODO bridge from chugl gtext to set these uniforms (probably add an SG command)
-    glm::vec4 white                     = glm::vec4(1.0, 0.0, 1.0, 1.0);
-    f32 antialiasingwindowSize          = 1.0;
-    i32 enableSuperSamplingAntiAliasing = 1;
-    R_Material::setBinding(gctx, mat, 2, R_BIND_UNIFORM, &white, sizeof(white));
-    R_Material::setBinding(gctx, mat, 3, R_BIND_UNIFORM, &antialiasingwindowSize,
-                           sizeof(antialiasingwindowSize));
-    R_Material::setBinding(gctx, mat, 4, R_BIND_UNIFORM,
-                           &enableSuperSamplingAntiAliasing,
-                           sizeof(enableSuperSamplingAntiAliasing));
+    float cx = bb.minX + text->control_points.x * (bb.maxX - bb.minX);
+    float cy = bb.minY + text->control_points.y * (bb.maxY - bb.minY);
 
-    // @group(1) @binding(2) var<uniform> u_Color: vec4f;
-    // @group(1) @binding(3) var<uniform> antiAliasingWindowSize: f32 = 1.0;
-    // @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
-
-    // TODO consolidate bb measure and rebuild buffers
-    // for now making control point always top left
-    // TODO rename to rebuildVertexBuffers
-    R_Font::rebuildBuffers(font, text->text.c_str(), 0, 0, &positions, &uvs,
-                           &glyph_indices, &indices);
+    R_Font::rebuildVertexBuffers(font, text->text.c_str(), -cx, -cy, &positions, &uvs,
+                                 &glyph_indices, &indices, text->vertical_spacing);
 
     // write buffer data to geometry
     R_Geometry* geo = Component_GetGeometry(text->_geoID);
@@ -2876,7 +2846,10 @@ void R_Font::updateText(GraphicsContext* gctx, R_Font* font, R_Text* text)
     R_Geometry::setVertexAttribute(gctx, geo, 1, 2, uvs.base, uvs.curr);
     R_Geometry::setVertexAttribute(gctx, geo, 2, 1, glyph_indices.base,
                                    glyph_indices.curr);
-    R_Geometry::setIndices(gctx, geo, (u32*)indices.base, indices.curr);
+    R_Geometry::setIndices(gctx, geo, (u32*)indices.base, ARENA_LENGTH(&indices, u32));
+
+    // leq because whitespaces are skipped
+    ASSERT(ARENA_LENGTH(&indices, u32) <= text->text.length() * 6);
 }
 
 // build new glyphs if text has unseen characters
@@ -2909,7 +2882,8 @@ void R_Font::prepareGlyphsForText(GraphicsContext* gctx, R_Font* font, const cha
         // Reupload the full buffer contents. To make this even more
         // dynamic, the buffers could be overallocated and only the added
         // data could be uploaded.
-        R_Font_uploadBuffers(gctx,
-                             font); // updates gpu buffers with new glyph/curve data
+        // not necessary, glyph+curve buffers are only ~200kb for ASCII chars
+        // 3080 PCI has 32GB/s bandwidth, these buffers are nothing
+        R_Font_uploadBuffers(gctx, font);
     }
 }

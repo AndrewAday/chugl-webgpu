@@ -407,7 +407,7 @@ CK_DLL_MFUN(material_get_shader)
     RETURN->v_object      = shader ? shader->ckobj : NULL;
 }
 
-static void chugl_materialSetShader(SG_Material* material, SG_Shader* shader)
+void chugl_materialSetShader(SG_Material* material, SG_Shader* shader)
 {
     SG_Material::shader(material, shader);
     CQ_PushCommand_MaterialUpdatePSO(material);

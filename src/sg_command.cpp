@@ -559,15 +559,15 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
     size_t vertex_filepath_len
       = shader->vertex_filepath_owned ? strlen(shader->vertex_filepath_owned) + 1 : 1;
     size_t fragment_filepath_len = shader->fragment_filepath_owned ?
-                                  strlen(shader->fragment_filepath_owned) + 1 :
-                                  1;
+                                     strlen(shader->fragment_filepath_owned) + 1 :
+                                     1;
     size_t vertex_string_len
       = shader->vertex_string_owned ? strlen(shader->vertex_string_owned) + 1 : 1;
     size_t fragment_string_len
       = shader->fragment_string_owned ? strlen(shader->fragment_string_owned) + 1 : 1;
 
     size_t additional_memory = vertex_filepath_len + fragment_filepath_len
-                            + vertex_string_len + fragment_string_len;
+                               + vertex_string_len + fragment_string_len;
 
     BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_ShaderCreate,
                                          SG_COMMAND_SHADER_CREATE, additional_memory);
@@ -695,14 +695,17 @@ void CQ_PushCommand_CameraSetParams(SG_Camera* cam)
     END_COMMAND();
 }
 
-void CQ_PushCommand_TextCreate(SG_Text* text, SG_ID font_shader_id)
+void CQ_PushCommand_TextRebuild(SG_Text* text)
 {
     size_t additional_bytes = text->text.length() + 1 + text->font_path.length() + 1;
+    ASSERT(text->_mat_id != 0);
 
-    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_TextCreate, SG_COMMAND_TEXT_CREATE,
-                                         additional_bytes);
-    command->text_id        = text->id;
-    command->text_shader_id = font_shader_id;
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_TextRebuild,
+                                         SG_COMMAND_TEXT_REBUILD, additional_bytes);
+    command->text_id          = text->id;
+    command->material_id      = text->_mat_id;
+    command->control_point    = { text->control_points.x, text->control_points.y };
+    command->vertical_spacing = text->vertical_spacing;
 
     char* text_copy = (char*)memory;
     char* font_path = text_copy + text->text.length() + 1;
@@ -711,8 +714,18 @@ void CQ_PushCommand_TextCreate(SG_Text* text, SG_ID font_shader_id)
     strncpy(text_copy, text->text.c_str(), text->text.length());
     strncpy(font_path, text->font_path.c_str(), text->font_path.length());
 
-    command->text_offset      = Arena::offsetOf(cq.write_q, text_copy);
-    command->font_path_offset = Arena::offsetOf(cq.write_q, font_path);
+    command->text_str_offset      = Arena::offsetOf(cq.write_q, text_copy);
+    command->font_path_str_offset = Arena::offsetOf(cq.write_q, font_path);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextDefaultFont(const char* font_path)
+{
+    size_t additional_bytes = font_path ? strlen(font_path) : 1;
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(
+      SG_Command_TextDefaultFont, SG_COMMAND_TEXT_DEFAULT_FONT, additional_bytes);
+    if (font_path) strncpy((char*)memory, font_path, additional_bytes - 1);
+    command->font_path_str_offset = Arena::offsetOf(cq.write_q, memory);
     END_COMMAND();
 }
 

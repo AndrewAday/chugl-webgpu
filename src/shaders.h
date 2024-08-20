@@ -609,6 +609,7 @@ const char* gtext_shader_string = R"glsl(
     // Enable a second ray along the y-axis to achieve 2-dimensional anti-aliasing.
     @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
 
+
     struct VertexInput {
         @location(0) position : vec2f,
         @location(1) uv : vec2f,

@@ -822,8 +822,7 @@ SG_Transform* SG_GetTransform(SG_ID id)
            || component->type == SG_COMPONENT_SCENE
            || component->type == SG_COMPONENT_MESH
            || component->type == SG_COMPONENT_CAMERA
-           || component->type == SG_COMPONENT_TEXT
-   );
+           || component->type == SG_COMPONENT_TEXT);
     return (SG_Transform*)component;
 }
 
@@ -874,6 +873,13 @@ SG_Camera* SG_GetCamera(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component == NULL || component->type == SG_COMPONENT_CAMERA);
     return (SG_Camera*)component;
+}
+
+SG_Text* SG_GetText(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_TEXT);
+    return (SG_Text*)component;
 }
 
 // ============================================================================
