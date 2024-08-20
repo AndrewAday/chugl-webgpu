@@ -26,6 +26,9 @@ CK_DLL_MFUN(gtext_get_vertical_spacing);
 CK_DLL_MFUN(gtext_set_control_points);
 CK_DLL_MFUN(gtext_get_control_points);
 
+CK_DLL_MFUN(gtext_set_texture);
+CK_DLL_MFUN(gtext_get_texture);
+
 void ulib_text_query(Chuck_DL_Query* QUERY)
 {
     BEGIN_CLASS(SG_CKNames[SG_COMPONENT_TEXT], SG_CKNames[SG_COMPONENT_TRANSFORM]);
@@ -81,6 +84,13 @@ void ulib_text_query(Chuck_DL_Query* QUERY)
 
     MFUN(gtext_get_control_points, "vec2", "controlPoints");
 
+    MFUN(gtext_set_texture, "void", "texture");
+    ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "texture");
+    DOC_FUNC("Set a texture to be applied to the text block. Default 1 white pixel");
+
+    MFUN(gtext_get_texture, SG_CKNames[SG_COMPONENT_TEXTURE], "texture");
+    DOC_FUNC("Get the current texture applied to the text block");
+
     END_CLASS();
 }
 
@@ -123,6 +133,13 @@ CK_DLL_CTOR(gtext_ctor)
     CQ_PushCommand_MaterialSetUniform(material, 2);
     CQ_PushCommand_MaterialSetUniform(material, 3);
     CQ_PushCommand_MaterialSetUniform(material, 4);
+
+    SG_Texture* tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
+    SG_Material::setTexture(material, 6, tex);
+    CQ_PushCommand_MaterialSetTexture(material, 6, tex);
+
+    SG_Material::setSampler(material, 7, SG_SAMPLER_DEFAULT);
+    CQ_PushCommand_MaterialSetSampler(material, 7, SG_SAMPLER_DEFAULT);
 
     CQ_PushCommand_TextRebuild(text);
 }
@@ -199,4 +216,24 @@ CK_DLL_MFUN(gtext_get_control_points)
 {
     SG_Text* text  = GET_TEXT(SELF);
     RETURN->v_vec2 = text->control_points;
+}
+
+CK_DLL_MFUN(gtext_set_texture)
+{
+    SG_Text* text         = GET_TEXT(SELF);
+    SG_Material* material = SG_GetMaterial(text->_mat_id);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex       = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
+
+    SG_Material::setTexture(material, 6, tex);
+
+    CQ_PushCommand_MaterialSetTexture(material, 6, tex);
+}
+
+CK_DLL_MFUN(gtext_get_texture)
+{
+    SG_Text* text         = GET_TEXT(SELF);
+    SG_Material* material = SG_GetMaterial(text->_mat_id);
+    SG_Texture* tex       = SG_GetTexture(material->uniforms[6].as.texture_id);
+    RETURN->v_object      = text->ckobj;
 }

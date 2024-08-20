@@ -1,6 +1,6 @@
 UI_Bool ui_bool;
 T.assert(
-    ui_bool.val == false,
+    ui_bool.val() == false,
     "UI_Bool default value"
 );
 

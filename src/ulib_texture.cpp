@@ -1,10 +1,12 @@
 #include <chuck/chugin.h>
 
+#include "sg_command.h"
 #include "sg_component.h"
 
 #include "ulib_helper.h"
 
 #define GET_TEXTURE(ckobj) SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id))
+void ulib_texture_createDefaults(CK_DL_API API);
 
 CK_DLL_CTOR(sampler_ctor);
 
@@ -65,6 +67,28 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
     // e.g. texture.subData()
 
     END_CLASS();
+
+    ulib_texture_createDefaults(QUERY->ck_api(QUERY));
+}
+
+// create default pixel textures and samplers
+void ulib_texture_createDefaults(CK_DL_API API)
+{
+    Chuck_Object* white_pixel_ckobj
+      = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
+    { // creating via chugin API doesn't call ctor
+        SG_Texture* tex = SG_CreateTexture(white_pixel_ckobj);
+        OBJ_MEMBER_UINT(white_pixel_ckobj, component_offset_id) = tex->id;
+        CQ_PushCommand_TextureCreate(tex, false);
+
+        // upload pixel data
+        u8 white_pixel[] = { 255, 255, 255, 255 };
+        SG_Texture::write(tex, white_pixel, 1, 1);
+        CQ_PushCommand_TextureData(tex);
+
+        // set global
+        g_builtin_textures.white_pixel_id = tex->id;
+    }
 }
 
 CK_DLL_CTOR(sampler_ctor)

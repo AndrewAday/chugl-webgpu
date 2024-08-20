@@ -2848,6 +2848,11 @@ void R_Font::updateText(GraphicsContext* gctx, R_Font* font, R_Text* text)
                                    glyph_indices.curr);
     R_Geometry::setIndices(gctx, geo, (u32*)indices.base, ARENA_LENGTH(&indices, u32));
 
+    // set internal uniforms
+    // recompute bb adjusted by control points
+    BoundingBox adjust_bb = { bb.minX - cx, bb.minY - cy, bb.maxX - cx, bb.maxY - cy };
+    R_Material::setUniformBinding(gctx, mat, 5, &adjust_bb, sizeof(adjust_bb));
+
     // leq because whitespaces are skipped
     ASSERT(ARENA_LENGTH(&indices, u32) <= text->text.length() * 6);
 }

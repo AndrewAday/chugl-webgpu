@@ -99,7 +99,18 @@ struct SG_Texture : SG_Component {
     int width, height;
     // texture dimension 1d, 2d, 3d (can group together with enum type? e.g. 1d_storage,
     // 2d_render etc)
-    Arena data;
+    Arena data; // u8 pixels
+
+    static void write(SG_Texture* tex, u8* pixels, int width, int height)
+    {
+        // reset texture pixel data (assume we're always re-writing entire thing)
+        Arena::clear(&tex->data);
+        tex->width  = width;
+        tex->height = height;
+
+        u8* tex_pixels = ARENA_PUSH_COUNT(&tex->data, u8, width * height * 4);
+        memcpy(tex_pixels, pixels, sizeof(*pixels) * width * height * 4);
+    }
 };
 
 // ============================================================================

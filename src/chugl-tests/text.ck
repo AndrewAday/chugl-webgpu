@@ -15,3 +15,7 @@ T.assert(text.font() == "chugl:font", "set font");
 T.assert(T.feq(text.spacing(), 1.0), "default spacing");
 text.spacing(2.0);
 T.assert(T.feq(text.spacing(), 2.0), "set spacing");
+
+Texture tex;
+text.texture(tex);
+T.assert(text.texture() == tex, "set texture");

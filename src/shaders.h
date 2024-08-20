@@ -609,6 +609,10 @@ const char* gtext_shader_string = R"glsl(
     // Enable a second ray along the y-axis to achieve 2-dimensional anti-aliasing.
     @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
 
+    @group(1) @binding(5) var<uniform> bb : vec4f; // x = minx, y = miny, z = maxx, w = maxy
+    @group(1) @binding(6) var texture_map: texture_2d<f32>;
+    @group(1) @binding(7) var texture_sampler: sampler;
+
 
     struct VertexInput {
         @location(0) position : vec2f,
@@ -619,8 +623,9 @@ const char* gtext_shader_string = R"glsl(
 
     struct VertexOutput {
         @builtin(position) position : vec4f,
-        @location(0) v_uv : vec2f,
+        @location(0) v_uv : vec2f, // per-glyph uv
         @location(1) @interpolate(flat) v_buffer_index: i32,
+        @location(2) v_uv_textbox : vec2f, // entire GText uv (e.g. if you want to texture your text)
     };
 
     @vertex 
@@ -631,6 +636,10 @@ const char* gtext_shader_string = R"glsl(
         out.position = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 0.0f, 1.0f);
         out.v_uv     = in.uv;
         out.v_buffer_index = in.glyph_index;
+
+        let bb_w = bb.z - bb.x;
+        let bb_h = bb.w - bb.y;
+        out.v_uv_textbox = (in.position - vec2f(bb.x, bb.y)) / vec2f(bb_w, bb_h);
 
         return out;
     }
@@ -749,13 +758,15 @@ const char* gtext_shader_string = R"glsl(
 
         alpha = clamp(alpha, 0.0, 1.0);
         let result = u_Color * alpha;
+        let sample = textureSample(texture_map, texture_sampler, in.v_uv_textbox);
 
         // alpha test
         if (result.a < 0.001) {
             discard;
         }
 
-        return result;
+        return result * sample;
+        // return vec4f(in.v_uv_textbox, 0.0, 1.0);
     }
 )glsl";
 

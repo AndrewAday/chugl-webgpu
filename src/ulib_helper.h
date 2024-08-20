@@ -85,6 +85,11 @@ struct chugl_MaterialBuiltinShaders {
 };
 static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
 
+struct chugl_builtin_textures {
+    SG_ID white_pixel_id;
+};
+static chugl_builtin_textures g_builtin_textures;
+
 Arena audio_frame_arena;
 
 // map from ckobj to shred
