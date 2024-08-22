@@ -426,6 +426,7 @@ struct App {
             init_info.NumFramesInFlight  = 3;
             init_info.RenderTargetFormat = app->gctx.swapChainFormat;
             init_info.DepthStencilFormat = app->gctx.depthTextureDesc.format;
+            init_info.PipelineMultisampleState.count = app->gctx.msaa_sample_count;
             ImGui_ImplWGPU_Init(&init_info);
         }
 

@@ -181,7 +181,7 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     context->depthTextureDesc.size          = { width, height, 1 };
     context->depthTextureDesc.format        = depthTextureFormat;
     context->depthTextureDesc.mipLevelCount = 1;
-    context->depthTextureDesc.sampleCount   = 1;
+    context->depthTextureDesc.sampleCount   = context->msaa_sample_count;
     context->depthTexture
       = wgpuDeviceCreateTexture(context->device, &context->depthTextureDesc);
     ASSERT(context->depthTexture != NULL);
@@ -219,6 +219,39 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     context->depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Store;
 #endif
     context->depthStencilAttachment.stencilReadOnly = false;
+}
+
+static void rebuildMultisampledTexture(GraphicsContext* gctx, u32 width, u32 height)
+{
+    WGPU_RELEASE_RESOURCE(TextureView, gctx->multisampled_texture_view);
+    WGPU_DESTROY_RESOURCE(Texture, gctx->multisampled_texture);
+    WGPU_RELEASE_RESOURCE(Texture, gctx->multisampled_texture);
+
+    WGPUTextureDescriptor ms_desc = {};
+    ms_desc.label                 = "gctx Multi-sampled texture";
+    ms_desc.size                  = { width, height, 1 };
+    ms_desc.mipLevelCount         = 1;
+    ms_desc.sampleCount           = gctx->msaa_sample_count;
+    ms_desc.dimension             = WGPUTextureDimension_2D;
+    ms_desc.format                = gctx->swapChainFormat;
+    ms_desc.usage                 = WGPUTextureUsage_RenderAttachment;
+
+    gctx->multisampled_texture = wgpuDeviceCreateTexture(gctx->device, &ms_desc);
+    ASSERT(gctx->multisampled_texture);
+
+    // Create the multi-sampled texture view
+    WGPUTextureViewDescriptor ms_view_desc = {};
+    ms_view_desc.label                     = "gctx Multi-sampled texture view";
+    ms_view_desc.format                    = ms_desc.format;
+    ms_view_desc.dimension                 = WGPUTextureViewDimension_2D;
+    ms_view_desc.baseMipLevel              = 0;
+    ms_view_desc.mipLevelCount             = 1;
+    ms_view_desc.baseArrayLayer            = 0;
+    ms_view_desc.arrayLayerCount           = 1;
+
+    gctx->multisampled_texture_view
+      = wgpuTextureCreateView(gctx->multisampled_texture, &ms_view_desc);
+    ASSERT(gctx->multisampled_texture_view);
 }
 
 static void logWGPULimits(WGPULimits const* limits)
@@ -332,8 +365,14 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     // Create depth texture and view
     createDepthTexture(context, windowWidth, windowHeight);
 
+    rebuildMultisampledTexture(context, windowWidth, windowHeight);
+
     // defaults for render pass color attachment
     context->colorAttachment = {};
+
+    // view and resolve set in GraphicsContext::prepareFrame()
+    context->colorAttachment.view          = NULL;
+    context->colorAttachment.resolveTarget = NULL;
 
 #ifdef __EMSCRIPTEN__
     context->colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
@@ -362,8 +401,17 @@ bool GraphicsContext::prepareFrame(GraphicsContext* ctx)
 
     // get target texture view
     ctx->backbufferView = wgpuSwapChainGetCurrentTextureView(ctx->swapChain);
-    ASSERT(ctx->backbufferView != NULL);
-    ctx->colorAttachment.view = ctx->backbufferView;
+    ASSERT(ctx->backbufferView);
+
+    if (ctx->msaa_sample_count > 1) {
+        // msaa
+        ctx->colorAttachment.view          = ctx->multisampled_texture_view;
+        ctx->colorAttachment.resolveTarget = ctx->backbufferView;
+    } else {
+        // no msaa
+        ctx->colorAttachment.view          = ctx->backbufferView;
+        ctx->colorAttachment.resolveTarget = NULL;
+    }
 
     // initialize encoder
     WGPUCommandEncoderDescriptor encoderDesc = {};
@@ -409,6 +457,8 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
     createSwapChain(ctx, width, height);
     // recreate depth texture
     createDepthTexture(ctx, width, height);
+
+    rebuildMultisampledTexture(ctx, width, height);
 }
 
 void GraphicsContext::release(GraphicsContext* ctx)
@@ -608,9 +658,11 @@ WGPUBlendState G_createBlendState(bool enableBlend)
     descriptor.operation          = WGPUBlendOperation_Add;
 
     if (enableBlend) {
+        // a*src + (1-a)*dst
         descriptor.srcFactor = WGPUBlendFactor_SrcAlpha;
         descriptor.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
     } else {
+        // 1*src + 0*dst
         descriptor.srcFactor = WGPUBlendFactor_One;
         descriptor.dstFactor = WGPUBlendFactor_Zero;
     }

@@ -1256,10 +1256,8 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     fragmentState.targets           = &colorTargetState;
 
     // multisample state
-    WGPUMultisampleState multisampleState   = {};
-    multisampleState.count                  = 1;
-    multisampleState.mask                   = 0xFFFFFFFF;
-    multisampleState.alphaToCoverageEnabled = false;
+    WGPUMultisampleState multisampleState
+      = G_createMultisampleState(gctx->msaa_sample_count);
 
     char pipeline_label[64] = {};
     snprintf(pipeline_label, sizeof(pipeline_label), "RenderPipeline %lld %s",
@@ -2045,143 +2043,6 @@ bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline)
 int Component_RenderPipelineCount()
 {
     return ARENA_LENGTH(&_RenderPipelineArena, R_RenderPipeline);
-}
-
-static R_RenderPipeline font_pipeline = {};
-static R_Shader font_shader           = {};
-
-static void Component_InitFontRenderPipeline(GraphicsContext* gctx)
-{
-    ASSERT(false);
-#if 0
-    // special case renderpipeline
-    // no pso
-    // no material ids arena
-
-    R_RenderPipeline* pipeline = &font_pipeline;
-
-    ASSERT(pipeline->gpu_pipeline == NULL);
-    ASSERT(pipeline->rid == 0);
-
-    pipeline->rid = getNewRID();
-    ASSERT(pipeline->rid < 0);
-
-    // TODO support other vertex types (int, uint)
-    static int layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES] = { 3, 2, 1, 0, 0, 0, 0, 0 };
-
-    static WGPUVertexFormat vertex_layout[] = {
-        WGPUVertexFormat_Float32x2,
-        WGPUVertexFormat_Float32x2,
-        WGPUVertexFormat_Uint32,
-    };
-
-    R_Shader::init(gctx, &font_shader, gtext_shader_string, NULL, gtext_shader_string,
-                   NULL, layout);
-
-    WGPUPrimitiveState primitiveState = {};
-    primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
-    primitiveState.stripIndexFormat   = WGPUIndexFormat_Uint32;
-    primitiveState.frontFace          = WGPUFrontFace_CCW;
-    primitiveState.cullMode           = WGPUCullMode_None;
-
-    WGPUBlendState blendState = G_createBlendState(true);
-
-    WGPUColorTargetState colorTargetState = {};
-    colorTargetState.format               = gctx->swapChainFormat;
-    colorTargetState.blend                = &blendState;
-    colorTargetState.writeMask            = WGPUColorWriteMask_All;
-
-    WGPUDepthStencilState depth_stencil_state
-      = G_createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
-
-    VertexBufferLayout vertexBufferLayout = {};
-    VertexBufferLayout::init(&vertexBufferLayout, ARRAY_LENGTH(vertex_layout),
-                             vertex_layout);
-
-    // vertex state
-    WGPUVertexState vertexState = {};
-    vertexState.bufferCount     = vertexBufferLayout.attribute_count;
-    vertexState.buffers         = vertexBufferLayout.layouts;
-    vertexState.module          = font_shader.vertex_shader_module;
-    vertexState.entryPoint      = VS_ENTRY_POINT;
-
-    // fragment state
-    WGPUFragmentState fragmentState = {};
-    fragmentState.module            = font_shader.fragment_shader_module;
-    fragmentState.entryPoint        = FS_ENTRY_POINT;
-    fragmentState.targetCount       = 1;
-    fragmentState.targets           = &colorTargetState;
-
-    // multisample state
-    WGPUMultisampleState multisampleState   = {};
-    multisampleState.count                  = 1;
-    multisampleState.mask                   = 0xFFFFFFFF;
-    multisampleState.alphaToCoverageEnabled = false;
-
-    WGPURenderPipelineDescriptor pipeline_desc = {};
-    pipeline_desc.label                        = "Font Render Pipeline";
-    pipeline_desc.layout                       = NULL; // Using layout: auto
-    pipeline_desc.primitive                    = primitiveState;
-    pipeline_desc.vertex                       = vertexState;
-    pipeline_desc.fragment                     = &fragmentState;
-    pipeline_desc.depthStencil                 = &depth_stencil_state;
-    pipeline_desc.multisample                  = multisampleState;
-
-    pipeline->gpu_pipeline
-      = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
-    ASSERT(pipeline->gpu_pipeline);
-
-    { // create per-frame bindgroup
-        // implicit layouts cannot share bindgroups, so need to create one
-        // per render pipeline
-
-        // makes sure shared frame buffer is initialized
-        ASSERT(R_RenderPipeline::frame_uniform_buffer.size == sizeof(FrameUniforms));
-
-        // create bind group entry
-        WGPUBindGroupEntry frame_group_entry = {};
-        frame_group_entry                    = {};
-        frame_group_entry.binding            = 0;
-        frame_group_entry.buffer             = pipeline->frame_uniform_buffer.buf;
-        frame_group_entry.size               = pipeline->frame_uniform_buffer.size;
-
-        // create bind group
-        WGPUBindGroupDescriptor frameGroupDesc;
-        frameGroupDesc        = {};
-        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
-          pipeline->gpu_pipeline, PER_FRAME_GROUP);
-        frameGroupDesc.entries    = &frame_group_entry;
-        frameGroupDesc.entryCount = 1;
-
-        // layout:auto requires a bind group per pipeline
-        pipeline->frame_group
-          = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
-        ASSERT(pipeline->frame_group);
-    }
-
-    // Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
-#endif
-}
-
-R_RenderPipeline* Component_GetFontRenderPipeline(GraphicsContext* gctx)
-{
-    if (font_pipeline.gpu_pipeline == NULL) {
-        Component_InitFontRenderPipeline(gctx);
-    }
-    return &font_pipeline;
-}
-
-bool Component_FontIter(size_t* i, R_Font** font)
-{
-    if (*i >= component_font_count) {
-        *font = NULL;
-        return false;
-    }
-
-    *font = &component_fonts[*i];
-    ++(*i);
-    ASSERT(*font);
-    return true;
 }
 
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,

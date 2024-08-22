@@ -646,9 +646,6 @@ bool Component_MaterialIter(size_t* i, R_Material** material);
 bool Component_RenderPipelineIter(size_t* i, R_RenderPipeline** renderPipeline);
 int Component_RenderPipelineCount();
 
-R_RenderPipeline* Component_GetFontRenderPipeline(GraphicsContext* gctx);
-bool Component_FontIter(size_t* i, R_Font** font);
-
 // component manager initialization
 void Component_Init(GraphicsContext* gctx);
 void Component_Free();

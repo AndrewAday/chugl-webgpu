@@ -12,8 +12,9 @@
     }
 
 #define WGPU_DESTROY_RESOURCE(Type, Name)                                              \
-    ASSERT(Name != NULL);                                                              \
-    wgpu##Type##Destroy(Name);
+    if (Name) {                                                                        \
+        wgpu##Type##Destroy(Name);                                                     \
+    }
 
 #define WGPU_DESTROY_AND_RELEASE_BUFFER(Name)                                          \
     if (Name) {                                                                        \
@@ -40,6 +41,10 @@ struct GraphicsContext {
     WGPUTexture depthTexture;
     WGPUTextureDescriptor depthTextureDesc;
     WGPUTextureView depthTextureView;
+
+    WGPUTexture multisampled_texture;
+    WGPUTextureView multisampled_texture_view;
+    int msaa_sample_count = 4;
 
     // Per frame resources --------
     WGPUTextureView backbufferView;
