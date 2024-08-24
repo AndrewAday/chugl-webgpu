@@ -252,6 +252,9 @@ struct App {
     // memory
     Arena frameArena;
 
+    // render graph
+    SG_ID root_pass_id;
+
     // ============================================================================
     // App API
     // ============================================================================
@@ -651,6 +654,22 @@ struct App {
                   app->gctx.commandEncoder, &app->gctx.renderPassDesc);
 
                 // scene
+                // TODO RenderPass
+                /*
+                Refactor render loop
+                walk the render graph
+                for each RenderPass,
+                - create new renderPassDesc, begin and end new render pass
+                - call RenderScene with correct params
+                - handle window resize
+                - handle loadOp [load/clear] and add clearcolor (to scene?)
+                    - to draw one renderpass on top of another, use loadOp: load
+                    - need to specify for both color and depth
+                - move imgui into it's own non-multisamppled render pass
+                - GGen::update() auto update, do on every scene that's in the render
+                graph
+
+                */
                 _R_RenderScene(app, render_pass);
 
                 // UI
@@ -664,6 +683,8 @@ struct App {
             GraphicsContext::presentFrame(&app->gctx);
 
             // cleanup
+            // Note: safe to release before submit, immediately after
+            // RenderPassEncoderEnd
             wgpuRenderPassEncoderRelease(render_pass);
         }
     }
@@ -1337,6 +1358,40 @@ static void _R_HandleCommand(App* app, SG_Command* command)
               &app->gctx, app->FTLibrary,
               (char*)CQ_ReadCommandGetOffset(cmd->font_path_str_offset));
             if (default_font) app->default_font = default_font;
+        } break;
+        // pass
+        case SG_COMMAND_PASS_CREATE: {
+            ASSERT(false);
+            SG_Command_PassCreate* cmd = (SG_Command_PassCreate*)command;
+            Component_CreatePass(cmd->pass_id);
+            if (cmd->pass_type == SG_PassType_Root) {
+                app->root_pass_id = cmd->pass_id;
+            }
+        } break;
+        case SG_COMMAND_PASS_UPDATE: {
+            SG_Command_PassUpdate* cmd = (SG_Command_PassUpdate*)command;
+            R_Pass* pass               = Component_GetPass(cmd->pass.id);
+            if (!pass) {
+                pass = Component_CreatePass(cmd->pass.id);
+            }
+            memcpy(&pass->sg_pass, &cmd->pass, sizeof(pass->sg_pass));
+            ASSERT(pass->id == cmd->pass.id);
+            ASSERT(pass->sg_pass.pass_type == cmd->pass.pass_type);
+            // update pass
+            switch (cmd->pass.pass_type) {
+                case SG_PassType_Root: {
+                    app->root_pass_id = pass->id;
+                } break;
+                case SG_PassType_Render: {
+                } break;
+                default: ASSERT(false); // unsupported
+            }
+        } break;
+        case SG_COMMAND_PASS_CONNECT: {
+            // wait, we just reuse PassUpdate for this too
+        } break;
+        case SG_COMMAND_PASS_DISCONNECT: {
+            // wait, we just reuse PassUpdate for this too
         } break;
         // b2
         case SG_COMMAND_b2_WORLD_SET: {

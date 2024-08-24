@@ -1405,6 +1405,7 @@ static Arena geoArena;
 static Arena shaderArena;
 static Arena materialArena;
 static Arena textureArena;
+static Arena passArena;
 static Arena _RenderPipelineArena;
 static Arena cameraArena;
 static Arena textArena;
@@ -1504,6 +1505,7 @@ void Component_Init(GraphicsContext* gctx)
     Arena::init(&textureArena, sizeof(R_Texture) * 64);
     Arena::init(&cameraArena, sizeof(R_Camera) * 4);
     Arena::init(&textArena, sizeof(R_Text) * 64);
+    Arena::init(&passArena, sizeof(R_Pass) * 16);
 
     // initialize default textures
     static u8 white[4]  = { 255, 255, 255, 255 };
@@ -1549,6 +1551,7 @@ void Component_Free()
     Arena::free(&textureArena);
     Arena::free(&cameraArena);
     Arena::free(&textArena);
+    Arena::free(&passArena);
 
     // free default textures
     Texture::release(&opaqueWhitePixel);
@@ -1925,6 +1928,24 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
     return tex;
 }
 
+R_Pass* Component_CreatePass(SG_ID pass_id)
+{
+    Arena* arena = &passArena;
+    R_Pass* pass = ARENA_PUSH_TYPE(arena, R_Pass);
+    *pass        = {};
+
+    // SG_Component init
+    pass->id   = pass_id;
+    pass->type = SG_COMPONENT_PASS;
+
+    // store offset
+    R_Location loc     = { pass->id, Arena::offsetOf(arena, pass), arena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return pass;
+}
+
 // linear search by font path, lazily creates if not found
 R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path)
@@ -2012,6 +2033,13 @@ R_Text* Component_GetText(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     ASSERT(comp == NULL || comp->type == SG_COMPONENT_TEXT);
     return (R_Text*)comp;
+}
+
+R_Pass* Component_GetPass(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_PASS);
+    return (R_Pass*)comp;
 }
 
 bool Component_MaterialIter(size_t* i, R_Material** material)

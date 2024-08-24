@@ -496,6 +496,14 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 };
 
 // =============================================================================
+// R_Pass
+// =============================================================================
+
+struct R_Pass : public R_Component {
+    SG_Pass sg_pass;
+};
+
+// =============================================================================
 // R_Font
 // =============================================================================
 
@@ -618,6 +626,7 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 R_Texture* Component_CreateTexture();
 R_Texture* Component_CreateTexture(GraphicsContext* gctx,
                                    SG_Command_TextureCreate* cmd);
+R_Pass* Component_CreatePass(SG_ID pass_id);
 
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
@@ -630,6 +639,7 @@ R_Camera* Component_GetCamera(SG_ID id);
 R_Text* Component_GetText(SG_ID id);
 R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path);
+R_Pass* Component_GetPass(SG_ID id);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,

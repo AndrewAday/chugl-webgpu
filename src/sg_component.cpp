@@ -496,6 +496,7 @@ static Arena SG_MeshArena;
 static Arena SG_TextureArena;
 static Arena SG_CameraArena;
 static Arena SG_TextArena;
+static Arena SG_PassArena;
 
 // locators (TODO switch to table)
 static hashmap* locator = NULL;
@@ -548,6 +549,7 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_TextureArena, sizeof(SG_Texture) * 32);
     Arena::init(&SG_CameraArena, sizeof(SG_Camera) * 4);
     Arena::init(&SG_TextArena, sizeof(SG_Text) * 32);
+    Arena::init(&SG_PassArena, sizeof(SG_Pass) * 16);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -688,6 +690,25 @@ SG_Text* SG_CreateText(Chuck_Object* ckobj)
     hashmap_set(locator, &loc);
 
     return text;
+}
+
+SG_Pass* SG_CreatePass(Chuck_Object* ckobj)
+{
+    Arena* arena  = &SG_PassArena;
+    size_t offset = arena->curr;
+    SG_Pass* pass = ARENA_PUSH_TYPE(arena, SG_Pass);
+    *pass         = {};
+
+    // init SG_Component base class
+    pass->id    = SG_GetNewComponentID();
+    pass->type  = SG_COMPONENT_PASS;
+    pass->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { pass->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return pass;
 }
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
@@ -864,7 +885,7 @@ SG_Mesh* SG_GetMesh(SG_ID id)
 SG_Texture* SG_GetTexture(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_TEXTURE);
+    ASSERT(!component || component->type == SG_COMPONENT_TEXTURE);
     return (SG_Texture*)component;
 }
 
@@ -880,6 +901,13 @@ SG_Text* SG_GetText(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component == NULL || component->type == SG_COMPONENT_TEXT);
     return (SG_Text*)component;
+}
+
+SG_Pass* SG_GetPass(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_PASS);
+    return (SG_Pass*)component;
 }
 
 // ============================================================================
@@ -996,4 +1024,56 @@ void SG_Material::shader(SG_Material* mat, SG_Shader* shader)
 
     // set new shader
     mat->pso.sg_shader_id = shader->id;
+}
+
+bool SG_Pass::isConnected(SG_Pass* pass_a, SG_Pass* pass_b)
+{
+    while (pass_a) {
+        if (pass_a == pass_b) return true;
+        pass_a = SG_GetPass(pass_a->next_pass_id);
+    }
+
+    return false;
+}
+
+bool SG_Pass::connect(SG_Pass* this_pass, SG_Pass* next_pass)
+{
+    if (!this_pass || !next_pass) return false;
+    if (this_pass->next_pass_id == next_pass->id) return true;
+    if (isConnected(this_pass, next_pass)) return false;
+
+    SG_AddRef(next_pass);
+    SG_DecrementRef(this_pass->next_pass_id);
+    this_pass->next_pass_id = next_pass->id;
+    return true;
+}
+
+void SG_Pass::disconnect(SG_Pass* this_pass, SG_Pass* next_pass)
+{
+    if (next_pass == NULL || next_pass->id != this_pass->next_pass_id) return;
+
+    this_pass->next_pass_id = 0;
+
+    SG_DecrementRef(next_pass->next_pass_id);
+}
+
+void SG_Pass::scene(SG_Pass* pass, SG_Scene* scene)
+{
+    SG_AddRef(scene);
+    SG_DecrementRef(pass->scene_id);
+    pass->scene_id = scene ? scene->id : 0;
+}
+
+void SG_Pass::camera(SG_Pass* pass, SG_Camera* cam)
+{
+    SG_AddRef(cam);
+    SG_DecrementRef(pass->camera_id);
+    pass->camera_id = cam ? cam->id : 0;
+}
+
+void SG_Pass::resolveTarget(SG_Pass* pass, SG_Texture* tex)
+{
+    SG_AddRef(tex);
+    SG_DecrementRef(pass->resolve_target_id);
+    pass->resolve_target_id = tex? tex->id : 0;
 }

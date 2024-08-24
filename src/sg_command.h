@@ -101,6 +101,12 @@ enum SG_CommandType : u32 {
     SG_COMMAND_TEXT_REBUILD,
     SG_COMMAND_TEXT_DEFAULT_FONT,
 
+    // text
+    SG_COMMAND_PASS_CREATE,
+    SG_COMMAND_PASS_UPDATE,
+    SG_COMMAND_PASS_CONNECT,
+    SG_COMMAND_PASS_DISCONNECT,
+
     // geometry
     SG_COMMAND_GEO_CREATE,
     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
@@ -386,6 +392,23 @@ struct SG_Command_CameraSetParams : public SG_Command {
     SG_CameraParams params;
 };
 
+// pass commands -----------------------------------------------------
+
+struct SG_Command_PassCreate : public SG_Command {
+    SG_ID pass_id;
+    SG_PassType pass_type;
+};
+
+// TODO consolidate into single struct, copy all of SG_Pass?
+struct SG_Command_PassUpdate : public SG_Command {
+    SG_Pass pass;
+};
+
+struct SG_Command_PassConnect : public SG_Command {
+    SG_ID pass_id;
+    SG_ID next_pass_id;
+};
+
 // b2 physics commands -----------------------------------------------------
 
 struct SG_Command_b2World_Set : public SG_Command {
@@ -504,6 +527,12 @@ void CQ_PushCommand_CameraSetParams(SG_Camera* camera);
 // text
 void CQ_PushCommand_TextRebuild(SG_Text* text);
 void CQ_PushCommand_TextDefaultFont(const char* font_path);
+
+// pass
+// void CQ_PushCommand_PassCreate(SG_Pass* pass);
+void CQ_PushCommand_PassUpdate(SG_Pass* pass);
+void CQ_PushCommand_PassConnect(SG_Pass* pass, SG_Pass* next_pass);
+void CQ_PushCommand_PassDisconnect(SG_Pass* pass, SG_Pass* next_pass);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);

@@ -13,6 +13,7 @@
 #include "ulib_texture.cpp"
 #include "ulib_text.cpp"
 #include "ulib_window.cpp"
+#include "ulib_pass.cpp"
 
 // vendor
 #include <sokol/sokol_time.h>
@@ -28,6 +29,7 @@ static bool hookActivated            = false;
 struct GG_Config {
     SG_ID mainScene;
     SG_ID mainCamera;
+    SG_ID root_pass_id;
 };
 
 GG_Config gg_config = {};
@@ -288,6 +290,11 @@ CK_DLL_SFUN(chugl_get_dt)
     RETURN->v_float = CHUGL_Window_dt();
 }
 
+CK_DLL_SFUN(chugl_get_root_pass)
+{
+    RETURN->v_object = SG_GetPass(gg_config.root_pass_id)->ckobj;
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -344,6 +351,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
+    ulib_pass_query(QUERY);
     ulib_text_query(QUERY);
 
     static u64 foo = 12345;
@@ -382,6 +390,9 @@ CK_DLL_QUERY(ChuGL)
         SFUN(chugl_get_dt, "float", "dt");
         DOC_FUNC("return the laptime of the graphics thread's last frame in seconds");
 
+        SFUN(chugl_get_root_pass, SG_CKNames[SG_COMPONENT_PASS], "rootPass");
+        DOC_FUNC("Get the root pass of the current scene");
+
         QUERY->end_class(QUERY); // GG
     }
 
@@ -395,6 +406,9 @@ CK_DLL_QUERY(ChuGL)
           = CQ_PushCommand_SceneCreate(sceneObj, component_offset_id, g_chuglAPI);
         gg_config.mainScene = scene->id;
         CQ_PushCommand_GG_Scene(scene);
+
+        // passRoot()
+        gg_config.root_pass_id = ulib_pass_initRootPass();
     }
 
     // wasn't that a breeze?

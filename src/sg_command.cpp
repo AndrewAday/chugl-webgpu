@@ -729,6 +729,37 @@ void CQ_PushCommand_TextDefaultFont(const char* font_path)
     END_COMMAND();
 }
 
+void CQ_PushCommand_PassCreate(SG_Pass* pass)
+{
+    BEGIN_COMMAND(SG_Command_PassCreate, SG_COMMAND_PASS_CREATE);
+    command->pass_id   = pass->id;
+    command->pass_type = pass->pass_type;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassUpdate(SG_Pass* pass)
+{
+    BEGIN_COMMAND(SG_Command_PassUpdate, SG_COMMAND_PASS_UPDATE);
+    memcpy(&command->pass, pass, sizeof(*pass));
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassConnect(SG_Pass* pass, SG_Pass* next_pass)
+{
+    BEGIN_COMMAND(SG_Command_PassConnect, SG_COMMAND_PASS_CONNECT);
+    command->pass_id      = pass ? pass->id : 0;
+    command->next_pass_id = next_pass ? next_pass->id : 0;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassDisconnect(SG_Pass* pass, SG_Pass* next_pass)
+{
+    BEGIN_COMMAND(SG_Command_PassConnect, SG_COMMAND_PASS_DISCONNECT);
+    command->pass_id      = pass ? pass->id : 0;
+    command->next_pass_id = next_pass ? next_pass->id : 0;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_b2World_Set(u32 world_id)
 {
     spinlock::lock(&cq.write_q_lock);

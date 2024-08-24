@@ -39,7 +39,8 @@ typedef i64 SG_ID;
     X(SG_COMPONENT_TEXTURE, "Texture")                                                 \
     X(SG_COMPONENT_MESH, "GMesh")                                                      \
     X(SG_COMPONENT_CAMERA, "GCamera")                                                  \
-    X(SG_COMPONENT_TEXT, "GText")
+    X(SG_COMPONENT_TEXT, "GText")                                                      \
+    X(SG_COMPONENT_PASS, "GPass")
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -493,6 +494,50 @@ struct SG_Text : public SG_Mesh {
 };
 
 // ============================================================================
+// SG_Pass
+// ============================================================================
+
+enum SG_PassType : u8 {
+    SG_PassType_None = 0,
+    SG_PassType_Root, // special start of pass chain. reserved for GG.rootPass();
+    SG_PassType_Render,
+    SG_PassType_Compute,
+    SG_PassType_Screen,
+};
+
+union SG_PassParams {
+    // RenderPass params
+    struct {
+        SG_ID scene_id;
+        SG_ID camera_id;
+        SG_ID resolve_target_id;
+    } render;
+};
+
+struct SG_Pass : public SG_Component {
+    SG_ID next_pass_id;
+    SG_PassType pass_type;
+
+    // RenderPass params
+    SG_ID scene_id;
+    SG_ID camera_id;
+    SG_ID resolve_target_id;
+
+    // true if pass_a and pass_b are connected by any number of steps
+    static bool isConnected(SG_Pass* pass_a, SG_Pass* pass_b);
+
+    // connects two passes iff does not form a cycle
+    static bool connect(SG_Pass* this_pass, SG_Pass* next_pass);
+
+    static void disconnect(SG_Pass* this_pass, SG_Pass* next_pass);
+
+    // renderpass methods
+    static void scene(SG_Pass* pass, SG_Scene* scene);
+    static void camera(SG_Pass* pass, SG_Camera* cam);
+    static void resolveTarget(SG_Pass* pass, SG_Texture* tex);
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -505,6 +550,7 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
 SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
 SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams camera_params);
 SG_Text* SG_CreateText(Chuck_Object* ckobj);
+SG_Pass* SG_CreatePass(Chuck_Object* ckobj);
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,
@@ -529,6 +575,7 @@ SG_Mesh* SG_GetMesh(SG_ID id);
 SG_Texture* SG_GetTexture(SG_ID id);
 SG_Camera* SG_GetCamera(SG_ID id);
 SG_Text* SG_GetText(SG_ID id);
+SG_Pass* SG_GetPass(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

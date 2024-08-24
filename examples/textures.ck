@@ -66,8 +66,6 @@ spork ~ readMicInput();
 @group(1) @binding(2) var<uniform> simulate_step: i32;
 @group(1) @binding(3) var<storage> mic_samples: array<f32>;
 
-// @group(1) @binding(1) var test_sampler: sampler;
-
 struct DrawUniforms {
     modelMat: mat4x4f,
 };
@@ -170,7 +168,7 @@ Texture conway_tex_a(true);
 Texture conway_tex_b(true);
 
 int texture_data[4 * WINDOW_SIZE * WINDOW_SIZE];
-
+// TODO need a better way to specify texture size
 conway_tex_b.data(texture_data, WINDOW_SIZE, WINDOW_SIZE); // initialize empty texture
 conway_tex_a.data(texture_data, WINDOW_SIZE, WINDOW_SIZE);
 
