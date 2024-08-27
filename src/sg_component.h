@@ -95,8 +95,16 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
 // SG_Texture
 // ============================================================================
 
+struct SG_TextureDesc {
+    WGPUTextureUsageFlags usage_flags;
+    WGPUTextureDimension dimension = WGPUTextureDimension_2D;
+    WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
+};
+
 struct SG_Texture : SG_Component {
-    // TODO
+    SG_TextureDesc desc;
+
+    // TODO rework texture writing later....
     int width, height;
     // texture dimension 1d, 2d, 3d (can group together with enum type? e.g. 1d_storage,
     // 2d_render etc)
@@ -505,14 +513,14 @@ enum SG_PassType : u8 {
     SG_PassType_Screen,
 };
 
-union SG_PassParams {
-    // RenderPass params
-    struct {
-        SG_ID scene_id;
-        SG_ID camera_id;
-        SG_ID resolve_target_id;
-    } render;
-};
+// union SG_PassParams {
+//     // RenderPass params
+//     struct {
+//         SG_ID scene_id;
+//         SG_ID camera_id;
+//         SG_ID resolve_target_id;
+//     } render;
+// };
 
 struct SG_Pass : public SG_Component {
     SG_ID next_pass_id;
@@ -550,7 +558,7 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj);
 SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
 SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams camera_params);
 SG_Text* SG_CreateText(Chuck_Object* ckobj);
-SG_Pass* SG_CreatePass(Chuck_Object* ckobj);
+SG_Pass* SG_CreatePass(Chuck_Object* ckobj, SG_PassType pass_type);
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,

@@ -635,7 +635,8 @@ SG_Texture* SG_CreateTexture(Chuck_Object* ckobj)
 {
     Arena* arena    = &SG_TextureArena;
     size_t offset   = arena->curr;
-    SG_Texture* tex = ARENA_PUSH_ZERO_TYPE(arena, SG_Texture);
+    SG_Texture* tex = ARENA_PUSH_TYPE(arena, SG_Texture);
+    *tex            = {};
 
     // init SG_Component base class
     tex->id    = SG_GetNewComponentID();
@@ -692,7 +693,7 @@ SG_Text* SG_CreateText(Chuck_Object* ckobj)
     return text;
 }
 
-SG_Pass* SG_CreatePass(Chuck_Object* ckobj)
+SG_Pass* SG_CreatePass(Chuck_Object* ckobj, SG_PassType pass_type)
 {
     Arena* arena  = &SG_PassArena;
     size_t offset = arena->curr;
@@ -700,9 +701,10 @@ SG_Pass* SG_CreatePass(Chuck_Object* ckobj)
     *pass         = {};
 
     // init SG_Component base class
-    pass->id    = SG_GetNewComponentID();
-    pass->type  = SG_COMPONENT_PASS;
-    pass->ckobj = ckobj;
+    pass->id        = SG_GetNewComponentID();
+    pass->type      = SG_COMPONENT_PASS;
+    pass->ckobj     = ckobj;
+    pass->pass_type = pass_type;
 
     // store in map
     SG_Location loc = { pass->id, offset, arena };
@@ -1075,5 +1077,5 @@ void SG_Pass::resolveTarget(SG_Pass* pass, SG_Texture* tex)
 {
     SG_AddRef(tex);
     SG_DecrementRef(pass->resolve_target_id);
-    pass->resolve_target_id = tex? tex->id : 0;
+    pass->resolve_target_id = tex ? tex->id : 0;
 }

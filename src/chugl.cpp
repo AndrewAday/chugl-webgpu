@@ -30,6 +30,7 @@ struct GG_Config {
     SG_ID mainScene;
     SG_ID mainCamera;
     SG_ID root_pass_id;
+    SG_ID default_render_pass_id;
 };
 
 GG_Config gg_config = {};
@@ -408,7 +409,16 @@ CK_DLL_QUERY(ChuGL)
         CQ_PushCommand_GG_Scene(scene);
 
         // passRoot()
-        gg_config.root_pass_id = ulib_pass_initRootPass();
+        gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);
+
+        // renderPass for main scene
+        // (SG_ID 0 defaults to main scene / main camera / swapchain view )
+        gg_config.default_render_pass_id = ulib_pass_createPass(SG_PassType_Render);
+
+        // connect root to renderPass
+        SG_Pass* root_pass = SG_GetPass(gg_config.root_pass_id);
+        SG_Pass::connect(root_pass, SG_GetPass(gg_config.default_render_pass_id));
+        CQ_PushCommand_PassUpdate(root_pass);
     }
 
     // wasn't that a breeze?

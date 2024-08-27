@@ -181,7 +181,7 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     context->depthTextureDesc.size          = { width, height, 1 };
     context->depthTextureDesc.format        = depthTextureFormat;
     context->depthTextureDesc.mipLevelCount = 1;
-    context->depthTextureDesc.sampleCount   = context->msaa_sample_count;
+    context->depthTextureDesc.sampleCount   = 1;
     context->depthTexture
       = wgpuDeviceCreateTexture(context->device, &context->depthTextureDesc);
     ASSERT(context->depthTexture != NULL);
@@ -219,39 +219,6 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     context->depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Store;
 #endif
     context->depthStencilAttachment.stencilReadOnly = false;
-}
-
-static void rebuildMultisampledTexture(GraphicsContext* gctx, u32 width, u32 height)
-{
-    WGPU_RELEASE_RESOURCE(TextureView, gctx->multisampled_texture_view);
-    WGPU_DESTROY_RESOURCE(Texture, gctx->multisampled_texture);
-    WGPU_RELEASE_RESOURCE(Texture, gctx->multisampled_texture);
-
-    WGPUTextureDescriptor ms_desc = {};
-    ms_desc.label                 = "gctx Multi-sampled texture";
-    ms_desc.size                  = { width, height, 1 };
-    ms_desc.mipLevelCount         = 1;
-    ms_desc.sampleCount           = gctx->msaa_sample_count;
-    ms_desc.dimension             = WGPUTextureDimension_2D;
-    ms_desc.format                = gctx->swapChainFormat;
-    ms_desc.usage                 = WGPUTextureUsage_RenderAttachment;
-
-    gctx->multisampled_texture = wgpuDeviceCreateTexture(gctx->device, &ms_desc);
-    ASSERT(gctx->multisampled_texture);
-
-    // Create the multi-sampled texture view
-    WGPUTextureViewDescriptor ms_view_desc = {};
-    ms_view_desc.label                     = "gctx Multi-sampled texture view";
-    ms_view_desc.format                    = ms_desc.format;
-    ms_view_desc.dimension                 = WGPUTextureViewDimension_2D;
-    ms_view_desc.baseMipLevel              = 0;
-    ms_view_desc.mipLevelCount             = 1;
-    ms_view_desc.baseArrayLayer            = 0;
-    ms_view_desc.arrayLayerCount           = 1;
-
-    gctx->multisampled_texture_view
-      = wgpuTextureCreateView(gctx->multisampled_texture, &ms_view_desc);
-    ASSERT(gctx->multisampled_texture_view);
 }
 
 static void logWGPULimits(WGPULimits const* limits)
@@ -365,8 +332,6 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     // Create depth texture and view
     createDepthTexture(context, windowWidth, windowHeight);
 
-    rebuildMultisampledTexture(context, windowWidth, windowHeight);
-
     // defaults for render pass color attachment
     context->colorAttachment = {};
 
@@ -393,9 +358,10 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
 bool GraphicsContext::prepareFrame(GraphicsContext* ctx)
 {
     if (ctx->window_minimized) {
-        ctx->backbufferView       = NULL;
-        ctx->commandEncoder       = NULL;
-        ctx->colorAttachment.view = NULL;
+        ctx->backbufferView                = NULL;
+        ctx->commandEncoder                = NULL;
+        ctx->colorAttachment.view          = NULL;
+        ctx->colorAttachment.resolveTarget = NULL;
         return false;
     }
 
@@ -403,15 +369,8 @@ bool GraphicsContext::prepareFrame(GraphicsContext* ctx)
     ctx->backbufferView = wgpuSwapChainGetCurrentTextureView(ctx->swapChain);
     ASSERT(ctx->backbufferView);
 
-    if (ctx->msaa_sample_count > 1) {
-        // msaa
-        ctx->colorAttachment.view          = ctx->multisampled_texture_view;
-        ctx->colorAttachment.resolveTarget = ctx->backbufferView;
-    } else {
-        // no msaa
-        ctx->colorAttachment.view          = ctx->backbufferView;
-        ctx->colorAttachment.resolveTarget = NULL;
-    }
+    ctx->colorAttachment.view          = ctx->backbufferView;
+    ctx->colorAttachment.resolveTarget = NULL;
 
     // initialize encoder
     WGPUCommandEncoderDescriptor encoderDesc = {};
@@ -457,8 +416,6 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
     createSwapChain(ctx, width, height);
     // recreate depth texture
     createDepthTexture(ctx, width, height);
-
-    rebuildMultisampledTexture(ctx, width, height);
 }
 
 void GraphicsContext::release(GraphicsContext* ctx)
@@ -674,7 +631,7 @@ WGPUBlendState G_createBlendState(bool enableBlend)
 }
 
 // ============================================================================
-// Pipeline State Helpers
+// Pipeline and RenderPass State Helpers
 // ============================================================================
 
 WGPUDepthStencilState G_createDepthStencilState(WGPUTextureFormat format,
@@ -709,6 +666,41 @@ WGPUMultisampleState G_createMultisampleState(u8 sample_count)
     ms.mask                   = 0xFFFFFFFF;
     ms.alphaToCoverageEnabled = false;
     return ms;
+}
+
+DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
+                                                      u32 sample_count, u32 width,
+                                                      u32 height)
+{
+    // only support one format for now
+    WGPUTextureFormat depth_texture_format = WGPUTextureFormat_Depth24PlusStencil8;
+    // Depth texture
+    WGPUTextureDescriptor texture_desc = {};
+    texture_desc.usage                 = WGPUTextureUsage_RenderAttachment;
+    texture_desc.dimension             = WGPUTextureDimension_2D;
+    texture_desc.size                  = { width, height, 1 };
+    texture_desc.format                = depth_texture_format;
+    texture_desc.mipLevelCount         = 1;
+    texture_desc.sampleCount           = sample_count;
+
+    WGPUTexture depth_tex = wgpuDeviceCreateTexture(gctx->device, &texture_desc);
+    ASSERT(depth_tex);
+
+    // Create the view of the depth texture manipulated by the rasterizer
+    WGPUTextureViewDescriptor depthTextureViewDesc = {};
+    depthTextureViewDesc.format                    = depth_texture_format;
+    depthTextureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
+    depthTextureViewDesc.baseMipLevel              = 0;
+    depthTextureViewDesc.mipLevelCount             = 1;
+    depthTextureViewDesc.baseArrayLayer            = 0;
+    depthTextureViewDesc.arrayLayerCount           = 1;
+    depthTextureViewDesc.aspect                    = WGPUTextureAspect_All;
+    WGPUTextureView depth_tex_view
+      = wgpuTextureCreateView(depth_tex, &depthTextureViewDesc);
+
+    ASSERT(depth_tex_view);
+
+    return { depth_tex, depth_tex_view };
 }
 
 // static void _G_compilationInfoCallback(WGPUCompilationInfoRequestStatus
@@ -1400,59 +1392,25 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
 // Texture
 // ============================================================================
 
-void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
-                                const void* pixelData, i32 width, i32 height,
-                                u8 numComponents, bool genMipMaps, const char* filename,
-                                bool is_storage)
+void Texture::initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
+                                const char* label, const void* pixelData,
+                                int pixel_width, int pixel_height, bool genMipMaps,
+                                WGPUTextureUsageFlags usage_flags)
 {
-    // For now do the dumbest thing:
-    // delete the previous texture entirely, and remake from scratch
-    // ==optimization==: check size, don't delete if new data is same format / fits
-    // within extents of previous texture
-    WGPU_RELEASE_RESOURCE(Texture, texture->texture);
-    WGPU_RELEASE_RESOURCE(TextureView, texture->view);
 
-    // save texture info
-    texture->width  = width;
-    texture->height = height;
-    texture->depth  = 1;
+    Texture::init(ctx, gpu_texture, pixel_width, pixel_height, 1, genMipMaps, label,
+                  WGPUTextureFormat_RGBA8Unorm,
+                  usage_flags | WGPUTextureUsage_CopyDst
+                    | WGPUTextureUsage_TextureBinding,
+                  WGPUTextureDimension_2D);
 
-    // default always gen mipmaps
-    // except storage textures can't have mipmaps
-    texture->mip_level_count
-      = genMipMaps && !is_storage ? mipLevelCount(width, height) : 1u;
+    ASSERT(gpu_texture->width == (u32)pixel_width
+           && gpu_texture->height == (u32)pixel_height);
 
-    // TODO: support compressed texture formats
-    texture->format    = WGPUTextureFormat_RGBA8Unorm;
-    texture->dimension = WGPUTextureDimension_2D;
-
-    // create texture
-    WGPUTextureDescriptor textureDesc = {};
-    // render attachment usage is used for mip map generation
-    textureDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
-    if (is_storage) textureDesc.usage |= WGPUTextureUsage_StorageBinding;
-    // | WGPUTextureUsage_RenderAttachment;
-    textureDesc.dimension     = texture->dimension;
-    textureDesc.size          = { (u32)width, (u32)height, 1 };
-    textureDesc.format        = texture->format;
-    textureDesc.mipLevelCount = texture->mip_level_count;
-    textureDesc.sampleCount   = 1;
-    // https://gpuweb.github.io/gpuweb/#gputexturedescriptor
-    // Specifies what view format values will be allowed when calling createView() on
-    // this texture (in addition to the texture’s actual format). Adding a format to
-    // this list may have a significant performance impact, so it is best to avoid
-    // adding formats unnecessarily.
-    textureDesc.viewFormatCount = 0;
-    textureDesc.viewFormats     = NULL;
-    textureDesc.label           = filename;
-
-    texture->texture = wgpuDeviceCreateTexture(ctx->device, &textureDesc);
-    ASSERT(texture->texture != NULL);
-
-    // write texture data
+    // write gpu_texture data
     {
         WGPUImageCopyTexture destination = {};
-        destination.texture              = texture->texture;
+        destination.texture              = gpu_texture->texture;
         destination.mipLevel             = 0;
         destination.origin               = {
             0,
@@ -1462,41 +1420,122 @@ void Texture::initFromPixelData(GraphicsContext* ctx, Texture* texture,
         destination.aspect = WGPUTextureAspect_All; // only relevant for
                                                     // depth/Stencil textures
 
+        const int num_components     = 4;
         WGPUTextureDataLayout source = {};
         source.offset                = 0; // where to start reading from the cpu buffer
-        source.bytesPerRow           = numComponents * textureDesc.size.width;
-        source.rowsPerImage          = textureDesc.size.height;
+        source.bytesPerRow           = num_components * gpu_texture->width;
+        source.rowsPerImage          = gpu_texture->height;
 
-        const u64 dataSize = textureDesc.size.width * textureDesc.size.height
-                             * textureDesc.size.depthOrArrayLayers * numComponents;
+        const size_t dataSize = pixel_width * pixel_height * num_components;
 
+        WGPUExtent3D size = { (u32)pixel_width, (u32)pixel_height, 1 };
         wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize, &source,
-                              &textureDesc.size);
+                              &size);
     }
 
     // generate mipmaps
     if (genMipMaps) {
         if (mipMapGenerator.ctx == NULL) MipMapGenerator::init(ctx, &mipMapGenerator);
 
+        // recreate texture descriptor here, awkward
+        WGPUTextureDescriptor texture_desc = {};
+        texture_desc.usage                 = gpu_texture->usage;
+        texture_desc.dimension             = gpu_texture->dimension;
+        texture_desc.size          = { gpu_texture->width, gpu_texture->height, 1 };
+        texture_desc.format        = gpu_texture->format;
+        texture_desc.mipLevelCount = gpu_texture->mip_level_count;
+        texture_desc.sampleCount   = gpu_texture->sample_count;
+
         // generate mipmaps
-        MipMapGenerator::generate(&mipMapGenerator, texture->texture, &textureDesc);
+        MipMapGenerator::generate(&mipMapGenerator, gpu_texture->texture,
+                                  &texture_desc);
+    }
+}
+
+void Texture::init(GraphicsContext* gctx, Texture* texture, u32 width, u32 height,
+                   u32 depth, bool gen_mipmaps, const char* label,
+                   WGPUTextureFormat format, WGPUTextureUsageFlags usage,
+                   WGPUTextureDimension dimension)
+{
+    // validation
+    {
+        // 3D mipmaps are not supported
+        ASSERT(!(gen_mipmaps && depth > 1));
+        ASSERT(!(gen_mipmaps && dimension == WGPUTextureDimension_3D));
+    }
+    bool is_storage = usage & WGPUTextureUsage_StorageBinding;
+
+    WGPU_RELEASE_RESOURCE(Texture, texture->texture);
+    WGPU_RELEASE_RESOURCE(TextureView, texture->view);
+
+    // save texture info
+    texture->width  = width;
+    texture->height = height;
+    texture->depth  = depth;
+
+    // default always gen mipmaps
+    // except storage textures can't have mipmaps
+    texture->mip_level_count
+      = gen_mipmaps && !is_storage ? mipLevelCount(width, height) : 1u;
+    texture->sample_count = 1; // multisampling not supported yet
+
+    texture->format    = format;
+    texture->dimension = dimension;
+    texture->usage     = usage;
+
+    {
+        /*
+        starting to seem like TextureUsage not so necesssary...
+        - always want textureBinding (what's the point of a texture you can't sample?)
+        - almost always want renderAttachment (for mip generation)
+        - if no renderAttachment, mip gen requires copyDst
+        */
     }
 
+    // create texture
+    WGPUTextureDescriptor textureDesc = {};
+    textureDesc.label                 = label;
+    // render attachment usage is used for mip map generation
+    textureDesc.usage         = texture->usage;
+    textureDesc.dimension     = texture->dimension;
+    textureDesc.size          = { (u32)width, (u32)height, depth };
+    textureDesc.format        = texture->format;
+    textureDesc.mipLevelCount = texture->mip_level_count;
+    textureDesc.sampleCount   = texture->sample_count;
+    // https://gpuweb.github.io/gpuweb/#gputexturedescriptor
+    // Specifies what view format values will be allowed when calling createView() on
+    // this texture (in addition to the texture’s actual format). Adding a format to
+    // this list may have a significant performance impact, so it is best to avoid
+    // adding formats unnecessarily.
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = NULL;
+
+    texture->texture = wgpuDeviceCreateTexture(gctx->device, &textureDesc);
+    ASSERT(texture->texture != NULL);
+
     /* Create the texture view */
-    // TODO: modify to always create a view that represents the entire texture
     WGPUTextureViewDescriptor textureViewDesc = {};
+    textureViewDesc.label                     = label;
     textureViewDesc.format                    = textureDesc.format;
-    textureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
-    textureViewDesc.baseMipLevel              = 0;
-    textureViewDesc.mipLevelCount             = textureDesc.mipLevelCount;
-    textureViewDesc.baseArrayLayer            = 0;
-    textureViewDesc.arrayLayerCount           = 1;
-    textureViewDesc.aspect                    = WGPUTextureAspect_All;
+    switch (textureDesc.dimension) {
+        case WGPUTextureDimension_1D: {
+            textureViewDesc.dimension = WGPUTextureViewDimension_1D;
+        } break;
+        case WGPUTextureDimension_2D: {
+            textureViewDesc.dimension = WGPUTextureViewDimension_2D;
+        } break;
+        default: ASSERT(false); // 3D textures not supported
+    }
+    textureViewDesc.baseMipLevel    = 0;
+    textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
+    textureViewDesc.baseArrayLayer  = 0;
+    textureViewDesc.arrayLayerCount = 1;
+    textureViewDesc.aspect          = WGPUTextureAspect_All;
     texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
 }
 
 void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* filename,
-                           bool genMipMaps)
+                           bool genMipMaps, WGPUTextureUsageFlags usage_flags)
 {
     i32 width = 0, height = 0;
     // Force loading 4 channel images to 3 channel by stb becasue Dawn
@@ -1524,8 +1563,8 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* f
                   read_comps, desired_comps);
     }
 
-    Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
-                               true, filename, false);
+    Texture::initFromPixelData(ctx, texture, filename, pixelData, width, height, true,
+                               usage_flags);
 
     // free pixel data
     stbi_image_free(pixelData);
@@ -1563,8 +1602,8 @@ void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* dat
                   read_comps, desired_comps);
     }
 
-    Texture::initFromPixelData(ctx, texture, pixelData, width, height, desired_comps,
-                               true, "data texture", false);
+    Texture::initFromPixelData(ctx, texture, "Texture initFromBuff", pixelData, width,
+                               height, true, WGPUTextureUsage_None);
 
     // free pixel data
     stbi_image_free(pixelData);

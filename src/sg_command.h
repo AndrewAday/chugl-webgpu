@@ -101,7 +101,8 @@ enum SG_CommandType : u32 {
     SG_COMMAND_TEXT_REBUILD,
     SG_COMMAND_TEXT_DEFAULT_FONT,
 
-    // text
+    // gpass
+    // TODO gpass remove everything except _update
     SG_COMMAND_PASS_CREATE,
     SG_COMMAND_PASS_UPDATE,
     SG_COMMAND_PASS_CONNECT,
@@ -297,8 +298,7 @@ struct SG_Command_GeoSetIndices : public SG_Command {
 
 struct SG_Command_TextureCreate : public SG_Command {
     SG_ID sg_id;
-    // texture descriptor
-    bool is_storage = false;
+    SG_TextureDesc desc;
 };
 
 struct SG_Command_TextureData : public SG_Command {
@@ -495,7 +495,7 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
 void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
 
 // texture
-void CQ_PushCommand_TextureCreate(SG_Texture* texture, bool is_storage);
+void CQ_PushCommand_TextureCreate(SG_Texture* texture);
 void CQ_PushCommand_TextureData(
   SG_Texture* texture); // TODO currently assumes texture data is already set
 

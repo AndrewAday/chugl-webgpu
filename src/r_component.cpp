@@ -621,8 +621,8 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
                   read_comps, desired_comps);
     }
 
-    Texture::initFromPixelData(gctx, &texture->gpu_texture, pixelData, width, height,
-                               desired_comps, true, filepath, texture->is_storage);
+    Texture::initFromPixelData(gctx, &texture->gpu_texture, filepath, pixelData, width,
+                               height, true, texture->desc.usage_flags);
 
     // free pixel data
     stbi_image_free(pixelData);
@@ -1201,7 +1201,7 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 GPU_Buffer R_RenderPipeline::frame_uniform_buffer = {};
 
 void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
-                            const SG_MaterialPipelineState* config)
+                            const SG_MaterialPipelineState* config, int msaa_sample_count)
 {
     ASSERT(pipeline->gpu_pipeline == NULL);
     ASSERT(pipeline->rid == 0);
@@ -1257,7 +1257,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
 
     // multisample state
     WGPUMultisampleState multisampleState
-      = G_createMultisampleState(gctx->msaa_sample_count);
+      = G_createMultisampleState(msaa_sample_count);
 
     char pipeline_label[64] = {};
     snprintf(pipeline_label, sizeof(pipeline_label), "RenderPipeline %lld %s",
@@ -1276,8 +1276,8 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     ASSERT(pipeline->gpu_pipeline);
 
     { // create per-frame bindgroup
-        // implicit layouts cannot share bindgroups, so need to create one
-        // per render pipeline
+      // implicit layouts cannot share bindgroups, so need to create one
+      // per render pipeline
 
         // makes sure shared frame buffer is initialized
         ASSERT(R_RenderPipeline::frame_uniform_buffer.size == sizeof(FrameUniforms));
@@ -1613,7 +1613,7 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
     return xform;
 }
 
-R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
+R_Camera* Component_CreateCamera(GraphicsContext* gctx, SG_Command_CameraCreate* cmd)
 {
     // TODO: does camera also need to live in xform arena?
     R_Camera* cam = ARENA_PUSH_ZERO_TYPE(&cameraArena, R_Camera);
@@ -1623,6 +1623,13 @@ R_Camera* Component_CreateCamera(SG_Command_CameraCreate* cmd)
     { // camera init
         // copy camera params
         cam->params = cmd->camera.params;
+
+        // initialize frame uniform buffer
+        // kept here because the camera xform is the only part that differs between
+        // RenderPasses
+        FrameUniforms frame_uniforms = {};
+        GPU_Buffer::write(gctx, &cam->frame_uniform_buffer, WGPUBufferUsage_Uniform,
+                          &frame_uniforms, sizeof(frame_uniforms));
     }
 
     // store offset
@@ -1912,13 +1919,15 @@ R_Texture* Component_CreateTexture()
 
 R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCreate* cmd)
 {
-    R_Texture* tex = ARENA_PUSH_ZERO_TYPE(&textureArena, R_Texture);
+    R_Texture* tex = ARENA_PUSH_TYPE(&textureArena, R_Texture);
+    *tex           = {};
 
+    // R_Component init
     tex->id   = cmd->sg_id;
     tex->type = SG_COMPONENT_TEXTURE;
 
-    // TODO set texture attributes?
-    tex->is_storage = cmd->is_storage;
+    // R_Texture init
+    tex->desc = cmd->desc;
 
     // store offset
     R_Location loc = { tex->id, Arena::offsetOf(&textureArena, tex), &textureArena };

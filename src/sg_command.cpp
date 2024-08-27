@@ -514,11 +514,13 @@ void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count)
 
 // Textures ====================================================================
 
-void CQ_PushCommand_TextureCreate(SG_Texture* texture, bool is_storage)
+// maybe change to TextureUpdate + lazy creation to support mutable texture
+// formats/usage/dimension
+void CQ_PushCommand_TextureCreate(SG_Texture* texture)
 {
     BEGIN_COMMAND(SG_Command_TextureCreate, SG_COMMAND_TEXTURE_CREATE);
-    command->sg_id      = texture->id;
-    command->is_storage = is_storage;
+    command->sg_id = texture->id;
+    command->desc  = texture->desc;
     END_COMMAND();
 }
 

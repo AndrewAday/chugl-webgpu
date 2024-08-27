@@ -202,9 +202,76 @@ GLFWmonitor* getCurrentMonitor(GLFWwindow* window)
 }
 
 struct App;
+
+// map entry for map from (pipeline_id, camera_id) --> WGPUBindGroup
+struct FrameUniformsItem {
+    SG_ID pipeline_id;
+    SG_ID camera_id;
+
+    // bindgroup never has to be rebuilt, because it points to
+    // R_Camera::frame_uniform_buffer which is fixed size of FrameUniforms
+    WGPUBindGroup frame_bindgroup;
+
+    static WGPUBindGroup set(hashmap* map, GraphicsContext* gctx,
+                             R_RenderPipeline* pipeline, R_Camera* camera)
+    {
+        FrameUniformsItem item = {};
+        item.pipeline_id       = pipeline->rid;
+        item.camera_id         = camera->id;
+
+        // create the bindgroup lazily
+        WGPUBindGroupEntry frame_group_entry = {};
+        frame_group_entry.binding            = 0;
+        frame_group_entry.buffer             = camera->frame_uniform_buffer.buf;
+        frame_group_entry.size               = camera->frame_uniform_buffer.size;
+
+        // create bind group
+        WGPUBindGroupDescriptor frameGroupDesc;
+        frameGroupDesc        = {};
+        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
+          pipeline->gpu_pipeline, PER_FRAME_GROUP);
+        frameGroupDesc.entries    = &frame_group_entry;
+        frameGroupDesc.entryCount = 1;
+
+        // layout:auto requires a bind group per pipeline
+        item.frame_bindgroup = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
+        ASSERT(item.frame_bindgroup);
+
+        const void* replaced = hashmap_set(map, &item);
+        ASSERT(!replaced);
+
+        return item.frame_bindgroup;
+    }
+
+    static int compare(const void* a, const void* b, void* udata)
+    {
+        FrameUniformsItem* ga = (FrameUniformsItem*)a;
+        FrameUniformsItem* gb = (FrameUniformsItem*)b;
+
+        SG_ID key_a[2] = { ga->pipeline_id, ga->camera_id };
+        SG_ID key_b[2] = { gb->pipeline_id, gb->camera_id };
+
+        return memcmp(key_a, key_b, sizeof(key_a));
+    }
+
+    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
+    {
+        FrameUniformsItem* e = (FrameUniformsItem*)item;
+        SG_ID key[2]         = { e->pipeline_id, e->camera_id };
+        return hashmap_xxhash3(&key, sizeof(key), seed0, seed1);
+    }
+
+    static void free(void* item)
+    {
+        FrameUniformsItem* e = (FrameUniformsItem*)item;
+        WGPU_RELEASE_RESOURCE(BindGroup, e->frame_bindgroup);
+    }
+};
+
 static void _R_HandleCommand(App* app, SG_Command* command);
 
-static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass);
+static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
+                           WGPURenderPassEncoder render_pass);
 
 static void _R_glfwErrorCallback(int error, const char* description)
 {
@@ -219,6 +286,8 @@ struct App {
 
     GLFWwindow* window;
     GraphicsContext gctx; // pass as pointer?
+    int window_fb_width;
+    int window_fb_height;
 
     // Chuck Context
     Chuck_VM* ckvm;
@@ -254,6 +323,8 @@ struct App {
 
     // render graph
     SG_ID root_pass_id;
+    hashmap* frame_uniforms_map; // map from <pipeline_id, camera_id> to bindgroup
+    int msaa_sample_count = 4;
 
     // ============================================================================
     // App API
@@ -269,6 +340,11 @@ struct App {
 
         Camera::init(&app->camera);
         Arena::init(&app->frameArena, MEGABYTE); // 1MB
+
+        int seed                = time(NULL);
+        app->frame_uniforms_map = hashmap_new(
+          sizeof(FrameUniformsItem), 0, seed, seed, FrameUniformsItem::hash,
+          FrameUniformsItem::compare, FrameUniformsItem::free, NULL);
     }
 
     static void gameloop(App* app)
@@ -428,8 +504,7 @@ struct App {
             init_info.Device             = app->gctx.device;
             init_info.NumFramesInFlight  = 3;
             init_info.RenderTargetFormat = app->gctx.swapChainFormat;
-            init_info.DepthStencilFormat = app->gctx.depthTextureDesc.format;
-            init_info.PipelineMultisampleState.count = app->gctx.msaa_sample_count;
+            // init_info.DepthStencilFormat = app->gctx.depthTextureDesc.format;
             ImGui_ImplWGPU_Init(&init_info);
         }
 
@@ -645,48 +720,141 @@ struct App {
         // now renderer can work on drawing the copied scenegraph
         // renderer.RenderScene(&scene, scene.GetMainCamera());
 
-        // if window not minimized, render
-        if (GraphicsContext::prepareFrame(&app->gctx)) {
+        // if window minimized, don't render
+        if (!GraphicsContext::prepareFrame(&app->gctx)) return;
 
-            WGPURenderPassEncoder render_pass = NULL;
-            { // render pass
-                render_pass = wgpuCommandEncoderBeginRenderPass(
-                  app->gctx.commandEncoder, &app->gctx.renderPassDesc);
+        // scene
+        // TODO RenderPass
+        /*
+        Refactor render loop
+        walk the render graph
+        for each RenderPass,
+        - create new renderPassDesc, begin and end new render pass
+        - call RenderScene with correct params
+        - handle window resize
+        - handle loadOp [load/clear] and add clearcolor (to scene?)
+            - to draw one renderpass on top of another, use loadOp: load
+            - need to specify for both color and depth
+        - move imgui into it's own non-multisamppled render pass
+        - GGen::update() auto update, do on every scene that's in the render
+        graph (can test by adding builtin camera controller on chugl side)
+        - check window minize still works
+        */
 
-                // scene
-                // TODO RenderPass
-                /*
-                Refactor render loop
-                walk the render graph
-                for each RenderPass,
-                - create new renderPassDesc, begin and end new render pass
-                - call RenderScene with correct params
-                - handle window resize
-                - handle loadOp [load/clear] and add clearcolor (to scene?)
-                    - to draw one renderpass on top of another, use loadOp: load
-                    - need to specify for both color and depth
-                - move imgui into it's own non-multisamppled render pass
-                - GGen::update() auto update, do on every scene that's in the render
-                graph
+        // begin walking render graph
+        R_Pass* root_pass = Component_GetPass(app->root_pass_id);
+        R_Pass* pass      = Component_GetPass(root_pass->sg_pass.next_pass_id);
 
-                */
-                _R_RenderScene(app, render_pass);
+        while (pass) {
+            switch (pass->sg_pass.pass_type) {
+                case SG_PassType_Render: {
+                    // defaults to main_scene
+                    R_Scene* scene = pass->sg_pass.scene_id != 0 ?
+                                       Component_GetScene(pass->sg_pass.scene_id) :
+                                       Component_GetScene(app->mainScene);
+                    // defaults to scene main camera
+                    R_Camera* camera = pass->sg_pass.camera_id != 0 ?
+                                         Component_GetCamera(pass->sg_pass.camera_id) :
+                                         Component_GetCamera(scene->main_camera_id);
+                    // defaults to swapchain current view
+                    // TODO: maybe don't need WindowTexture, let null texture default to
+                    // window tex? but that would only work in renderpass context...
+                    // TODO fix texture creation
+                    WGPUTextureView resolve_target_view = NULL;
+                    WGPUTextureFormat color_attachment_format
+                      = WGPUTextureFormat_Undefined;
+                    if (pass->sg_pass.resolve_target_id != 0) {
+                        R_Texture* r_tex
+                          = Component_GetTexture(pass->sg_pass.resolve_target_id);
+                        resolve_target_view     = r_tex->gpu_texture.view;
+                        color_attachment_format = r_tex->gpu_texture.format;
+                    } else {
+                        resolve_target_view     = app->gctx.backbufferView;
+                        color_attachment_format = app->gctx.swapChainFormat;
+                    }
 
-                // UI
-                if (do_ui)
-                    ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+                    // it's ok for camera to be null
+                    // TODO re-add camera check after adding GCamera default controllers
+                    ASSERT(scene && resolve_target_view);
 
-                wgpuRenderPassEncoderEnd(render_pass);
+                    {
+                        // TODO msaa sample count probably lives in App, not gctx
+                        R_Pass::updateRenderPassDesc(
+                          &app->gctx, pass, app->window_fb_width, app->window_fb_height,
+                          app->msaa_sample_count, resolve_target_view,
+                          color_attachment_format);
+
+                        WGPURenderPassEncoder render_pass
+                          = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
+                                                              &pass->render_pass_desc);
+
+                        _R_RenderScene(app, scene, camera, render_pass);
+
+                        wgpuRenderPassEncoderEnd(render_pass);
+                        wgpuRenderPassEncoderRelease(render_pass);
+                    }
+
+                } break;
+                default: ASSERT(false);
             }
 
-            // submit and present
-            GraphicsContext::presentFrame(&app->gctx);
+            pass = Component_GetPass(pass->sg_pass.next_pass_id);
+        }
 
-            // cleanup
-            // Note: safe to release before submit, immediately after
-            // RenderPassEncoderEnd
+        // imgui render pass
+        if (do_ui) {
+            WGPURenderPassColorAttachment imgui_color_attachment = {};
+            imgui_color_attachment.view = app->gctx.backbufferView;
+#ifdef __EMSCRIPTEN__
+            imgui_color_attachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+#endif
+            imgui_color_attachment.loadOp
+              = WGPULoadOp_Load; // DON'T clear the previous frame
+            imgui_color_attachment.storeOp = WGPUStoreOp_Store;
+
+            WGPURenderPassDescriptor imgui_render_pass_desc = {};
+            imgui_render_pass_desc.label                    = "ImGUI Render Pass";
+            imgui_render_pass_desc.colorAttachmentCount     = 1;
+            imgui_render_pass_desc.colorAttachments         = &imgui_color_attachment;
+            imgui_render_pass_desc.depthStencilAttachment   = NULL;
+
+            WGPURenderPassEncoder render_pass = wgpuCommandEncoderBeginRenderPass(
+              app->gctx.commandEncoder, &imgui_render_pass_desc);
+
+            ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+
+            wgpuRenderPassEncoderEnd(render_pass);
             wgpuRenderPassEncoderRelease(render_pass);
         }
+
+        GraphicsContext::presentFrame(&app->gctx);
+
+#if 0
+// if window not minimized, render
+if (GraphicsContext::prepareFrame(&app->gctx)) {
+
+    WGPURenderPassEncoder render_pass = NULL;
+    { // render pass
+        render_pass = wgpuCommandEncoderBeginRenderPass(
+          app->gctx.commandEncoder, &app->gctx.renderPassDesc);
+
+        _R_RenderScene(app, render_pass);
+
+        // UI
+        if (do_ui) ImGui_ImplWGPU_RenderDrawData(&snapshot.DrawData, render_pass);
+
+        wgpuRenderPassEncoderEnd(render_pass);
+    }
+
+    // submit and present
+    GraphicsContext::presentFrame(&app->gctx);
+
+    // cleanup
+    // Note: safe to release before submit, immediately after
+    // RenderPassEncoderEnd
+    wgpuRenderPassEncoderRelease(render_pass);
+}
+#endif
     }
 
     static void _calculateFPS(GLFWwindow* window, bool print_to_title)
@@ -765,7 +933,9 @@ struct App {
     {
         log_trace("window resized: %d, %d", width, height);
 
-        App* app = (App*)glfwGetWindowUserPointer(window);
+        App* app              = (App*)glfwGetWindowUserPointer(window);
+        app->window_fb_width  = width;
+        app->window_fb_height = height;
 
         // causes inconsistent crash on window resize
         // ImGui_ImplWGPU_InvalidateDeviceObjects();
@@ -836,24 +1006,21 @@ struct App {
     }
 };
 
-static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
+static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
+                           WGPURenderPassEncoder render_pass)
 {
     // early out if no pipelines
     if (Component_RenderPipelineCount() == 0) return;
 
-    R_Scene* main_scene = Component_GetScene(app->mainScene);
-
-    { // Update all transforms
-        R_Transform::rebuildMatrices(main_scene, &app->frameArena);
-        // R_Transform::print(main_scene, 0);
-    }
+    // Update all transforms
+    R_Transform::rebuildMatrices(scene, &app->frameArena);
+    // R_Transform::print(main_scene, 0);
 
     // update camera
-    R_Camera* main_camera = Component_GetCamera(main_scene->main_camera_id);
     i32 width, height;
     glfwGetWindowSize(app->window, &width, &height);
     f32 aspect = (f32)width / (f32)height;
-    if (!main_camera) {
+    if (!camera) {
         // if camera not set by chugl user, use default camera
         app->camera.update(&app->camera, (f32)app->dt);
     }
@@ -861,26 +1028,37 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
-    frameUniforms.projectionMat = main_camera ?
-                                    R_Camera::projectionMatrix(main_camera, aspect) :
+    frameUniforms.projectionMat = camera ?
+                                    R_Camera::projectionMatrix(camera, aspect) :
                                     Camera::projectionMatrix(&app->camera, aspect);
-    frameUniforms.viewMat       = main_camera ? R_Camera::viewMatrix(main_camera) :
-                                                Entity::viewMatrix(&app->camera.entity);
-    frameUniforms.projViewMat   = frameUniforms.projectionMat * frameUniforms.viewMat;
-    frameUniforms.camPos        = app->camera.entity.pos;
-    frameUniforms.dirLight      = VEC_FORWARD;
-    frameUniforms.time          = time;
+    frameUniforms.viewMat
+      = camera ? R_Camera::viewMatrix(camera) : Entity::viewMatrix(&app->camera.entity);
+    frameUniforms.projViewMat = frameUniforms.projectionMat * frameUniforms.viewMat;
+    frameUniforms.camPos      = app->camera.entity.pos;
+    frameUniforms.dirLight    = VEC_FORWARD;
+    frameUniforms.time        = time;
 
     // update frame-level uniforms
-    bool frame_uniforms_recreated = GPU_Buffer::write(
-      &app->gctx, &R_RenderPipeline::frame_uniform_buffer, WGPUBufferUsage_Uniform,
-      &frameUniforms, sizeof(frameUniforms));
-    ASSERT(!frame_uniforms_recreated);
+    if (camera) {
+        bool frame_uniforms_recreated = GPU_Buffer::write(
+          &app->gctx, &camera->frame_uniform_buffer, WGPUBufferUsage_Uniform,
+          &frameUniforms, sizeof(frameUniforms));
+        ASSERT(!frame_uniforms_recreated);
+    } else {
+        // TODO remove after adding camera controller to chugl, disallowing null camera
+        bool frame_uniforms_recreated = GPU_Buffer::write(
+          &app->gctx, &R_RenderPipeline::frame_uniform_buffer, WGPUBufferUsage_Uniform,
+          &frameUniforms, sizeof(frameUniforms));
+        ASSERT(!frame_uniforms_recreated);
+    }
 
     // ==optimize== to prevent sparseness, delete render state entries / arena ids
     // if we find SG_ID arenas are empty
     // - impl only after render loop architecture has stabilized
 
+    // ==optimize== currently iterating over *every* pipeline for each renderpass
+    // store a renderpipeline list per R_Scene / renderpass so we don't iterate
+    // over pipelines that aren't used in this particular scene
     R_RenderPipeline* render_pipeline = NULL;
     size_t rpIndex                    = 0;
     while (Component_RenderPipelineIter(&rpIndex, &render_pipeline)) {
@@ -900,10 +1078,29 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
 
         // set shader
         // ==optimize== only set shader if we actually have anything to render
-        wgpuRenderPassEncoderSetPipeline(renderPass, gpu_pipeline);
+        wgpuRenderPassEncoderSetPipeline(render_pass, gpu_pipeline);
 
-        wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-                                          render_pipeline->frame_group, 0, NULL);
+        if (camera) {
+            WGPUBindGroup frame_bind_group;
+            FrameUniformsItem key = { render_pipeline->rid, camera->id, NULL };
+            FrameUniformsItem* item
+              = (FrameUniformsItem*)hashmap_get(app->frame_uniforms_map, &key);
+
+            if (!item) {
+                frame_bind_group = FrameUniformsItem::set(
+                  app->frame_uniforms_map, &app->gctx, render_pipeline, camera);
+                ASSERT(frame_bind_group);
+            } else {
+                frame_bind_group = item->frame_bindgroup;
+            }
+
+            wgpuRenderPassEncoderSetBindGroup(render_pass, PER_FRAME_GROUP,
+                                              frame_bind_group, 0, NULL);
+        } else {
+            // TODO remove after adding chugl camera controller
+            wgpuRenderPassEncoderSetBindGroup(render_pass, PER_FRAME_GROUP,
+                                              render_pipeline->frame_group, 0, NULL);
+        }
 
         // per-material render loop
         size_t material_idx    = 0;
@@ -914,7 +1111,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             ASSERT(r_material->pipelineID == render_pipeline->rid);
 
             MaterialToGeometry* m2g = (MaterialToGeometry*)hashmap_get(
-              main_scene->material_to_geo, &r_material->id);
+              scene->material_to_geo, &r_material->id);
 
             // early out scene doesn't use this material
             if (!m2g) continue;
@@ -925,7 +1122,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
             R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
 
-            wgpuRenderPassEncoderSetBindGroup(renderPass, PER_MATERIAL_GROUP,
+            wgpuRenderPassEncoderSetBindGroup(render_pass, PER_MATERIAL_GROUP,
                                               r_material->bind_group, 0, NULL);
 
             // iterate over geometries attached to this material
@@ -933,10 +1130,10 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 R_Geometry* geo = Component_GetGeometry(
                   *ARENA_GET_TYPE(&m2g->geo_ids, SG_ID, geo_idx));
                 GeometryToXforms* g2x
-                  = R_Scene::getPrimitive(main_scene, geo->id, r_material->id);
+                  = R_Scene::getPrimitive(scene, geo->id, r_material->id);
                 ASSERT(g2x->key.geo_id == geo->id && g2x->key.mat_id == r_material->id);
 
-                GeometryToXforms::rebuildBindGroup(&app->gctx, main_scene, g2x,
+                GeometryToXforms::rebuildBindGroup(&app->gctx, scene, g2x,
                                                    perDrawLayout, &app->frameArena);
 
                 // check *after* rebuildBindGroup because some xform ids may be removed
@@ -944,7 +1141,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 if (num_instances == 0) continue;
 
                 // set model bind group
-                wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
+                wgpuRenderPassEncoderSetBindGroup(render_pass, PER_DRAW_GROUP,
                                                   g2x->xform_bind_group, 0, NULL);
 
                 // set vertex attributes
@@ -952,7 +1149,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                      location++) {
                     GPU_Buffer* gpu_buffer = &geo->gpu_vertex_buffers[location];
                     wgpuRenderPassEncoderSetVertexBuffer(
-                      renderPass, location, gpu_buffer->buf, 0, gpu_buffer->size);
+                      render_pass, location, gpu_buffer->buf, 0, gpu_buffer->size);
                 }
 
                 // set pulled vertex buffers (programmable vertex pulling)
@@ -963,7 +1160,7 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                     }
                     R_Geometry::rebuildPullBindGroup(&app->gctx, geo,
                                                      vertex_pulling_layout);
-                    wgpuRenderPassEncoderSetBindGroup(renderPass, VERTEX_PULL_GROUP,
+                    wgpuRenderPassEncoderSetBindGroup(render_pass, VERTEX_PULL_GROUP,
                                                       geo->pull_bind_group, 0, NULL);
                 }
 
@@ -972,17 +1169,17 @@ static void _R_RenderScene(App* app, WGPURenderPassEncoder renderPass)
                 if (num_indices > 0) {
                     // indexed draw
                     wgpuRenderPassEncoderSetIndexBuffer(
-                      renderPass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
+                      render_pass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
                       geo->gpu_index_buffer.size);
 
-                    wgpuRenderPassEncoderDrawIndexed(renderPass, num_indices,
+                    wgpuRenderPassEncoderDrawIndexed(render_pass, num_indices,
                                                      num_instances, 0, 0, 0);
                 } else {
                     // non-index draw
                     int num_vertices = (int)R_Geometry::vertexCount(geo);
                     int vertex_draw_count
                       = geo->vertex_count >= 0 ? geo->vertex_count : num_vertices;
-                    wgpuRenderPassEncoderDraw(renderPass, vertex_draw_count,
+                    wgpuRenderPassEncoderDraw(render_pass, vertex_draw_count,
                                               num_instances, 0, 0);
                 }
             } // foreach geometry
@@ -1340,7 +1537,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         } break;
         case SG_COMMAND_CAMERA_CREATE: {
             SG_Command_CameraCreate* cmd = (SG_Command_CameraCreate*)command;
-            Component_CreateCamera(cmd);
+            Component_CreateCamera(&app->gctx, cmd);
         } break;
         case SG_COMMAND_CAMERA_SET_PARAMS: {
             SG_Command_CameraSetParams* cmd = (SG_Command_CameraSetParams*)command;

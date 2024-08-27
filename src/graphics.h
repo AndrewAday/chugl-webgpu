@@ -44,7 +44,6 @@ struct GraphicsContext {
 
     WGPUTexture multisampled_texture;
     WGPUTextureView multisampled_texture_view;
-    int msaa_sample_count = 4;
 
     // Per frame resources --------
     WGPUTextureView backbufferView;
@@ -290,15 +289,24 @@ struct Texture {
     u32 height;
     u32 depth;
     u32 mip_level_count;
+    u32 sample_count;
 
     WGPUTextureFormat format;
     WGPUTextureDimension dimension;
+    WGPUTextureUsageFlags usage;
+
     WGPUTexture texture;
     WGPUTextureView view;
     // WGPUSampler sampler;
 
+    static void init(GraphicsContext* gctx, Texture* texture, u32 width, u32 height,
+                     u32 depth, bool gen_mipmaps, const char* label,
+                     WGPUTextureFormat format, WGPUTextureUsageFlags usage,
+                     WGPUTextureDimension dimension);
+
     static void initFromFile(GraphicsContext* ctx, Texture* texture,
-                             const char* filename, bool genMipMaps);
+                             const char* filename, bool genMipMaps,
+                             WGPUTextureUsageFlags usage_flags);
 
     // initializes from image data read into memory, NOT raw buffer
     static void initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* data,
@@ -307,10 +315,10 @@ struct Texture {
     static void initSinglePixel(GraphicsContext* ctx, Texture* texture,
                                 u8 pixelData[4]);
 
-    static void initFromPixelData(GraphicsContext* ctx, Texture* texture,
-                                  const void* pixelData, i32 width, i32 height,
-                                  u8 numComponents, bool genMipMaps,
-                                  const char* filename, bool is_storage);
+    static void initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
+                                  const char* label, const void* pixelData,
+                                  int pixel_width, int pixel_height, bool genMipMaps,
+                                  WGPUTextureUsageFlags usage_flags);
 
     static void release(Texture* texture);
 };
@@ -397,3 +405,11 @@ WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
                                       const char* label);
 
 WGPUBlendState G_createBlendState(bool enableBlend);
+
+struct DepthStencilTextureResult {
+    WGPUTexture tex;
+    WGPUTextureView view;
+};
+DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
+                                                      u32 sample_count, u32 width,
+                                                      u32 height);
