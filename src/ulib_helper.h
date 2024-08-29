@@ -82,11 +82,16 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID lines2d_shader_id;
     SG_ID flat_shader_id;
     SG_ID gtext_shader_id;
+
+    // screen shaders
+    SG_ID output_pass_shader_id;
 };
 static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
 
 struct chugl_builtin_textures {
     SG_ID white_pixel_id;
+    SG_ID black_pixel_id;
+    SG_ID default_render_texture_id;
 };
 static chugl_builtin_textures g_builtin_textures;
 
@@ -167,7 +172,7 @@ void chugin_copyCkFloatArray(Chuck_ArrayFloat* ck_arr, float* arr, int count)
 {
     int size = MIN(g_chuglAPI->object->array_float_size(ck_arr), count);
     for (int i = 0; i < size; i++) {
-        arr[i] = (float)g_chuglAPI->object->array_float_get_idx(ck_arr, i);
+        arr[i] = (f32)g_chuglAPI->object->array_float_get_idx(ck_arr, i);
     }
 }
 
@@ -228,13 +233,14 @@ bool chugin_typeEquals(Chuck_Object* ckobj, const char* type_name)
 {
     Chuck_DL_Api::Type ggenType = g_chuglAPI->type->lookup(g_chuglVM, type_name);
     Chuck_DL_Api::Type thisType = g_chuglAPI->object->get_type(ckobj);
-    return (g_chuglAPI->type->is_equal(
-          thisType,
-          ggenType) // this type is an exact match (subclasses are handled on their own)
-        || g_chuglAPI->type->origin_hint(thisType)
-             == ckte_origin_USERDEFINED // this type is defined .ck file
-        || g_chuglAPI->type->origin_hint(thisType)
-             == ckte_origin_IMPORT // .ck file included in search path
+    return (
+      g_chuglAPI->type->is_equal(
+        thisType,
+        ggenType) // this type is an exact match (subclasses are handled on their own)
+      || g_chuglAPI->type->origin_hint(thisType)
+           == ckte_origin_USERDEFINED // this type is defined .ck file
+      || g_chuglAPI->type->origin_hint(thisType)
+           == ckte_origin_IMPORT // .ck file included in search path
     );
 }
 

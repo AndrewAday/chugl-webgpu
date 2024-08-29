@@ -394,8 +394,8 @@ void GraphicsContext::presentFrame(GraphicsContext* ctx)
 #endif
 
     wgpuCommandBufferRelease(command);
-    wgpuCommandEncoderRelease(ctx->commandEncoder);
-    wgpuTextureViewRelease(ctx->backbufferView);
+    WGPU_RELEASE_RESOURCE(CommandEncoder, ctx->commandEncoder);
+    WGPU_RELEASE_RESOURCE(TextureView, ctx->backbufferView);
 }
 
 void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
@@ -1867,3 +1867,36 @@ SamplerConfig Graphics_SamplerConfigFromDesciptor(WGPUSamplerDescriptor* desc)
 //     // release texture sampler (TODO: refactor out into SG_Texture)
 //     WGPU_RELEASE_RESOURCE(Sampler, material->_sampler);
 // }
+
+// ============================================================================
+// GPU_Buffer
+// ============================================================================
+
+bool GPU_Buffer::resizeNoCopy(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                              u64 new_size, WGPUBufferUsageFlags usage_flags)
+
+{
+    if (new_size <= gpu_buffer->capacity
+        && (usage_flags & gpu_buffer->usage) == usage_flags) {
+        gpu_buffer->size = new_size;
+        return false;
+    }
+
+    log_debug("Resizing GPU_Buffer from %llu to %llu\n", gpu_buffer->capacity,
+              new_size);
+
+    WGPUBufferDescriptor desc = {};
+    desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
+    u64 new_capacity          = MAX(gpu_buffer->capacity * 2, new_size);
+    desc.size                 = NEXT_MULT(new_capacity, 4);
+
+    // release old buffer
+    WGPU_DESTROY_AND_RELEASE_BUFFER(gpu_buffer->buf);
+
+    // update buffer
+    gpu_buffer->buf      = wgpuDeviceCreateBuffer(gctx->device, &desc);
+    gpu_buffer->capacity = desc.size;
+    gpu_buffer->usage    = desc.usage;
+    gpu_buffer->size     = new_size;
+    return true;
+}

@@ -185,16 +185,29 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
     ulib_texture_createDefaults(QUERY->ck_api(QUERY));
 }
 
+static SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    Chuck_Object* texture_obj
+      = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
+
+    SG_Texture* tex                                   = SG_CreateTexture(texture_obj);
+    OBJ_MEMBER_UINT(texture_obj, component_offset_id) = tex->id;
+    tex->desc                                         = desc;
+    CQ_PushCommand_TextureCreate(tex);
+
+    return tex;
+}
+
 // create default pixel textures and samplers
 void ulib_texture_createDefaults(CK_DL_API API)
 {
-    Chuck_Object* white_pixel_ckobj
-      = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
-    { // creating via chugin API doesn't call ctor
-        SG_Texture* tex = SG_CreateTexture(white_pixel_ckobj);
-        OBJ_MEMBER_UINT(white_pixel_ckobj, component_offset_id) = tex->id;
-        CQ_PushCommand_TextureCreate(tex);
-
+    // white pixel
+    {
+        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
+                                                       WGPUTextureDimension_2D,
+                                                       WGPUTextureFormat_RGBA8Unorm });
         // upload pixel data
         u8 white_pixel[] = { 255, 255, 255, 255 };
         SG_Texture::write(tex, white_pixel, 1, 1);
@@ -203,6 +216,30 @@ void ulib_texture_createDefaults(CK_DL_API API)
         // set global
         g_builtin_textures.white_pixel_id = tex->id;
     }
+    //  default render texture (hdr)
+    {
+        SG_Texture* tex = ulib_texture_createTexture(
+          { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+            WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float });
+        // set global
+        g_builtin_textures.default_render_texture_id = tex->id;
+    }
+    // {
+    //     Chuck_Object* black_pixel_ckobj
+    //       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
+
+    //     SG_Texture* tex = SG_CreateTexture(black_pixel_ckobj);
+    //     OBJ_MEMBER_UINT(black_pixel_ckobj, component_offset_id) = tex->id;
+    //     CQ_PushCommand_TextureCreate(tex);
+
+    //     // upload pixel data
+    //     u8 black_pixel[] = { 0, 0, 0, 0 };
+    //     SG_Texture::write(tex, black_pixel, 1, 1);
+    //     CQ_PushCommand_TextureData(tex);
+
+    //     // set global
+    //     g_builtin_textures.black_pixel_id = tex->id;
+    // }
 }
 
 CK_DLL_CTOR(sampler_ctor)

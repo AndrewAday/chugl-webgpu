@@ -69,11 +69,7 @@ fn vs_main(in : VertexInput) -> VertexOutput
 
     var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
     out.v_worldPos = worldPos.xyz;
-    // TODO handle non-uniform scaling
-    // TODO: restore to normal Mat. need to pass normal mat from cpu side
-    // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
     out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
-    // tangent vectors aren't impacted by non-uniform scaling or translation
     out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
     out.v_uv     = in.uv;
     out.position = worldPos;

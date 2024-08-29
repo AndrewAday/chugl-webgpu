@@ -32,7 +32,7 @@ typedef SG_ID R_ID; // negative for R_Components NOT mapped to SG_Components
 struct R_Component {
     SG_ID id; // SG_Component this R_Component is mapped to
     SG_ComponentType type;
-    std::string name; // TODO move off std::string
+    std::string name = ""; // TODO move off std::string
 };
 
 // priority hiearchy for staleness
@@ -182,9 +182,25 @@ struct R_Texture : public R_Component {
     // SamplerConfig samplerConfig; // TODO texture: maybe have sampler separate?
     u64 generation = 0; // incremented every time texture is modified
 
-    SG_TextureDesc desc;
+    SG_TextureDesc desc; // TODO redundant with R_Texture.gpu_texture
 
     static void init(R_Texture* texture); // called by Renderer-Tester only
+
+    // resizes texture and updates generation, clears any previous data
+    // does NOT gen mipmaps. used for framebuffer attachments
+    static void rebuild(GraphicsContext* gctx, R_Texture* r_tex, u32 width, u32 height)
+    {
+        bool needs_rebuild = r_tex->gpu_texture.width != width
+                             || r_tex->gpu_texture.height != height
+                             || r_tex->gpu_texture.texture == NULL;
+        if (needs_rebuild) {
+            Texture::init(gctx, &r_tex->gpu_texture, width, height, 1, false,
+                          r_tex->name.c_str(), r_tex->desc.format,
+                          WGPUTextureUsage_RenderAttachment | r_tex->desc.usage_flags,
+                          r_tex->desc.dimension);
+            r_tex->generation++;
+        }
+    }
 
     static void write(GraphicsContext* gctx, R_Texture* texture, void* data, int width,
                       int height)
@@ -212,10 +228,14 @@ struct R_Shader : public R_Component {
     // e.g. [3, 3, 2, 4] for [POSITION, NORMAL, TEXCOORD_0, TANGENT]
     WGPUVertexFormat vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
+    WGPUShaderModule compute_shader_module;
+
     static void init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
                      const char* vertex_filepath, const char* fragment_string,
                      const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
-                     int vertex_layout_count);
+                     int vertex_layout_count, const char* compute_string,
+                     const char* compute_filepath);
+
     static void free(R_Shader* shader);
 };
 
@@ -513,119 +533,6 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
 // R_Pass
 // =============================================================================
 
-#if 0 // notes from hdr.c
-
-// pipeline:
-// offscreen_pass --> bloom filter pass --> render pass (onscreen pass)
-
-enum wgpu_render_pass_attachment_type_t {
-  WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE         = 0x00000001,
-  WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE = 0x00000002,
-};
-
-struct frame_buffer_attachment_t {
-  WGPUTexture texture;
-  WGPUTextureView texture_view;
-  WGPUTextureFormat format;
-};
-
-struct { // can generalize this to all passes, not just offscreen
-  uint32_t width, height;
-  frame_buffer_attachment_t color[2]; // why 2?
-  frame_buffer_attachment_t depth;
-
-  struct { // everything needed by WGPURenderPassDescriptor
-    WGPURenderPassColorAttachment color_attachment[2];
-    WGPURenderPassDepthStencilAttachment depth_stencil_attachment;
-    WGPURenderPassDescriptor render_pass_descriptor;
-  } render_pass_desc;
-
-  WGPUSampler sampler; // what is sampler for?
-} offscreen_pass = {0};
-
-struct { // screen pass? hence no need for depth buffer
-  uint32_t width, height;
-  frame_buffer_attachment_t color[1];
-  struct {
-    WGPURenderPassColorAttachment color_attachment[1];
-    WGPURenderPassDescriptor render_pass_descriptor;
-  } render_pass_desc;
-  WGPUSampler sampler;
-} filter_pass;
-
-// sampler params (nearest, not linear! because we are sampling 1:1)
-    filter_pass.sampler = wgpuDeviceCreateSampler(
-      device, &(WGPUSamplerDescriptor){
-                              .label         = "Filter pass texture sampler",
-                              .addressModeU  = WGPUAddressMode_ClampToEdge,
-                              .addressModeV  = WGPUAddressMode_ClampToEdge,
-                              .addressModeW  = WGPUAddressMode_ClampToEdge,
-                              .minFilter     = WGPUFilterMode_Nearest,
-                              .magFilter     = WGPUFilterMode_Nearest,
-                              .mipmapFilter  = WGPUMipmapFilterMode_Linear,
-                              .lodMinClamp   = 0.0f,
-                              .lodMaxClamp   = 1.0f,
-                              .maxAnisotropy = 1,
-                            });
-
-// populates framebufferAttachment params
-// improvement: just pass usage_flags directly instead of attachment_type
-void create_attachment(wgpu_context_t* wgpu_context, const char* texture_label,
-                       WGPUTextureFormat format,
-                       wgpu_render_pass_attachment_type_t attachment_type,
-                       frame_buffer_attachment_t* attachment)
-{
-  // Create the texture extent
-  WGPUExtent3D texture_extent = { // TODO this takes window width/height params
-    .width              = width 
-    .height             = height
-    .depthOrArrayLayers = 1,
-  };
-
-  // Texture usage flags
-  WGPUTextureUsageFlags usage_flags = WGPUTextureUsage_RenderAttachment;
-  if (attachment_type == WGPU_RENDER_PASS_COLOR_ATTACHMENT_TYPE) {
-    usage_flags = usage_flags | WGPUTextureUsage_TextureBinding; // allow texture to be bound and sampled in shader
-  }
-  else if (attachment_type == WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_TYPE) {
-    usage_flags = usage_flags | WGPUTextureUsage_CopySrc; // why copy src?? where's the copy
-  }
-
-  // Texture format
-  attachment->format = format;
-
-  // Create the texture
-  WGPUTextureDescriptor texture_desc = {
-    .label         = texture_label,
-    .size          = texture_extent,
-    .mipLevelCount = 1,
-    .sampleCount   = 1, // TODO add sample count
-    .dimension     = WGPUTextureDimension_2D,
-    .format        = attachment->format,
-    .usage         = usage_flags,
-  };
-  attachment->texture
-    = wgpuDeviceCreateTexture(wgpu_context->device, &texture_desc);
-  ASSERT(attachment->texture);
-
-  // Create the texture view
-  WGPUTextureViewDescriptor texture_view_dec = {
-    .label           = "Texture view",
-    .dimension       = WGPUTextureViewDimension_2D,
-    .format          = texture_desc.format,
-    .baseMipLevel    = 0,
-    .mipLevelCount   = 1,
-    .baseArrayLayer  = 0,
-    .arrayLayerCount = 1,
-    .aspect          = WGPUTextureAspect_All,
-  };
-  attachment->texture_view
-    = wgpuTextureCreateView(attachment->texture, &texture_view_dec);
-  ASSERT(attachment->texture_view);
-}
-
-#endif
-
 struct Framebuffer {
     u32 width        = 0;
     u32 height       = 0;
@@ -719,8 +626,28 @@ struct R_Pass : public R_Component {
     // RenderPass framebuffer
     Framebuffer framebuffer;
 
-    // todo gpass: write without support for user-provided textures
-    // refactor after re-writing texture class
+    // ScreenPass params (no depth buffer necessary)
+    WGPURenderPassColorAttachment screen_color_attachments[1];
+    WGPURenderPassDescriptor screen_pass_desc;
+
+    static void updateScreenPassDesc(GraphicsContext* gctx, R_Pass* pass,
+                                     WGPUTextureView color_attachment_view)
+    {
+        ASSERT(pass->sg_pass.pass_type == SG_PassType_Screen);
+
+        WGPURenderPassColorAttachment* ca = &pass->screen_color_attachments[0];
+        *ca                               = {};
+        ca->view                          = color_attachment_view;
+        ca->loadOp                        = WGPULoadOp_Clear;
+        ca->storeOp                       = WGPUStoreOp_Store;
+        ca->clearValue                    = WGPUColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+
+        pass->screen_pass_desc                        = {};
+        pass->screen_pass_desc.label                  = pass->sg_pass.name;
+        pass->screen_pass_desc.colorAttachmentCount   = 1;
+        pass->screen_pass_desc.colorAttachments       = pass->screen_color_attachments;
+        pass->screen_pass_desc.depthStencilAttachment = NULL;
+    }
 
     // if window size has changed, lazily reconstruct depth/stencil and color targets
     // update DepthStencilAttachment and ColorAttachment params based on ChuGL
@@ -730,7 +657,7 @@ struct R_Pass : public R_Component {
     // but not the gpu-specific parameters of R_Pass
     static void updateRenderPassDesc(GraphicsContext* gctx, R_Pass* pass,
                                      u32 window_width, u32 window_height,
-                                     int sample_count, WGPUTextureView swapchain_view,
+                                     int sample_count, WGPUTextureView resolve_view,
                                      WGPUTextureFormat view_format)
     {
         ASSERT(pass->sg_pass.pass_type == SG_PassType_Render);
@@ -766,7 +693,7 @@ struct R_Pass : public R_Component {
             // view and resolve set in GraphicsContext::prepareFrame()
             ca->view
               = pass->framebuffer.color_view; // multisampled view, for now lock down
-            ca->resolveTarget = swapchain_view;
+            ca->resolveTarget = resolve_view;
 
 #ifdef __EMSCRIPTEN__
             ca->depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
@@ -786,6 +713,19 @@ struct R_Pass : public R_Component {
               = &pass->depth_stencil_attachment;
         }
     }
+};
+
+WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
+                                           WGPUTextureFormat format, SG_ID shader_id);
+
+WGPUComputePipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader);
+
+// =============================================================================
+// R_Buffer
+// =============================================================================
+
+struct R_Buffer : public R_Component {
+    GPU_Buffer gpu_buffer;
 };
 
 // =============================================================================
@@ -912,6 +852,7 @@ R_Texture* Component_CreateTexture();
 R_Texture* Component_CreateTexture(GraphicsContext* gctx,
                                    SG_Command_TextureCreate* cmd);
 R_Pass* Component_CreatePass(SG_ID pass_id);
+R_Buffer* Component_CreateBuffer(SG_ID id);
 
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
@@ -925,6 +866,7 @@ R_Text* Component_GetText(SG_ID id);
 R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path);
 R_Pass* Component_GetPass(SG_ID id);
+R_Buffer* Component_GetBuffer(SG_ID id);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,

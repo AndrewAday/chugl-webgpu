@@ -16,6 +16,8 @@ static t_CKUINT shader_desc_fragment_string_offset   = 0;
 static t_CKUINT shader_desc_vertex_filepath_offset   = 0;
 static t_CKUINT shader_desc_fragment_filepath_offset = 0;
 static t_CKUINT shader_desc_vertex_layout_offset     = 0;
+static t_CKUINT shader_desc_compute_string_offset    = 0;
+static t_CKUINT shader_desc_compute_filepath_offset  = 0;
 
 CK_DLL_CTOR(shader_ctor_default);
 CK_DLL_CTOR(shader_ctor);
@@ -61,6 +63,7 @@ thread
     - setStorageBuffer() instead of taking a ck_FloatArray, takes a GPUBuffer component
 */
 CK_DLL_MFUN(material_set_storage_buffer);
+CK_DLL_MFUN(material_set_storage_buffer_external);
 CK_DLL_MFUN(material_set_sampler);
 CK_DLL_MFUN(material_set_texture);
 
@@ -118,6 +121,8 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     shader_desc_vertex_filepath_offset   = MVAR("string", "vertexFilepath", false);
     shader_desc_fragment_filepath_offset = MVAR("string", "fragmentFilepath", false);
     shader_desc_vertex_layout_offset     = MVAR("int[]", "vertexLayout", false);
+    shader_desc_compute_string_offset    = MVAR("string", "computeString", false);
+    shader_desc_compute_filepath_offset  = MVAR("string", "computeFilepath", false);
 
     END_CLASS();
 
@@ -261,6 +266,11 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     ARG("float[]", "storageBuffer");
 
+    // external storage buffer
+    MFUN(material_set_storage_buffer_external, "void", "storageBuffer");
+    ARG("int", "location");
+    ARG("StorageBuffer", "storageBuffer");
+
     MFUN(material_set_sampler, "void", "sampler");
     ARG("int", "location");
     ARG("TextureSampler", "sampler");
@@ -329,6 +339,10 @@ CK_DLL_CTOR(shader_desc_ctor)
       = chugin_createCkString("");
     OBJ_MEMBER_STRING(SELF, shader_desc_fragment_filepath_offset)
       = chugin_createCkString("");
+    OBJ_MEMBER_STRING(SELF, shader_desc_compute_string_offset)
+      = chugin_createCkString("");
+    OBJ_MEMBER_STRING(SELF, shader_desc_compute_filepath_offset)
+      = chugin_createCkString("");
 }
 
 CK_DLL_CTOR(shader_ctor_default)
@@ -348,7 +362,9 @@ CK_DLL_CTOR(shader_ctor)
       OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_string_offset),
       OBJ_MEMBER_STRING(shader_desc, shader_desc_vertex_filepath_offset),
       OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_filepath_offset),
-      OBJ_MEMBER_INT_ARRAY(shader_desc, shader_desc_vertex_layout_offset));
+      OBJ_MEMBER_INT_ARRAY(shader_desc, shader_desc_vertex_layout_offset),
+      OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_string_offset),
+      OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_filepath_offset));
 
     // save component id
     OBJ_MEMBER_UINT(SELF, component_offset_id) = shader->id;
@@ -619,6 +635,18 @@ CK_DLL_MFUN(material_set_storage_buffer)
     CQ_PushCommand_MaterialSetStorageBuffer(material, location, ck_arr);
 }
 
+CK_DLL_MFUN(material_set_storage_buffer_external)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Buffer* buffer     = SG_GetBuffer(OBJ_MEMBER_UINT(ckobj, component_offset_id));
+
+    SG_Material::storageBuffer(material, location, buffer);
+
+    CQ_PushCommand_MaterialSetStorageBufferExternal(material, location, buffer);
+}
+
 CK_DLL_MFUN(material_set_sampler)
 {
     SG_Material* material = GET_MATERIAL(SELF);
@@ -627,7 +655,7 @@ CK_DLL_MFUN(material_set_sampler)
 
     SG_Material::setSampler(material, location, sampler);
 
-    CQ_PushCommand_MaterialSetSampler(material, location, sampler);
+    CQ_PushCommand_MaterialSetSampler(material, location);
 }
 
 CK_DLL_MFUN(material_set_texture)
@@ -639,7 +667,7 @@ CK_DLL_MFUN(material_set_texture)
 
     SG_Material::setTexture(material, location, tex);
 
-    CQ_PushCommand_MaterialSetTexture(material, location, tex);
+    CQ_PushCommand_MaterialSetTexture(material, location);
 }
 
 // Lines2DMaterial ===================================================================
@@ -739,20 +767,20 @@ CK_DLL_CTOR(pbr_material_ctor)
 
 // init default materials ========================================================
 
-static SG_ID chugl_createShader(CK_DL_API API, const char* vertex_string,
-                                const char* fragment_string,
-                                const char* vertex_filepath,
-                                const char* fragment_filepath,
-                                WGPUVertexFormat* vertex_layout,
-                                int vertex_layout_count)
+static SG_ID
+chugl_createShader(CK_DL_API API, const char* vertex_string,
+                   const char* fragment_string, const char* vertex_filepath,
+                   const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
+                   int vertex_layout_count, const char* compute_string = "",
+                   const char* compute_filepath = "")
 {
     Chuck_Object* shader_ckobj
       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_SHADER], true);
 
     // create shader on audio side
-    SG_Shader* shader
-      = SG_CreateShader(shader_ckobj, vertex_string, fragment_string, vertex_filepath,
-                        fragment_filepath, vertex_layout, vertex_layout_count);
+    SG_Shader* shader = SG_CreateShader(
+      shader_ckobj, vertex_string, fragment_string, vertex_filepath, fragment_filepath,
+      vertex_layout, vertex_layout_count, compute_string, compute_filepath);
 
     // save component id
     OBJ_MEMBER_UINT(shader_ckobj, component_offset_id) = shader->id;
@@ -786,4 +814,8 @@ void chugl_initDefaultMaterials()
     g_material_builtin_shaders.gtext_shader_id = chugl_createShader(
       g_chuglAPI, gtext_shader_string, gtext_shader_string, NULL, NULL,
       gtext_vertex_layout, ARRAY_LENGTH(gtext_vertex_layout));
+
+    g_material_builtin_shaders.output_pass_shader_id
+      = chugl_createShader(g_chuglAPI, output_pass_shader_string,
+                           output_pass_shader_string, NULL, NULL, NULL, 0);
 }

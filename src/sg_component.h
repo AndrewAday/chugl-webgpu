@@ -40,7 +40,8 @@ typedef i64 SG_ID;
     X(SG_COMPONENT_MESH, "GMesh")                                                      \
     X(SG_COMPONENT_CAMERA, "GCamera")                                                  \
     X(SG_COMPONENT_TEXT, "GText")                                                      \
-    X(SG_COMPONENT_PASS, "GPass")
+    X(SG_COMPONENT_PASS, "GPass")                                                      \
+    X(SG_COMPONENT_BUFFER, "GBuffer")
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -62,6 +63,21 @@ struct SG_Component {
     Chuck_Object* ckobj;
     // TODO cache hash
     // u64 hash;
+};
+
+// ============================================================================
+// SG_Buffer
+// ============================================================================
+
+struct SG_BufferDesc {
+    WGPUBufferUsageFlags usage;
+    u64 size; // size in bytes
+};
+
+struct SG_Buffer : public SG_Component {
+    // ==optimize== wrap in SG_BufferDesc and pass that to CQ Command, rather than
+    // entire SG_Buffer also unsafe to have ckobj pointer on graphics thread
+    SG_BufferDesc desc;
 };
 
 // ============================================================================
@@ -98,7 +114,7 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
 struct SG_TextureDesc {
     WGPUTextureUsageFlags usage_flags;
     WGPUTextureDimension dimension = WGPUTextureDimension_2D;
-    WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
+    WGPUTextureFormat format       = WGPUTextureFormat_RGBA8Unorm;
 };
 
 struct SG_Texture : SG_Component {
@@ -253,6 +269,10 @@ struct SG_Shader : SG_Component {
     const char* vertex_filepath_owned;
     const char* fragment_filepath_owned;
     int vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+
+    // compute shader specific
+    const char* compute_string_owned;
+    const char* compute_filepath_owned;
 };
 
 // ============================================================================
@@ -266,6 +286,7 @@ enum SG_MaterialType : u8 {
     SG_MATERIAL_FLAT,
     SG_MATERIAL_PBR,
     SG_MATERIAL_TEXT3D,
+    SG_MATERIAL_COMPUTE, // holds compute shader
     SG_MATERIAL_COUNT
 };
 
@@ -303,6 +324,7 @@ enum SG_MaterialUniformType : u8 {
     SG_MATERIAL_UNIFORM_TEXTURE,
     SG_MATERIAL_UNIFORM_SAMPLER,
     SG_MATERIAL_UNIFORM_STORAGE_BUFFER,
+    SG_MATERIAL_UNIFORM_STORAGE_BUFFER_EXTERNAL,
 };
 
 union SG_MaterialUniformData {
@@ -316,8 +338,8 @@ union SG_MaterialUniformData {
     glm::ivec4 ivec4;
     SG_Sampler sampler;
     SG_ID texture_id;
+    SG_ID storage_buffer_id;
     // TODO arena for storage buffer
-    // TODO texture SG_ID
 };
 
 struct SG_MaterialUniformPtrAndSize {
@@ -362,6 +384,9 @@ struct SG_MaterialPipelineState {
     SG_ID sg_shader_id;
     WGPUCullMode cull_mode;
     WGPUPrimitiveTopology primitive_topology = WGPUPrimitiveTopology_TriangleList;
+    bool exclude_from_render_pass
+      = false; // if true, this material is internal to
+               // screen pass or compute pass, EXCLUDE from R_RenderPipeline
 };
 
 struct SG_Material : SG_Component {
@@ -412,6 +437,12 @@ struct SG_Material : SG_Component {
     static void setStorageBuffer(SG_Material* mat, int location)
     {
         mat->uniforms[location].type = SG_MATERIAL_UNIFORM_STORAGE_BUFFER;
+    }
+
+    static void storageBuffer(SG_Material* mat, int location, SG_Buffer* buffer)
+    {
+        mat->uniforms[location].type = SG_MATERIAL_UNIFORM_STORAGE_BUFFER_EXTERNAL;
+        mat->uniforms[location].as.storage_buffer_id = buffer->id;
     }
 
     static void setSampler(SG_Material* mat, int location, SG_Sampler sampler)
@@ -531,6 +562,20 @@ struct SG_Pass : public SG_Component {
     SG_ID camera_id;
     SG_ID resolve_target_id;
 
+    // ScreenPass params
+    SG_ID screen_texture_id;  // color attachment output
+    SG_ID screen_material_id; // created implicitly, material.pos.shader_id =
+                              // screen_shader_id
+    SG_ID screen_shader_id;
+
+    // ComputePass params
+    SG_ID compute_shader_id;
+    SG_ID compute_material_id; // created implicitly, material.pos.shader_id =
+                               // compute_shader_id
+    struct {
+        u32 x, y, z;
+    } workgroup;
+
     // true if pass_a and pass_b are connected by any number of steps
     static bool isConnected(SG_Pass* pass_a, SG_Pass* pass_b);
 
@@ -543,7 +588,22 @@ struct SG_Pass : public SG_Component {
     static void scene(SG_Pass* pass, SG_Scene* scene);
     static void camera(SG_Pass* pass, SG_Camera* cam);
     static void resolveTarget(SG_Pass* pass, SG_Texture* tex);
+
+    // screenpass methods
+    static void screenShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader);
+    static void screenTexture(SG_Pass* pass, SG_Texture* texture);
+
+    // computepass methods
+    static void computeShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader);
+
+    static void workgroupSize(SG_Pass* pass, u32 x, u32 y, u32 z)
+    {
+        pass->workgroup.x = x;
+        pass->workgroup.y = y;
+        pass->workgroup.z = z;
+    }
 };
+
 
 // ============================================================================
 // SG Component Manager
@@ -559,15 +619,19 @@ SG_Texture* SG_CreateTexture(Chuck_Object* ckobj);
 SG_Camera* SG_CreateCamera(Chuck_Object* ckobj, SG_CameraParams camera_params);
 SG_Text* SG_CreateText(Chuck_Object* ckobj);
 SG_Pass* SG_CreatePass(Chuck_Object* ckobj, SG_PassType pass_type);
+SG_Buffer* SG_CreateBuffer(Chuck_Object* ckobj);
 
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,
                            Chuck_String* fragment_filepath,
-                           Chuck_ArrayInt* ck_vertex_layout);
+                           Chuck_ArrayInt* ck_vertex_layout,
+                           Chuck_String* compute_string,
+                           Chuck_String* compute_filepath);
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
                            const char* fragment_filepath,
-                           WGPUVertexFormat* vertex_layout, int vertex_layout_len);
+                           WGPUVertexFormat* vertex_layout, int vertex_layout_len,
+                           const char* compute_string, const char* compute_filepath);
 
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);
@@ -584,6 +648,7 @@ SG_Texture* SG_GetTexture(SG_ID id);
 SG_Camera* SG_GetCamera(SG_ID id);
 SG_Text* SG_GetText(SG_ID id);
 SG_Pass* SG_GetPass(SG_ID id);
+SG_Buffer* SG_GetBuffer(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

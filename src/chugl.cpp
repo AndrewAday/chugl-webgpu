@@ -14,6 +14,7 @@
 #include "ulib_text.cpp"
 #include "ulib_window.cpp"
 #include "ulib_pass.cpp"
+#include "ulib_buffer.cpp"
 
 // vendor
 #include <sokol/sokol_time.h>
@@ -31,6 +32,7 @@ struct GG_Config {
     SG_ID mainCamera;
     SG_ID root_pass_id;
     SG_ID default_render_pass_id;
+    SG_ID default_output_pass_id;
 };
 
 GG_Config gg_config = {};
@@ -296,6 +298,11 @@ CK_DLL_SFUN(chugl_get_root_pass)
     RETURN->v_object = SG_GetPass(gg_config.root_pass_id)->ckobj;
 }
 
+CK_DLL_SFUN(chugl_get_default_render_pass)
+{
+    RETURN->v_object = SG_GetPass(gg_config.default_render_pass_id)->ckobj;
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -349,6 +356,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_ggen_query(QUERY);
     ulib_camera_query(QUERY);
     ulib_gscene_query(QUERY);
+    ulib_buffer_query(QUERY);
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
@@ -394,6 +402,9 @@ CK_DLL_QUERY(ChuGL)
         SFUN(chugl_get_root_pass, SG_CKNames[SG_COMPONENT_PASS], "rootPass");
         DOC_FUNC("Get the root pass of the current scene");
 
+        SFUN(chugl_get_default_render_pass, "RenderPass", "renderPass");
+        DOC_FUNC("Get the default render pass (renders the main scene");
+
         QUERY->end_class(QUERY); // GG
     }
 
@@ -410,15 +421,39 @@ CK_DLL_QUERY(ChuGL)
 
         // passRoot()
         gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);
+        SG_Pass* root_pass     = SG_GetPass(gg_config.root_pass_id);
 
         // renderPass for main scene
         // (SG_ID 0 defaults to main scene / main camera / swapchain view )
         gg_config.default_render_pass_id = ulib_pass_createPass(SG_PassType_Render);
+        SG_Pass* render_pass             = SG_GetPass(gg_config.default_render_pass_id);
 
         // connect root to renderPass
-        SG_Pass* root_pass = SG_GetPass(gg_config.root_pass_id);
-        SG_Pass::connect(root_pass, SG_GetPass(gg_config.default_render_pass_id));
+        SG_Pass::connect(root_pass, render_pass);
+
+        // set default render texture as output of render pass
+        SG_Texture* render_texture
+          = SG_GetTexture(g_builtin_textures.default_render_texture_id);
+        SG_Pass::resolveTarget(render_pass, render_texture);
+        log_debug("setting resolve target to %d", render_texture->id);
+
+        // output pass
+        Chuck_Object* output_pass_ckobj = chugin_createCkObj("OutputPass", true);
+        SG_Pass* output_pass            = ulib_pass_createOutputPass(output_pass_ckobj);
+        gg_config.default_output_pass_id = output_pass->id;
+
+        // connect renderPass to outputPass
+        SG_Pass::connect(render_pass, output_pass);
+
+        // set render texture as input to output pass
+        SG_Material* material = SG_GetMaterial(output_pass->screen_material_id);
+        SG_Material::setTexture(material, 0, render_texture);
+        CQ_PushCommand_MaterialSetTexture(material, 0);
+
+        // update all passes over cq
         CQ_PushCommand_PassUpdate(root_pass);
+        CQ_PushCommand_PassUpdate(render_pass);
+        CQ_PushCommand_PassUpdate(output_pass);
     }
 
     // wasn't that a breeze?

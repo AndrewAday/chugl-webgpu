@@ -568,8 +568,14 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
     size_t fragment_string_len
       = shader->fragment_string_owned ? strlen(shader->fragment_string_owned) + 1 : 1;
 
+    size_t compute_string_len
+      = shader->compute_string_owned ? strlen(shader->compute_string_owned) + 1 : 1;
+    size_t compute_filepath_len
+      = shader->compute_filepath_owned ? strlen(shader->compute_filepath_owned) + 1 : 1;
+
     size_t additional_memory = vertex_filepath_len + fragment_filepath_len
-                               + vertex_string_len + fragment_string_len;
+                               + vertex_string_len + fragment_string_len
+                               + compute_string_len + compute_filepath_len;
 
     BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_ShaderCreate,
                                          SG_COMMAND_SHADER_CREATE, additional_memory);
@@ -580,6 +586,8 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
     char* fragment_filepath = vertex_filepath + vertex_filepath_len;
     char* vertex_string     = fragment_filepath + fragment_filepath_len;
     char* fragment_string   = vertex_string + vertex_string_len;
+    char* compute_string    = fragment_string + fragment_string_len;
+    char* compute_filepath  = compute_string + compute_string_len;
 
     // copy strings (leaving space for null terminators)
     strncpy(vertex_filepath, shader->vertex_filepath_owned, vertex_filepath_len - 1);
@@ -587,12 +595,16 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
             fragment_filepath_len - 1);
     strncpy(vertex_string, shader->vertex_string_owned, vertex_string_len - 1);
     strncpy(fragment_string, shader->fragment_string_owned, fragment_string_len - 1);
+    strncpy(compute_string, shader->compute_string_owned, compute_string_len - 1);
+    strncpy(compute_filepath, shader->compute_filepath_owned, compute_filepath_len - 1);
 
     // set offsets
     command->vertex_filepath_offset   = Arena::offsetOf(cq.write_q, vertex_filepath);
     command->fragment_filepath_offset = Arena::offsetOf(cq.write_q, fragment_filepath);
     command->vertex_string_offset     = Arena::offsetOf(cq.write_q, vertex_string);
     command->fragment_string_offset   = Arena::offsetOf(cq.write_q, fragment_string);
+    command->compute_string_offset    = Arena::offsetOf(cq.write_q, compute_string);
+    command->compute_filepath_offset  = Arena::offsetOf(cq.write_q, compute_filepath);
 
     for (int i = 0; i < ARRAY_LENGTH(shader->vertex_layout); i++) {
         command->vertex_layout[i] = (WGPUVertexFormat)shader->vertex_layout[i];
@@ -644,23 +656,32 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
     END_COMMAND();
 }
 
-void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location,
-                                       SG_Sampler sampler)
+void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
+                                                     int location, SG_Buffer* buffer)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetStorageBufferExternal,
+                  SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL);
+    command->material_id = material->id;
+    command->location    = location;
+    command->buffer_id   = buffer->id;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location)
 {
     BEGIN_COMMAND(SG_Command_MaterialSetSampler, SG_COMMAND_MATERIAL_SET_SAMPLER);
     command->sg_id    = material->id;
     command->location = location;
-    command->sampler  = sampler;
+    command->sampler  = material->uniforms[location].as.sampler;
     END_COMMAND();
 }
 
-void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location,
-                                       SG_Texture* texture)
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location)
 {
     BEGIN_COMMAND(SG_Command_MaterialSetTexture, SG_COMMAND_MATERIAL_SET_TEXTURE);
     command->sg_id      = material->id;
     command->location   = location;
-    command->texture_id = texture->id;
+    command->texture_id = material->uniforms[location].as.texture_id;
     END_COMMAND();
 }
 
@@ -782,5 +803,29 @@ void CQ_PushCommand_b2SubstepCount(u32 substep_count)
 {
     BEGIN_COMMAND(SG_Command_b2_SubstepCount, SG_COMMAND_b2_SUBSTEP_COUNT);
     command->substep_count = substep_count;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_BufferUpdate(SG_Buffer* buffer)
+{
+    BEGIN_COMMAND(SG_Command_BufferUpdate, SG_COMMAND_BUFFER_UPDATE);
+    command->buffer_id = buffer->id;
+    command->desc      = buffer->desc;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
+                                u64 offset_bytes)
+{
+    int data_count       = g_chuglAPI->object->array_float_size(data);
+    int additional_bytes = data_count * sizeof(f32);
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_BufferWrite, SG_COMMAND_BUFFER_WRITE,
+                                    additional_bytes);
+    command->buffer_id       = buffer->id;
+    command->offset_bytes    = offset_bytes;
+    command->data_size_bytes = additional_bytes;
+    f32* data_ptr            = (f32*)memory;
+    chugin_copyCkFloatArray(data, data_ptr, data_count);
+    command->data_offset = Arena::offsetOf(cq.write_q, data_ptr);
     END_COMMAND();
 }

@@ -89,6 +89,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
     SG_COMMAND_MATERIAL_SET_SAMPLER,
     SG_COMMAND_MATERIAL_SET_TEXTURE,
+    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL,
 
     // mesh
     SG_COMMAND_MESH_CREATE,
@@ -119,6 +120,10 @@ enum SG_CommandType : u32 {
     SG_COMMAND_TEXTURE_CREATE,
     SG_COMMAND_TEXTURE_DATA,
     SG_COMMAND_TEXTURE_FROM_FILE,
+
+    // buffer
+    SG_COMMAND_BUFFER_UPDATE,
+    SG_COMMAND_BUFFER_WRITE,
 
     SG_COMMAND_COUNT
 };
@@ -320,6 +325,8 @@ struct SG_Command_ShaderCreate : public SG_Command {
     ptrdiff_t vertex_filepath_offset;
     ptrdiff_t fragment_string_offset;
     ptrdiff_t fragment_filepath_offset;
+    ptrdiff_t compute_string_offset;
+    ptrdiff_t compute_filepath_offset;
     WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 };
 
@@ -346,6 +353,12 @@ struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
     int location;
     ptrdiff_t data_offset;
     int data_size_bytes;
+};
+
+struct SG_Command_MaterialSetStorageBufferExternal : public SG_Command {
+    SG_ID material_id;
+    int location;
+    SG_ID buffer_id;
 };
 
 struct SG_Command_MaterialSetSampler : public SG_Command {
@@ -417,6 +430,20 @@ struct SG_Command_b2World_Set : public SG_Command {
 
 struct SG_Command_b2_SubstepCount : public SG_Command {
     u32 substep_count;
+};
+
+// buffer commands -----------------------------------------------------
+
+struct SG_Command_BufferUpdate : public SG_Command {
+    SG_ID buffer_id;
+    SG_BufferDesc desc;
+};
+
+struct SG_Command_BufferWrite : public SG_Command {
+    SG_ID buffer_id;
+    u64 offset_bytes;
+    u64 data_size_bytes;
+    ptrdiff_t data_offset;
 };
 
 // ============================================================================
@@ -511,11 +538,11 @@ void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
 
 void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
                                              Chuck_ArrayFloat* ck_arr);
+void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
+                                                     int location, SG_Buffer* buffer);
 
-void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location,
-                                       SG_Sampler sampler);
-void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location,
-                                       SG_Texture* texture);
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location);
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location);
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
@@ -537,3 +564,8 @@ void CQ_PushCommand_PassDisconnect(SG_Pass* pass, SG_Pass* next_pass);
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);
 void CQ_PushCommand_b2SubstepCount(u32 substep_count);
+
+// buffer
+void CQ_PushCommand_BufferUpdate(SG_Buffer* buffer);
+void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
+                                u64 offset_bytes);

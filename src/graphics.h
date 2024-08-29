@@ -101,23 +101,22 @@ struct GPU_Buffer {
     u64 capacity; // total size in bytes
     u64 size;     // current size in bytes
 
+    // resizes buffer, does NOT copy old data
+    // returns true if buffer was recreated
+    static bool resizeNoCopy(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                             u64 new_size, WGPUBufferUsageFlags usage_flags);
+
     // optional, initialize size
     static void init(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
                      WGPUBufferUsageFlags usage_flags, u64 new_capacity)
     {
-        if (new_capacity <= gpu_buffer->capacity
-            && gpu_buffer->usage == (usage_flags | WGPUBufferUsage_CopyDst)) {
-            return;
-        }
+        ASSERT(!gpu_buffer->buf);
 
         WGPUBufferDescriptor desc = {};
         desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
         desc.size                 = NEXT_MULT(new_capacity, 4);
 
         WGPUBuffer new_buf = wgpuDeviceCreateBuffer(gctx->device, &desc);
-
-        // release old buffer
-        WGPU_DESTROY_AND_RELEASE_BUFFER(gpu_buffer->buf);
 
         // update buffer
         gpu_buffer->buf      = new_buf;
@@ -134,9 +133,13 @@ struct GPU_Buffer {
         if (size == 0) return recreated;
 
         if (offset + size > gpu_buffer->capacity
-            || (usage_flags | WGPUBufferUsage_CopyDst) != gpu_buffer->usage) {
+            || (usage_flags & gpu_buffer->usage) != usage_flags) {
 
             recreated = true;
+
+            // recreating buffer with non-zero offset is bug
+            // because we do NOT copy the data from the old buffer
+            ASSERT(offset == 0);
 
             // grow buffer
             u64 new_capacity = MAX(gpu_buffer->capacity * 2, size + offset);

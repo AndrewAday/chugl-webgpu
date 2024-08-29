@@ -766,6 +766,10 @@ struct App {
                     if (pass->sg_pass.resolve_target_id != 0) {
                         R_Texture* r_tex
                           = Component_GetTexture(pass->sg_pass.resolve_target_id);
+                        // TODO check auto-rebuild property on RenderPass
+                        // assuming always auto-rebuild
+                        R_Texture::rebuild(&app->gctx, r_tex, app->window_fb_width,
+                                           app->window_fb_height);
                         resolve_target_view     = r_tex->gpu_texture.view;
                         color_attachment_format = r_tex->gpu_texture.format;
                     } else {
@@ -778,7 +782,6 @@ struct App {
                     ASSERT(scene && resolve_target_view);
 
                     {
-                        // TODO msaa sample count probably lives in App, not gctx
                         R_Pass::updateRenderPassDesc(
                           &app->gctx, pass, app->window_fb_width, app->window_fb_height,
                           app->msaa_sample_count, resolve_target_view,
@@ -795,6 +798,102 @@ struct App {
                     }
 
                 } break;
+                case SG_PassType_Screen: {
+                    // TODO support passing texture from chuck
+                    WGPUTextureFormat screen_texture_format = app->gctx.swapChainFormat;
+                    WGPUTextureView screen_texture_view     = app->gctx.backbufferView;
+                    R_Texture* r_tex
+                      = Component_GetTexture(pass->sg_pass.screen_texture_id);
+                    if (r_tex) {
+                        R_Texture::rebuild(&app->gctx, r_tex, app->window_fb_width,
+                                           app->window_fb_height);
+                        // TODO rebuild
+                        screen_texture_view   = r_tex->gpu_texture.view;
+                        screen_texture_format = r_tex->gpu_texture.format;
+                    }
+
+                    pass->sg_pass.screen_material_id; // get shader from here
+
+                    R_Pass::updateScreenPassDesc(&app->gctx, pass, screen_texture_view);
+                    WGPURenderPassEncoder render_pass
+                      = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
+                                                          &pass->screen_pass_desc);
+                    R_Material* material
+                      = Component_GetMaterial(pass->sg_pass.screen_material_id);
+                    SG_ID shader_id = material ? material->pso.sg_shader_id : 0;
+                    WGPURenderPipeline pipeline = R_GetScreenPassPipeline(
+                      &app->gctx, screen_texture_format, shader_id);
+
+                    wgpuRenderPassEncoderSetPipeline(render_pass, pipeline);
+
+                    if (material) {
+                        // set bind groups
+                        const int screen_pass_binding_location = 0;
+
+                        WGPUBindGroupLayout layout
+                          = wgpuRenderPipelineGetBindGroupLayout(
+                            pipeline, screen_pass_binding_location);
+                        R_Material::rebuildBindGroup(material, &app->gctx, layout);
+
+                        wgpuRenderPassEncoderSetBindGroup(
+                          render_pass, screen_pass_binding_location,
+                          material->bind_group, 0, NULL);
+                    }
+
+                    wgpuRenderPassEncoderDraw(render_pass, 3, 1, 0, 0);
+
+                    wgpuRenderPassEncoderEnd(render_pass);
+                    wgpuRenderPassEncoderRelease(render_pass);
+                } break;
+                case SG_PassType_Compute: {
+                    R_Shader* compute_shader
+                      = Component_GetShader(pass->sg_pass.compute_shader_id);
+                    R_Material* compute_material
+                      = Component_GetMaterial(pass->sg_pass.compute_material_id);
+
+                    // validation
+                    if (compute_material) {
+                        ASSERT(compute_material->pso.exclude_from_render_pass);
+                        ASSERT(compute_material->pso.sg_shader_id
+                               == (compute_shader ? compute_shader->id : 0));
+                    }
+
+                    bool valid_compute_pass = compute_material && compute_shader;
+                    if (!valid_compute_pass) break;
+
+                    WGPUComputePipeline pipeline
+                      = R_GetComputePassPipeline(&app->gctx, compute_shader);
+
+                    WGPUComputePassEncoder compute_pass
+                      = wgpuCommandEncoderBeginComputePass(app->gctx.commandEncoder,
+                                                           NULL);
+
+                    wgpuComputePassEncoderSetPipeline(compute_pass, pipeline);
+
+                    { // update bind groups
+                        const int compute_pass_binding_location = 0;
+
+                        WGPUBindGroupLayout layout
+                          = wgpuComputePipelineGetBindGroupLayout(
+                            pipeline, compute_pass_binding_location);
+
+                        R_Material::rebuildBindGroup(compute_material, &app->gctx,
+                                                     layout);
+
+                        wgpuComputePassEncoderSetBindGroup(
+                          compute_pass, compute_pass_binding_location,
+                          compute_material->bind_group, 0, NULL);
+                    }
+
+                    // dispatch
+                    wgpuComputePassEncoderDispatchWorkgroups(
+                      compute_pass, pass->sg_pass.workgroup.x,
+                      pass->sg_pass.workgroup.y, pass->sg_pass.workgroup.z);
+
+                    // cleanup
+                    wgpuComputePassEncoderEnd(compute_pass);
+                    WGPU_RELEASE_RESOURCE(ComputePassEncoder, compute_pass);
+                }; break;
                 default: ASSERT(false);
             }
 
@@ -1378,6 +1477,15 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             app->imgui_disabled         = cmd->disabled;
             break;
         }
+        // b2 ----------------------
+        case SG_COMMAND_b2_WORLD_SET: {
+            SG_Command_b2World_Set* cmd = (SG_Command_b2World_Set*)command;
+            app->b2_world_id            = *(b2WorldId*)&cmd->b2_world_id;
+        } break;
+        case SG_COMMAND_b2_SUBSTEP_COUNT: {
+            SG_Command_b2_SubstepCount* cmd = (SG_Command_b2_SubstepCount*)command;
+            app->b2_substep_count           = cmd->substep_count;
+        } break;
         case SG_COMMAND_GG_SCENE: {
             app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
             // update scene's render state
@@ -1428,63 +1536,6 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Scene* scene        = Component_GetScene(cmd->scene_id);
             scene->main_camera_id = cmd->camera_id;
         } break;
-        case SG_COMMAND_GEO_CREATE: {
-            SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
-            Component_CreateGeometry(&app->gctx, cmd);
-        } break;
-        case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
-            SG_Command_GeoSetVertexAttribute* cmd
-              = (SG_Command_GeoSetVertexAttribute*)command;
-            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
-
-            f32* data = (f32*)CQ_ReadCommandGetOffset(cmd->data_offset);
-
-            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
-                                           cmd->num_components, data, cmd->data_len);
-
-        } break;
-        case SG_COMMAND_GEO_SET_INDICES: {
-            SG_Command_GeoSetIndices* cmd = (SG_Command_GeoSetIndices*)command;
-            R_Geometry* geo               = Component_GetGeometry(cmd->sg_id);
-
-            u32* indices = (u32*)CQ_ReadCommandGetOffset(cmd->indices_offset);
-
-            R_Geometry::setIndices(&app->gctx, geo, indices, cmd->index_count);
-        } break;
-        case SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE: {
-            SG_Command_GeometrySetPulledVertexAttribute* cmd
-              = (SG_Command_GeometrySetPulledVertexAttribute*)command;
-            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
-
-            void* data = CQ_ReadCommandGetOffset(cmd->data_offset);
-
-            R_Geometry::setPulledVertexAttribute(&app->gctx, geo, cmd->location, data,
-                                                 cmd->data_bytes);
-        } break;
-        case SG_COMMAND_GEO_SET_VERTEX_COUNT: {
-            SG_Command_GeometrySetVertexCount* cmd
-              = (SG_Command_GeometrySetVertexCount*)command;
-            R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
-            geo->vertex_count = cmd->count;
-        } break;
-        // textures ---------------------
-        case SG_COMMAND_TEXTURE_CREATE: {
-            SG_Command_TextureCreate* cmd = (SG_Command_TextureCreate*)command;
-            Component_CreateTexture(&app->gctx, cmd);
-        } break;
-        case SG_COMMAND_TEXTURE_DATA: {
-            SG_Command_TextureData* cmd = (SG_Command_TextureData*)command;
-            R_Texture* texture          = Component_GetTexture(cmd->sg_id);
-            void* data                  = CQ_ReadCommandGetOffset(cmd->data_offset);
-            R_Texture::write(&app->gctx, texture, data, cmd->width, cmd->height);
-        } break;
-        case SG_COMMAND_TEXTURE_FROM_FILE: {
-            SG_Command_TextureFromFile* cmd = (SG_Command_TextureFromFile*)command;
-            R_Texture* texture              = Component_GetTexture(cmd->sg_id);
-            const char* path
-              = (const char*)CQ_ReadCommandGetOffset(cmd->filepath_offset);
-            R_Texture::fromFile(&app->gctx, texture, path);
-        } break;
         // shaders ----------------------
         case SG_COMMAND_SHADER_CREATE: {
             SG_Command_ShaderCreate* cmd = (SG_Command_ShaderCreate*)command;
@@ -1530,6 +1581,15 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Material::setTextureBinding(&app->gctx, material, cmd->location,
                                           cmd->texture_id);
         } break;
+        case SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL: {
+            SG_Command_MaterialSetStorageBufferExternal* cmd
+              = (SG_Command_MaterialSetStorageBufferExternal*)command;
+            R_Material* material = Component_GetMaterial(cmd->material_id);
+            R_Buffer* buffer     = Component_GetBuffer(cmd->buffer_id);
+            R_Material::setExternalStorageBinding(&app->gctx, material, cmd->location,
+                                                  &buffer->gpu_buffer);
+
+        } break;
         // mesh -------------------------
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
@@ -1568,21 +1628,12 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_PASS_UPDATE: {
             SG_Command_PassUpdate* cmd = (SG_Command_PassUpdate*)command;
             R_Pass* pass               = Component_GetPass(cmd->pass.id);
-            if (!pass) {
-                pass = Component_CreatePass(cmd->pass.id);
-            }
-            memcpy(&pass->sg_pass, &cmd->pass, sizeof(pass->sg_pass));
-            ASSERT(pass->id == cmd->pass.id);
-            ASSERT(pass->sg_pass.pass_type == cmd->pass.pass_type);
-            // update pass
-            switch (cmd->pass.pass_type) {
-                case SG_PassType_Root: {
-                    app->root_pass_id = pass->id;
-                } break;
-                case SG_PassType_Render: {
-                } break;
-                default: ASSERT(false); // unsupported
-            }
+
+            if (!pass) pass = Component_CreatePass(cmd->pass.id);
+
+            pass->sg_pass = cmd->pass; // copy
+
+            if (cmd->pass.pass_type == SG_PassType_Root) app->root_pass_id = pass->id;
         } break;
         case SG_COMMAND_PASS_CONNECT: {
             // wait, we just reuse PassUpdate for this too
@@ -1590,17 +1641,86 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_PASS_DISCONNECT: {
             // wait, we just reuse PassUpdate for this too
         } break;
-        // b2
-        case SG_COMMAND_b2_WORLD_SET: {
-            SG_Command_b2World_Set* cmd = (SG_Command_b2World_Set*)command;
-            app->b2_world_id            = *(b2WorldId*)&cmd->b2_world_id;
-            break;
-        }
-        case SG_COMMAND_b2_SUBSTEP_COUNT: {
-            SG_Command_b2_SubstepCount* cmd = (SG_Command_b2_SubstepCount*)command;
-            app->b2_substep_count           = cmd->substep_count;
-            break;
-        }
+        // Geometry ---------------------
+        case SG_COMMAND_GEO_CREATE: {
+            SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
+            Component_CreateGeometry(&app->gctx, cmd);
+        } break;
+        case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
+            SG_Command_GeoSetVertexAttribute* cmd
+              = (SG_Command_GeoSetVertexAttribute*)command;
+            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
+
+            f32* data = (f32*)CQ_ReadCommandGetOffset(cmd->data_offset);
+
+            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
+                                           cmd->num_components, data, cmd->data_len);
+
+        } break;
+        case SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE: {
+            SG_Command_GeometrySetPulledVertexAttribute* cmd
+              = (SG_Command_GeometrySetPulledVertexAttribute*)command;
+            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
+
+            void* data = CQ_ReadCommandGetOffset(cmd->data_offset);
+
+            R_Geometry::setPulledVertexAttribute(&app->gctx, geo, cmd->location, data,
+                                                 cmd->data_bytes);
+        } break;
+        case SG_COMMAND_GEO_SET_VERTEX_COUNT: {
+            SG_Command_GeometrySetVertexCount* cmd
+              = (SG_Command_GeometrySetVertexCount*)command;
+            R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
+            geo->vertex_count = cmd->count;
+        } break;
+        case SG_COMMAND_GEO_SET_INDICES: {
+            SG_Command_GeoSetIndices* cmd = (SG_Command_GeoSetIndices*)command;
+            R_Geometry* geo               = Component_GetGeometry(cmd->sg_id);
+
+            u32* indices = (u32*)CQ_ReadCommandGetOffset(cmd->indices_offset);
+
+            R_Geometry::setIndices(&app->gctx, geo, indices, cmd->index_count);
+        } break;
+
+        // textures ---------------------
+        case SG_COMMAND_TEXTURE_CREATE: {
+            SG_Command_TextureCreate* cmd = (SG_Command_TextureCreate*)command;
+            Component_CreateTexture(&app->gctx, cmd);
+        } break;
+        case SG_COMMAND_TEXTURE_DATA: {
+            SG_Command_TextureData* cmd = (SG_Command_TextureData*)command;
+            R_Texture* texture          = Component_GetTexture(cmd->sg_id);
+            void* data                  = CQ_ReadCommandGetOffset(cmd->data_offset);
+            R_Texture::write(&app->gctx, texture, data, cmd->width, cmd->height);
+        } break;
+        case SG_COMMAND_TEXTURE_FROM_FILE: {
+            SG_Command_TextureFromFile* cmd = (SG_Command_TextureFromFile*)command;
+            R_Texture* texture              = Component_GetTexture(cmd->sg_id);
+            const char* path
+              = (const char*)CQ_ReadCommandGetOffset(cmd->filepath_offset);
+            R_Texture::fromFile(&app->gctx, texture, path);
+        } break;
+        // buffers ----------------------
+        case SG_COMMAND_BUFFER_UPDATE: {
+            SG_Command_BufferUpdate* cmd = (SG_Command_BufferUpdate*)command;
+            R_Buffer* buffer             = Component_GetBuffer(cmd->buffer_id);
+            if (!buffer) {
+                buffer = Component_CreateBuffer(cmd->buffer_id);
+            }
+
+            // rebuild if necessary
+            GPU_Buffer::resizeNoCopy(&app->gctx, &buffer->gpu_buffer, cmd->desc.size,
+                                     cmd->desc.usage);
+        } break;
+        case SG_COMMAND_BUFFER_WRITE: {
+            SG_Command_BufferWrite* cmd = (SG_Command_BufferWrite*)command;
+            R_Buffer* buffer            = Component_GetBuffer(cmd->buffer_id);
+            void* data                  = CQ_ReadCommandGetOffset(cmd->data_offset);
+
+            GPU_Buffer::write(&app->gctx, &buffer->gpu_buffer, buffer->gpu_buffer.usage,
+                              cmd->offset_bytes, data, cmd->data_size_bytes);
+
+        } break;
         default: ASSERT(false);
     }
 }

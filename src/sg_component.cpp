@@ -497,6 +497,7 @@ static Arena SG_TextureArena;
 static Arena SG_CameraArena;
 static Arena SG_TextArena;
 static Arena SG_PassArena;
+static Arena SG_BufferArena;
 
 // locators (TODO switch to table)
 static hashmap* locator = NULL;
@@ -549,7 +550,8 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_TextureArena, sizeof(SG_Texture) * 32);
     Arena::init(&SG_CameraArena, sizeof(SG_Camera) * 4);
     Arena::init(&SG_TextArena, sizeof(SG_Text) * 32);
-    Arena::init(&SG_PassArena, sizeof(SG_Pass) * 16);
+    Arena::init(&SG_PassArena, sizeof(SG_Pass) * 32);
+    Arena::init(&SG_BufferArena, sizeof(SG_Pass) * 64);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -713,10 +715,30 @@ SG_Pass* SG_CreatePass(Chuck_Object* ckobj, SG_PassType pass_type)
     return pass;
 }
 
+SG_Buffer* SG_CreateBuffer(Chuck_Object* ckobj)
+{
+    Arena* arena      = &SG_BufferArena;
+    size_t offset     = arena->curr;
+    SG_Buffer* buffer = ARENA_PUSH_TYPE(arena, SG_Buffer);
+    *buffer           = {};
+
+    // init SG_Component base class
+    buffer->id    = SG_GetNewComponentID();
+    buffer->type  = SG_COMPONENT_BUFFER;
+    buffer->ckobj = ckobj;
+
+    // store in map
+    SG_Location loc = { buffer->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return buffer;
+}
+
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
                            Chuck_String* fragment_string, Chuck_String* vertex_filepath,
                            Chuck_String* fragment_filepath,
-                           Chuck_ArrayInt* ck_vertex_layout)
+                           Chuck_ArrayInt* ck_vertex_layout,
+                           Chuck_String* compute_string, Chuck_String* compute_filepath)
 {
     Arena* arena      = &SG_ShaderArena;
     size_t offset     = arena->curr;
@@ -736,6 +758,9 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
     chugin_copyCkIntArray(ck_vertex_layout, shader->vertex_layout,
                           ARRAY_LENGTH(shader->vertex_layout));
 
+    shader->compute_string_owned   = chugin_copyCkString(compute_string);
+    shader->compute_filepath_owned = chugin_copyCkString(compute_filepath);
+
     // store in map
     SG_Location loc = { shader->id, offset, arena };
     hashmap_set(locator, &loc);
@@ -746,7 +771,8 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
                            const char* fragment_filepath,
-                           WGPUVertexFormat* vertex_layout, int vertex_layout_len)
+                           WGPUVertexFormat* vertex_layout, int vertex_layout_len,
+                           const char* compute_string, const char* compute_filepath)
 {
     Arena* arena      = &SG_ShaderArena;
     size_t offset     = arena->curr;
@@ -765,6 +791,9 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
     shader->fragment_filepath_owned = strdup(fragment_filepath);
     for (int i = 0; i < vertex_layout_len; i++)
         shader->vertex_layout[i] = vertex_layout[i];
+
+    shader->compute_string_owned   = strdup(compute_string);
+    shader->compute_filepath_owned = strdup(compute_filepath);
 
     // store in map
     SG_Location loc = { shader->id, offset, arena };
@@ -912,6 +941,13 @@ SG_Pass* SG_GetPass(SG_ID id)
     return (SG_Pass*)component;
 }
 
+SG_Buffer* SG_GetBuffer(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_BUFFER);
+    return (SG_Buffer*)component;
+}
+
 // ============================================================================
 // SG Garbage Collector
 // ============================================================================
@@ -1025,7 +1061,7 @@ void SG_Material::shader(SG_Material* mat, SG_Shader* shader)
     if (mat->pso.sg_shader_id) SG_DecrementRef(mat->pso.sg_shader_id);
 
     // set new shader
-    mat->pso.sg_shader_id = shader->id;
+    mat->pso.sg_shader_id = shader ? shader->id : 0;
 }
 
 bool SG_Pass::isConnected(SG_Pass* pass_a, SG_Pass* pass_b)
@@ -1078,4 +1114,31 @@ void SG_Pass::resolveTarget(SG_Pass* pass, SG_Texture* tex)
     SG_AddRef(tex);
     SG_DecrementRef(pass->resolve_target_id);
     pass->resolve_target_id = tex ? tex->id : 0;
+}
+
+void SG_Pass::screenShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader)
+{
+    SG_AddRef(shader);
+    SG_DecrementRef(pass->screen_shader_id);
+    pass->screen_shader_id = shader ? shader->id : 0;
+
+    // the material is internal, ckobj=NULL so no need to refcount
+    pass->screen_material_id = material ? material->id : 0;
+}
+
+void SG_Pass::screenTexture(SG_Pass* pass, SG_Texture* texture)
+{
+    SG_AddRef(texture);
+    SG_DecrementRef(pass->screen_texture_id);
+    pass->screen_texture_id = texture ? texture->id : 0;
+}
+
+void SG_Pass::computeShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader)
+{
+    SG_AddRef(shader);
+    SG_DecrementRef(pass->compute_shader_id);
+    pass->compute_shader_id = shader ? shader->id : 0;
+
+    // the material is internal, ckobj=NULL so no need to refcount
+    pass->compute_material_id = material ? material->id : 0;
 }

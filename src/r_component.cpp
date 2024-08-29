@@ -759,6 +759,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
             case R_BIND_TEXTURE_ID: {
                 R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
                 bind_group_entry->textureView = rTexture->gpu_texture.view;
+                ASSERT(bind_group_entry->textureView);
                 ASSERT(binding->size == sizeof(SG_ID));
                 binding->generation = rTexture->generation;
             } break;
@@ -1201,7 +1202,8 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
 GPU_Buffer R_RenderPipeline::frame_uniform_buffer = {};
 
 void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
-                            const SG_MaterialPipelineState* config, int msaa_sample_count)
+                            const SG_MaterialPipelineState* config,
+                            int msaa_sample_count)
 {
     ASSERT(pipeline->gpu_pipeline == NULL);
     ASSERT(pipeline->rid == 0);
@@ -1226,9 +1228,10 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     WGPUBlendState blendState = G_createBlendState(true);
 
     WGPUColorTargetState colorTargetState = {};
-    colorTargetState.format               = gctx->swapChainFormat;
-    colorTargetState.blend                = &blendState;
-    colorTargetState.writeMask            = WGPUColorWriteMask_All;
+    // colorTargetState.format               = gctx->swapChainFormat;
+    colorTargetState.format    = WGPUTextureFormat_RGBA16Float; // for now force HDR
+    colorTargetState.blend     = &blendState;
+    colorTargetState.writeMask = WGPUColorWriteMask_All;
 
     WGPUDepthStencilState depth_stencil_state
       = G_createDepthStencilState(WGPUTextureFormat_Depth24PlusStencil8, true);
@@ -1256,8 +1259,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
     fragmentState.targets           = &colorTargetState;
 
     // multisample state
-    WGPUMultisampleState multisampleState
-      = G_createMultisampleState(msaa_sample_count);
+    WGPUMultisampleState multisampleState = G_createMultisampleState(msaa_sample_count);
 
     char pipeline_label[64] = {};
     snprintf(pipeline_label, sizeof(pipeline_label), "RenderPipeline %lld %s",
@@ -1406,6 +1408,7 @@ static Arena shaderArena;
 static Arena materialArena;
 static Arena textureArena;
 static Arena passArena;
+static Arena bufferArena;
 static Arena _RenderPipelineArena;
 static Arena cameraArena;
 static Arena textArena;
@@ -1506,6 +1509,7 @@ void Component_Init(GraphicsContext* gctx)
     Arena::init(&cameraArena, sizeof(R_Camera) * 4);
     Arena::init(&textArena, sizeof(R_Text) * 64);
     Arena::init(&passArena, sizeof(R_Pass) * 16);
+    Arena::init(&bufferArena, sizeof(R_Buffer) * 64);
 
     // initialize default textures
     static u8 white[4]  = { 255, 255, 255, 255 };
@@ -1552,6 +1556,7 @@ void Component_Free()
     Arena::free(&cameraArena);
     Arena::free(&textArena);
     Arena::free(&passArena);
+    // Arena::free(&bufferArena);
 
     // free default textures
     Texture::release(&opaqueWhitePixel);
@@ -1784,11 +1789,15 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
       = (const char*)CQ_ReadCommandGetOffset(cmd->vertex_filepath_offset);
     const char* fragment_filepath
       = (const char*)CQ_ReadCommandGetOffset(cmd->fragment_filepath_offset);
+    const char* compute_filepath
+      = (const char*)CQ_ReadCommandGetOffset(cmd->compute_filepath_offset);
+    const char* compute_string
+      = (const char*)CQ_ReadCommandGetOffset(cmd->compute_string_offset);
 
     ASSERT(sizeof(cmd->vertex_layout) == sizeof(shader->vertex_layout));
     R_Shader::init(gctx, shader, vertex_string, vertex_filepath, fragment_string,
                    fragment_filepath, cmd->vertex_layout,
-                   ARRAY_LENGTH(cmd->vertex_layout));
+                   ARRAY_LENGTH(cmd->vertex_layout), compute_string, compute_filepath);
 
     // store offset
     R_Location loc
@@ -1875,7 +1884,11 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
         R_Component* comp = Component_GetComponent(*sg_id);
         switch (comp->type) {
             case SG_COMPONENT_MATERIAL: {
-                R_Material* mat            = (R_Material*)comp;
+                R_Material* mat = (R_Material*)comp;
+
+                // don't process ScreenPass materials in the RenderPass
+                if (mat->pso.exclude_from_render_pass) continue;
+
                 R_RenderPipeline* pipeline = Component_GetPipeline(gctx, &mat->pso);
 
                 ASSERT(mat->pipeline_stale);
@@ -1928,6 +1941,8 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
 
     // R_Texture init
     tex->desc = cmd->desc;
+    // initialize an empty texture to prevent crashes
+    R_Texture::rebuild(gctx, tex, 1, 1);
 
     // store offset
     R_Location loc = { tex->id, Arena::offsetOf(&textureArena, tex), &textureArena };
@@ -1953,6 +1968,24 @@ R_Pass* Component_CreatePass(SG_ID pass_id)
     ASSERT(result == NULL); // ensure id is unique
 
     return pass;
+}
+
+R_Buffer* Component_CreateBuffer(SG_ID id)
+{
+    Arena* arena     = &bufferArena;
+    R_Buffer* buffer = ARENA_PUSH_TYPE(arena, R_Buffer);
+    *buffer          = {};
+
+    // SG_Component init
+    buffer->id   = id;
+    buffer->type = SG_COMPONENT_BUFFER;
+
+    // store offset
+    R_Location loc     = { buffer->id, Arena::offsetOf(arena, buffer), arena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return buffer;
 }
 
 // linear search by font path, lazily creates if not found
@@ -2051,6 +2084,13 @@ R_Pass* Component_GetPass(SG_ID id)
     return (R_Pass*)comp;
 }
 
+R_Buffer* Component_GetBuffer(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_BUFFER);
+    return (R_Buffer*)comp;
+}
+
 bool Component_MaterialIter(size_t* i, R_Material** material)
 {
     if (*i >= ARENA_LENGTH(&materialArena, R_Material)) {
@@ -2119,7 +2159,8 @@ R_RenderPipeline* Component_GetPipeline(R_ID rid)
 void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
                     const char* vertex_filepath, const char* fragment_string,
                     const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
-                    int vertex_layout_count)
+                    int vertex_layout_count, const char* compute_string,
+                    const char* compute_filepath)
 {
     char vertex_shader_label[32] = {};
     snprintf(vertex_shader_label, sizeof(vertex_shader_label), "vertex shader %d",
@@ -2141,8 +2182,6 @@ void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_
         } else {
             log_error("failed to read vertex shader file %s", vertex_filepath);
         }
-    } else {
-        ASSERT(false);
     }
 
     if (fragment_string && strlen(fragment_string) > 0) {
@@ -2158,14 +2197,31 @@ void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_
         } else {
             log_error("failed to read fragment shader file %s", fragment_filepath);
         }
-    } else {
-        ASSERT(false);
     }
 
     // copy vertex layout
     ASSERT(sizeof(*shader->vertex_layout) == sizeof(*vertex_layout));
     memcpy(shader->vertex_layout, vertex_layout,
            sizeof(*vertex_layout) * vertex_layout_count);
+
+    // compute shaders
+    char compute_shader_label[32] = {};
+    snprintf(compute_shader_label, sizeof(compute_shader_label), "compute shader %d",
+             (int)shader->id);
+    if (compute_string && strlen(compute_string) > 0) {
+        shader->compute_shader_module
+          = G_createShaderModule(gctx, compute_string, compute_shader_label);
+    } else if (compute_filepath && strlen(compute_filepath) > 0) {
+        // read entire file contents
+        FileReadResult compute_file = File_read(compute_filepath, true);
+        if (compute_file.data_owned) {
+            shader->compute_shader_module = G_createShaderModule(
+              gctx, (const char*)compute_file.data_owned, compute_shader_label);
+            FREE(compute_file.data_owned);
+        } else {
+            log_error("failed to read compute shader file %s", compute_filepath);
+        }
+    }
 }
 
 void R_Shader::free(R_Shader* shader)
@@ -2789,4 +2845,136 @@ void R_Font::prepareGlyphsForText(GraphicsContext* gctx, R_Font* font, const cha
         // 3080 PCI has 32GB/s bandwidth, these buffers are nothing
         R_Font_uploadBuffers(gctx, font);
     }
+}
+
+// =============================================================================
+// R_Pass
+// =============================================================================
+
+// static array of ScreenPass render pipelines
+// all supported texture formats created on app start
+struct R_ScreenPassPipeline {
+    WGPUTextureFormat format;
+    SG_ID shader_id;
+    WGPURenderPipeline gpu_pipeline;
+};
+
+static int r_screen_pass_pipeline_count                 = 0;
+static R_ScreenPassPipeline r_screen_pass_pipelines[32] = {};
+WGPUShaderModule screen_pass_default_passthrough_vs     = NULL;
+WGPUShaderModule screen_pass_default_passthrough_fs     = NULL;
+
+WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
+                                           WGPUTextureFormat format, SG_ID shader_id)
+{
+
+    if (!screen_pass_default_passthrough_vs || !screen_pass_default_passthrough_fs) {
+        screen_pass_default_passthrough_vs = G_createShaderModule(
+          gctx, default_postprocess_shader_string, "ScreenPass Default VS");
+        screen_pass_default_passthrough_fs = G_createShaderModule(
+          gctx, default_postprocess_shader_string, "ScreenPass Default FS");
+    }
+
+    for (int i = 0; i < r_screen_pass_pipeline_count; i++) {
+        if (r_screen_pass_pipelines[i].format == format
+            && r_screen_pass_pipelines[i].shader_id == shader_id) {
+            return r_screen_pass_pipelines[i].gpu_pipeline;
+        }
+    }
+    // else create
+    ASSERT(r_screen_pass_pipeline_count < ARRAY_LENGTH(r_screen_pass_pipelines));
+
+    WGPUPrimitiveState primitiveState = {};
+    primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
+    primitiveState.cullMode           = WGPUCullMode_Back;
+
+    // TODO transparency (dissallow partial transparency, see if fragment
+    // discard writes to the depth buffer)
+    WGPUBlendState blendState = G_createBlendState(false);
+
+    WGPUColorTargetState colorTargetState = {};
+    colorTargetState.format               = format;
+    colorTargetState.blend                = &blendState;
+    colorTargetState.writeMask            = WGPUColorWriteMask_All;
+
+    // Setup shader module (defaults to passthrough shader)
+    WGPUShaderModule vs_module = screen_pass_default_passthrough_vs;
+    WGPUShaderModule fs_module = screen_pass_default_passthrough_fs;
+    R_Shader* shader           = Component_GetShader(shader_id);
+    if (shader && shader->vertex_shader_module && shader->fragment_shader_module) {
+        vs_module = shader->vertex_shader_module;
+        fs_module = shader->fragment_shader_module;
+    }
+
+    // vertex state
+    WGPUVertexState vertexState = {};
+    vertexState.module          = vs_module;
+    vertexState.entryPoint      = VS_ENTRY_POINT;
+
+    // fragment state
+    WGPUFragmentState fragmentState = {};
+    fragmentState.module            = fs_module;
+    fragmentState.entryPoint        = FS_ENTRY_POINT;
+    fragmentState.targetCount       = 1;
+    fragmentState.targets           = &colorTargetState;
+
+    // multisample state
+    WGPUMultisampleState multisampleState = G_createMultisampleState(1);
+
+    char pipeline_label[64] = {};
+    if (shader) {
+        snprintf(pipeline_label, sizeof(pipeline_label),
+                 "ScreenPass RenderPipeline %lld %s", (i64)shader->id,
+                 shader->name.c_str());
+    }
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.label                        = pipeline_label;
+    pipeline_desc.layout                       = NULL; // Using layout: auto
+    pipeline_desc.primitive                    = primitiveState;
+    pipeline_desc.vertex                       = vertexState;
+    pipeline_desc.fragment                     = &fragmentState;
+    pipeline_desc.depthStencil                 = NULL;
+    pipeline_desc.multisample                  = multisampleState;
+
+    R_ScreenPassPipeline* pipeline
+      = &r_screen_pass_pipelines[r_screen_pass_pipeline_count++];
+    pipeline->format    = format;
+    pipeline->shader_id = shader_id;
+    pipeline->gpu_pipeline
+      = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
+    return pipeline->gpu_pipeline;
+}
+
+struct R_ComputePassPipeline {
+    SG_ID shader_id;
+    WGPUComputePipeline gpu_pipeline;
+};
+
+static int r_compute_pass_pipeline_count                  = 0;
+static R_ComputePassPipeline r_compute_pass_pipelines[64] = {};
+
+WGPUComputePipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader)
+{
+    // first linear search
+    for (int i = 0; i < r_compute_pass_pipeline_count; i++) {
+        if (r_compute_pass_pipelines[i].shader_id == shader->id) {
+            return r_compute_pass_pipelines[i].gpu_pipeline;
+        }
+    }
+
+    WGPUComputePipelineDescriptor desc = {};
+    desc.compute.module                = shader->compute_shader_module;
+    desc.compute.entryPoint            = "main";
+
+    char pipeline_label[64] = {};
+    snprintf(pipeline_label, sizeof(pipeline_label), "ComputePass Pipeline %lld %s",
+             (i64)shader->id, shader->name.c_str());
+    desc.label = pipeline_label;
+
+    R_ComputePassPipeline* pipeline
+      = &r_compute_pass_pipelines[r_compute_pass_pipeline_count++];
+    pipeline->shader_id    = shader->id;
+    pipeline->gpu_pipeline = wgpuDeviceCreateComputePipeline(gctx->device, &desc);
+
+    return pipeline->gpu_pipeline;
 }
