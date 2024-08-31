@@ -96,8 +96,7 @@ bool CQ_ReadCommandQueueIter(SG_Command** command)
     }
 
     // else return the nextOffset
-    *command
-      = (SG_Command*)Arena::get(cq.read_q, (*command)->nextCommandOffset);
+    *command = (SG_Command*)Arena::get(cq.read_q, (*command)->nextCommandOffset);
     return true;
 }
 
@@ -115,13 +114,28 @@ void* CQ_ReadCommandGetOffset(u64 byte_offset)
 // Command API
 // ============================================================================
 
-#define BEGIN_COMMAND(cmd_type, cmd_enum)                                      \
-    spinlock::lock(&cq.write_q_lock);                                          \
-    cmd_type* command          = ARENA_PUSH_TYPE(cq.write_q, cmd_type);        \
-    command->type              = cmd_enum;                                     \
-    command->nextCommandOffset = cq.write_q->curr;
+#define BEGIN_COMMAND(cmd_type, cmd_enum)                                              \
+    spinlock::lock(&cq.write_q_lock);                                                  \
+    cmd_type* command = ARENA_PUSH_TYPE(cq.write_q, cmd_type);                         \
+    command->type     = cmd_enum;
 
-#define END_COMMAND() spinlock::unlock(&cq.write_q_lock);
+#define BEGIN_COMMAND_ADDITIONAL_MEMORY(cmd_type, cmd_enum, additional_bytes)          \
+    spinlock::lock(&cq.write_q_lock);                                                  \
+    cmd_type* command                                                                  \
+      = (cmd_type*)Arena::push(cq.write_q, sizeof(cmd_type) + (additional_bytes));     \
+    void* memory  = (void*)(command + 1);                                              \
+    command->type = cmd_enum;
+
+#define BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(cmd_type, cmd_enum, additional_bytes)     \
+    spinlock::lock(&cq.write_q_lock);                                                  \
+    cmd_type* command                                                                  \
+      = (cmd_type*)Arena::pushZero(cq.write_q, sizeof(cmd_type) + (additional_bytes)); \
+    void* memory  = (void*)(command + 1);                                              \
+    command->type = cmd_enum;
+
+#define END_COMMAND()                                                                  \
+    command->nextCommandOffset = cq.write_q->curr;                                     \
+    spinlock::unlock(&cq.write_q_lock);
 
 void CQ_PushCommand_WindowClose()
 {
@@ -138,9 +152,9 @@ void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height)
     END_COMMAND();
 }
 
-void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
-                                     int max_width, int max_height,
-                                     int aspect_ratio_x, int aspect_ratio_y)
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height, int max_width,
+                                     int max_height, int aspect_ratio_x,
+                                     int aspect_ratio_y)
 {
     BEGIN_COMMAND(SG_Command_WindowSizeLimits, SG_COMMAND_WINDOW_SIZE_LIMITS);
     command->min_width      = min_width;
@@ -169,22 +183,16 @@ void CQ_PushCommand_WindowCenter()
 // copies title into command arena
 void CQ_PushCommand_WindowTitle(const char* title)
 {
-    spinlock::lock(&cq.write_q_lock);
-    SG_Command_WindowTitle* command
-      = ARENA_PUSH_TYPE(cq.write_q, SG_Command_WindowTitle);
-    size_t title_len = strlen(title) + 1;
-    // push bytes for title
-    char* title_copy = (char*)Arena::pushZero(cq.write_q, title_len);
+    size_t title_len = strlen(title);
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_WindowTitle,
+                                         SG_COMMAND_WINDOW_TITLE, title_len + 1);
     // copy title
-    strncpy(title_copy, title, title_len - 1);
+    strncpy((char*)memory, title, title_len);
 
     // store offset not pointer in case arena resizes
-    command->title_offset = Arena::offsetOf(cq.write_q, title_copy);
+    command->title_offset = Arena::offsetOf(cq.write_q, memory);
 
-    command->type              = SG_COMMAND_WINDOW_TITLE;
-    command->nextCommandOffset = cq.write_q->curr;
-
-    spinlock::unlock(&cq.write_q_lock);
+    END_COMMAND();
 }
 
 void CQ_PushCommand_WindowIconify(bool iconify)
@@ -222,35 +230,29 @@ void CQ_PushCommand_MouseCursorNormal()
     END_COMMAND();
 }
 
-void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
-                                u32 width, u32 height, u32 xhot, u32 yhot)
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data, u32 width,
+                                u32 height, u32 xhot, u32 yhot)
 {
     u32 data_size = API->object->array_int_size(image_data);
     ASSERT(data_size == width * height * 4);
 
-    spinlock::lock(&cq.write_q_lock);
-
-    SG_Command_MouseCursor* command
-      = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MouseCursor);
-
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_MouseCursor, SG_COMMAND_MOUSE_CURSOR,
+                                    data_size);
     // push bytes for pixel data
-    char* image_data_bytes = (char*)Arena::pushZero(cq.write_q, data_size);
+    char* image_data_bytes = (char*)memory;
     // copy
     for (u32 i = 0; i < data_size; i++) {
-        image_data_bytes[i] = (unsigned char)CLAMP(
-          API->object->array_int_get_idx(image_data, i), 0, 255);
+        image_data_bytes[i]
+          = (unsigned char)CLAMP(API->object->array_int_get_idx(image_data, i), 0, 255);
     }
     // store offset not pointer in case arena resizes
-    command->mouse_cursor_image_offset
-      = Arena::offsetOf(cq.write_q, image_data_bytes);
-    command->width             = width;
-    command->height            = height;
-    command->xhot              = xhot;
-    command->yhot              = yhot;
-    command->type              = SG_COMMAND_MOUSE_CURSOR;
-    command->nextCommandOffset = cq.write_q->curr;
-
-    spinlock::unlock(&cq.write_q_lock);
+    command->mouse_cursor_image_offset = Arena::offsetOf(cq.write_q, image_data_bytes);
+    command->width                     = width;
+    command->height                    = height;
+    command->xhot                      = xhot;
+    command->yhot                      = yhot;
+    command->type                      = SG_COMMAND_MOUSE_CURSOR;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_UI_Disabled(bool disabled)
@@ -262,43 +264,25 @@ void CQ_PushCommand_UI_Disabled(bool disabled)
 
 void CQ_PushCommand_GG_Scene(SG_Scene* scene)
 {
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_GG_Scene* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_GG_Scene);
-
-        // initialize memory
-        command->type              = SG_COMMAND_GG_SCENE;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->sg_id             = scene ? scene->id : 0;
-    }
-    spinlock::unlock(&cq.write_q_lock);
+    BEGIN_COMMAND(SG_Command_GG_Scene, SG_COMMAND_GG_SCENE);
+    command->sg_id = scene ? scene->id : 0;
+    END_COMMAND();
 }
 
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
-                                    t_CKUINT component_offset_id, CK_DL_API API)
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT id_offset,
+                                    CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Transform* xform = SG_CreateTransform(ckobj);
     // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, component_offset_id) = xform->id;
+    OBJ_MEMBER_UINT(ckobj, id_offset) = xform->id;
 
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_CreateXform* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_CreateXform);
-
-        // initialize memory
-        command->type              = SG_COMMAND_CREATE_XFORM;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->sg_id             = xform->id;
-        command->pos               = xform->pos;
-        command->rot               = xform->rot;
-        command->sca               = xform->sca;
-    }
-    spinlock::unlock(&cq.write_q_lock);
+    BEGIN_COMMAND(SG_Command_CreateXform, SG_COMMAND_CREATE_XFORM);
+    command->sg_id = xform->id;
+    command->pos   = xform->pos;
+    command->rot   = xform->rot;
+    command->sca   = xform->sca;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child)
@@ -309,8 +293,7 @@ void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child)
     spinlock::lock(&cq.write_q_lock);
     {
         // allocate memory
-        SG_Command_AddChild* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_AddChild);
+        SG_Command_AddChild* command = ARENA_PUSH_TYPE(cq.write_q, SG_Command_AddChild);
 
         // initialize memory
         command->type              = SG_COMMAND_ADD_CHILD;
@@ -380,8 +363,7 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::lock(&cq.write_q_lock);
     {
         // allocate memory
-        SG_Command_SetScale* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SetScale);
+        SG_Command_SetScale* command = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SetScale);
 
         // initialize memory
         command->type              = SG_COMMAND_SET_SCALE;
@@ -392,14 +374,13 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                     t_CKUINT component_offset_id,
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT offset_id,
                                      CK_DL_API API)
 {
     // execute change on audio thread side
     SG_Scene* scene = SG_CreateScene(ckobj);
     // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, component_offset_id) = scene->id;
+    OBJ_MEMBER_UINT(ckobj, offset_id) = scene->id;
 
     spinlock::lock(&cq.write_q_lock);
     {
@@ -436,6 +417,14 @@ void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color)
     spinlock::unlock(&cq.write_q_lock);
 }
 
+void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera)
+{
+    BEGIN_COMMAND(SG_Command_SceneSetMainCamera, SG_COMMAND_SCENE_SET_MAIN_CAMERA);
+    command->scene_id  = scene->id;
+    command->camera_id = camera ? camera->id : 0;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
 {
     spinlock::lock(&cq.write_q_lock);
@@ -454,22 +443,246 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
     spinlock::unlock(&cq.write_q_lock);
 } // Path: src/sg_command.h
 
+// copies data pointer into command arena. does NOT take ownership
+void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
+                                               int num_components, f32* data,
+                                               int data_len)
+{
+
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_GeoSetVertexAttribute,
+                                    SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
+                                    data_len * sizeof(*data));
+
+    // get cq memory for vertex data
+    f32* attribute_data = (f32*)memory;
+    memcpy(attribute_data, data, data_len * sizeof(*data));
+
+    command->sg_id             = geo->id;
+    command->num_components    = num_components;
+    command->location          = location;
+    command->data_len          = data_len;
+    command->data_offset       = Arena::offsetOf(cq.write_q, attribute_data);
+    command->nextCommandOffset = cq.write_q->curr;
+
+    ASSERT(command->nextCommandOffset - command->data_offset
+           == (data_len * sizeof(*data)));
+
+    ASSERT(command->data_len % num_components == 0);
+
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count)
+{
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_GeoSetIndices,
+                                    SG_COMMAND_GEO_SET_INDICES,
+                                    index_count * sizeof(*indices));
+
+    u32* index_data = (u32*)memory;
+    memcpy(index_data, indices, index_count * sizeof(*indices));
+
+    command->sg_id          = geo->id;
+    command->index_count    = index_count;
+    command->indices_offset = Arena::offsetOf(cq.write_q, index_data);
+
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int location,
+                                                     void* data, size_t bytes)
+{
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_GeometrySetPulledVertexAttribute,
+                                    SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE, bytes);
+
+    u8* attribute_data = (u8*)memory;
+    memcpy(attribute_data, data, bytes);
+
+    command->sg_id       = geo->id;
+    command->location    = location;
+    command->data_bytes  = bytes;
+    command->data_offset = Arena::offsetOf(cq.write_q, attribute_data);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count)
+{
+    BEGIN_COMMAND(SG_Command_GeometrySetVertexCount, SG_COMMAND_GEO_SET_VERTEX_COUNT);
+    command->sg_id = geo->id;
+    command->count = count;
+    END_COMMAND();
+}
+
+// Textures ====================================================================
+
+// maybe change to TextureUpdate + lazy creation to support mutable texture
+// formats/usage/dimension
+void CQ_PushCommand_TextureCreate(SG_Texture* texture)
+{
+    BEGIN_COMMAND(SG_Command_TextureCreate, SG_COMMAND_TEXTURE_CREATE);
+    command->sg_id = texture->id;
+    command->desc  = texture->desc;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextureData(SG_Texture* texture)
+{
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_TextureData, SG_COMMAND_TEXTURE_DATA,
+                                    texture->data.curr);
+
+    command->sg_id = texture->id;
+    // change to bytes per row?
+    command->width  = texture->width;
+    command->height = texture->height;
+
+    // copy texture data to write_q
+    memcpy(memory, texture->data.base, texture->data.curr);
+    ASSERT(texture->data.curr == texture->width * texture->height * 4);
+
+    command->data_offset = Arena::offsetOf(cq.write_q, memory);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath)
+{
+    size_t filepath_len = strlen(filepath);
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(
+      SG_Command_TextureFromFile, SG_COMMAND_TEXTURE_FROM_FILE, filepath_len + 1);
+    command->sg_id      = texture->id;
+    char* filepath_copy = (char*)memory;
+    strncpy(filepath_copy, filepath, strlen(filepath));
+    command->filepath_offset = Arena::offsetOf(cq.write_q, filepath_copy);
+    END_COMMAND();
+}
+
+// Shader ======================================================================
+
+void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
+{
+    size_t vertex_filepath_len
+      = shader->vertex_filepath_owned ? strlen(shader->vertex_filepath_owned) + 1 : 1;
+    size_t fragment_filepath_len = shader->fragment_filepath_owned ?
+                                     strlen(shader->fragment_filepath_owned) + 1 :
+                                     1;
+    size_t vertex_string_len
+      = shader->vertex_string_owned ? strlen(shader->vertex_string_owned) + 1 : 1;
+    size_t fragment_string_len
+      = shader->fragment_string_owned ? strlen(shader->fragment_string_owned) + 1 : 1;
+
+    size_t compute_string_len
+      = shader->compute_string_owned ? strlen(shader->compute_string_owned) + 1 : 1;
+    size_t compute_filepath_len
+      = shader->compute_filepath_owned ? strlen(shader->compute_filepath_owned) + 1 : 1;
+
+    size_t additional_memory = vertex_filepath_len + fragment_filepath_len
+                               + vertex_string_len + fragment_string_len
+                               + compute_string_len + compute_filepath_len;
+
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_ShaderCreate,
+                                         SG_COMMAND_SHADER_CREATE, additional_memory);
+
+    command->sg_id = shader->id;
+
+    char* vertex_filepath   = (char*)memory;
+    char* fragment_filepath = vertex_filepath + vertex_filepath_len;
+    char* vertex_string     = fragment_filepath + fragment_filepath_len;
+    char* fragment_string   = vertex_string + vertex_string_len;
+    char* compute_string    = fragment_string + fragment_string_len;
+    char* compute_filepath  = compute_string + compute_string_len;
+
+    // copy strings (leaving space for null terminators)
+    strncpy(vertex_filepath, shader->vertex_filepath_owned, vertex_filepath_len - 1);
+    strncpy(fragment_filepath, shader->fragment_filepath_owned,
+            fragment_filepath_len - 1);
+    strncpy(vertex_string, shader->vertex_string_owned, vertex_string_len - 1);
+    strncpy(fragment_string, shader->fragment_string_owned, fragment_string_len - 1);
+    strncpy(compute_string, shader->compute_string_owned, compute_string_len - 1);
+    strncpy(compute_filepath, shader->compute_filepath_owned, compute_filepath_len - 1);
+
+    // set offsets
+    command->vertex_filepath_offset   = Arena::offsetOf(cq.write_q, vertex_filepath);
+    command->fragment_filepath_offset = Arena::offsetOf(cq.write_q, fragment_filepath);
+    command->vertex_string_offset     = Arena::offsetOf(cq.write_q, vertex_string);
+    command->fragment_string_offset   = Arena::offsetOf(cq.write_q, fragment_string);
+    command->compute_string_offset    = Arena::offsetOf(cq.write_q, compute_string);
+    command->compute_filepath_offset  = Arena::offsetOf(cq.write_q, compute_filepath);
+
+    for (int i = 0; i < ARRAY_LENGTH(shader->vertex_layout); i++) {
+        command->vertex_layout[i] = (WGPUVertexFormat)shader->vertex_layout[i];
+    }
+
+    END_COMMAND();
+}
+
 void CQ_PushCommand_MaterialCreate(SG_Material* material)
 {
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_MaterialCreate* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_MaterialCreate);
+    BEGIN_COMMAND(SG_Command_MaterialCreate, SG_COMMAND_MATERIAL_CREATE);
+    command->material_type = material->material_type; // TODO remove?
+    command->sg_id         = material->id;
+    command->pso           = material->pso;
+    // command->params        = material->params;
+    END_COMMAND();
+}
 
-        // initialize memory
-        command->type              = SG_COMMAND_MATERIAL_CREATE;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->material_type     = material->material_type;
-        command->sg_id             = material->id;
-        command->params            = material->params;
-    }
-    spinlock::unlock(&cq.write_q_lock);
+void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material)
+{
+    BEGIN_COMMAND(SG_Command_MaterialUpdatePSO, SG_COMMAND_MATERIAL_UPDATE_PSO);
+    command->sg_id = material->id;
+    command->pso   = material->pso;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetUniform, SG_COMMAND_MATERIAL_SET_UNIFORM);
+    command->sg_id    = material->id;
+    command->uniform  = material->uniforms[location];
+    command->location = location;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
+                                             Chuck_ArrayFloat* ck_arr)
+{
+    int data_count = g_chuglAPI->object->array_float_size(ck_arr);
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_MaterialSetStorageBuffer,
+                                    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
+                                    data_count * sizeof(f32));
+    command->sg_id           = material->id;
+    command->location        = location;
+    command->data_size_bytes = data_count * sizeof(f32);
+    f32* data                = (f32*)memory;
+    chugin_copyCkFloatArray(ck_arr, data, data_count);
+    command->data_offset = Arena::offsetOf(cq.write_q, data);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
+                                                     int location, SG_Buffer* buffer)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetStorageBufferExternal,
+                  SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL);
+    command->material_id = material->id;
+    command->location    = location;
+    command->buffer_id   = buffer->id;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetSampler, SG_COMMAND_MATERIAL_SET_SAMPLER);
+    command->sg_id    = material->id;
+    command->location = location;
+    command->sampler  = material->uniforms[location].as.sampler;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetTexture, SG_COMMAND_MATERIAL_SET_TEXTURE);
+    command->sg_id      = material->id;
+    command->location   = location;
+    command->texture_id = material->uniforms[location].as.texture_id;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
@@ -488,6 +701,86 @@ void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
         command->mat_id            = mesh->_mat_id;
     }
     spinlock::unlock(&cq.write_q_lock);
+}
+
+void CQ_PushCommand_CameraCreate(SG_Camera* camera)
+{
+    BEGIN_COMMAND(SG_Command_CameraCreate, SG_COMMAND_CAMERA_CREATE);
+    command->camera = *camera;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_CameraSetParams(SG_Camera* cam)
+{
+    BEGIN_COMMAND(SG_Command_CameraSetParams, SG_COMMAND_CAMERA_SET_PARAMS);
+    command->camera_id = cam->id;
+    command->params    = cam->params;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextRebuild(SG_Text* text)
+{
+    size_t additional_bytes = text->text.length() + 1 + text->font_path.length() + 1;
+    ASSERT(text->_mat_id != 0);
+
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_TextRebuild,
+                                         SG_COMMAND_TEXT_REBUILD, additional_bytes);
+    command->text_id          = text->id;
+    command->material_id      = text->_mat_id;
+    command->control_point    = { text->control_points.x, text->control_points.y };
+    command->vertical_spacing = text->vertical_spacing;
+
+    char* text_copy = (char*)memory;
+    char* font_path = text_copy + text->text.length() + 1;
+
+    // copy strings
+    strncpy(text_copy, text->text.c_str(), text->text.length());
+    strncpy(font_path, text->font_path.c_str(), text->font_path.length());
+
+    command->text_str_offset      = Arena::offsetOf(cq.write_q, text_copy);
+    command->font_path_str_offset = Arena::offsetOf(cq.write_q, font_path);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_TextDefaultFont(const char* font_path)
+{
+    size_t additional_bytes = font_path ? strlen(font_path) : 1;
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(
+      SG_Command_TextDefaultFont, SG_COMMAND_TEXT_DEFAULT_FONT, additional_bytes);
+    if (font_path) strncpy((char*)memory, font_path, additional_bytes - 1);
+    command->font_path_str_offset = Arena::offsetOf(cq.write_q, memory);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassCreate(SG_Pass* pass)
+{
+    BEGIN_COMMAND(SG_Command_PassCreate, SG_COMMAND_PASS_CREATE);
+    command->pass_id   = pass->id;
+    command->pass_type = pass->pass_type;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassUpdate(SG_Pass* pass)
+{
+    BEGIN_COMMAND(SG_Command_PassUpdate, SG_COMMAND_PASS_UPDATE);
+    memcpy(&command->pass, pass, sizeof(*pass));
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassConnect(SG_Pass* pass, SG_Pass* next_pass)
+{
+    BEGIN_COMMAND(SG_Command_PassConnect, SG_COMMAND_PASS_CONNECT);
+    command->pass_id      = pass ? pass->id : 0;
+    command->next_pass_id = next_pass ? next_pass->id : 0;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_PassDisconnect(SG_Pass* pass, SG_Pass* next_pass)
+{
+    BEGIN_COMMAND(SG_Command_PassConnect, SG_COMMAND_PASS_DISCONNECT);
+    command->pass_id      = pass ? pass->id : 0;
+    command->next_pass_id = next_pass ? next_pass->id : 0;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_b2World_Set(u32 world_id)
@@ -510,5 +803,29 @@ void CQ_PushCommand_b2SubstepCount(u32 substep_count)
 {
     BEGIN_COMMAND(SG_Command_b2_SubstepCount, SG_COMMAND_b2_SUBSTEP_COUNT);
     command->substep_count = substep_count;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_BufferUpdate(SG_Buffer* buffer)
+{
+    BEGIN_COMMAND(SG_Command_BufferUpdate, SG_COMMAND_BUFFER_UPDATE);
+    command->buffer_id = buffer->id;
+    command->desc      = buffer->desc;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
+                                u64 offset_bytes)
+{
+    int data_count       = g_chuglAPI->object->array_float_size(data);
+    int additional_bytes = data_count * sizeof(f32);
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_BufferWrite, SG_COMMAND_BUFFER_WRITE,
+                                    additional_bytes);
+    command->buffer_id       = buffer->id;
+    command->offset_bytes    = offset_bytes;
+    command->data_size_bytes = additional_bytes;
+    f32* data_ptr            = (f32*)memory;
+    chugin_copyCkFloatArray(data, data_ptr, data_count);
+    command->data_offset = Arena::offsetOf(cq.write_q, data_ptr);
     END_COMMAND();
 }

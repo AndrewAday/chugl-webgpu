@@ -1,14 +1,24 @@
+// clang-format off
 #include "all.cpp"
 #include "ulib_helper.h"
 
 // ulibs
 #include "ulib_box2d.cpp"
 #include "ulib_component.cpp"
+#include "ulib_camera.cpp"
+#include "ulib_scene.cpp"
+#include "ulib_geometry.cpp"
 #include "ulib_imgui.cpp"
+#include "ulib_material.cpp"
 #include "ulib_texture.cpp"
+#include "ulib_text.cpp"
 #include "ulib_window.cpp"
+#include "ulib_pass.cpp"
+#include "ulib_buffer.cpp"
 
-// void ulib_imgui_query(Chuck_DL_Query* QUERY);
+// vendor
+#include <sokol/sokol_time.h>
+// clang-format on
 
 // ChuGL version string
 #define CHUGL_VERSION_STRING "0.1.5 (alpha)"
@@ -20,9 +30,15 @@ static bool hookActivated            = false;
 struct GG_Config {
     SG_ID mainScene;
     SG_ID mainCamera;
+    SG_ID root_pass_id;
+    SG_ID default_render_pass_id;
+    SG_ID default_output_pass_id;
 };
 
 GG_Config gg_config = {};
+
+static f64 ckdt_sec      = 0;
+static f64 system_dt_sec = 0;
 
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
@@ -39,8 +55,7 @@ t_CKBOOL chugl_main_loop_hook(void* bindle)
     { // cleanup (after exiting main loop)
         // remove all shreds (should trigger shutdown, unless running in --loop
         // mode)
-        if (g_chuglVM && g_chuglAPI)
-            g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
+        if (g_chuglVM && g_chuglAPI) g_chuglAPI->vm->remove_all_shreds(g_chuglVM);
 
         App::end(&app);
     }
@@ -71,6 +86,11 @@ CK_DLL_INFO(ChuGL)
       "framework built into the ChucK programming language.");
     QUERY->setinfo(QUERY, CHUGIN_INFO_URL, "https://chuck.stanford.edu/chugl/");
     QUERY->setinfo(QUERY, CHUGIN_INFO_EMAIL, "azaday@ccrma.stanford.edu");
+
+    { // setup
+        // initialize performance counters
+        stm_setup();
+    }
 }
 
 // ============================================================================
@@ -79,9 +99,8 @@ CK_DLL_INFO(ChuGL)
 
 static t_CKUINT chugl_next_frame_event_data_offset = 0;
 
-static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
-                                 Chuck_VM* VM, CK_DL_API API,
-                                 t_CKINT ggen_update_vt_offset)
+static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id, Chuck_VM* VM,
+                                 CK_DL_API API, t_CKINT _ggen_update_vt_offset)
 {
     static t_CKTIME chuglLastUpdateTime{};
 
@@ -125,15 +144,14 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id,
         // because they are not user defined
         if (origin_shred != NULL) {
             // invoke the update function in immediate mode
-            API->vm->invoke_mfun_immediate_mode(ggen, ggen_update_vt_offset, VM,
+            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
                                                 origin_shred, &theArg, 1);
         }
 
         // add children to stack
         size_t numChildren  = SG_Transform::numChildren(xform);
         SG_ID* children_ptr = ARENA_PUSH_COUNT(arena, SG_ID, numChildren);
-        memcpy(children_ptr, xform->childrenIDs.base,
-               sizeof(SG_ID) * numChildren);
+        memcpy(children_ptr, xform->childrenIDs.base, sizeof(SG_ID) * numChildren);
     }
 }
 
@@ -153,8 +171,7 @@ CK_DLL_SFUN(chugl_next_frame)
 
     // RETURN->v_object = (Chuck_Object *)CGL::GetShredUpdateEvent(SHRED, API,
     // VM)->GetEvent();
-    RETURN->v_object
-      = (Chuck_Object*)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
+    RETURN->v_object = (Chuck_Object*)Event_Get(CHUGL_EventType::NEXT_FRAME, API, VM);
 
     // register shred and set has-waited flag to false
     Sync_RegisterShred(SHRED);
@@ -205,6 +222,21 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
         // and waitingShreds will never == registeredShreds.size() thus hanging
         // the renderer
 
+        { // process dt
+            // process dt in audio samples
+            static t_CKTIME chuglLastUpdateTime{ API->vm->now(VM) };
+
+            t_CKTIME chuckTimeNow  = API->vm->now(VM);
+            t_CKTIME chuckTimeDiff = chuckTimeNow - chuglLastUpdateTime;
+            ckdt_sec               = chuckTimeDiff / API->vm->srate(VM);
+            chuglLastUpdateTime    = chuckTimeNow;
+
+            // process dt with OS-provided timer
+            static u64 system_last_time{ stm_now() };
+            u64 system_dt_ticks = stm_laptime(&system_last_time);
+            system_dt_sec       = stm_sec(system_dt_ticks);
+        }
+
         // traverse scenegraph and call chuck-defined update() on all GGens
         autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
                              g_chuglAPI, ggen_update_vt_offset);
@@ -237,8 +269,7 @@ CK_DLL_SFUN(chugl_set_scene)
 
     // get new scene
     Chuck_Object* newScene = GET_NEXT_OBJECT(ARGS);
-    SG_Scene* sg_scene
-      = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
+    SG_Scene* sg_scene = SG_GetScene(OBJ_MEMBER_UINT(newScene, component_offset_id));
 
     // bump refcount on new scene
     SG_AddRef(sg_scene);
@@ -249,6 +280,27 @@ CK_DLL_SFUN(chugl_set_scene)
 
     // decrement refcount on old scene
     SG_DecrementRef(prev_scene_id);
+}
+
+CK_DLL_SFUN(chugl_get_fps)
+{
+    RETURN->v_float = CHUGL_Window_fps();
+    return;
+}
+
+CK_DLL_SFUN(chugl_get_dt)
+{
+    RETURN->v_float = CHUGL_Window_dt();
+}
+
+CK_DLL_SFUN(chugl_get_root_pass)
+{
+    RETURN->v_object = SG_GetPass(gg_config.root_pass_id)->ckobj;
+}
+
+CK_DLL_SFUN(chugl_get_default_render_pass)
+{
+    RETURN->v_object = SG_GetPass(gg_config.default_render_pass_id)->ckobj;
 }
 
 // ============================================================================
@@ -288,8 +340,7 @@ CK_DLL_QUERY(ChuGL)
         chugl_next_frame_event_data_offset
           = QUERY->add_mvar(QUERY, "int", "@next_frame_event_data", false);
 
-        QUERY->add_mfun(QUERY, event_next_frame_waiting_on, "void",
-                        "waiting_on");
+        QUERY->add_mfun(QUERY, event_next_frame_waiting_on, "void", "waiting_on");
         QUERY->end_class(QUERY);
     }
 
@@ -300,13 +351,17 @@ CK_DLL_QUERY(ChuGL)
     ulib_box2d_query(QUERY);
 
     ulib_window_query(QUERY);
-    ulib_texture_query(QUERY);
     ulib_component_query(QUERY);
+    ulib_texture_query(QUERY);
     ulib_ggen_query(QUERY);
+    ulib_camera_query(QUERY);
     ulib_gscene_query(QUERY);
+    ulib_buffer_query(QUERY);
     ulib_geometry_query(QUERY);
     ulib_material_query(QUERY);
     ulib_mesh_query(QUERY);
+    ulib_pass_query(QUERY);
+    ulib_text_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
@@ -332,12 +387,23 @@ CK_DLL_QUERY(ChuGL)
         // QUERY->add_sfun(QUERY, chugl_gc, "void", "gc");
         // QUERY->doc_func(QUERY, "Trigger garbage collection");
 
-        // fps()
-        // QUERY->add_sfun(QUERY, cgl_get_fps, "int", "fps");
-        // QUERY->doc_func(
-        //   QUERY,
-        //   "FPS of current window, averaged over sliding window of 30
-        //   frames");
+        SFUN(chugl_get_fps, "float", "fps");
+        DOC_FUNC("FPS of current window, updated every second");
+
+        // note: we use window time here instead of ckdt_sec or system_dt_sec
+        // (which are laptimes calculated on the audio thread every cycle of
+        // nextFrameWaitingOn ) because the latter values are highly unstable, and do
+        // not correspond to the actual average FPS of the graphics window. dt is most
+        // likely used for graphical animations, and so therefore should be set by the
+        // actual render thread, not the audio thread.
+        SFUN(chugl_get_dt, "float", "dt");
+        DOC_FUNC("return the laptime of the graphics thread's last frame in seconds");
+
+        SFUN(chugl_get_root_pass, SG_CKNames[SG_COMPONENT_PASS], "rootPass");
+        DOC_FUNC("Get the root pass of the current scene");
+
+        SFUN(chugl_get_default_render_pass, "RenderPass", "renderPass");
+        DOC_FUNC("Get the default render pass (renders the main scene");
 
         QUERY->end_class(QUERY); // GG
     }
@@ -347,12 +413,47 @@ CK_DLL_QUERY(ChuGL)
         Chuck_DL_Api::Type sceneCKType
           = g_chuglAPI->type->lookup(g_chuglVM, SG_CKNames[SG_COMPONENT_SCENE]);
         Chuck_DL_Api::Object sceneObj
-          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType,
-                                                     true);
-        SG_Scene* scene = CQ_PushCommand_SceneCreate(
-          sceneObj, component_offset_id, g_chuglAPI);
+          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType, true);
+        SG_Scene* scene
+          = CQ_PushCommand_SceneCreate(sceneObj, component_offset_id, g_chuglAPI);
         gg_config.mainScene = scene->id;
         CQ_PushCommand_GG_Scene(scene);
+
+        // passRoot()
+        gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);
+        SG_Pass* root_pass     = SG_GetPass(gg_config.root_pass_id);
+
+        // renderPass for main scene
+        // (SG_ID 0 defaults to main scene / main camera / swapchain view )
+        gg_config.default_render_pass_id = ulib_pass_createPass(SG_PassType_Render);
+        SG_Pass* render_pass             = SG_GetPass(gg_config.default_render_pass_id);
+
+        // connect root to renderPass
+        SG_Pass::connect(root_pass, render_pass);
+
+        // set default render texture as output of render pass
+        SG_Texture* render_texture
+          = SG_GetTexture(g_builtin_textures.default_render_texture_id);
+        SG_Pass::resolveTarget(render_pass, render_texture);
+        log_debug("setting resolve target to %d", render_texture->id);
+
+        // output pass
+        Chuck_Object* output_pass_ckobj = chugin_createCkObj("OutputPass", true);
+        SG_Pass* output_pass            = ulib_pass_createOutputPass(output_pass_ckobj);
+        gg_config.default_output_pass_id = output_pass->id;
+
+        // connect renderPass to outputPass
+        SG_Pass::connect(render_pass, output_pass);
+
+        // set render texture as input to output pass
+        SG_Material* material = SG_GetMaterial(output_pass->screen_material_id);
+        SG_Material::setTexture(material, 0, render_texture);
+        CQ_PushCommand_MaterialSetTexture(material, 0);
+
+        // update all passes over cq
+        CQ_PushCommand_PassUpdate(root_pass);
+        CQ_PushCommand_PassUpdate(render_pass);
+        CQ_PushCommand_PassUpdate(output_pass);
     }
 
     // wasn't that a breeze?

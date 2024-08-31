@@ -8,14 +8,18 @@ Press '3' to maximize (windowed fullscreen).
 Press '4' to iconify / restore
 press '5' to toggle window opacity
 press '6' to toggle mouse mode (normal - hidden - disabled)
-press '7' to swtich between custom a
-
+press '7' to swtich between custom and normal cursor (not supported on all platforms)
 
 Author: Andrew Zhu Aday (azaday) June 2024
 */
 
-GWindow.closeable(false);
+// disable <esc> and close button 
+// allows you to manually handle close events and perform any necessary cleanup 
+// e.g. saving game state
+GWindow.closeable(false); 
+
 // GWindow.sizeLimits(100, 100, 1920, 1080, @(16, 9));  // uncomment to set size limits
+
 GWindow.windowed(1200, 675);
 GWindow.center(); // center window on screen
 GWindow.title("GWindow Demo");
@@ -26,6 +30,23 @@ true => GWindow.floating;
 // false => GWindow.decorated;
 // false => GWindow.resizable;
 
+fun void mouseListener() {
+    while (true) {
+        GG.nextFrame() => now;
+        if (GWindow.mouseLBClicked()) {
+            <<< "left mouse button clicked" >>>;
+        }
+        if (GWindow.mouseRBClicked()) {
+            <<< "right mouse button clicked" >>>;
+        }
+        if (GWindow.mouseLBReleased()) {
+            <<< "left mouse button released" >>>;
+        }
+        if (GWindow.mouseRBReleased()) {
+            <<< "right mouse button released" >>>;
+        }
+    }
+} spork ~ mouseListener();
 
 fun void closeCallback() {
     while (1) {
@@ -50,7 +71,7 @@ fun void contentScaleCallback() {
 } spork ~ contentScaleCallback();
 
 fun void makeCustomCursor() {
-    // make cursor into a greem dot
+    // make cursor into a green dot
     int cursor_image[8 * 8 * 4];
     for (int i; i < 8 * 8 * 4; 4 +=> i) {
         0 => cursor_image[i];

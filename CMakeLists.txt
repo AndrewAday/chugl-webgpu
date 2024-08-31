@@ -31,25 +31,6 @@ if(LINUX OR EMSCRIPTEN)
 endif()
 
 
-if ( MSVC )
-    # Set the startup project to be the actual project instead of ALL_BUILD 
-    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
-
-    set(CHUCK_EXECUTABLE_DEBUG "${CMAKE_SOURCE_DIR}/chuck-debug.exe")
-    set(CHUCK_EXECUTABLE_RELEASE "${CMAKE_SOURCE_DIR}/chuck-release.exe")
-    set(CHUGIN_PATH_DEBUG "--chugin-path:${CMAKE_TARGET_DIR}./build/Debug")
-    set(CHUGIN_PATH_RELEASE "--chugin-path:${CMAKE_TARGET_DIR}./build/Release")
-    set_target_properties( ${PROJECT_NAME} PROPERTIES
-        # VS_DEBUGGER_COMMAND $<$<CONFIG:Debug>:${CHUCK_EXECUTABLE_DEBUG}>$<$<CONFIG:Release>:${CHUCK_EXECUTABLE_RELEASE}>
-        VS_DEBUGGER_COMMAND "C:/Program Files/ChucK/chuck.exe"
-
-        VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:${CHUGIN_PATH_DEBUG}>$<$<CONFIG:Release>:${CHUGIN_PATH_RELEASE}> --chugin-probe"
-
-        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-endif()
-
-
 set(
     CORE 
     src/core/log.c
@@ -197,6 +178,12 @@ if (MSVC)
         /wd4244
         # ignore fopen warning for cgltf
         /wd4996
+        # ignore warning for using 'bitwise and' to check if flag is set
+        /wd26813
+        # ignore hiding of previous local declaration
+        /wd4456
+        # ignore unused local variables
+        /wd4189
     )
     target_compile_options(
         ${PROJECT_NAME} PRIVATE
@@ -204,6 +191,25 @@ if (MSVC)
         /wd4100
     )
 endif (MSVC)
+
+
+if ( MSVC )
+    # Set the startup project to be the actual project instead of ALL_BUILD 
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
+
+    set(CHUCK_EXECUTABLE_DEBUG "${CMAKE_SOURCE_DIR}/chuck-debug.exe")
+    set(CHUCK_EXECUTABLE_RELEASE "${CMAKE_SOURCE_DIR}/chuck-release.exe")
+    set(CHUGIN_PATH_DEBUG "--chugin-path:${CMAKE_TARGET_DIR}./build/Debug")
+    set(CHUGIN_PATH_RELEASE "--chugin-path:${CMAKE_TARGET_DIR}./build/Release")
+    set_target_properties( ${PROJECT_NAME} PROPERTIES
+        # VS_DEBUGGER_COMMAND $<$<CONFIG:Debug>:${CHUCK_EXECUTABLE_DEBUG}>$<$<CONFIG:Release>:${CHUCK_EXECUTABLE_RELEASE}>
+        VS_DEBUGGER_COMMAND "C:/Program Files/ChucK/chuck.exe"
+
+        VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:${CHUGIN_PATH_DEBUG}>$<$<CONFIG:Release>:${CHUGIN_PATH_RELEASE}> --chugin-probe"
+
+        VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()
 
 # add include path
 target_include_directories(chugl_shared_properties 
@@ -235,6 +241,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(webgpu)
 
+# FreeType font rendering
+# set default freetype options
+set(FT_DISABLE_BROTLI   ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2    ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG      ON  CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB     ON  CACHE BOOL "" FORCE)
+set(FT_ENABLE_ERROR_STRINGS ON CACHE BOOL "" FORCE)
+# add_subdirectory("dependencies/freetype")
+# fetch freetype
+FetchContent_Declare (
+    freetype 
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG VER-2-13-2
+)
+# make available
+FetchContent_MakeAvailable (freetype)
+
 # box2d v3.0
 # FetchContent_Declare(
 #   box2d
@@ -265,7 +289,7 @@ add_subdirectory(vendor/box2d/src)
 
 # linking
 # target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
-target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu box2d)
+target_link_libraries(chugl_shared_properties INTERFACE webgpu glfw glfw3webgpu box2d freetype)
 target_link_libraries(${PROJECT_NAME} PRIVATE chugl_shared_properties)
 if (CHUGL_BUILD_RENDERER_TESTS)
     target_link_libraries(ChuGL-Renderer-Tester PRIVATE chugl_shared_properties)

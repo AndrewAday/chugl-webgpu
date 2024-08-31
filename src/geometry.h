@@ -35,6 +35,21 @@ struct SphereParams {
     f32 thetaStart = 0.0, thetaLength = PI; // how much along central diameter
 };
 
+// Arena builders
+struct Arena;
+
+struct GeometryArenaBuilder {
+    Arena* pos_arena;
+    Arena* norm_arena;
+    Arena* uv_arena;
+    Arena* tangent_arena;
+    Arena* indices_arena;
+};
+
+void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params);
+void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params);
+void Geometry_buildSuzanne(GeometryArenaBuilder* builder);
+
 // TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags
 // probably requires splitting vertex data into separate arrays
@@ -69,8 +84,8 @@ struct Vertices {
     static void print(Vertices* v);
 
     // copy from existing arrays
-    static void copy(Vertices* v, Vertex* vertices, u32 vertexCount,
-                     u32* indices, u32 indicesCount);
+    static void copy(Vertices* v, Vertex* vertices, u32 vertexCount, u32* indices,
+                     u32 indicesCount);
 
     // shapes
     static void createPlane(Vertices* vertices, PlaneParams* params);

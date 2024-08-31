@@ -65,23 +65,21 @@ static WGPUAdapter request_adapter(WGPUInstance instance,
     // provided as the last argument of wgpuInstanceRequestAdapter and received
     // by the callback as its last argument.
     auto onAdapterRequestEnded
-      = [](WGPURequestAdapterStatus status, WGPUAdapter adapter,
-           char const* message, void* pUserData) {
+      = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, char const* message,
+           void* pUserData) {
             UserData* userData = (UserData*)pUserData;
 
             if (status == WGPURequestAdapterStatus_Success)
                 userData->adapter = adapter;
             else
-                std::cout << "Could not get WebGPU adapter: " << message
-                          << std::endl;
+                std::cout << "Could not get WebGPU adapter: " << message << std::endl;
 
             userData->requestEnded = true;
         };
 
     // Call to the WebGPU request adapter procedure
-    wgpuInstanceRequestAdapter(instance /* equivalent of navigator.gpu */,
-                               options, onAdapterRequestEnded,
-                               (void*)&userData);
+    wgpuInstanceRequestAdapter(instance /* equivalent of navigator.gpu */, options,
+                               onAdapterRequestEnded, (void*)&userData);
 #ifdef __EMSCRIPTEN__
     // In the Emscripten environment, the WebGPU adapter request is asynchronous
     // while (!userData.requestEnded) emscripten_sleep(10);
@@ -113,18 +111,16 @@ static WGPUDevice request_device(WGPUAdapter adapter,
     };
     UserData userData;
 
-    auto onDeviceRequestEnded
-      = [](WGPURequestDeviceStatus status, WGPUDevice device,
-           char const* message, void* pUserData) {
-            UserData& userData = *reinterpret_cast<UserData*>(pUserData);
-            if (status == WGPURequestDeviceStatus_Success) {
-                userData.device = device;
-            } else {
-                std::cout << "Could not get WebGPU device: " << message
-                          << std::endl;
-            }
-            userData.requestEnded = true;
-        };
+    auto onDeviceRequestEnded = [](WGPURequestDeviceStatus status, WGPUDevice device,
+                                   char const* message, void* pUserData) {
+        UserData& userData = *reinterpret_cast<UserData*>(pUserData);
+        if (status == WGPURequestDeviceStatus_Success) {
+            userData.device = device;
+        } else {
+            std::cout << "Could not get WebGPU device: " << message << std::endl;
+        }
+        userData.requestEnded = true;
+    };
 
     wgpuAdapterRequestDevice(adapter, descriptor, onDeviceRequestEnded,
                              (void*)&userData);
@@ -163,8 +159,8 @@ static bool createSwapChain(GraphicsContext* context, u32 width, u32 height)
         height,                            // height
         WGPUPresentMode_Fifo,              // presentMode (vsynced)
     };
-    context->swapChain = wgpuDeviceCreateSwapChain(
-      context->device, context->surface, &swap_chain_desc);
+    context->swapChain
+      = wgpuDeviceCreateSwapChain(context->device, context->surface, &swap_chain_desc);
 
     if (!context->swapChain) return false;
     return true;
@@ -179,8 +175,7 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     // Depth texture
     context->depthTextureDesc = {};
     // only support one format for now
-    WGPUTextureFormat depthTextureFormat
-      = WGPUTextureFormat_Depth24PlusStencil8;
+    WGPUTextureFormat depthTextureFormat    = WGPUTextureFormat_Depth24PlusStencil8;
     context->depthTextureDesc.usage         = WGPUTextureUsage_RenderAttachment;
     context->depthTextureDesc.dimension     = WGPUTextureDimension_2D;
     context->depthTextureDesc.size          = { width, height, 1 };
@@ -194,12 +189,12 @@ static void createDepthTexture(GraphicsContext* context, u32 width, u32 height)
     // Create the view of the depth texture manipulated by the rasterizer
     WGPUTextureViewDescriptor depthTextureViewDesc = {};
     depthTextureViewDesc.format                    = depthTextureFormat;
-    depthTextureViewDesc.dimension       = WGPUTextureViewDimension_2D;
-    depthTextureViewDesc.baseMipLevel    = 0;
-    depthTextureViewDesc.mipLevelCount   = 1;
-    depthTextureViewDesc.baseArrayLayer  = 0;
-    depthTextureViewDesc.arrayLayerCount = 1;
-    depthTextureViewDesc.aspect          = WGPUTextureAspect_All;
+    depthTextureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
+    depthTextureViewDesc.baseMipLevel              = 0;
+    depthTextureViewDesc.mipLevelCount             = 1;
+    depthTextureViewDesc.baseArrayLayer            = 0;
+    depthTextureViewDesc.arrayLayerCount           = 1;
+    depthTextureViewDesc.aspect                    = WGPUTextureAspect_All;
     context->depthTextureView
       = wgpuTextureCreateView(context->depthTexture, &depthTextureViewDesc);
     ASSERT(context->depthTextureView != NULL);
@@ -231,6 +226,10 @@ static void logWGPULimits(WGPULimits const* limits)
     log_trace("Supported limits:");
     log_trace("maxBindGroups: %d", limits->maxBindGroups);
     log_trace("maxBindingsPerBindGroup: %d", limits->maxBindingsPerBindGroup);
+    log_trace("minUniformBufferOffsetAlignment %d",
+              limits->minUniformBufferOffsetAlignment);
+    log_trace("minStorageBufferOffsetAlignment %d",
+              limits->minStorageBufferOffsetAlignment);
 }
 
 bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
@@ -268,22 +267,21 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     log_trace("adapter created");
 
     // set required limits to max supported
-    WGPUSupportedLimits supportedLimits;
-    wgpuAdapterGetLimits(context->adapter, &supportedLimits);
+#ifdef WEBGPU_BACKEND_WGPU
+    WGPUSupportedLimits supportedLimits = {};
+    bool success = wgpuAdapterGetLimits(context->adapter, &supportedLimits);
+    ASSERT(success);
     // copy supported limits into context
     context->limits = supportedLimits.limits;
-
     logWGPULimits(&context->limits);
 
     WGPURequiredLimits requiredLimits = {};
     requiredLimits.limits             = context->limits;
 
-    // required features
-#ifdef WEBGPU_BACKEND_WGPU
-    const u32 requiredFeaturesCount    = 1;
     WGPUFeatureName requiredFeatures[] = {
         (WGPUFeatureName)WGPUNativeFeature_VertexWritableStorage,
     };
+    const u32 requiredFeaturesCount = ARRAY_LENGTH(requiredFeatures);
     log_trace("required features: %d", ARRAY_LENGTH(requiredFeatures));
 #else
     const u32 requiredFeaturesCount   = 0;
@@ -337,6 +335,10 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     // defaults for render pass color attachment
     context->colorAttachment = {};
 
+    // view and resolve set in GraphicsContext::prepareFrame()
+    context->colorAttachment.view          = NULL;
+    context->colorAttachment.resolveTarget = NULL;
+
 #ifdef __EMSCRIPTEN__
     context->colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif
@@ -345,26 +347,35 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     context->colorAttachment.clearValue = WGPUColor{ 0.0f, 0.0f, 0.0f, 1.0f };
 
     // render pass descriptor
-    context->renderPassDesc.label                = "My render pass";
-    context->renderPassDesc.colorAttachmentCount = 1;
-    context->renderPassDesc.colorAttachments     = &context->colorAttachment;
-    context->renderPassDesc.depthStencilAttachment
-      = &context->depthStencilAttachment;
+    context->renderPassDesc.label                  = "My render pass";
+    context->renderPassDesc.colorAttachmentCount   = 1;
+    context->renderPassDesc.colorAttachments       = &context->colorAttachment;
+    context->renderPassDesc.depthStencilAttachment = &context->depthStencilAttachment;
 
     return true;
 }
 
-void GraphicsContext::prepareFrame(GraphicsContext* ctx)
+bool GraphicsContext::prepareFrame(GraphicsContext* ctx)
 {
+    if (ctx->window_minimized) {
+        ctx->backbufferView                = NULL;
+        ctx->commandEncoder                = NULL;
+        ctx->colorAttachment.view          = NULL;
+        ctx->colorAttachment.resolveTarget = NULL;
+        return false;
+    }
+
     // get target texture view
     ctx->backbufferView = wgpuSwapChainGetCurrentTextureView(ctx->swapChain);
-    ASSERT(ctx->backbufferView != NULL);
-    ctx->colorAttachment.view = ctx->backbufferView;
+    ASSERT(ctx->backbufferView);
+
+    ctx->colorAttachment.view          = ctx->backbufferView;
+    ctx->colorAttachment.resolveTarget = NULL;
 
     // initialize encoder
     WGPUCommandEncoderDescriptor encoderDesc = {};
-    ctx->commandEncoder
-      = wgpuDeviceCreateCommandEncoder(ctx->device, &encoderDesc);
+    ctx->commandEncoder = wgpuDeviceCreateCommandEncoder(ctx->device, &encoderDesc);
+    return true;
 }
 
 void GraphicsContext::presentFrame(GraphicsContext* ctx)
@@ -383,13 +394,16 @@ void GraphicsContext::presentFrame(GraphicsContext* ctx)
 #endif
 
     wgpuCommandBufferRelease(command);
-    wgpuCommandEncoderRelease(ctx->commandEncoder);
-    wgpuTextureViewRelease(ctx->backbufferView);
+    WGPU_RELEASE_RESOURCE(CommandEncoder, ctx->commandEncoder);
+    WGPU_RELEASE_RESOURCE(TextureView, ctx->backbufferView);
 }
 
 void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
 {
-
+    if (width == 0 || height == 0) {
+        ctx->window_minimized = true;
+        return;
+    }
     // terminate depth buffer
     WGPU_RELEASE_RESOURCE(TextureView, ctx->depthTextureView);
     WGPU_DESTROY_RESOURCE(Texture, ctx->depthTexture);
@@ -420,8 +434,8 @@ void GraphicsContext::release(GraphicsContext* ctx)
     *ctx = {};
 }
 
-void VertexBuffer::init(GraphicsContext* ctx, VertexBuffer* buf,
-                        u64 vertexCount, const f32* data, const char* label)
+void VertexBuffer::init(GraphicsContext* ctx, VertexBuffer* buf, u64 vertexCount,
+                        const f32* data, const char* label)
 {
 #define FLOATS_PER_VERTEX 8
     ASSERT(buf->buf == NULL);
@@ -433,8 +447,7 @@ void VertexBuffer::init(GraphicsContext* ctx, VertexBuffer* buf,
 
     buf->buf = wgpuDeviceCreateBuffer(ctx->device, &buf->desc);
 
-    if (data)
-        wgpuQueueWriteBuffer(ctx->queue, buf->buf, 0, data, buf->desc.size);
+    if (data) wgpuQueueWriteBuffer(ctx->queue, buf->buf, 0, data, buf->desc.size);
 #undef FLOATS_PER_VERTEX
 }
 
@@ -450,25 +463,26 @@ void IndexBuffer::init(GraphicsContext* ctx, IndexBuffer* buf, u64 data_length,
 
     buf->buf = wgpuDeviceCreateBuffer(ctx->device, &buf->desc);
 
-    if (data)
-        wgpuQueueWriteBuffer(ctx->queue, buf->buf, 0, data, buf->desc.size);
+    if (data) wgpuQueueWriteBuffer(ctx->queue, buf->buf, 0, data, buf->desc.size);
 }
 
 void VertexBufferLayout::init(VertexBufferLayout* layout, u8 attribute_count,
                               u32* attribute_strides)
 {
-    layout->attribute_count = attribute_count;
     WGPUVertexFormat format = WGPUVertexFormat_Undefined;
 
     for (u8 i = 0; i < attribute_count; i++) {
         // determine format
         switch (attribute_strides[i]) {
+            case 0: return; // assume first 0 means end of list
             case 1: format = WGPUVertexFormat_Float32; break;
             case 2: format = WGPUVertexFormat_Float32x2; break;
             case 3: format = WGPUVertexFormat_Float32x3; break;
             case 4: format = WGPUVertexFormat_Float32x4; break;
             default: format = WGPUVertexFormat_Undefined; break;
         }
+
+        layout->attribute_count = i + 1;
 
         layout->attributes[i] = {
             format, // format
@@ -478,27 +492,104 @@ void VertexBufferLayout::init(VertexBufferLayout* layout, u8 attribute_count,
 
         layout->layouts[i] = {
             sizeof(f32) * attribute_strides[i], // arrayStride
-            WGPUVertexStepMode_Vertex, // stepMode (TODO support instance)
-            1,                         // attribute count
-            layout->attributes + i,    // vertexAttribute
+            WGPUVertexStepMode_Vertex,          // stepMode
+            1,                                  // attribute count
+            layout->attributes + i,             // vertexAttribute
+        };
+    }
+}
+
+static u64 wgpuVertexFormatSize(WGPUVertexFormat format)
+{
+    switch (format) {
+        case WGPUVertexFormat_Uint8x2:
+        case WGPUVertexFormat_Sint8x2:
+        case WGPUVertexFormat_Unorm8x2:
+        case WGPUVertexFormat_Snorm8x2: {
+            return 2;
+        } break;
+        case WGPUVertexFormat_Uint8x4:
+        case WGPUVertexFormat_Sint8x4:
+        case WGPUVertexFormat_Unorm8x4:
+        case WGPUVertexFormat_Snorm8x4: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Uint16x2:
+        case WGPUVertexFormat_Sint16x2:
+        case WGPUVertexFormat_Float16x2:
+        case WGPUVertexFormat_Unorm16x2:
+        case WGPUVertexFormat_Snorm16x2: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Uint16x4:
+        case WGPUVertexFormat_Sint16x4:
+        case WGPUVertexFormat_Float16x4:
+        case WGPUVertexFormat_Unorm16x4:
+        case WGPUVertexFormat_Snorm16x4: {
+            return 8;
+        } break;
+        case WGPUVertexFormat_Float32:
+        case WGPUVertexFormat_Uint32:
+        case WGPUVertexFormat_Sint32: {
+            return 4;
+        } break;
+        case WGPUVertexFormat_Float32x2:
+        case WGPUVertexFormat_Uint32x2:
+        case WGPUVertexFormat_Sint32x2: {
+            return 8;
+        } break;
+        case WGPUVertexFormat_Float32x3:
+        case WGPUVertexFormat_Uint32x3:
+        case WGPUVertexFormat_Sint32x3: {
+            return 12;
+        } break;
+        case WGPUVertexFormat_Float32x4:
+        case WGPUVertexFormat_Uint32x4:
+        case WGPUVertexFormat_Sint32x4: {
+            return 16;
+        } break;
+        default: ASSERT(false); return 0;
+    }
+}
+
+void VertexBufferLayout::init(VertexBufferLayout* layout, u8 format_count,
+                              WGPUVertexFormat* formats)
+{
+    layout->attribute_count = 0;
+    for (u32 i = 0; i < format_count; i++) {
+        if (formats[i] == 0) {
+            layout->attribute_count = i;
+            return;
+        }
+
+        layout->attributes[i] = {
+            formats[i], // format
+            0,          // offset
+            i,          // shader location
+        };
+
+        layout->layouts[i] = {
+            wgpuVertexFormatSize(formats[i]), // arrayStride
+            WGPUVertexStepMode_Vertex,        // stepMode
+            1,                                // attribute count
+            layout->attributes + i,           // vertexAttribute
         };
     }
 }
 
 // Shaders ================================================================
 
-void ShaderModule::init(GraphicsContext* ctx, ShaderModule* module,
-                        const char* code, const char* label)
+void ShaderModule::init(GraphicsContext* ctx, ShaderModule* module, const char* code,
+                        const char* label)
 {
     // weird, WGPUShaderModuleDescriptor is the "base class" descriptor, and
     // WGSLDescriptor is the "derived" descriptor but the base class in this
     // case contains the "derived" class in its nextInChain field like OOP
     // inheritance flipped, where the parent contains the child data...
-    module->wgsl_desc
-      = { { NULL, WGPUSType_ShaderModuleWGSLDescriptor }, // base class
-          code };
-    module->desc             = {};
-    module->desc.label       = label;
+    module->wgsl_desc  = { { NULL, WGPUSType_ShaderModuleWGSLDescriptor }, // base class
+                           code };
+    module->desc       = {};
+    module->desc.label = label;
     module->desc.nextInChain = &module->wgsl_desc.chain;
 
     module->module = wgpuDeviceCreateShaderModule(ctx->device, &module->desc);
@@ -518,15 +609,17 @@ void ShaderModule::release(ShaderModule* module)
 // Blend State
 // ============================================================================
 
-static WGPUBlendState createBlendState(bool enableBlend)
+WGPUBlendState G_createBlendState(bool enableBlend)
 {
     WGPUBlendComponent descriptor = {};
     descriptor.operation          = WGPUBlendOperation_Add;
 
     if (enableBlend) {
+        // a*src + (1-a)*dst
         descriptor.srcFactor = WGPUBlendFactor_SrcAlpha;
         descriptor.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
     } else {
+        // 1*src + 0*dst
         descriptor.srcFactor = WGPUBlendFactor_One;
         descriptor.dstFactor = WGPUBlendFactor_Zero;
     }
@@ -538,7 +631,7 @@ static WGPUBlendState createBlendState(bool enableBlend)
 }
 
 // ============================================================================
-// Pipeline State Helpers
+// Pipeline and RenderPass State Helpers
 // ============================================================================
 
 WGPUDepthStencilState G_createDepthStencilState(WGPUTextureFormat format,
@@ -575,6 +668,41 @@ WGPUMultisampleState G_createMultisampleState(u8 sample_count)
     return ms;
 }
 
+DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
+                                                      u32 sample_count, u32 width,
+                                                      u32 height)
+{
+    // only support one format for now
+    WGPUTextureFormat depth_texture_format = WGPUTextureFormat_Depth24PlusStencil8;
+    // Depth texture
+    WGPUTextureDescriptor texture_desc = {};
+    texture_desc.usage                 = WGPUTextureUsage_RenderAttachment;
+    texture_desc.dimension             = WGPUTextureDimension_2D;
+    texture_desc.size                  = { width, height, 1 };
+    texture_desc.format                = depth_texture_format;
+    texture_desc.mipLevelCount         = 1;
+    texture_desc.sampleCount           = sample_count;
+
+    WGPUTexture depth_tex = wgpuDeviceCreateTexture(gctx->device, &texture_desc);
+    ASSERT(depth_tex);
+
+    // Create the view of the depth texture manipulated by the rasterizer
+    WGPUTextureViewDescriptor depthTextureViewDesc = {};
+    depthTextureViewDesc.format                    = depth_texture_format;
+    depthTextureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
+    depthTextureViewDesc.baseMipLevel              = 0;
+    depthTextureViewDesc.mipLevelCount             = 1;
+    depthTextureViewDesc.baseArrayLayer            = 0;
+    depthTextureViewDesc.arrayLayerCount           = 1;
+    depthTextureViewDesc.aspect                    = WGPUTextureAspect_All;
+    WGPUTextureView depth_tex_view
+      = wgpuTextureCreateView(depth_tex, &depthTextureViewDesc);
+
+    ASSERT(depth_tex_view);
+
+    return { depth_tex, depth_tex_view };
+}
+
 // static void _G_compilationInfoCallback(WGPUCompilationInfoRequestStatus
 // status,
 //                                        const WGPUCompilationInfo* info,
@@ -594,16 +722,16 @@ WGPUMultisampleState G_createMultisampleState(u8 sample_count)
 WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
                                       const char* label)
 {
+    std::string preprocessed_code = Shaders_genSource(code);
     WGPUShaderModuleWGSLDescriptor desc
       = { { NULL, WGPUSType_ShaderModuleWGSLDescriptor }, // base class
-          code };
+          preprocessed_code.c_str() };
 
     WGPUShaderModuleDescriptor moduleDesc = {};
     moduleDesc.label                      = label;
     moduleDesc.nextInChain                = &desc.chain;
 
-    WGPUShaderModule module
-      = wgpuDeviceCreateShaderModule(gctx->device, &moduleDesc);
+    WGPUShaderModule module = wgpuDeviceCreateShaderModule(gctx->device, &moduleDesc);
 
     // NOT IMPLEMENTED IN CURRENT VERSION OF WGPU
     // #ifdef CHUGL_DEBUG
@@ -619,28 +747,28 @@ WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
 // Render Pipeline
 // ============================================================================
 
-static WGPUBindGroupLayout
-createBindGroupLayout(GraphicsContext* ctx, u8 bindingNumber, u64 size,
-                      WGPUBufferBindingType bufferType)
-{
-    UNUSED_VAR(bindingNumber);
-
-    // Per frame uniform buffer
-    WGPUBindGroupLayoutEntry bindGroupLayout = {};
-    // bindGroupLayout.binding                  = bindingNumber;
-    bindGroupLayout.binding = 0;
-    bindGroupLayout.visibility // always both for simplicity
-      = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
-    bindGroupLayout.buffer.type             = bufferType;
-    bindGroupLayout.buffer.minBindingSize   = size;
-    bindGroupLayout.buffer.hasDynamicOffset = false; // TODO
-
-    // Create a bind group layout
-    WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc = {};
-    bindGroupLayoutDesc.entryCount                    = 1;
-    bindGroupLayoutDesc.entries                       = &bindGroupLayout;
-    return wgpuDeviceCreateBindGroupLayout(ctx->device, &bindGroupLayoutDesc);
-}
+// static WGPUBindGroupLayout
+// createBindGroupLayout(GraphicsContext* ctx, u8 bindingNumber, u64 size,
+//                       WGPUBufferBindingType bufferType)
+//{
+//     UNUSED_VAR(bindingNumber);
+//
+//     // Per frame uniform buffer
+//     WGPUBindGroupLayoutEntry bindGroupLayout = {};
+//     // bindGroupLayout.binding                  = bindingNumber;
+//     bindGroupLayout.binding = 0;
+//     bindGroupLayout.visibility // always both for simplicity
+//       = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+//     bindGroupLayout.buffer.type             = bufferType;
+//     bindGroupLayout.buffer.minBindingSize   = size;
+//     bindGroupLayout.buffer.hasDynamicOffset = false; // TODO
+//
+//     // Create a bind group layout
+//     WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc = {};
+//     bindGroupLayoutDesc.entryCount                    = 1;
+//     bindGroupLayoutDesc.entries                       = &bindGroupLayout;
+//     return wgpuDeviceCreateBindGroupLayout(ctx->device, &bindGroupLayoutDesc);
+// }
 
 // ============================================================================
 // Bind Group
@@ -654,29 +782,26 @@ void BindGroup::init(GraphicsContext* ctx, BindGroup* bindGroup,
     WGPUBufferDescriptor bufferDesc = {};
     bufferDesc.size                 = bufferSize;
     bufferDesc.mappedAtCreation     = false;
-    bufferDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-    bindGroup->uniformBuffer = wgpuDeviceCreateBuffer(ctx->device, &bufferDesc);
+    bufferDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+    bindGroup->uniformBuffer        = wgpuDeviceCreateBuffer(ctx->device, &bufferDesc);
 
     // force only 1 @binding per @group
     WGPUBindGroupEntry binding = {};
     binding.binding            = 0; // @binding(0)
     binding.offset             = 0;
-    binding.buffer
-      = bindGroup->uniformBuffer; // only supports uniform buffers for now
-    binding.size = bufferSize;
+    binding.buffer = bindGroup->uniformBuffer; // only supports uniform buffers for now
+    binding.size   = bufferSize;
 
     // A bind group contains one or multiple bindings
-    bindGroup->desc = {};
-    bindGroup->desc.layout
-      = layout; // TODO can get layout from renderpipeline via
-                // WGPUProcRenderPipelineGetBindGroupLayout()
+    bindGroup->desc        = {};
+    bindGroup->desc.layout = layout; // TODO can get layout from renderpipeline via
+                                     // WGPUProcRenderPipelineGetBindGroupLayout()
     bindGroup->desc.entries    = &binding;
     bindGroup->desc.entryCount = 1; // force 1 binding per group
 
     std::cout << "Creating bind group with layout " << layout << std::endl;
 
-    bindGroup->bindGroup
-      = wgpuDeviceCreateBindGroup(ctx->device, &bindGroup->desc);
+    bindGroup->bindGroup = wgpuDeviceCreateBindGroup(ctx->device, &bindGroup->desc);
     std::cout << "bindGroup: " << bindGroup->bindGroup << std::endl;
 }
 
@@ -685,18 +810,15 @@ void BindGroup::init(GraphicsContext* ctx, BindGroup* bindGroup,
 // ============================================================================
 
 void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
-                          const char* vertexShaderCode,
-                          const char* fragmentShaderCode)
+                          const char* vertexShaderCode, const char* fragmentShaderCode)
 {
-    UNUSED_FUNCTION(createBindGroupLayout);
-
     WGPUPrimitiveState primitiveState = {};
     primitiveState.topology           = WGPUPrimitiveTopology_TriangleList;
     primitiveState.stripIndexFormat   = WGPUIndexFormat_Undefined;
     primitiveState.frontFace          = WGPUFrontFace_CCW;
     primitiveState.cullMode           = WGPUCullMode_None; // TODO: backface
 
-    WGPUBlendState blendState             = createBlendState(true);
+    WGPUBlendState blendState             = G_createBlendState(true);
     WGPUColorTargetState colorTargetState = {};
     colorTargetState.format               = ctx->swapChainFormat;
     colorTargetState.blend                = &blendState;
@@ -707,8 +829,7 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
 
     // Setup shader module
     ShaderModule vertexShaderModule = {}, fragmentShaderModule = {};
-    ShaderModule::init(ctx, &vertexShaderModule, vertexShaderCode,
-                       "vertex shader");
+    ShaderModule::init(ctx, &vertexShaderModule, vertexShaderCode, "vertex shader");
     ShaderModule::init(ctx, &fragmentShaderModule, fragmentShaderCode,
                        "fragment shader");
 
@@ -721,8 +842,8 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
         2, // uv
         4, // tangent
     };
-    VertexBufferLayout::init(&vertexBufferLayout,
-                             ARRAY_LENGTH(attributeStrides), attributeStrides);
+    VertexBufferLayout::init(&vertexBufferLayout, ARRAY_LENGTH(attributeStrides),
+                             attributeStrides);
 
     // vertex state
     WGPUVertexState vertexState = {};
@@ -819,8 +940,7 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
     pipeline->desc.depthStencil = &depth_stencil_state;
     pipeline->desc.multisample  = multisampleState;
 
-    pipeline->pipeline
-      = wgpuDeviceCreateRenderPipeline(ctx->device, &pipeline->desc);
+    pipeline->pipeline = wgpuDeviceCreateRenderPipeline(ctx->device, &pipeline->desc);
 
     { // create per-frame bindgroup
         // implicit layouts cannot share bindgroups, so need to create one per
@@ -831,20 +951,20 @@ void RenderPipeline::init(GraphicsContext* ctx, RenderPipeline* pipeline,
         pipeline->frameUniformBufferDesc.size = sizeof(FrameUniforms);
         pipeline->frameUniformBufferDesc.usage
           = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-        pipeline->frameUniformBuffer = wgpuDeviceCreateBuffer(
-          ctx->device, &pipeline->frameUniformBufferDesc);
+        pipeline->frameUniformBuffer
+          = wgpuDeviceCreateBuffer(ctx->device, &pipeline->frameUniformBufferDesc);
         ASSERT(pipeline->frameUniformBuffer);
 
         // create bind group entry
         pipeline->frameGroupEntry         = {};
         pipeline->frameGroupEntry.binding = 0;
         pipeline->frameGroupEntry.buffer  = pipeline->frameUniformBuffer;
-        pipeline->frameGroupEntry.size = pipeline->frameUniformBufferDesc.size;
+        pipeline->frameGroupEntry.size    = pipeline->frameUniformBufferDesc.size;
 
         // create bind group
-        pipeline->frameGroupDesc        = {};
-        pipeline->frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
-          pipeline->pipeline, PER_FRAME_GROUP);
+        pipeline->frameGroupDesc = {};
+        pipeline->frameGroupDesc.layout
+          = wgpuRenderPipelineGetBindGroupLayout(pipeline->pipeline, PER_FRAME_GROUP);
         pipeline->frameGroupDesc.entries    = &pipeline->frameGroupEntry;
         pipeline->frameGroupDesc.entryCount = 1;
 
@@ -884,8 +1004,7 @@ void DepthTexture::init(GraphicsContext* ctx, DepthTexture* depthTexture,
     depthTextureDesc.size = { 640, 480, 1 };
     // also usage WGPUTextureUsage_Binding?
     depthTextureDesc.usage = WGPUTextureUsage_RenderAttachment;
-    depthTexture->texture
-      = wgpuDeviceCreateTexture(ctx->device, &depthTextureDesc);
+    depthTexture->texture  = wgpuDeviceCreateTexture(ctx->device, &depthTextureDesc);
 
     // Create the view of the depth texture manipulated by the rasterizer
     WGPUTextureViewDescriptor depthTextureViewDesc{};
@@ -916,9 +1035,28 @@ void DepthTexture::release(DepthTexture* depthTexture)
 #define NUMBER_OF_TEXTURE_FORMATS WGPUTextureFormat_ASTC12x12UnormSrgb // 94
 
 /// @brief Determines the number of mip levels needed for a full mip chain
-static u32 mipLevelCount(int width, int height)
+u32 G_mipLevels(int width, int height)
 {
     return (u32)(floor((float)(log2(MAX(width, height))))) + 1;
+}
+
+// calculate number of mip levels based on downscale limit
+u32 G_mipLevelsLimit(u32 w, u32 h, u32 downscale_limit)
+{
+    if (downscale_limit >= w || downscale_limit >= h) return 1;
+
+    u32 mip_levels = G_mipLevels(w, h) - G_mipLevels(downscale_limit, downscale_limit);
+
+    ASSERT(mip_levels > 0);
+    return mip_levels;
+}
+
+G_MipSize G_mipLevelSize(int width, int height, u32 mip_level)
+{
+    return {
+        MAX(1u, (u32) (glm::floor(float(width) / glm::pow(2.0, mip_level)))),
+        MAX(1u, (u32) (glm::floor(float(height) / glm::pow(2.0, mip_level))))
+    };
 }
 
 // TODO make part of GraphicsContext and cleanup
@@ -1004,7 +1142,7 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     primitiveStateDesc.cullMode           = WGPUCullMode_None;
 
     // Color target state
-    WGPUBlendState blend_state                   = createBlendState(false);
+    WGPUBlendState blend_state                   = G_createBlendState(false);
     WGPUColorTargetState color_target_state_desc = {};
     color_target_state_desc.format               = format;
     color_target_state_desc.blend                = &blend_state;
@@ -1058,10 +1196,8 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     ASSERT(generator->pipelines[pipeline_index] != NULL);
 
     // Store the bind group layout of the created pipeline
-    // TODO: can probably re-use a single bindgroup for all pipelines
     generator->pipeline_layouts[pipeline_index]
-      = wgpuRenderPipelineGetBindGroupLayout(
-        generator->pipelines[pipeline_index], 0);
+      = wgpuRenderPipelineGetBindGroupLayout(generator->pipelines[pipeline_index], 0);
     ASSERT(generator->pipeline_layouts[pipeline_index] != NULL)
 
     // Update active pipeline state
@@ -1070,20 +1206,20 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     return generator->pipelines[pipeline_index];
 }
 
-WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
-                                      WGPUTexture texture,
+WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture texture,
                                       WGPUTextureDescriptor* texture_desc)
 {
+    if (texture_desc->mipLevelCount <= 1) return texture;
+
     WGPURenderPipeline pipeline
       = MipMapGenerator::getPipeline(generator, texture_desc->format);
 
-    log_trace("Generating %d mip levels for texture %s",
-              texture_desc->mipLevelCount, texture_desc->label);
+    log_trace("Generating %d mip levels for texture %s", texture_desc->mipLevelCount,
+              texture_desc->label);
 
     if (texture_desc->dimension == WGPUTextureDimension_3D
         || texture_desc->dimension == WGPUTextureDimension_1D) {
-        log_error(
-          "Generating mipmaps for non-2d textures is currently unsupported!" //
+        log_error("Generating mipmaps for non-2d textures is currently unsupported!" //
         );
         return NULL;
     }
@@ -1103,8 +1239,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
 
     // If the texture was created with RENDER_ATTACHMENT usage we can render
     // directly between mip levels.
-    bool render_to_source
-      = texture_desc->usage & WGPUTextureUsage_RenderAttachment;
+    bool render_to_source = texture_desc->usage & WGPUTextureUsage_RenderAttachment;
     if (!render_to_source) {
         // Otherwise we have to use a separate texture to render into. It can be
         // one mip level smaller than the source texture, since we already have
@@ -1123,18 +1258,15 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
         ASSERT(mip_texture != NULL);
     }
 
-    WGPUCommandEncoder cmd_encoder
-      = wgpuDeviceCreateCommandEncoder(ctx->device, NULL);
-    u32 pipeline_index = (u32)texture_desc->format;
-    WGPUBindGroupLayout bind_group_layout
-      = generator->pipeline_layouts[pipeline_index];
+    WGPUCommandEncoder cmd_encoder = wgpuDeviceCreateCommandEncoder(ctx->device, NULL);
+    u32 pipeline_index             = (u32)texture_desc->format;
+    WGPUBindGroupLayout bind_group_layout = generator->pipeline_layouts[pipeline_index];
 
     const u32 views_count  = array_layer_count * mip_level_count;
     WGPUTextureView* views = ALLOCATE_COUNT(WGPUTextureView, views_count);
 
     const u32 bind_group_count = array_layer_count * (mip_level_count - 1);
-    WGPUBindGroup* bind_groups
-      = ALLOCATE_COUNT(WGPUBindGroup, bind_group_count);
+    WGPUBindGroup* bind_groups = ALLOCATE_COUNT(WGPUBindGroup, bind_group_count);
 
     WGPUTextureViewDescriptor viewDesc = {};
     viewDesc.label                     = "src_view";
@@ -1164,11 +1296,10 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
             mipViewDesc.baseArrayLayer            = array_layer;
             mipViewDesc.arrayLayerCount           = 1;
 
-            views[target_mip]
-              = wgpuTextureCreateView(mip_texture, &mipViewDesc);
+            views[target_mip] = wgpuTextureCreateView(mip_texture, &mipViewDesc);
 
             WGPURenderPassColorAttachment colorAttachmentDesc = {};
-            colorAttachmentDesc.view = views[target_mip];
+            colorAttachmentDesc.view                          = views[target_mip];
 #ifdef __EMSCRIPTEN__
             // depthSlice is new in the new header, not yet supported in
             // wgpu-native. See
@@ -1186,8 +1317,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
             render_pass_desc.depthStencilAttachment   = NULL;
 
             WGPURenderPassEncoder pass_encoder
-              = wgpuCommandEncoderBeginRenderPass(cmd_encoder,
-                                                  &render_pass_desc);
+              = wgpuCommandEncoderBeginRenderPass(cmd_encoder, &render_pass_desc);
 
             // initialize bind group entries
             WGPUBindGroupEntry bg_entries[2];
@@ -1207,14 +1337,13 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
             bg_desc.entryCount              = ARRAY_LENGTH(bg_entries);
             bg_desc.entries                 = bg_entries;
 
-            uint32_t bind_group_index
-              = array_layer * (mip_level_count - 1) + i - 1;
+            uint32_t bind_group_index = array_layer * (mip_level_count - 1) + i - 1;
             bind_groups[bind_group_index]
               = wgpuDeviceCreateBindGroup(ctx->device, &bg_desc);
 
             wgpuRenderPassEncoderSetPipeline(pass_encoder, pipeline);
-            wgpuRenderPassEncoderSetBindGroup(
-              pass_encoder, 0, bind_groups[bind_group_index], 0, NULL);
+            wgpuRenderPassEncoderSetBindGroup(pass_encoder, 0,
+                                              bind_groups[bind_group_index], 0, NULL);
             wgpuRenderPassEncoderDraw(pass_encoder, 3, 1, 0, 0);
             wgpuRenderPassEncoderEnd(pass_encoder);
 
@@ -1238,8 +1367,8 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
             mipCopyDst.texture              = texture;
             mipCopyDst.mipLevel             = i;
 
-            wgpuCommandEncoderCopyTextureToTexture(
-              cmd_encoder, &mipCopySrc, &mipCopyDst, &mip_level_size //
+            wgpuCommandEncoderCopyTextureToTexture(cmd_encoder, &mipCopySrc,
+                                                   &mipCopyDst, &mip_level_size //
             );
 
             // Turns out wgpu uses floor not ceil to determine mip size
@@ -1250,8 +1379,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
         }
     }
 
-    WGPUCommandBuffer command_buffer
-      = wgpuCommandEncoderFinish(cmd_encoder, NULL);
+    WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(cmd_encoder, NULL);
     ASSERT(command_buffer != NULL);
     WGPU_RELEASE_RESOURCE(CommandEncoder, cmd_encoder)
 
@@ -1283,45 +1411,25 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator,
 // Texture
 // ============================================================================
 
-static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
-                                       u8* pixelData, i32 width, i32 height,
-                                       u8 numComponents, bool genMipMaps,
-                                       const char* filename)
+void Texture::initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
+                                const char* label, const void* pixelData,
+                                int pixel_width, int pixel_height, bool genMipMaps,
+                                WGPUTextureUsageFlags usage_flags)
 {
-    // save texture info
-    texture->width  = width;
-    texture->height = height;
-    texture->depth  = 1;
 
-    // default always gen mipmaps
-    texture->mip_level_count = genMipMaps ? mipLevelCount(width, height) : 1u;
+    Texture::init(ctx, gpu_texture, pixel_width, pixel_height, 1, genMipMaps, label,
+                  WGPUTextureFormat_RGBA8Unorm,
+                  usage_flags | WGPUTextureUsage_CopyDst
+                    | WGPUTextureUsage_TextureBinding,
+                  WGPUTextureDimension_2D);
 
-    // TODO: support compressed texture formats
-    texture->format    = WGPUTextureFormat_RGBA8Unorm;
-    texture->dimension = WGPUTextureDimension_2D;
+    ASSERT(gpu_texture->width == (u32)pixel_width
+           && gpu_texture->height == (u32)pixel_height);
 
-    // create texture
-    WGPUTextureDescriptor textureDesc = {};
-    // render attachment usage is used for mip map generation
-    textureDesc.usage
-      = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
-    // | WGPUTextureUsage_RenderAttachment;
-    textureDesc.dimension       = texture->dimension;
-    textureDesc.size            = { (u32)width, (u32)height, 1 };
-    textureDesc.format          = texture->format;
-    textureDesc.mipLevelCount   = texture->mip_level_count;
-    textureDesc.sampleCount     = 1;
-    textureDesc.viewFormatCount = 0;
-    textureDesc.viewFormats     = NULL;
-    textureDesc.label           = filename;
-
-    texture->texture = wgpuDeviceCreateTexture(ctx->device, &textureDesc);
-    ASSERT(texture->texture != NULL);
-
-    // write texture data
+    // write gpu_texture data
     {
         WGPUImageCopyTexture destination = {};
-        destination.texture              = texture->texture;
+        destination.texture              = gpu_texture->texture;
         destination.mipLevel             = 0;
         destination.origin               = {
             0,
@@ -1331,64 +1439,121 @@ static void _Texture_InitFromPixelData(GraphicsContext* ctx, Texture* texture,
         destination.aspect = WGPUTextureAspect_All; // only relevant for
                                                     // depth/Stencil textures
 
+        const int num_components     = 4;
         WGPUTextureDataLayout source = {};
-        source.offset       = 0; // where to start reading from the cpu buffer
-        source.bytesPerRow  = numComponents * textureDesc.size.width;
-        source.rowsPerImage = textureDesc.size.height;
+        source.offset                = 0; // where to start reading from the cpu buffer
+        source.bytesPerRow           = num_components * gpu_texture->width;
+        source.rowsPerImage          = gpu_texture->height;
 
-        const u64 dataSize = textureDesc.size.width * textureDesc.size.height
-                             * textureDesc.size.depthOrArrayLayers
-                             * numComponents;
+        const size_t dataSize = pixel_width * pixel_height * num_components;
 
-        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize,
-                              &source, &textureDesc.size);
+        WGPUExtent3D size = { (u32)pixel_width, (u32)pixel_height, 1 };
+        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize, &source,
+                              &size);
     }
 
     // generate mipmaps
     if (genMipMaps) {
-        if (mipMapGenerator.ctx == NULL)
-            MipMapGenerator::init(ctx, &mipMapGenerator);
+        if (mipMapGenerator.ctx == NULL) MipMapGenerator::init(ctx, &mipMapGenerator);
+
+        // recreate texture descriptor here, awkward
+        WGPUTextureDescriptor texture_desc = {};
+        texture_desc.usage                 = gpu_texture->usage;
+        texture_desc.dimension             = gpu_texture->dimension;
+        texture_desc.size          = { gpu_texture->width, gpu_texture->height, 1 };
+        texture_desc.format        = gpu_texture->format;
+        texture_desc.mipLevelCount = gpu_texture->mip_level_count;
+        texture_desc.sampleCount   = gpu_texture->sample_count;
 
         // generate mipmaps
-        MipMapGenerator::generate(&mipMapGenerator, texture->texture,
-                                  &textureDesc);
+        MipMapGenerator::generate(&mipMapGenerator, gpu_texture->texture,
+                                  &texture_desc);
     }
+}
+
+void Texture::init(GraphicsContext* gctx, Texture* texture, u32 width, u32 height,
+                   u32 depth, bool gen_mipmaps, const char* label,
+                   WGPUTextureFormat format, WGPUTextureUsageFlags usage,
+                   WGPUTextureDimension dimension)
+{
+    // validation
+    {
+        // 3D mipmaps are not supported
+        ASSERT(!(gen_mipmaps && depth > 1));
+        ASSERT(!(gen_mipmaps && dimension == WGPUTextureDimension_3D));
+    }
+
+    WGPU_RELEASE_RESOURCE(Texture, texture->texture);
+    WGPU_RELEASE_RESOURCE(TextureView, texture->view);
+
+    // save texture info
+    texture->width  = width;
+    texture->height = height;
+    texture->depth  = depth;
+
+    // default always gen mipmaps
+    // except storage textures can't have mipmaps
+    texture->mip_level_count = gen_mipmaps ? G_mipLevels(width, height) : 1u;
+    texture->sample_count    = 1; // multisampling not supported yet
+
+    texture->format    = format;
+    texture->dimension = dimension;
+    texture->usage     = usage;
+
+    {
+        /*
+        starting to seem like TextureUsage not so necesssary...
+        - always want textureBinding (what's the point of a texture you can't sample?)
+        - almost always want renderAttachment (for mip generation)
+        - if no renderAttachment, mip gen requires copyDst
+        */
+    }
+
+    // create texture
+    WGPUTextureDescriptor textureDesc = {};
+    textureDesc.label                 = label;
+    // render attachment usage is used for mip map generation
+    textureDesc.usage         = texture->usage;
+    textureDesc.dimension     = texture->dimension;
+    textureDesc.size          = { (u32)width, (u32)height, depth };
+    textureDesc.format        = texture->format;
+    textureDesc.mipLevelCount = texture->mip_level_count;
+    textureDesc.sampleCount   = texture->sample_count;
+    // https://gpuweb.github.io/gpuweb/#gputexturedescriptor
+    // Specifies what view format values will be allowed when calling createView() on
+    // this texture (in addition to the texture’s actual format). Adding a format to
+    // this list may have a significant performance impact, so it is best to avoid
+    // adding formats unnecessarily.
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats     = NULL;
+
+    texture->texture = wgpuDeviceCreateTexture(gctx->device, &textureDesc);
+    ASSERT(texture->texture != NULL);
 
     /* Create the texture view */
     WGPUTextureViewDescriptor textureViewDesc = {};
+    textureViewDesc.label                     = label;
     textureViewDesc.format                    = textureDesc.format;
-    textureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
-    textureViewDesc.baseMipLevel              = 0;
-    textureViewDesc.mipLevelCount             = textureDesc.mipLevelCount;
-    textureViewDesc.baseArrayLayer            = 0;
-    textureViewDesc.arrayLayerCount           = 1;
-    textureViewDesc.aspect                    = WGPUTextureAspect_All;
+    switch (textureDesc.dimension) {
+        case WGPUTextureDimension_1D: {
+            textureViewDesc.dimension = WGPUTextureViewDimension_1D;
+        } break;
+        case WGPUTextureDimension_2D: {
+            textureViewDesc.dimension = WGPUTextureViewDimension_2D;
+        } break;
+        default: ASSERT(false); // 3D textures not supported
+    }
+    textureViewDesc.baseMipLevel    = 0;
+    textureViewDesc.mipLevelCount   = textureDesc.mipLevelCount;
+    textureViewDesc.baseArrayLayer  = 0;
+    textureViewDesc.arrayLayerCount = 1;
+    textureViewDesc.aspect          = WGPUTextureAspect_All;
     texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
-
-    /* Create the texture sampler */
-    // WGPUSamplerDescriptor samplerDesc = {};
-    // samplerDesc.addressModeU          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
-
-    // // // TODO: make filtering configurable
-    // samplerDesc.minFilter    = WGPUFilterMode_Linear;
-    // samplerDesc.magFilter    = WGPUFilterMode_Linear;
-    // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Linear;
-    // // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
-
-    // samplerDesc.lodMinClamp   = 0.0f;
-    // samplerDesc.lodMaxClamp   = (f32)texture->mip_level_count;
-    // samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
-
-    // texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
 }
 
-void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
-                           const char* filename, bool genMipMaps)
+void Texture::initFromFile(GraphicsContext* ctx, Texture* texture, const char* filename,
+                           bool genMipMaps, WGPUTextureUsageFlags usage_flags)
 {
-    ASSERT(texture->texture == NULL);
-
     i32 width = 0, height = 0;
     // Force loading 4 channel images to 3 channel by stb becasue Dawn
     // doesn't support 3 channel formats currently. The group is discussing
@@ -1411,19 +1576,19 @@ void Texture::initFromFile(GraphicsContext* ctx, Texture* texture,
         log_error("Reason: %s\n", stbi_failure_reason());
         return;
     } else {
-        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width,
-                  height, read_comps, desired_comps);
+        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filename, width, height,
+                  read_comps, desired_comps);
     }
 
-    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height,
-                               desired_comps, true, filename);
+    Texture::initFromPixelData(ctx, texture, filename, pixelData, width, height, true,
+                               usage_flags);
 
     // free pixel data
     stbi_image_free(pixelData);
 };
 
-void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture,
-                           const u8* data, u64 dataLen)
+void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* data,
+                           u64 dataLen)
 {
     ASSERT(texture->texture == NULL);
 
@@ -1450,19 +1615,18 @@ void Texture::initFromBuff(GraphicsContext* ctx, Texture* texture,
         log_error("Reason: %s\n", stbi_failure_reason());
         return;
     } else {
-        log_debug("Loaded image texture from memory (%d, %d, %d / %d)\n", width,
-                  height, read_comps, desired_comps);
+        log_debug("Loaded image texture from memory (%d, %d, %d / %d)\n", width, height,
+                  read_comps, desired_comps);
     }
 
-    _Texture_InitFromPixelData(ctx, texture, pixelData, width, height,
-                               desired_comps, true, "data texture");
+    Texture::initFromPixelData(ctx, texture, "Texture initFromBuff", pixelData, width,
+                               height, true, WGPUTextureUsage_None);
 
     // free pixel data
     stbi_image_free(pixelData);
 }
 
-void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
-                              u8 pixelData[4])
+void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture, u8 pixelData[4])
 {
     ASSERT(texture->texture == NULL);
 
@@ -1478,8 +1642,7 @@ void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
     // create texture
     WGPUTextureDescriptor textureDesc = {};
     // render attachment usage is used for mip map generation
-    textureDesc.usage
-      = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    textureDesc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
     // | WGPUTextureUsage_RenderAttachment;
     textureDesc.dimension       = texture->dimension;
     textureDesc.size            = { texture->width, texture->height, 1 };
@@ -1507,14 +1670,14 @@ void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
                                                     // depth/Stencil textures
 
         WGPUTextureDataLayout source = {};
-        source.offset       = 0; // where to start reading from the cpu buffer
-        source.bytesPerRow  = 4;
-        source.rowsPerImage = textureDesc.size.height;
+        source.offset                = 0; // where to start reading from the cpu buffer
+        source.bytesPerRow           = 4;
+        source.rowsPerImage          = textureDesc.size.height;
 
         const u64 dataSize = 4;
 
-        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize,
-                              &source, &textureDesc.size);
+        wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize, &source,
+                              &textureDesc.size);
     }
 
     /* Create the texture view */
@@ -1527,23 +1690,6 @@ void Texture::initSinglePixel(GraphicsContext* ctx, Texture* texture,
     textureViewDesc.arrayLayerCount           = 1;
     textureViewDesc.aspect                    = WGPUTextureAspect_All;
     texture->view = wgpuTextureCreateView(texture->texture, &textureViewDesc);
-
-    /* Create the texture sampler */
-    // WGPUSamplerDescriptor samplerDesc = {};
-    // samplerDesc.addressModeU          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeV          = WGPUAddressMode_Repeat;
-    // samplerDesc.addressModeW          = WGPUAddressMode_Repeat;
-
-    // // TODO: make filtering configurable
-    // samplerDesc.minFilter    = WGPUFilterMode_Nearest;
-    // samplerDesc.magFilter    = WGPUFilterMode_Nearest;
-    // samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
-
-    // samplerDesc.lodMinClamp   = 0.0f;
-    // samplerDesc.lodMaxClamp   = (f32)texture->mip_level_count;
-    // samplerDesc.maxAnisotropy = 1; // TODO: try max of 16
-
-    // texture->sampler = wgpuDeviceCreateSampler(ctx->device, &samplerDesc);
 }
 
 void Texture::release(Texture* texture)
@@ -1603,7 +1749,7 @@ WGPUSampler Graphics_GetSampler(GraphicsContext* gctx, SamplerConfig config)
     samplerDesc.mipmapFilter          = (WGPUMipmapFilterMode)config.filterMip;
     samplerDesc.lodMinClamp           = 0;
     samplerDesc.lodMaxClamp           = 32;
-    samplerDesc.maxAnisotropy = 1; // (16 is max but requires LINEAR filtering)
+    samplerDesc.maxAnisotropy         = 1; // (16 is max but requires LINEAR filtering)
     _sampler_cache[key] = wgpuDeviceCreateSampler(gctx->device, &samplerDesc);
 
     ASSERT(_sampler_cache[key]);
@@ -1738,3 +1884,36 @@ SamplerConfig Graphics_SamplerConfigFromDesciptor(WGPUSamplerDescriptor* desc)
 //     // release texture sampler (TODO: refactor out into SG_Texture)
 //     WGPU_RELEASE_RESOURCE(Sampler, material->_sampler);
 // }
+
+// ============================================================================
+// GPU_Buffer
+// ============================================================================
+
+bool GPU_Buffer::resizeNoCopy(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                              u64 new_size, WGPUBufferUsageFlags usage_flags)
+
+{
+    if (new_size <= gpu_buffer->capacity
+        && (usage_flags & gpu_buffer->usage) == usage_flags) {
+        gpu_buffer->size = new_size;
+        return false;
+    }
+
+    log_debug("Resizing GPU_Buffer from %llu to %llu\n", gpu_buffer->capacity,
+              new_size);
+
+    WGPUBufferDescriptor desc = {};
+    desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
+    u64 new_capacity          = MAX(gpu_buffer->capacity * 2, new_size);
+    desc.size                 = NEXT_MULT(new_capacity, 4);
+
+    // release old buffer
+    WGPU_DESTROY_AND_RELEASE_BUFFER(gpu_buffer->buf);
+
+    // update buffer
+    gpu_buffer->buf      = wgpuDeviceCreateBuffer(gctx->device, &desc);
+    gpu_buffer->capacity = desc.size;
+    gpu_buffer->usage    = desc.usage;
+    gpu_buffer->size     = new_size;
+    return true;
+}

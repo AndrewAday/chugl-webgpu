@@ -19,13 +19,13 @@
 #endif
 
 #ifndef NDEBUG
-#define ASSERT(expression)                                                     \
-    {                                                                          \
-        if (!(expression)) {                                                   \
-            printf("Assertion(%s) failed: file \"%s\", line %d\n",             \
-                   #expression, __FILE__, __LINE__);                           \
-            debug_break();                                                     \
-        }                                                                      \
+#define ASSERT(expression)                                                             \
+    {                                                                                  \
+        if (!(expression)) {                                                           \
+            printf("Assertion(%s) failed: file \"%s\", line %d\n", #expression,        \
+                   __FILE__, __LINE__);                                                \
+            debug_break();                                                             \
+        }                                                                              \
     }
 #else
 #define ASSERT(expression) NULL;
@@ -38,6 +38,7 @@
 #define UNUSED_VAR(x) ((void)(x))
 #define UNUSED_FUNCTION(x) ((void)(x))
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
+#define ZERO_ARRAY(array) (memset((array), 0, sizeof(array)))
 #define COPY_STRUCT(dst, src, type) (memcpy((dst), (src), sizeof(type)))
 
 // ============================================================================
@@ -118,3 +119,6 @@ typedef double f64;
 #define CLAMP(x, lo, hi) (MIN(hi, MAX(lo, x)))
 
 #define NEXT_POW2(x) (1 << (u32)ceil(log2(x)));
+
+// next multiple of m, m must be power of 2
+#define NEXT_MULT(x, m) (((x) + (m) - 1) & ~((m) - 1))

@@ -43,3 +43,9 @@ build-*/
 
 # chuck executable
 chuck*.exe
+
+# imgui
+imgui.ini
+
+# assets
+assets/

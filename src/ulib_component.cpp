@@ -3,16 +3,9 @@
 #include "sg_command.h"
 #include "sg_component.h"
 
-#include "geometry.h"
 #include "sync.cpp"
 
 // Query function for base component class
-
-// TODO move into ulib_base / ulib_helper class
-// stores the component's SG_ID.
-// CANNOT store a direct pointer because component pool may reallocate,
-// invalidating all pointers
-static t_CKUINT component_offset_id = 0;
 
 CK_DLL_CTOR(component_ctor)
 {
@@ -56,8 +49,7 @@ CK_DLL_MFUN(component_get_name)
 {
     SG_Component* component
       = SG_GetComponent(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_string
-      = API->object->create_string(VM, component->name.c_str(), false);
+    RETURN->v_string = API->object->create_string(VM, component->name, false);
 }
 
 CK_DLL_MFUN(component_set_name)
@@ -66,7 +58,10 @@ CK_DLL_MFUN(component_set_name)
       = SG_GetComponent(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     Chuck_String* name = GET_NEXT_STRING(ARGS);
-    component->name    = API->object->str(name);
+    const char* ck_str = API->object->str(name);
+    size_t len         = MIN(strlen(ck_str), sizeof(component->name) - 1);
+    strncpy(component->name, ck_str, len);
+    component->name[len] = 0;
 
     RETURN->v_string = name;
 }
@@ -75,8 +70,7 @@ static void ulib_component_query(Chuck_DL_Query* QUERY)
 {
     QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_BASE], "Object");
     // member vars
-    component_offset_id
-      = QUERY->add_mvar(QUERY, "int", "@component_ptr", false);
+    component_offset_id = QUERY->add_mvar(QUERY, "int", "@component_ptr", false);
 
     // member functions
     QUERY->add_mfun(QUERY, component_get_id, "int", "id");
@@ -194,12 +188,10 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
                         "implement your own update logic.");
 
         QUERY->add_mfun(QUERY, ggen_get_right, "vec3", "right");
-        QUERY->doc_func(QUERY,
-                        "Get the right vector of this GGen in world space");
+        QUERY->doc_func(QUERY, "Get the right vector of this GGen in world space");
 
         QUERY->add_mfun(QUERY, ggen_get_forward, "vec3", "forward");
-        QUERY->doc_func(QUERY,
-                        "Get the forward vector of this GGen in world space");
+        QUERY->doc_func(QUERY, "Get the forward vector of this GGen in world space");
 
         QUERY->add_mfun(QUERY, ggen_get_up, "vec3", "up");
         QUERY->doc_func(QUERY, "Get the up vector of this GGen in world space");
@@ -261,30 +253,27 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->add_mfun(QUERY, ggen_translate_x, "GGen", "translateX");
         QUERY->add_arg(QUERY, "float", "amt");
         QUERY->doc_func(
-          QUERY,
-          "Translate this GGen by given amount on the X axis in local space");
+          QUERY, "Translate this GGen by given amount on the X axis in local space");
 
         // GGen translateY( float )
         QUERY->add_mfun(QUERY, ggen_translate_y, "GGen", "translateY");
         QUERY->add_arg(QUERY, "float", "amt");
         QUERY->doc_func(
-          QUERY,
-          "Translate this GGen by given amount on the Y axis in local space");
+          QUERY, "Translate this GGen by given amount on the Y axis in local space");
 
         // GGen translateZ( float )
         QUERY->add_mfun(QUERY, ggen_translate_z, "GGen", "translateZ");
         QUERY->add_arg(QUERY, "float", "amt");
         QUERY->doc_func(
-          QUERY,
-          "Translate this GGen by given amount on the Z axis in local space");
+          QUERY, "Translate this GGen by given amount on the Z axis in local space");
 
         // Rotation
         // ===============================================================
 
         // float rotX()
         QUERY->add_mfun(QUERY, ggen_get_rot_x, "float", "rotX");
-        QUERY->doc_func(
-          QUERY, "Get the rotation of this GGen on the X axis in local space");
+        QUERY->doc_func(QUERY,
+                        "Get the rotation of this GGen on the X axis in local space");
 
         // float rotX( float )
         QUERY->add_mfun(QUERY, ggen_set_rot_x, "float", "rotX");
@@ -295,8 +284,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 
         // float rotY()
         QUERY->add_mfun(QUERY, ggen_get_rot_y, "float", "rotY");
-        QUERY->doc_func(
-          QUERY, "Get the rotation of this GGen on the Y axis in local space");
+        QUERY->doc_func(QUERY,
+                        "Get the rotation of this GGen on the Y axis in local space");
 
         // float rotY( float )
         QUERY->add_mfun(QUERY, ggen_set_rot_y, "float", "rotY");
@@ -307,8 +296,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 
         // float rotZ()
         QUERY->add_mfun(QUERY, ggen_get_rot_z, "float", "rotZ");
-        QUERY->doc_func(
-          QUERY, "Get the rotation of this GGen on the Z axis in local space");
+        QUERY->doc_func(QUERY,
+                        "Get the rotation of this GGen on the Z axis in local space");
 
         // float rotZ( float )
         QUERY->add_mfun(QUERY, ggen_set_rot_z, "float", "rotZ");
@@ -320,45 +309,40 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         // vec3 rot()
         QUERY->add_mfun(QUERY, ggen_get_rot, "vec3", "rot");
         QUERY->doc_func(
-          QUERY,
-          "Get object rotation in local space as euler angles in radians");
+          QUERY, "Get object rotation in local space as euler angles in radians");
 
         // vec3 rot( vec3 )
         QUERY->add_mfun(QUERY, ggen_set_rot, "vec3", "rot");
         QUERY->add_arg(QUERY, "vec3", "eulers");
-        QUERY->doc_func(
-          QUERY, "Set rotation of this GGen in local space as euler angles");
+        QUERY->doc_func(QUERY,
+                        "Set rotation of this GGen in local space as euler angles");
 
         // GGen rotate( vec3 )
         QUERY->add_mfun(QUERY, ggen_rotate, "GGen", "rotate");
         QUERY->add_arg(QUERY, "vec3", "eulers");
-        QUERY->doc_func(
-          QUERY, "Rotate this GGen by the given euler angles in local space");
+        QUERY->doc_func(QUERY,
+                        "Rotate this GGen by the given euler angles in local space");
 
         // GGen rotateX( float )
         QUERY->add_mfun(QUERY, ggen_rotate_x, "GGen", "rotateX");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(
-          QUERY,
-          "Rotate this GGen by the given radians on the X axis in local space");
+          QUERY, "Rotate this GGen by the given radians on the X axis in local space");
 
         // GGen rotateY( float )
         QUERY->add_mfun(QUERY, ggen_rotate_y, "GGen", "rotateY");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(
-          QUERY,
-          "Rotate this GGen by the given radians on the Y axis in local space");
+          QUERY, "Rotate this GGen by the given radians on the Y axis in local space");
 
         // GGen rotateZ( float )
         QUERY->add_mfun(QUERY, ggen_rotate_z, "GGen", "rotateZ");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(
-          QUERY,
-          "Rotate this GGen by the given radians on the Z axis in local space");
+          QUERY, "Rotate this GGen by the given radians on the Z axis in local space");
 
         // GGen rotateOnLocalAxis( vec3, float )
-        QUERY->add_mfun(QUERY, ggen_rot_on_local_axis, "GGen",
-                        "rotateOnLocalAxis");
+        QUERY->add_mfun(QUERY, ggen_rot_on_local_axis, "GGen", "rotateOnLocalAxis");
         QUERY->add_arg(QUERY, "vec3", "axis");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(QUERY,
@@ -366,8 +350,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
                         "axis in local space");
 
         // GGen rotateOnWorldAxis( vec3, float )
-        QUERY->add_mfun(QUERY, ggen_rot_on_world_axis, "GGen",
-                        "rotateOnWorldAxis");
+        QUERY->add_mfun(QUERY, ggen_rot_on_world_axis, "GGen", "rotateOnWorldAxis");
         QUERY->add_arg(QUERY, "vec3", "axis");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(QUERY,
@@ -420,8 +403,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         // vec3 sca( float )
         QUERY->add_mfun(QUERY, ggen_set_scale_uniform, "vec3", "sca");
         QUERY->add_arg(QUERY, "float", "scale");
-        QUERY->doc_func(
-          QUERY, "Set object scale in local space uniformly across all axes");
+        QUERY->doc_func(QUERY,
+                        "Set object scale in local space uniformly across all axes");
 
         // vec3 scaWorld()
         QUERY->add_mfun(QUERY, ggen_get_scale_world, "vec3", "scaWorld");
@@ -434,11 +417,9 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 
         // Matrix transform API
         // ===============================================================
-        QUERY->add_mfun(QUERY, ggen_local_pos_to_world_pos, "vec3",
-                        "posLocalToWorld");
+        QUERY->add_mfun(QUERY, ggen_local_pos_to_world_pos, "vec3", "posLocalToWorld");
         QUERY->add_arg(QUERY, "vec3", "localPos");
-        QUERY->doc_func(QUERY,
-                        "Transform a position in local space to world space");
+        QUERY->doc_func(QUERY, "Transform a position in local space to world space");
 
         // scenegraph relationship methods
         // =======================================
@@ -456,19 +437,19 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get the number of children for this GGen");
 
         // overload GGen --> GGen
-        QUERY->add_op_overload_binary(QUERY, ggen_op_gruck, "GGen", "-->",
-                                      "GGen", "lhs", "GGen", "rhs");
+        QUERY->add_op_overload_binary(QUERY, ggen_op_gruck, "GGen", "-->", "GGen",
+                                      "lhs", "GGen", "rhs");
 
         // overload GGen --< GGen
-        QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<",
-                                      "GGen", "lhs", "GGen", "rhs");
+        QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<", "GGen",
+                                      "lhs", "GGen", "rhs");
 
         QUERY->end_class(QUERY); // GGen
     }
 
     // set update vt offset
-    chugin_setVTableOffset(&ggen_update_vt_offset,
-                           SG_CKNames[SG_COMPONENT_TRANSFORM], "update");
+    chugin_setVTableOffset(&ggen_update_vt_offset, SG_CKNames[SG_COMPONENT_TRANSFORM],
+                           "update");
 }
 
 // CGLObject DLL ==============================================
@@ -511,117 +492,104 @@ CK_DLL_MFUN(ggen_update)
 
 CK_DLL_MFUN(ggen_get_right)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 right = SG_Transform::right(xform);
-    RETURN->v_vec3  = { right.x, right.y, right.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 right     = SG_Transform::right(xform);
+    RETURN->v_vec3      = { right.x, right.y, right.z };
 }
 
 CK_DLL_MFUN(ggen_get_forward)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 vec  = SG_Transform::forward(xform);
-    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec       = SG_Transform::forward(xform);
+    RETURN->v_vec3      = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_get_up)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 vec  = SG_Transform::up(xform);
-    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec       = SG_Transform::up(xform);
+    RETURN->v_vec3      = { vec.x, vec.y, vec.z };
 }
 
 // Position Impl ===============================================================
 
 CK_DLL_MFUN(ggen_get_pos_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->pos.x;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->pos.x;
 }
 
 CK_DLL_MFUN(ggen_set_pos_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT posX  = GET_NEXT_FLOAT(ARGS);
-    xform->pos.x    = posX;
-    RETURN->v_float = posX;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posX      = GET_NEXT_FLOAT(ARGS);
+    xform->pos.x        = posX;
+    RETURN->v_float     = posX;
 
     CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->pos.y;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->pos.y;
 }
 
 CK_DLL_MFUN(ggen_set_pos_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT posY  = GET_NEXT_FLOAT(ARGS);
-    xform->pos.y    = posY;
-    RETURN->v_float = posY;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posY      = GET_NEXT_FLOAT(ARGS);
+    xform->pos.y        = posY;
+    RETURN->v_float     = posY;
 
     CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->pos.z;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->pos.z;
 }
 
 CK_DLL_MFUN(ggen_set_pos_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT posZ  = GET_NEXT_FLOAT(ARGS);
-    xform->pos.z    = posZ;
-    RETURN->v_float = posZ;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT posZ      = GET_NEXT_FLOAT(ARGS);
+    xform->pos.z        = posZ;
+    RETURN->v_float     = posZ;
 
     CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_vec3 = { xform->pos.x, xform->pos.y, xform->pos.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_vec3      = { xform->pos.x, xform->pos.y, xform->pos.z };
 }
 
 CK_DLL_MFUN(ggen_set_pos)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
-    xform->pos.x   = vec.x;
-    xform->pos.y   = vec.y;
-    xform->pos.z   = vec.z;
-    RETURN->v_vec3 = vec;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
+    xform->pos.x        = vec.x;
+    xform->pos.y        = vec.y;
+    xform->pos.z        = vec.z;
+    RETURN->v_vec3      = vec;
 
     CQ_PushCommand_SetPosition(xform);
 }
 
 CK_DLL_MFUN(ggen_get_pos_world)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 vec  = SG_Transform::worldPosition(xform);
-    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec       = SG_Transform::worldPosition(xform);
+    RETURN->v_vec3      = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_pos_world)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldPosition(xform, glm::vec3(vec.x, vec.y, vec.z));
 
     CQ_PushCommand_SetPosition(xform);
@@ -631,9 +599,8 @@ CK_DLL_MFUN(ggen_set_pos_world)
 
 CK_DLL_MFUN(ggen_translate)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 trans = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 trans      = GET_NEXT_VEC3(ARGS);
     SG_Transform::translate(xform, glm::vec3(trans.x, trans.y, trans.z));
 
     CQ_PushCommand_SetPosition(xform);
@@ -643,9 +610,8 @@ CK_DLL_MFUN(ggen_translate)
 
 CK_DLL_MFUN(ggen_translate_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { amt, 0, 0 });
 
     CQ_PushCommand_SetPosition(xform);
@@ -655,9 +621,8 @@ CK_DLL_MFUN(ggen_translate_x)
 
 CK_DLL_MFUN(ggen_translate_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { 0, amt, 0 });
 
     RETURN->v_object = SELF;
@@ -667,9 +632,8 @@ CK_DLL_MFUN(ggen_translate_y)
 
 CK_DLL_MFUN(ggen_translate_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT amt = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT amt       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::translate(xform, { 0, 0, amt });
 
     RETURN->v_object = SELF;
@@ -681,19 +645,17 @@ CK_DLL_MFUN(ggen_translate_z)
 
 CK_DLL_MFUN(ggen_get_rot_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).x;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = SG_Transform::eulerRotationRadians(xform).x;
 }
 
 CK_DLL_MFUN(ggen_set_rot_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad    = GET_NEXT_FLOAT(ARGS); // set in radians
-    glm::vec3 eulers = SG_Transform::eulerRotationRadians(xform);
-    eulers.x         = rad;
-    xform->rot       = glm::quat(eulers);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS); // set in radians
+    glm::vec3 eulers    = SG_Transform::eulerRotationRadians(xform);
+    eulers.x            = rad;
+    xform->rot          = glm::quat(eulers);
 
     RETURN->v_float = rad;
 
@@ -702,16 +664,14 @@ CK_DLL_MFUN(ggen_set_rot_x)
 
 CK_DLL_MFUN(ggen_get_rot_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).y;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = SG_Transform::eulerRotationRadians(xform).y;
 }
 
 CK_DLL_MFUN(ggen_set_rot_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS); // set in radians
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS); // set in radians
     // https://gamedev.stackexchange.com/questions/200292/applying-incremental-rotation-with-quaternions-flickering-or-hesitating
     // For continuous rotation, wrap rad to be in range [-PI/2, PI/2]
     // i.e. after exceeding PI/2, rad = rad - PI
@@ -728,19 +688,17 @@ CK_DLL_MFUN(ggen_set_rot_y)
 
 CK_DLL_MFUN(ggen_get_rot_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = SG_Transform::eulerRotationRadians(xform).z;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = SG_Transform::eulerRotationRadians(xform).z;
 }
 
 CK_DLL_MFUN(ggen_set_rot_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad    = GET_NEXT_FLOAT(ARGS); // set in radians
-    glm::vec3 eulers = SG_Transform::eulerRotationRadians(xform);
-    eulers.z         = rad;
-    xform->rot       = glm::quat(eulers);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS); // set in radians
+    glm::vec3 eulers    = SG_Transform::eulerRotationRadians(xform);
+    eulers.z            = rad;
+    xform->rot          = glm::quat(eulers);
 
     RETURN->v_float = rad;
 
@@ -749,28 +707,25 @@ CK_DLL_MFUN(ggen_set_rot_z)
 
 CK_DLL_MFUN(ggen_get_rot)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 vec  = SG_Transform::eulerRotationRadians(xform);
-    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec       = SG_Transform::eulerRotationRadians(xform);
+    RETURN->v_vec3      = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_rot)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
-    xform->rot     = glm::quat(glm::vec3(vec.x, vec.y, vec.z));
-    RETURN->v_vec3 = vec;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
+    xform->rot          = glm::quat(glm::vec3(vec.x, vec.y, vec.z));
+    RETURN->v_vec3      = vec;
 
     CQ_PushCommand_SetRotation(xform);
 }
 
 CK_DLL_MFUN(ggen_rotate)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     SG_Transform::rotate(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
 
@@ -779,9 +734,8 @@ CK_DLL_MFUN(ggen_rotate)
 
 CK_DLL_MFUN(ggen_rotate_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateX(xform, rad);
     RETURN->v_object = SELF;
 
@@ -790,9 +744,8 @@ CK_DLL_MFUN(ggen_rotate_x)
 
 CK_DLL_MFUN(ggen_rotate_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateY(xform, rad);
     RETURN->v_object = SELF;
     CQ_PushCommand_SetRotation(xform);
@@ -800,9 +753,8 @@ CK_DLL_MFUN(ggen_rotate_y)
 
 CK_DLL_MFUN(ggen_rotate_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateZ(xform, rad);
     RETURN->v_object = SELF;
     CQ_PushCommand_SetRotation(xform);
@@ -810,10 +762,9 @@ CK_DLL_MFUN(ggen_rotate_z)
 
 CK_DLL_MFUN(ggen_rot_on_local_axis)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec  = GET_NEXT_VEC3(ARGS);
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateOnLocalAxis(xform, glm::vec3(vec.x, vec.y, vec.z), rad);
 
     RETURN->v_object = SELF;
@@ -823,10 +774,9 @@ CK_DLL_MFUN(ggen_rot_on_local_axis)
 
 CK_DLL_MFUN(ggen_rot_on_world_axis)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec  = GET_NEXT_VEC3(ARGS);
-    t_CKFLOAT rad = GET_NEXT_FLOAT(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
+    t_CKFLOAT rad       = GET_NEXT_FLOAT(ARGS);
     SG_Transform::rotateOnWorldAxis(xform, glm::vec3(vec.x, vec.y, vec.z), rad);
 
     RETURN->v_object = SELF;
@@ -836,9 +786,8 @@ CK_DLL_MFUN(ggen_rot_on_world_axis)
 
 CK_DLL_MFUN(ggen_lookat_vec3)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     SG_Transform::lookAt(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_object = SELF;
     CQ_PushCommand_SetRotation(xform);
@@ -848,97 +797,86 @@ CK_DLL_MFUN(ggen_lookat_vec3)
 
 CK_DLL_MFUN(ggen_get_scale_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->sca.x;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->sca.x;
 }
 
 CK_DLL_MFUN(ggen_set_scale_x)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT scaleX = GET_NEXT_FLOAT(ARGS);
-    xform->sca.x     = scaleX;
-    RETURN->v_float  = scaleX;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleX    = GET_NEXT_FLOAT(ARGS);
+    xform->sca.x        = scaleX;
+    RETURN->v_float     = scaleX;
     CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->sca.y;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->sca.y;
 }
 
 CK_DLL_MFUN(ggen_set_scale_y)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT scaleY = GET_NEXT_FLOAT(ARGS);
-    xform->sca.y     = scaleY;
-    RETURN->v_float  = scaleY;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleY    = GET_NEXT_FLOAT(ARGS);
+    xform->sca.y        = scaleY;
+    RETURN->v_float     = scaleY;
     CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_float = xform->sca.z;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_float     = xform->sca.z;
 }
 
 CK_DLL_MFUN(ggen_set_scale_z)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT scaleZ = GET_NEXT_FLOAT(ARGS);
-    xform->sca.z     = scaleZ;
-    RETURN->v_float  = scaleZ;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT scaleZ    = GET_NEXT_FLOAT(ARGS);
+    xform->sca.z        = scaleZ;
+    RETURN->v_float     = scaleZ;
     CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_vec3 = { xform->sca.x, xform->sca.y, xform->sca.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_vec3      = { xform->sca.x, xform->sca.y, xform->sca.z };
 }
 
 CK_DLL_MFUN(ggen_set_scale)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec   = GET_NEXT_VEC3(ARGS);
-    xform->sca     = glm::vec3(vec.x, vec.y, vec.z);
-    RETURN->v_vec3 = vec;
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
+    xform->sca          = glm::vec3(vec.x, vec.y, vec.z);
+    RETURN->v_vec3      = vec;
     CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_set_scale_uniform)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKFLOAT s    = GET_NEXT_FLOAT(ARGS);
-    xform->sca.x   = s;
-    xform->sca.y   = s;
-    xform->sca.z   = s;
-    RETURN->v_vec3 = { s, s, s };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKFLOAT s         = GET_NEXT_FLOAT(ARGS);
+    xform->sca.x        = s;
+    xform->sca.y        = s;
+    xform->sca.z        = s;
+    RETURN->v_vec3      = { s, s, s };
     CQ_PushCommand_SetScale(xform);
 }
 
 CK_DLL_MFUN(ggen_get_scale_world)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec3 vec  = SG_Transform::worldScale(xform);
-    RETURN->v_vec3 = { vec.x, vec.y, vec.z };
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    glm::vec3 vec       = SG_Transform::worldScale(xform);
+    RETURN->v_vec3      = { vec.x, vec.y, vec.z };
 }
 
 CK_DLL_MFUN(ggen_set_scale_world)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldScale(xform, glm::vec3(vec.x, vec.y, vec.z));
     RETURN->v_vec3 = vec;
     CQ_PushCommand_SetScale(xform);
@@ -949,9 +887,8 @@ CK_DLL_MFUN(ggen_set_scale_world)
 
 CK_DLL_MFUN(ggen_local_pos_to_world_pos)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC3 vec = GET_NEXT_VEC3(ARGS);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     glm::vec3 worldPos
       = SG_Transform::worldMatrix(xform) * glm::vec4(vec.x, vec.y, vec.z, 1.0f);
     RETURN->v_vec3 = { worldPos.x, worldPos.y, worldPos.z };
@@ -1008,8 +945,7 @@ CK_DLL_GFUN(ggen_op_ungruck)
 
 CK_DLL_MFUN(ggen_get_parent)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     SG_Component* parent = SG_GetComponent(xform->parentID);
 
@@ -1018,8 +954,7 @@ CK_DLL_MFUN(ggen_get_parent)
 
 CK_DLL_MFUN(ggen_get_child_default)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     SG_Transform* child = SG_Transform::child(xform, 0);
     RETURN->v_object    = child ? child->ckobj : NULL;
 }
@@ -1027,8 +962,7 @@ CK_DLL_MFUN(ggen_get_child_default)
 CK_DLL_MFUN(ggen_get_child)
 {
 
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     SG_Transform* child = SG_Transform::child(xform, GET_NEXT_INT(ARGS));
     RETURN->v_object    = child ? NULL : child->ckobj;
 
@@ -1038,215 +972,8 @@ CK_DLL_MFUN(ggen_get_child)
 
 CK_DLL_MFUN(ggen_get_num_children)
 {
-    SG_Transform* xform
-      = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    RETURN->v_int = SG_Transform::numChildren(xform);
-}
-
-// ===============================================================
-// GScene
-// ===============================================================
-CK_DLL_CTOR(gscene_ctor);
-CK_DLL_DTOR(gscene_dtor);
-
-CK_DLL_MFUN(gscene_set_background_color);
-CK_DLL_MFUN(gscene_get_background_color);
-
-static void ulib_gscene_query(Chuck_DL_Query* QUERY)
-{
-    // EM_log(CK_LOG_INFO, "ChuGL scene");
-    // CGL scene
-    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_SCENE],
-                       SG_CKNames[SG_COMPONENT_TRANSFORM]);
-    QUERY->add_ctor(QUERY, gscene_ctor);
-
-    // background color
-    QUERY->add_mfun(QUERY, gscene_set_background_color, "vec4",
-                    "backgroundColor");
-    QUERY->add_arg(QUERY, "vec4", "color");
-    QUERY->doc_func(QUERY, "Set the background color of the scene");
-
-    QUERY->add_mfun(QUERY, gscene_get_background_color, "vec4",
-                    "backgroundColor");
-    QUERY->doc_func(QUERY, "Get the background color of the scene");
-
-    // end class -----------------------------------------------------
-    QUERY->end_class(QUERY);
-}
-
-CK_DLL_CTOR(gscene_ctor)
-{
-    CQ_PushCommand_SceneCreate(SELF, component_offset_id, API);
-}
-
-CK_DLL_DTOR(gscene_dtor)
-{
-    // TODO
-}
-
-CK_DLL_MFUN(gscene_get_background_color)
-{
-    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    glm::vec4 color = scene->bg_color;
-    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
-}
-
-CK_DLL_MFUN(gscene_set_background_color)
-{
-    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC4 color  = GET_NEXT_VEC4(ARGS);
-
-    CQ_PushCommand_SceneBGColor(scene, color);
-
-    RETURN->v_vec4 = color;
-}
-
-// ===============================================================
-// Geometry  (for now, immutable)
-// ===============================================================
-
-CK_DLL_CTOR(plane_geo_ctor);
-CK_DLL_CTOR(plane_geo_ctor_params);
-
-CK_DLL_CTOR(sphere_geo_ctor);
-CK_DLL_CTOR(sphere_geo_ctor_params);
-
-static void ulib_geometry_query(Chuck_DL_Query* QUERY)
-{
-    // Geometry -----------------------------------------------------
-    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_GEOMETRY],
-                       SG_CKNames[SG_COMPONENT_BASE]);
-
-    // abstract class, no destructor or constructor
-    QUERY->end_class(QUERY);
-
-    // Plane -----------------------------------------------------
-    QUERY->begin_class(QUERY, "PlaneGeometry",
-                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
-
-    QUERY->add_ctor(QUERY, plane_geo_ctor);
-    QUERY->add_ctor(QUERY, plane_geo_ctor_params);
-    QUERY->add_arg(QUERY, "float", "width");
-    QUERY->add_arg(QUERY, "float", "height");
-    QUERY->add_arg(QUERY, "int", "widthSegments");
-    QUERY->add_arg(QUERY, "int", "heightSegments");
-    QUERY->doc_func(QUERY, "Set plane dimensions and subdivisions");
-
-    QUERY->end_class(QUERY);
-
-    // Sphere -----------------------------------------------------
-    QUERY->begin_class(QUERY, "SphereGeometry",
-                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
-
-    QUERY->add_ctor(QUERY, sphere_geo_ctor);
-    QUERY->add_ctor(QUERY, sphere_geo_ctor_params);
-    QUERY->add_arg(QUERY, "float", "radius");
-    QUERY->add_arg(QUERY, "int", "widthSeg");
-    QUERY->add_arg(QUERY, "int", "heightSeg");
-    QUERY->add_arg(QUERY, "float", "phiStart");
-    QUERY->add_arg(QUERY, "float", "phiLength");
-    QUERY->add_arg(QUERY, "float", "thetaStart");
-    QUERY->add_arg(QUERY, "float", "thetaLength");
-    QUERY->doc_func(QUERY, "Set sphere dimensions and subdivisions");
-
-    QUERY->end_class(QUERY);
-}
-
-// Plane Geometry -----------------------------------------------------
-CK_DLL_CTOR(plane_geo_ctor)
-{
-    PlaneParams params = {};
-    // test default value initialization
-    ASSERT(params.widthSegments == 1 && params.heightSegments == 1);
-
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
-    ASSERT(geo->id > 0);
-    ASSERT(geo->geo_type == SG_GEOMETRY_PLANE);
-
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    CQ_PushCommand_GeometryCreate(geo);
-}
-
-CK_DLL_CTOR(plane_geo_ctor_params)
-{
-    PlaneParams params    = {};
-    params.width          = GET_NEXT_FLOAT(ARGS);
-    params.height         = GET_NEXT_FLOAT(ARGS);
-    params.widthSegments  = GET_NEXT_INT(ARGS);
-    params.heightSegments = GET_NEXT_INT(ARGS);
-
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    CQ_PushCommand_GeometryCreate(geo);
-}
-
-CK_DLL_CTOR(sphere_geo_ctor)
-{
-    SphereParams params = {};
-
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_SPHERE, &params);
-    ASSERT(geo->type == SG_COMPONENT_GEOMETRY);
-    ASSERT(geo->id > 0);
-    ASSERT(geo->geo_type == SG_GEOMETRY_SPHERE);
-
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    CQ_PushCommand_GeometryCreate(geo);
-}
-
-CK_DLL_CTOR(sphere_geo_ctor_params)
-{
-    SphereParams params = {};
-    params.radius       = GET_NEXT_FLOAT(ARGS);
-    params.widthSeg     = GET_NEXT_INT(ARGS);
-    params.heightSeg    = GET_NEXT_INT(ARGS);
-    params.phiStart     = GET_NEXT_FLOAT(ARGS);
-    params.phiLength    = GET_NEXT_FLOAT(ARGS);
-    params.thetaStart   = GET_NEXT_FLOAT(ARGS);
-    params.thetaLength  = GET_NEXT_FLOAT(ARGS);
-
-    SG_Geometry* geo = SG_CreateGeometry(SELF, SG_GEOMETRY_PLANE, &params);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
-
-    CQ_PushCommand_GeometryCreate(geo);
-}
-
-// ===============================================================
-// Material
-// ===============================================================
-
-CK_DLL_CTOR(pbr_material_ctor);
-
-static void ulib_material_query(Chuck_DL_Query* QUERY)
-{
-    // Material -----------------------------------------------------
-    QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_MATERIAL],
-                       SG_CKNames[SG_COMPONENT_BASE]);
-
-    // abstract class, no destructor or constructor
-    QUERY->end_class(QUERY);
-
-    // PBR Material -----------------------------------------------------
-    QUERY->begin_class(QUERY, "PBRMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
-
-    QUERY->add_ctor(QUERY, pbr_material_ctor);
-
-    // abstract class, no destructor or constructor
-    QUERY->end_class(QUERY);
-}
-
-CK_DLL_CTOR(pbr_material_ctor)
-{
-    SG_Material* material = SG_CreateMaterial(SELF, SG_MATERIAL_PBR, NULL);
-    ASSERT(material->type == SG_COMPONENT_MATERIAL);
-    ASSERT(material->material_type == SG_MATERIAL_PBR);
-
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = material->id;
-
-    CQ_PushCommand_MaterialCreate(material);
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    RETURN->v_int       = SG_Transform::numChildren(xform);
 }
 
 // ===============================================================
@@ -1286,12 +1013,10 @@ CK_DLL_CTOR(gmesh_ctor_params)
     Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
     Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
 
-    SG_Geometry* sg_geo
-      = SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id));
-    SG_Material* sg_mat
-      = SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id));
+    SG_Geometry* sg_geo = SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id));
+    SG_Material* sg_mat = SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id));
 
-    SG_Mesh* mesh = SG_CreateMesh(SELF, sg_geo, sg_mat);
+    SG_Mesh* mesh                              = SG_CreateMesh(SELF, sg_geo, sg_mat);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
     ASSERT(mesh->_geo_id == sg_geo->id);
     ASSERT(mesh->_mat_id == sg_mat->id);

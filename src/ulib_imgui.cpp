@@ -77,22 +77,18 @@ CK_DLL_SFUN(ui_SetNextWindowBgAlpha);
 CK_DLL_SFUN(ui_SetNextWindowViewport);
 
 // Content region
-CK_DLL_SFUN(
-  ui_GetContentRegionAvail); // == GetContentRegionMax() - GetCursorPos()
-CK_DLL_SFUN(
-  ui_GetContentRegionMax); // current content boundaries (typically window
-                           // boundaries including scrolling, or current column
-                           // boundaries), in windows coordinates
-CK_DLL_SFUN(
-  ui_GetWindowContentRegionMin); // content boundaries min for the full window
-                                 // (roughly (0,0)-Scroll), in window
-                                 // coordinates
-CK_DLL_SFUN(
-  ui_GetWindowContentRegionMax); // content boundaries max for the full window
-                                 // (roughly (0,0)+Size-Scroll) where Size can
-                                 // be overridden with
-                                 // SetNextWindowContentSize(), in window
-                                 // coordinates
+CK_DLL_SFUN(ui_GetContentRegionAvail); // == GetContentRegionMax() - GetCursorPos()
+CK_DLL_SFUN(ui_GetContentRegionMax);   // current content boundaries (typically window
+                                       // boundaries including scrolling, or current
+                                       // column boundaries), in windows coordinates
+CK_DLL_SFUN(ui_GetWindowContentRegionMin); // content boundaries min for the full window
+                                           // (roughly (0,0)-Scroll), in window
+                                           // coordinates
+CK_DLL_SFUN(ui_GetWindowContentRegionMax); // content boundaries max for the full window
+                                           // (roughly (0,0)+Size-Scroll) where Size can
+                                           // be overridden with
+                                           // SetNextWindowContentSize(), in window
+                                           // coordinates
 
 // Windows Scrolling
 // - Any change of Scroll will be applied at the beginning of next frame in the
@@ -365,6 +361,7 @@ CK_DLL_SFUN(ui_ColorEdit3);
 CK_DLL_SFUN(ui_ColorEdit4);
 CK_DLL_SFUN(ui_ColorPicker3);
 CK_DLL_SFUN(ui_ColorPicker4);
+CK_DLL_SFUN(ui_ColorPicker4_no_ref_col);
 CK_DLL_SFUN(ui_ColorButton);
 CK_DLL_SFUN(ui_ColorButtonEx);
 CK_DLL_SFUN(ui_SetColorEditOptions);
@@ -680,6 +677,8 @@ static t_CKINT ui_combo_callback_vt_offset = -1;
 
 // UI_Bool
 static t_CKUINT ui_bool_val_offset = 0;
+CK_DLL_MFUN(ui_bool_get_value);
+CK_DLL_MFUN(ui_bool_set_value);
 
 // UI_String
 static t_CKUINT ui_string_ptr_offset = 0;
@@ -967,7 +966,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 {
     // UI_Bool ---------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI_Bool", "Object");
-    ui_bool_val_offset = QUERY->add_mvar(QUERY, "int", "val", false);
+    ui_bool_val_offset = QUERY->add_mvar(QUERY, "int", "bool_val", false);
+
+    // can't use b/c collision with mvar val
+    MFUN(ui_bool_get_value, "int", "val");
+    MFUN(ui_bool_set_value, "void", "val");
+    ARG("int", "val");
+
     QUERY->end_class(QUERY); // UI_Bool
 
     // UI_String ---------------------------------------------------------------
@@ -1173,8 +1178,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Alignment for title bar text. Defaults to (0.0f,0.5f) for "
       "left-aligned,vertically centered.");
 
-    MFUN(ui_style_get_window_menu_button_position, "int",
-         "windowMenuButtonPosition");
+    MFUN(ui_style_get_window_menu_button_position, "int", "windowMenuButtonPosition");
     DOC_FUNC(
       "Side of the collapsing/docking button in the title bar "
       "(None/Left/Right). "
@@ -1248,8 +1252,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "(FramePadding.x + 1).");
 
     MFUN(ui_style_get_scrollbar_size, "float", "scrollbarSize");
-    DOC_FUNC(
-      "Width of the vertical scrollbar, Height of the horizontal scrollbar.");
+    DOC_FUNC("Width of the vertical scrollbar, Height of the horizontal scrollbar.");
 
     MFUN(ui_style_get_scrollbar_rounding, "float", "scrollbarRounding");
     DOC_FUNC("Radius of grab corners for scrollbar.");
@@ -1288,8 +1291,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Thickness of tab-bar separator, which takes on the tab active color to "
       "denote focus.");
 
-    MFUN(ui_style_get_table_angled_headers_angle, "float",
-         "tableAngledHeadersAngle");
+    MFUN(ui_style_get_table_angled_headers_angle, "float", "tableAngledHeadersAngle");
     DOC_FUNC(
       "Angle of angled headers (supported values range from -50.0f degrees to "
       "+50.0f degrees).");
@@ -1316,8 +1318,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "It's generally important to keep this left-aligned if you want to lay "
       "multiple items on a same line.");
 
-    MFUN(ui_style_get_separator_text_border_size, "float",
-         "separatorTextBorderSize");
+    MFUN(ui_style_get_separator_text_border_size, "float", "separatorTextBorderSize");
     DOC_FUNC("Thickkness of border in SeparatorText()");
 
     MFUN(ui_style_get_separator_text_align, "vec2", "separatorTextAlign");
@@ -1336,8 +1337,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Window position are clamped to be visible within the display area or "
       "monitors by at least this amount. Only applies to regular windows.");
 
-    MFUN(ui_style_get_display_safe_area_padding, "vec2",
-         "displaySafeAreaPadding");
+    MFUN(ui_style_get_display_safe_area_padding, "vec2", "displaySafeAreaPadding");
     DOC_FUNC(
       "If you cannot see the edges of your screen (e.g. on a TV) increase the "
       "safe area padding. Apply to popups/tooltips as well regular windows. "
@@ -1359,8 +1359,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Enable anti-aliased lines/borders. Disable if you are really tight on "
       "CPU/GPU. Latched at the beginning of the frame (copied to ImDrawList).");
 
-    MFUN(ui_style_get_anti_aliased_lines_use_tex, "int",
-         "antiAliasedLinesUseTex");
+    MFUN(ui_style_get_anti_aliased_lines_use_tex, "int", "antiAliasedLinesUseTex");
     DOC_FUNC(
       "Enable anti-aliased lines/borders using textures where possible. "
       "Require "
@@ -1412,8 +1411,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Default flags when using IsItemHovered(ImGuiHoveredFlags_ForTooltip) or "
       "BeginItemTooltip()/SetItemTooltip() while using mouse.");
 
-    MFUN(ui_style_get_hover_flags_for_tooltip_nav, "int",
-         "hoverFlagsForTooltipNav");
+    MFUN(ui_style_get_hover_flags_for_tooltip_nav, "int", "hoverFlagsForTooltipNav");
     DOC_FUNC(
       "Default flags when using IsItemHovered(ImGuiHoveredFlags_ForTooltip) or "
       "BeginItemTooltip()/SetItemTooltip() while using keyboard/gamepad.");
@@ -1439,8 +1437,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_style_set_window_title_align, "void", "windowTitleAlign");
     ARG("vec2", "windowTitleAlign");
 
-    MFUN(ui_style_set_window_menu_button_position, "void",
-         "windowMenuButtonPosition");
+    MFUN(ui_style_set_window_menu_button_position, "void", "windowMenuButtonPosition");
     ARG("int", "ui_direction");
     DOC_FUNC("ui_direction is enum UI_Direction");
 
@@ -1511,8 +1508,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_style_set_tab_bar_border_size, "void", "tabBarBorderSize");
     ARG("float", "tabBarBorderSize");
 
-    MFUN(ui_style_set_table_angled_headers_angle, "void",
-         "tableAngledHeadersAngle");
+    MFUN(ui_style_set_table_angled_headers_angle, "void", "tableAngledHeadersAngle");
     ARG("float", "tableAngledHeadersAngle");
 
     MFUN(ui_style_set_table_angled_headers_text_align, "void",
@@ -1528,8 +1524,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_style_set_selectable_text_align, "void", "selectableTextAlign");
     ARG("vec2", "selectableTextAlign");
 
-    MFUN(ui_style_set_separator_text_border_size, "void",
-         "separatorTextBorderSize");
+    MFUN(ui_style_set_separator_text_border_size, "void", "separatorTextBorderSize");
     ARG("float", "separatorTextBorderSize");
 
     MFUN(ui_style_set_separator_text_align, "void", "separatorTextAlign");
@@ -1541,8 +1536,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_style_set_display_window_padding, "void", "displayWindowPadding");
     ARG("vec2", "displayWindowPadding");
 
-    MFUN(ui_style_set_display_safe_area_padding, "void",
-         "displaySafeAreaPadding");
+    MFUN(ui_style_set_display_safe_area_padding, "void", "displaySafeAreaPadding");
     ARG("vec2", "displaySafeAreaPadding");
 
     MFUN(ui_style_set_docking_separator_size, "void", "dockingSeparatorSize");
@@ -1554,8 +1548,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     MFUN(ui_style_set_anti_aliased_lines, "void", "antiAliasedLines");
     ARG("int", "antiAliasedLines");
 
-    MFUN(ui_style_set_anti_aliased_lines_use_tex, "void",
-         "antiAliasedLinesUseTex");
+    MFUN(ui_style_set_anti_aliased_lines_use_tex, "void", "antiAliasedLinesUseTex");
     ARG("int", "antiAliasedLinesUseTex");
 
     MFUN(ui_style_set_anti_aliased_fill, "void", "antiAliasedFill");
@@ -1585,8 +1578,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
          "hoverFlagsForTooltipMouse");
     ARG("int", "hoverFlagsForTooltipMouse");
 
-    MFUN(ui_style_set_hover_flags_for_tooltip_nav, "void",
-         "hoverFlagsForTooltipNav");
+    MFUN(ui_style_set_hover_flags_for_tooltip_nav, "void", "hoverFlagsForTooltipNav");
     ARG("int", "hoverFlagsForTooltipNav");
 
     END_CLASS(); // UI_Style
@@ -1677,8 +1669,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("int", "UI_DrawFlags");
     DOC_FUNC("a: upper-left, b: lower-right (== upper-left + size)");
 
-    SFUN(ui_DrawList_AddRectFilledMultiColor, "void",
-         "addRectFilledMultiColor");
+    SFUN(ui_DrawList_AddRectFilledMultiColor, "void", "addRectFilledMultiColor");
     ARG("vec2", "p_min");
     ARG("vec2", "p_max");
     ARG("vec4", "col_upr_left");
@@ -1858,8 +1849,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_DrawList_PathLineTo, "void", "pathLineTo");
     ARG("vec2", "pos");
 
-    SFUN(ui_DrawList_PathLineToMergeDuplicate, "void",
-         "pathLineToMergeDuplicate");
+    SFUN(ui_DrawList_PathLineToMergeDuplicate, "void", "pathLineToMergeDuplicate");
     ARG("vec2", "pos");
 
     SFUN(ui_DrawList_PathFillConvex, "void", "pathFillConvex");
@@ -1908,8 +1898,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("vec2", "p4");
     ARG("int", "num_segments");
 
-    SFUN(ui_DrawList_PathBezierQuadraticCurveTo, "void",
-         "pathBezierQuadraticCurveTo");
+    SFUN(ui_DrawList_PathBezierQuadraticCurveTo, "void", "pathBezierQuadraticCurveTo");
     ARG("vec2", "p2");
     ARG("vec2", "p3");
     ARG("int", "num_segments");
@@ -1932,8 +1921,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiWindowFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiWindowFlags_None);
     static t_CKINT ImGuiWindowFlags_NoTitleBar = 1;
-    QUERY->add_svar(QUERY, "int", "NoTitleBar", true,
-                    &ImGuiWindowFlags_NoTitleBar);
+    QUERY->add_svar(QUERY, "int", "NoTitleBar", true, &ImGuiWindowFlags_NoTitleBar);
     QUERY->doc_var(QUERY, "Disable title-bar");
     static t_CKINT ImGuiWindowFlags_NoResize = 2;
     QUERY->add_svar(QUERY, "int", "NoResize", true, &ImGuiWindowFlags_NoResize);
@@ -1942,8 +1930,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "NoMove", true, &ImGuiWindowFlags_NoMove);
     QUERY->doc_var(QUERY, "Disable user moving the window");
     static t_CKINT ImGuiWindowFlags_NoScrollbar = 8;
-    QUERY->add_svar(QUERY, "int", "NoScrollbar", true,
-                    &ImGuiWindowFlags_NoScrollbar);
+    QUERY->add_svar(QUERY, "int", "NoScrollbar", true, &ImGuiWindowFlags_NoScrollbar);
     QUERY->doc_var(QUERY,
                    "Disable scrollbars (window can still scroll with mouse or "
                    "programmatically)");
@@ -1955,8 +1942,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "child window, mouse wheel will be forwarded to the parent "
                    "unless NoScrollbar is also set.");
     static t_CKINT ImGuiWindowFlags_NoCollapse = 32;
-    QUERY->add_svar(QUERY, "int", "NoCollapse", true,
-                    &ImGuiWindowFlags_NoCollapse);
+    QUERY->add_svar(QUERY, "int", "NoCollapse", true, &ImGuiWindowFlags_NoCollapse);
     QUERY->doc_var(
       QUERY,
       "Disable user collapsing window by double-clicking on it. Also referred "
@@ -1966,8 +1952,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiWindowFlags_AlwaysAutoResize);
     QUERY->doc_var(QUERY, "Resize every window to its content every frame");
     static t_CKINT ImGuiWindowFlags_NoBackground = 128;
-    QUERY->add_svar(QUERY, "int", "NoBackground", true,
-                    &ImGuiWindowFlags_NoBackground);
+    QUERY->add_svar(QUERY, "int", "NoBackground", true, &ImGuiWindowFlags_NoBackground);
     QUERY->doc_var(
       QUERY,
       "Disable drawing background color (WindowBg, etc.) and outside border. "
@@ -1979,8 +1964,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiWindowFlags_NoMouseInputs = 512;
     QUERY->add_svar(QUERY, "int", "NoMouseInputs", true,
                     &ImGuiWindowFlags_NoMouseInputs);
-    QUERY->doc_var(QUERY,
-                   "Disable catching mouse, hovering test with pass through.");
+    QUERY->doc_var(QUERY, "Disable catching mouse, hovering test with pass through.");
     static t_CKINT ImGuiWindowFlags_MenuBar = 1024;
     QUERY->add_svar(QUERY, "int", "MenuBar", true, &ImGuiWindowFlags_MenuBar);
     QUERY->doc_var(QUERY, "Has a menu-bar");
@@ -1996,8 +1980,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "NoFocusOnAppearing", true,
                     &ImGuiWindowFlags_NoFocusOnAppearing);
     QUERY->doc_var(
-      QUERY,
-      "Disable taking focus when transitioning from hidden to visible state");
+      QUERY, "Disable taking focus when transitioning from hidden to visible state");
     static t_CKINT ImGuiWindowFlags_NoBringToFrontOnFocus = 8192;
     QUERY->add_svar(QUERY, "int", "NoBringToFrontOnFocus", true,
                     &ImGuiWindowFlags_NoBringToFrontOnFocus);
@@ -2007,21 +1990,18 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiWindowFlags_AlwaysVerticalScrollbar = 16384;
     QUERY->add_svar(QUERY, "int", "AlwaysVerticalScrollbar", true,
                     &ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    QUERY->doc_var(
-      QUERY, "Always show vertical scrollbar (even if ContentSize.y < Size.y)");
+    QUERY->doc_var(QUERY,
+                   "Always show vertical scrollbar (even if ContentSize.y < Size.y)");
     static t_CKINT ImGuiWindowFlags_AlwaysHorizontalScrollbar = 32768;
     QUERY->add_svar(QUERY, "int", "AlwaysHorizontalScrollbar", true,
                     &ImGuiWindowFlags_AlwaysHorizontalScrollbar);
-    QUERY->doc_var(
-      QUERY,
-      "Always show horizontal scrollbar (even if ContentSize.x < Size.x)");
+    QUERY->doc_var(QUERY,
+                   "Always show horizontal scrollbar (even if ContentSize.x < Size.x)");
     static t_CKINT ImGuiWindowFlags_NoNavInputs = 65536;
-    QUERY->add_svar(QUERY, "int", "NoNavInputs", true,
-                    &ImGuiWindowFlags_NoNavInputs);
+    QUERY->add_svar(QUERY, "int", "NoNavInputs", true, &ImGuiWindowFlags_NoNavInputs);
     QUERY->doc_var(QUERY, "No gamepad/keyboard navigation within the window");
     static t_CKINT ImGuiWindowFlags_NoNavFocus = 131072;
-    QUERY->add_svar(QUERY, "int", "NoNavFocus", true,
-                    &ImGuiWindowFlags_NoNavFocus);
+    QUERY->add_svar(QUERY, "int", "NoNavFocus", true, &ImGuiWindowFlags_NoNavFocus);
     QUERY->doc_var(QUERY,
                    "No focusing toward this window with gamepad/keyboard "
                    "navigation (e.g. skipped by CTRL+TAB)");
@@ -2036,14 +2016,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "pressing the X, so if you keep submitting the tab may reappear at end "
       "of tab bar.");
     static t_CKINT ImGuiWindowFlags_NoDocking = 524288;
-    QUERY->add_svar(QUERY, "int", "NoDocking", true,
-                    &ImGuiWindowFlags_NoDocking);
+    QUERY->add_svar(QUERY, "int", "NoDocking", true, &ImGuiWindowFlags_NoDocking);
     QUERY->doc_var(QUERY, "Disable docking of this window");
     static t_CKINT ImGuiWindowFlags_NoNav = 196608;
     QUERY->add_svar(QUERY, "int", "NoNav", true, &ImGuiWindowFlags_NoNav);
     static t_CKINT ImGuiWindowFlags_NoDecoration = 43;
-    QUERY->add_svar(QUERY, "int", "NoDecoration", true,
-                    &ImGuiWindowFlags_NoDecoration);
+    QUERY->add_svar(QUERY, "int", "NoDecoration", true, &ImGuiWindowFlags_NoDecoration);
     static t_CKINT ImGuiWindowFlags_NoInputs = 197120;
     QUERY->add_svar(QUERY, "int", "NoInputs", true, &ImGuiWindowFlags_NoInputs);
     QUERY->end_class(QUERY);
@@ -2089,17 +2067,14 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "(unless ImGuiWindowFlags_NoSavedSettings passed to window flags)");
     static t_CKINT ImGuiChildFlags_ResizeY = 8;
     QUERY->add_svar(QUERY, "int", "ResizeY", true, &ImGuiChildFlags_ResizeY);
-    QUERY->doc_var(QUERY,
-                   "Allow resize from bottom border (layout direction). \"");
+    QUERY->doc_var(QUERY, "Allow resize from bottom border (layout direction). \"");
     static t_CKINT ImGuiChildFlags_AutoResizeX = 16;
-    QUERY->add_svar(QUERY, "int", "AutoResizeX", true,
-                    &ImGuiChildFlags_AutoResizeX);
+    QUERY->add_svar(QUERY, "int", "AutoResizeX", true, &ImGuiChildFlags_AutoResizeX);
     QUERY->doc_var(QUERY,
                    "Enable auto-resizing width. Read \"IMPORTANT: Size "
                    "measurement\" details above.");
     static t_CKINT ImGuiChildFlags_AutoResizeY = 32;
-    QUERY->add_svar(QUERY, "int", "AutoResizeY", true,
-                    &ImGuiChildFlags_AutoResizeY);
+    QUERY->add_svar(QUERY, "int", "AutoResizeY", true, &ImGuiChildFlags_AutoResizeY);
     QUERY->doc_var(QUERY,
                    "Enable auto-resizing height. Read \"IMPORTANT: Size "
                    "measurement\" details above.");
@@ -2111,8 +2086,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "even when child is hidden, always return true, always "
                    "disable clipping optimization! NOT RECOMMENDED.");
     static t_CKINT ImGuiChildFlags_FrameStyle = 128;
-    QUERY->add_svar(QUERY, "int", "FrameStyle", true,
-                    &ImGuiChildFlags_FrameStyle);
+    QUERY->add_svar(QUERY, "int", "FrameStyle", true, &ImGuiChildFlags_FrameStyle);
     QUERY->doc_var(QUERY,
                    "Style the child window like a framed item: use FrameBg, "
                    "FrameRounding, FrameBorderSize, FramePadding instead of "
@@ -2129,20 +2103,17 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "ImGuiCond_Always..\n");
     static t_CKINT ImGuiCond_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiCond_None);
-    QUERY->doc_var(QUERY,
-                   "No condition (always set the variable), same as _Always");
+    QUERY->doc_var(QUERY, "No condition (always set the variable), same as _Always");
     static t_CKINT ImGuiCond_Always = 1;
     QUERY->add_svar(QUERY, "int", "Always", true, &ImGuiCond_Always);
-    QUERY->doc_var(QUERY,
-                   "No condition (always set the variable), same as _None");
+    QUERY->doc_var(QUERY, "No condition (always set the variable), same as _None");
     static t_CKINT ImGuiCond_Once = 2;
     QUERY->add_svar(QUERY, "int", "Once", true, &ImGuiCond_Once);
     QUERY->doc_var(QUERY,
                    "Set the variable once per runtime session (only the first "
                    "call will succeed)");
     static t_CKINT ImGuiCond_FirstUseEver = 4;
-    QUERY->add_svar(QUERY, "int", "FirstUseEver", true,
-                    &ImGuiCond_FirstUseEver);
+    QUERY->add_svar(QUERY, "int", "FirstUseEver", true, &ImGuiCond_FirstUseEver);
     QUERY->doc_var(QUERY,
                    "Set the variable if the object/window has no persistently "
                    "saved data (no entry in .ini file)");
@@ -2176,32 +2147,27 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "BorderShadow", true, &ImGuiCol_BorderShadow);
     static t_CKINT ImGuiCol_FrameBg = 7;
     QUERY->add_svar(QUERY, "int", "FrameBg", true, &ImGuiCol_FrameBg);
-    QUERY->doc_var(
-      QUERY, "Background of checkbox, radio button, plot, slider, text input");
+    QUERY->doc_var(QUERY,
+                   "Background of checkbox, radio button, plot, slider, text input");
     static t_CKINT ImGuiCol_FrameBgHovered = 8;
-    QUERY->add_svar(QUERY, "int", "FrameBgHovered", true,
-                    &ImGuiCol_FrameBgHovered);
+    QUERY->add_svar(QUERY, "int", "FrameBgHovered", true, &ImGuiCol_FrameBgHovered);
     static t_CKINT ImGuiCol_FrameBgActive = 9;
-    QUERY->add_svar(QUERY, "int", "FrameBgActive", true,
-                    &ImGuiCol_FrameBgActive);
+    QUERY->add_svar(QUERY, "int", "FrameBgActive", true, &ImGuiCol_FrameBgActive);
     static t_CKINT ImGuiCol_TitleBg = 10;
     QUERY->add_svar(QUERY, "int", "TitleBg", true, &ImGuiCol_TitleBg);
     QUERY->doc_var(QUERY, "Title bar");
     static t_CKINT ImGuiCol_TitleBgActive = 11;
-    QUERY->add_svar(QUERY, "int", "TitleBgActive", true,
-                    &ImGuiCol_TitleBgActive);
+    QUERY->add_svar(QUERY, "int", "TitleBgActive", true, &ImGuiCol_TitleBgActive);
     QUERY->doc_var(QUERY, "Title bar when focused");
     static t_CKINT ImGuiCol_TitleBgCollapsed = 12;
-    QUERY->add_svar(QUERY, "int", "TitleBgCollapsed", true,
-                    &ImGuiCol_TitleBgCollapsed);
+    QUERY->add_svar(QUERY, "int", "TitleBgCollapsed", true, &ImGuiCol_TitleBgCollapsed);
     QUERY->doc_var(QUERY, "Title bar when collapsed");
     static t_CKINT ImGuiCol_MenuBarBg = 13;
     QUERY->add_svar(QUERY, "int", "MenuBarBg", true, &ImGuiCol_MenuBarBg);
     static t_CKINT ImGuiCol_ScrollbarBg = 14;
     QUERY->add_svar(QUERY, "int", "ScrollbarBg", true, &ImGuiCol_ScrollbarBg);
     static t_CKINT ImGuiCol_ScrollbarGrab = 15;
-    QUERY->add_svar(QUERY, "int", "ScrollbarGrab", true,
-                    &ImGuiCol_ScrollbarGrab);
+    QUERY->add_svar(QUERY, "int", "ScrollbarGrab", true, &ImGuiCol_ScrollbarGrab);
     static t_CKINT ImGuiCol_ScrollbarGrabHovered = 16;
     QUERY->add_svar(QUERY, "int", "ScrollbarGrabHovered", true,
                     &ImGuiCol_ScrollbarGrabHovered);
@@ -2214,13 +2180,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiCol_SliderGrab = 19;
     QUERY->add_svar(QUERY, "int", "SliderGrab", true, &ImGuiCol_SliderGrab);
     static t_CKINT ImGuiCol_SliderGrabActive = 20;
-    QUERY->add_svar(QUERY, "int", "SliderGrabActive", true,
-                    &ImGuiCol_SliderGrabActive);
+    QUERY->add_svar(QUERY, "int", "SliderGrabActive", true, &ImGuiCol_SliderGrabActive);
     static t_CKINT ImGuiCol_Button = 21;
     QUERY->add_svar(QUERY, "int", "Button", true, &ImGuiCol_Button);
     static t_CKINT ImGuiCol_ButtonHovered = 22;
-    QUERY->add_svar(QUERY, "int", "ButtonHovered", true,
-                    &ImGuiCol_ButtonHovered);
+    QUERY->add_svar(QUERY, "int", "ButtonHovered", true, &ImGuiCol_ButtonHovered);
     static t_CKINT ImGuiCol_ButtonActive = 23;
     QUERY->add_svar(QUERY, "int", "ButtonActive", true, &ImGuiCol_ButtonActive);
     static t_CKINT ImGuiCol_Header = 24;
@@ -2229,28 +2193,24 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "Header* colors are used for CollapsingHeader, TreeNode, "
                    "Selectable, MenuItem");
     static t_CKINT ImGuiCol_HeaderHovered = 25;
-    QUERY->add_svar(QUERY, "int", "HeaderHovered", true,
-                    &ImGuiCol_HeaderHovered);
+    QUERY->add_svar(QUERY, "int", "HeaderHovered", true, &ImGuiCol_HeaderHovered);
     static t_CKINT ImGuiCol_HeaderActive = 26;
     QUERY->add_svar(QUERY, "int", "HeaderActive", true, &ImGuiCol_HeaderActive);
     static t_CKINT ImGuiCol_Separator = 27;
     QUERY->add_svar(QUERY, "int", "Separator", true, &ImGuiCol_Separator);
     static t_CKINT ImGuiCol_SeparatorHovered = 28;
-    QUERY->add_svar(QUERY, "int", "SeparatorHovered", true,
-                    &ImGuiCol_SeparatorHovered);
+    QUERY->add_svar(QUERY, "int", "SeparatorHovered", true, &ImGuiCol_SeparatorHovered);
     static t_CKINT ImGuiCol_SeparatorActive = 29;
-    QUERY->add_svar(QUERY, "int", "SeparatorActive", true,
-                    &ImGuiCol_SeparatorActive);
+    QUERY->add_svar(QUERY, "int", "SeparatorActive", true, &ImGuiCol_SeparatorActive);
     static t_CKINT ImGuiCol_ResizeGrip = 30;
     QUERY->add_svar(QUERY, "int", "ResizeGrip", true, &ImGuiCol_ResizeGrip);
-    QUERY->doc_var(
-      QUERY, "Resize grip in lower-right and lower-left corners of windows.");
+    QUERY->doc_var(QUERY,
+                   "Resize grip in lower-right and lower-left corners of windows.");
     static t_CKINT ImGuiCol_ResizeGripHovered = 31;
     QUERY->add_svar(QUERY, "int", "ResizeGripHovered", true,
                     &ImGuiCol_ResizeGripHovered);
     static t_CKINT ImGuiCol_ResizeGripActive = 32;
-    QUERY->add_svar(QUERY, "int", "ResizeGripActive", true,
-                    &ImGuiCol_ResizeGripActive);
+    QUERY->add_svar(QUERY, "int", "ResizeGripActive", true, &ImGuiCol_ResizeGripActive);
     static t_CKINT ImGuiCol_Tab = 33;
     QUERY->add_svar(QUERY, "int", "Tab", true, &ImGuiCol_Tab);
     QUERY->doc_var(QUERY, "TabItem in a TabBar");
@@ -2264,53 +2224,43 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "TabUnfocusedActive", true,
                     &ImGuiCol_TabUnfocusedActive);
     static t_CKINT ImGuiCol_DockingPreview = 38;
-    QUERY->add_svar(QUERY, "int", "DockingPreview", true,
-                    &ImGuiCol_DockingPreview);
-    QUERY->doc_var(QUERY,
-                   "Preview overlay color when about to docking something");
+    QUERY->add_svar(QUERY, "int", "DockingPreview", true, &ImGuiCol_DockingPreview);
+    QUERY->doc_var(QUERY, "Preview overlay color when about to docking something");
     static t_CKINT ImGuiCol_DockingEmptyBg = 39;
-    QUERY->add_svar(QUERY, "int", "DockingEmptyBg", true,
-                    &ImGuiCol_DockingEmptyBg);
+    QUERY->add_svar(QUERY, "int", "DockingEmptyBg", true, &ImGuiCol_DockingEmptyBg);
     QUERY->doc_var(QUERY,
                    "Background color for empty node (e.g. CentralNode with no "
                    "window docked into it)");
     static t_CKINT ImGuiCol_PlotLines = 40;
     QUERY->add_svar(QUERY, "int", "PlotLines", true, &ImGuiCol_PlotLines);
     static t_CKINT ImGuiCol_PlotLinesHovered = 41;
-    QUERY->add_svar(QUERY, "int", "PlotLinesHovered", true,
-                    &ImGuiCol_PlotLinesHovered);
+    QUERY->add_svar(QUERY, "int", "PlotLinesHovered", true, &ImGuiCol_PlotLinesHovered);
     static t_CKINT ImGuiCol_PlotHistogram = 42;
-    QUERY->add_svar(QUERY, "int", "PlotHistogram", true,
-                    &ImGuiCol_PlotHistogram);
+    QUERY->add_svar(QUERY, "int", "PlotHistogram", true, &ImGuiCol_PlotHistogram);
     static t_CKINT ImGuiCol_PlotHistogramHovered = 43;
     QUERY->add_svar(QUERY, "int", "PlotHistogramHovered", true,
                     &ImGuiCol_PlotHistogramHovered);
     static t_CKINT ImGuiCol_TableHeaderBg = 44;
-    QUERY->add_svar(QUERY, "int", "TableHeaderBg", true,
-                    &ImGuiCol_TableHeaderBg);
+    QUERY->add_svar(QUERY, "int", "TableHeaderBg", true, &ImGuiCol_TableHeaderBg);
     QUERY->doc_var(QUERY, "Table header background");
     static t_CKINT ImGuiCol_TableBorderStrong = 45;
     QUERY->add_svar(QUERY, "int", "TableBorderStrong", true,
                     &ImGuiCol_TableBorderStrong);
-    QUERY->doc_var(
-      QUERY, "Table outer and header borders (prefer using Alpha=1.0 here)");
+    QUERY->doc_var(QUERY,
+                   "Table outer and header borders (prefer using Alpha=1.0 here)");
     static t_CKINT ImGuiCol_TableBorderLight = 46;
-    QUERY->add_svar(QUERY, "int", "TableBorderLight", true,
-                    &ImGuiCol_TableBorderLight);
+    QUERY->add_svar(QUERY, "int", "TableBorderLight", true, &ImGuiCol_TableBorderLight);
     QUERY->doc_var(QUERY, "Table inner borders (prefer using Alpha=1.0 here)");
     static t_CKINT ImGuiCol_TableRowBg = 47;
     QUERY->add_svar(QUERY, "int", "TableRowBg", true, &ImGuiCol_TableRowBg);
     QUERY->doc_var(QUERY, "Table row background (even rows)");
     static t_CKINT ImGuiCol_TableRowBgAlt = 48;
-    QUERY->add_svar(QUERY, "int", "TableRowBgAlt", true,
-                    &ImGuiCol_TableRowBgAlt);
+    QUERY->add_svar(QUERY, "int", "TableRowBgAlt", true, &ImGuiCol_TableRowBgAlt);
     QUERY->doc_var(QUERY, "Table row background (odd rows)");
     static t_CKINT ImGuiCol_TextSelectedBg = 49;
-    QUERY->add_svar(QUERY, "int", "TextSelectedBg", true,
-                    &ImGuiCol_TextSelectedBg);
+    QUERY->add_svar(QUERY, "int", "TextSelectedBg", true, &ImGuiCol_TextSelectedBg);
     static t_CKINT ImGuiCol_DragDropTarget = 50;
-    QUERY->add_svar(QUERY, "int", "DragDropTarget", true,
-                    &ImGuiCol_DragDropTarget);
+    QUERY->add_svar(QUERY, "int", "DragDropTarget", true, &ImGuiCol_DragDropTarget);
     QUERY->doc_var(QUERY, "Rectangle highlighting a drop target");
     static t_CKINT ImGuiCol_NavHighlight = 51;
     QUERY->add_svar(QUERY, "int", "NavHighlight", true, &ImGuiCol_NavHighlight);
@@ -2326,8 +2276,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "Darken/colorize entire screen behind the CTRL+TAB window "
                    "list, when active");
     static t_CKINT ImGuiCol_ModalWindowDimBg = 54;
-    QUERY->add_svar(QUERY, "int", "ModalWindowDimBg", true,
-                    &ImGuiCol_ModalWindowDimBg);
+    QUERY->add_svar(QUERY, "int", "ModalWindowDimBg", true, &ImGuiCol_ModalWindowDimBg);
     QUERY->doc_var(QUERY,
                    "Darken/colorize entire screen behind a modal window, when "
                    "one is active");
@@ -2357,12 +2306,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "Alpha", true, &ImGuiStyleVar_Alpha);
     QUERY->doc_var(QUERY, "float     Alpha");
     static t_CKINT ImGuiStyleVar_DisabledAlpha = 1;
-    QUERY->add_svar(QUERY, "int", "DisabledAlpha", true,
-                    &ImGuiStyleVar_DisabledAlpha);
+    QUERY->add_svar(QUERY, "int", "DisabledAlpha", true, &ImGuiStyleVar_DisabledAlpha);
     QUERY->doc_var(QUERY, "float     DisabledAlpha");
     static t_CKINT ImGuiStyleVar_WindowPadding = 2;
-    QUERY->add_svar(QUERY, "int", "WindowPadding", true,
-                    &ImGuiStyleVar_WindowPadding);
+    QUERY->add_svar(QUERY, "int", "WindowPadding", true, &ImGuiStyleVar_WindowPadding);
     QUERY->doc_var(QUERY, "ImVec2    WindowPadding");
     static t_CKINT ImGuiStyleVar_WindowRounding = 3;
     QUERY->add_svar(QUERY, "int", "WindowRounding", true,
@@ -2373,80 +2320,67 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiStyleVar_WindowBorderSize);
     QUERY->doc_var(QUERY, "float     WindowBorderSize");
     static t_CKINT ImGuiStyleVar_WindowMinSize = 5;
-    QUERY->add_svar(QUERY, "int", "WindowMinSize", true,
-                    &ImGuiStyleVar_WindowMinSize);
+    QUERY->add_svar(QUERY, "int", "WindowMinSize", true, &ImGuiStyleVar_WindowMinSize);
     QUERY->doc_var(QUERY, "ImVec2    WindowMinSize");
     static t_CKINT ImGuiStyleVar_WindowTitleAlign = 6;
     QUERY->add_svar(QUERY, "int", "WindowTitleAlign", true,
                     &ImGuiStyleVar_WindowTitleAlign);
     QUERY->doc_var(QUERY, "ImVec2    WindowTitleAlign");
     static t_CKINT ImGuiStyleVar_ChildRounding = 7;
-    QUERY->add_svar(QUERY, "int", "ChildRounding", true,
-                    &ImGuiStyleVar_ChildRounding);
+    QUERY->add_svar(QUERY, "int", "ChildRounding", true, &ImGuiStyleVar_ChildRounding);
     QUERY->doc_var(QUERY, "float     ChildRounding");
     static t_CKINT ImGuiStyleVar_ChildBorderSize = 8;
     QUERY->add_svar(QUERY, "int", "ChildBorderSize", true,
                     &ImGuiStyleVar_ChildBorderSize);
     QUERY->doc_var(QUERY, "float     ChildBorderSize");
     static t_CKINT ImGuiStyleVar_PopupRounding = 9;
-    QUERY->add_svar(QUERY, "int", "PopupRounding", true,
-                    &ImGuiStyleVar_PopupRounding);
+    QUERY->add_svar(QUERY, "int", "PopupRounding", true, &ImGuiStyleVar_PopupRounding);
     QUERY->doc_var(QUERY, "float     PopupRounding");
     static t_CKINT ImGuiStyleVar_PopupBorderSize = 10;
     QUERY->add_svar(QUERY, "int", "PopupBorderSize", true,
                     &ImGuiStyleVar_PopupBorderSize);
     QUERY->doc_var(QUERY, "float     PopupBorderSize");
     static t_CKINT ImGuiStyleVar_FramePadding = 11;
-    QUERY->add_svar(QUERY, "int", "FramePadding", true,
-                    &ImGuiStyleVar_FramePadding);
+    QUERY->add_svar(QUERY, "int", "FramePadding", true, &ImGuiStyleVar_FramePadding);
     QUERY->doc_var(QUERY, "ImVec2    FramePadding");
     static t_CKINT ImGuiStyleVar_FrameRounding = 12;
-    QUERY->add_svar(QUERY, "int", "FrameRounding", true,
-                    &ImGuiStyleVar_FrameRounding);
+    QUERY->add_svar(QUERY, "int", "FrameRounding", true, &ImGuiStyleVar_FrameRounding);
     QUERY->doc_var(QUERY, "float     FrameRounding");
     static t_CKINT ImGuiStyleVar_FrameBorderSize = 13;
     QUERY->add_svar(QUERY, "int", "FrameBorderSize", true,
                     &ImGuiStyleVar_FrameBorderSize);
     QUERY->doc_var(QUERY, "float     FrameBorderSize");
     static t_CKINT ImGuiStyleVar_ItemSpacing = 14;
-    QUERY->add_svar(QUERY, "int", "ItemSpacing", true,
-                    &ImGuiStyleVar_ItemSpacing);
+    QUERY->add_svar(QUERY, "int", "ItemSpacing", true, &ImGuiStyleVar_ItemSpacing);
     QUERY->doc_var(QUERY, "ImVec2    ItemSpacing");
     static t_CKINT ImGuiStyleVar_ItemInnerSpacing = 15;
     QUERY->add_svar(QUERY, "int", "ItemInnerSpacing", true,
                     &ImGuiStyleVar_ItemInnerSpacing);
     QUERY->doc_var(QUERY, "ImVec2    ItemInnerSpacing");
     static t_CKINT ImGuiStyleVar_IndentSpacing = 16;
-    QUERY->add_svar(QUERY, "int", "IndentSpacing", true,
-                    &ImGuiStyleVar_IndentSpacing);
+    QUERY->add_svar(QUERY, "int", "IndentSpacing", true, &ImGuiStyleVar_IndentSpacing);
     QUERY->doc_var(QUERY, "float     IndentSpacing");
     static t_CKINT ImGuiStyleVar_CellPadding = 17;
-    QUERY->add_svar(QUERY, "int", "CellPadding", true,
-                    &ImGuiStyleVar_CellPadding);
+    QUERY->add_svar(QUERY, "int", "CellPadding", true, &ImGuiStyleVar_CellPadding);
     QUERY->doc_var(QUERY, "ImVec2    CellPadding");
     static t_CKINT ImGuiStyleVar_ScrollbarSize = 18;
-    QUERY->add_svar(QUERY, "int", "ScrollbarSize", true,
-                    &ImGuiStyleVar_ScrollbarSize);
+    QUERY->add_svar(QUERY, "int", "ScrollbarSize", true, &ImGuiStyleVar_ScrollbarSize);
     QUERY->doc_var(QUERY, "float     ScrollbarSize");
     static t_CKINT ImGuiStyleVar_ScrollbarRounding = 19;
     QUERY->add_svar(QUERY, "int", "ScrollbarRounding", true,
                     &ImGuiStyleVar_ScrollbarRounding);
     QUERY->doc_var(QUERY, "float     ScrollbarRounding");
     static t_CKINT ImGuiStyleVar_GrabMinSize = 20;
-    QUERY->add_svar(QUERY, "int", "GrabMinSize", true,
-                    &ImGuiStyleVar_GrabMinSize);
+    QUERY->add_svar(QUERY, "int", "GrabMinSize", true, &ImGuiStyleVar_GrabMinSize);
     QUERY->doc_var(QUERY, "float     GrabMinSize");
     static t_CKINT ImGuiStyleVar_GrabRounding = 21;
-    QUERY->add_svar(QUERY, "int", "GrabRounding", true,
-                    &ImGuiStyleVar_GrabRounding);
+    QUERY->add_svar(QUERY, "int", "GrabRounding", true, &ImGuiStyleVar_GrabRounding);
     QUERY->doc_var(QUERY, "float     GrabRounding");
     static t_CKINT ImGuiStyleVar_TabRounding = 22;
-    QUERY->add_svar(QUERY, "int", "TabRounding", true,
-                    &ImGuiStyleVar_TabRounding);
+    QUERY->add_svar(QUERY, "int", "TabRounding", true, &ImGuiStyleVar_TabRounding);
     QUERY->doc_var(QUERY, "float     TabRounding");
     static t_CKINT ImGuiStyleVar_TabBorderSize = 23;
-    QUERY->add_svar(QUERY, "int", "TabBorderSize", true,
-                    &ImGuiStyleVar_TabBorderSize);
+    QUERY->add_svar(QUERY, "int", "TabBorderSize", true, &ImGuiStyleVar_TabBorderSize);
     QUERY->doc_var(QUERY, "float     TabBorderSize");
     static t_CKINT ImGuiStyleVar_TabBarBorderSize = 24;
     QUERY->add_svar(QUERY, "int", "TabBarBorderSize", true,
@@ -2489,8 +2423,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->end_class(QUERY);
 
     QUERY->begin_class(QUERY, "UI_ButtonFlags", "Object");
-    QUERY->doc_class(
-      QUERY, "Flags for InvisibleButton() [extended in imgui_internal.h].\n");
+    QUERY->doc_class(QUERY,
+                     "Flags for InvisibleButton() [extended in imgui_internal.h].\n");
     static t_CKINT ImGuiButtonFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiButtonFlags_None);
     static t_CKINT ImGuiButtonFlags_MouseButtonLeft = 1;
@@ -2532,20 +2466,17 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiComboFlags_PopupAlignLeft);
     QUERY->doc_var(QUERY, "Align the popup toward the left by default");
     static t_CKINT ImGuiComboFlags_HeightSmall = 2;
-    QUERY->add_svar(QUERY, "int", "HeightSmall", true,
-                    &ImGuiComboFlags_HeightSmall);
-    QUERY->doc_var(
-      QUERY,
-      "Max ~4 items visible. Tip: If you want your combo popup to be a "
-      "specific size you can use SetNextWindowSizeConstraints() prior to "
-      "calling BeginCombo()");
+    QUERY->add_svar(QUERY, "int", "HeightSmall", true, &ImGuiComboFlags_HeightSmall);
+    QUERY->doc_var(QUERY,
+                   "Max ~4 items visible. Tip: If you want your combo popup to be a "
+                   "specific size you can use SetNextWindowSizeConstraints() prior to "
+                   "calling BeginCombo()");
     static t_CKINT ImGuiComboFlags_HeightRegular = 4;
     QUERY->add_svar(QUERY, "int", "HeightRegular", true,
                     &ImGuiComboFlags_HeightRegular);
     QUERY->doc_var(QUERY, "Max ~8 items visible (default)");
     static t_CKINT ImGuiComboFlags_HeightLarge = 8;
-    QUERY->add_svar(QUERY, "int", "HeightLarge", true,
-                    &ImGuiComboFlags_HeightLarge);
+    QUERY->add_svar(QUERY, "int", "HeightLarge", true, &ImGuiComboFlags_HeightLarge);
     QUERY->doc_var(QUERY, "Max ~20 items visible");
     static t_CKINT ImGuiComboFlags_HeightLargest = 16;
     QUERY->add_svar(QUERY, "int", "HeightLargest", true,
@@ -2554,11 +2485,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiComboFlags_NoArrowButton = 32;
     QUERY->add_svar(QUERY, "int", "NoArrowButton", true,
                     &ImGuiComboFlags_NoArrowButton);
-    QUERY->doc_var(
-      QUERY, "Display on the preview box without the square arrow button");
+    QUERY->doc_var(QUERY, "Display on the preview box without the square arrow button");
     static t_CKINT ImGuiComboFlags_NoPreview = 64;
-    QUERY->add_svar(QUERY, "int", "NoPreview", true,
-                    &ImGuiComboFlags_NoPreview);
+    QUERY->add_svar(QUERY, "int", "NoPreview", true, &ImGuiComboFlags_NoPreview);
     QUERY->doc_var(QUERY, "Display only a square arrow button");
     static t_CKINT ImGuiComboFlags_WidthFitPreview = 128;
     QUERY->add_svar(QUERY, "int", "WidthFitPreview", true,
@@ -2577,15 +2506,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiSliderFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiSliderFlags_None);
     static t_CKINT ImGuiSliderFlags_AlwaysClamp = 16;
-    QUERY->add_svar(QUERY, "int", "AlwaysClamp", true,
-                    &ImGuiSliderFlags_AlwaysClamp);
+    QUERY->add_svar(QUERY, "int", "AlwaysClamp", true, &ImGuiSliderFlags_AlwaysClamp);
     QUERY->doc_var(
       QUERY,
       "Clamp value to min/max bounds when input manually with CTRL+Click. By "
       "default CTRL+Click allows going out of bounds.");
     static t_CKINT ImGuiSliderFlags_Logarithmic = 32;
-    QUERY->add_svar(QUERY, "int", "Logarithmic", true,
-                    &ImGuiSliderFlags_Logarithmic);
+    QUERY->add_svar(QUERY, "int", "Logarithmic", true, &ImGuiSliderFlags_Logarithmic);
     QUERY->doc_var(QUERY,
                    "Make the widget logarithmic (linear otherwise). Consider "
                    "using ImGuiSliderFlags_NoRoundToFormat with this if using "
@@ -2646,8 +2573,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiInputTextFlags_CallbackHistory = 128;
     QUERY->add_svar(QUERY, "int", "CallbackHistory", true,
                     &ImGuiInputTextFlags_CallbackHistory);
-    QUERY->doc_var(
-      QUERY, "Callback on pressing Up/Down arrows (for history handling)");
+    QUERY->doc_var(QUERY, "Callback on pressing Up/Down arrows (for history handling)");
     static t_CKINT ImGuiInputTextFlags_CallbackAlways = 256;
     QUERY->add_svar(QUERY, "int", "CallbackAlways", true,
                     &ImGuiInputTextFlags_CallbackAlways);
@@ -2664,8 +2590,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiInputTextFlags_AllowTabInput = 1024;
     QUERY->add_svar(QUERY, "int", "AllowTabInput", true,
                     &ImGuiInputTextFlags_AllowTabInput);
-    QUERY->doc_var(QUERY,
-                   "Pressing TAB input a '\\t' character into the text field");
+    QUERY->doc_var(QUERY, "Pressing TAB input a '\\t' character into the text field");
     static t_CKINT ImGuiInputTextFlags_CtrlEnterForNewLine = 2048;
     QUERY->add_svar(QUERY, "int", "CtrlEnterForNewLine", true,
                     &ImGuiInputTextFlags_CtrlEnterForNewLine);
@@ -2682,16 +2607,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiInputTextFlags_AlwaysOverwrite);
     QUERY->doc_var(QUERY, "Overwrite mode");
     static t_CKINT ImGuiInputTextFlags_ReadOnly = 16384;
-    QUERY->add_svar(QUERY, "int", "ReadOnly", true,
-                    &ImGuiInputTextFlags_ReadOnly);
+    QUERY->add_svar(QUERY, "int", "ReadOnly", true, &ImGuiInputTextFlags_ReadOnly);
     QUERY->doc_var(QUERY, "Read-only mode");
     static t_CKINT ImGuiInputTextFlags_Password = 32768;
-    QUERY->add_svar(QUERY, "int", "Password", true,
-                    &ImGuiInputTextFlags_Password);
+    QUERY->add_svar(QUERY, "int", "Password", true, &ImGuiInputTextFlags_Password);
     QUERY->doc_var(QUERY, "Password mode, display all characters as '*'");
     static t_CKINT ImGuiInputTextFlags_NoUndoRedo = 65536;
-    QUERY->add_svar(QUERY, "int", "NoUndoRedo", true,
-                    &ImGuiInputTextFlags_NoUndoRedo);
+    QUERY->add_svar(QUERY, "int", "NoUndoRedo", true, &ImGuiInputTextFlags_NoUndoRedo);
     QUERY->doc_var(QUERY,
                    "Disable undo/redo. Note that input text owns the text data "
                    "while active, if you want to provide your own undo/redo "
@@ -2699,8 +2621,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiInputTextFlags_CharsScientific = 131072;
     QUERY->add_svar(QUERY, "int", "CharsScientific", true,
                     &ImGuiInputTextFlags_CharsScientific);
-    QUERY->doc_var(QUERY,
-                   "Allow 0123456789.+-*/eE (Scientific notation input)");
+    QUERY->doc_var(QUERY, "Allow 0123456789.+-*/eE (Scientific notation input)");
     static t_CKINT ImGuiInputTextFlags_CallbackResize = 262144;
     QUERY->add_svar(QUERY, "int", "CallbackResize", true,
                     &ImGuiInputTextFlags_CallbackResize);
@@ -2721,10 +2642,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiInputTextFlags_EscapeClearsAll = 1048576;
     QUERY->add_svar(QUERY, "int", "EscapeClearsAll", true,
                     &ImGuiInputTextFlags_EscapeClearsAll);
-    QUERY->doc_var(
-      QUERY,
-      "Escape key clears content if not empty, and deactivate otherwise "
-      "(contrast to default behavior of Escape to revert)");
+    QUERY->doc_var(QUERY,
+                   "Escape key clears content if not empty, and deactivate otherwise "
+                   "(contrast to default behavior of Escape to revert)");
     QUERY->end_class(QUERY);
 
     QUERY->begin_class(QUERY, "UI_ColorEditFlags", "Object");
@@ -2734,20 +2654,16 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiColorEditFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiColorEditFlags_None);
     static t_CKINT ImGuiColorEditFlags_NoAlpha = 2;
-    QUERY->add_svar(QUERY, "int", "NoAlpha", true,
-                    &ImGuiColorEditFlags_NoAlpha);
+    QUERY->add_svar(QUERY, "int", "NoAlpha", true, &ImGuiColorEditFlags_NoAlpha);
     QUERY->doc_var(
       QUERY,
       "ColorEdit, ColorPicker, ColorButton: ignore Alpha component (will only "
       "read 3 components from the input pointer).");
     static t_CKINT ImGuiColorEditFlags_NoPicker = 4;
-    QUERY->add_svar(QUERY, "int", "NoPicker", true,
-                    &ImGuiColorEditFlags_NoPicker);
-    QUERY->doc_var(QUERY,
-                   "ColorEdit: disable picker when clicking on color square.");
+    QUERY->add_svar(QUERY, "int", "NoPicker", true, &ImGuiColorEditFlags_NoPicker);
+    QUERY->doc_var(QUERY, "ColorEdit: disable picker when clicking on color square.");
     static t_CKINT ImGuiColorEditFlags_NoOptions = 8;
-    QUERY->add_svar(QUERY, "int", "NoOptions", true,
-                    &ImGuiColorEditFlags_NoOptions);
+    QUERY->add_svar(QUERY, "int", "NoOptions", true, &ImGuiColorEditFlags_NoOptions);
     QUERY->doc_var(QUERY,
                    "ColorEdit: disable toggling options menu when "
                    "right-clicking on inputs/small preview.");
@@ -2758,21 +2674,18 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "ColorEdit, ColorPicker: disable color square preview next "
                    "to the inputs. (e.g. to show only the inputs)");
     static t_CKINT ImGuiColorEditFlags_NoInputs = 32;
-    QUERY->add_svar(QUERY, "int", "NoInputs", true,
-                    &ImGuiColorEditFlags_NoInputs);
+    QUERY->add_svar(QUERY, "int", "NoInputs", true, &ImGuiColorEditFlags_NoInputs);
     QUERY->doc_var(
       QUERY,
       "ColorEdit, ColorPicker: disable inputs sliders/text widgets (e.g. to "
       "show only the small preview color square).");
     static t_CKINT ImGuiColorEditFlags_NoTooltip = 64;
-    QUERY->add_svar(QUERY, "int", "NoTooltip", true,
-                    &ImGuiColorEditFlags_NoTooltip);
+    QUERY->add_svar(QUERY, "int", "NoTooltip", true, &ImGuiColorEditFlags_NoTooltip);
     QUERY->doc_var(QUERY,
                    "ColorEdit, ColorPicker, ColorButton: disable tooltip when "
                    "hovering the preview.");
     static t_CKINT ImGuiColorEditFlags_NoLabel = 128;
-    QUERY->add_svar(QUERY, "int", "NoLabel", true,
-                    &ImGuiColorEditFlags_NoLabel);
+    QUERY->add_svar(QUERY, "int", "NoLabel", true, &ImGuiColorEditFlags_NoLabel);
     QUERY->doc_var(
       QUERY,
       "ColorEdit, ColorPicker: disable display of inline text label (the label "
@@ -2784,22 +2697,17 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "ColorPicker: disable bigger color preview on right side of "
                    "the picker, use small color square preview instead.");
     static t_CKINT ImGuiColorEditFlags_NoDragDrop = 512;
-    QUERY->add_svar(QUERY, "int", "NoDragDrop", true,
-                    &ImGuiColorEditFlags_NoDragDrop);
+    QUERY->add_svar(QUERY, "int", "NoDragDrop", true, &ImGuiColorEditFlags_NoDragDrop);
     QUERY->doc_var(QUERY,
                    "ColorEdit: disable drag and drop target. ColorButton: "
                    "disable drag and drop source.");
     static t_CKINT ImGuiColorEditFlags_NoBorder = 1024;
-    QUERY->add_svar(QUERY, "int", "NoBorder", true,
-                    &ImGuiColorEditFlags_NoBorder);
-    QUERY->doc_var(
-      QUERY, "ColorButton: disable border (which is enforced by default)");
+    QUERY->add_svar(QUERY, "int", "NoBorder", true, &ImGuiColorEditFlags_NoBorder);
+    QUERY->doc_var(QUERY, "ColorButton: disable border (which is enforced by default)");
     static t_CKINT ImGuiColorEditFlags_AlphaBar = 65536;
-    QUERY->add_svar(QUERY, "int", "AlphaBar", true,
-                    &ImGuiColorEditFlags_AlphaBar);
+    QUERY->add_svar(QUERY, "int", "AlphaBar", true, &ImGuiColorEditFlags_AlphaBar);
     QUERY->doc_var(
-      QUERY,
-      "ColorEdit, ColorPicker: show vertical alpha bar/gradient in picker.");
+      QUERY, "ColorEdit, ColorPicker: show vertical alpha bar/gradient in picker.");
     static t_CKINT ImGuiColorEditFlags_AlphaPreview = 131072;
     QUERY->add_svar(QUERY, "int", "AlphaPreview", true,
                     &ImGuiColorEditFlags_AlphaPreview);
@@ -2819,19 +2727,16 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "in RGBA edition (note: you probably want to use "
                    "ImGuiColorEditFlags_Float flag as well).");
     static t_CKINT ImGuiColorEditFlags_DisplayRGB = 1048576;
-    QUERY->add_svar(QUERY, "int", "DisplayRGB", true,
-                    &ImGuiColorEditFlags_DisplayRGB);
+    QUERY->add_svar(QUERY, "int", "DisplayRGB", true, &ImGuiColorEditFlags_DisplayRGB);
     QUERY->doc_var(
       QUERY,
       "[Display]     ColorEdit: override _display_ type among RGB/HSV/Hex. "
       "ColorPicker: select any combination using one or more of RGB/HSV/Hex.");
     static t_CKINT ImGuiColorEditFlags_DisplayHSV = 2097152;
-    QUERY->add_svar(QUERY, "int", "DisplayHSV", true,
-                    &ImGuiColorEditFlags_DisplayHSV);
+    QUERY->add_svar(QUERY, "int", "DisplayHSV", true, &ImGuiColorEditFlags_DisplayHSV);
     QUERY->doc_var(QUERY, "[Display]     \"");
     static t_CKINT ImGuiColorEditFlags_DisplayHex = 4194304;
-    QUERY->add_svar(QUERY, "int", "DisplayHex", true,
-                    &ImGuiColorEditFlags_DisplayHex);
+    QUERY->add_svar(QUERY, "int", "DisplayHex", true, &ImGuiColorEditFlags_DisplayHex);
     QUERY->doc_var(QUERY, "[Display]     \"");
     static t_CKINT ImGuiColorEditFlags_Uint8 = 8388608;
     QUERY->add_svar(QUERY, "int", "Uint8", true, &ImGuiColorEditFlags_Uint8);
@@ -2847,47 +2752,41 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiColorEditFlags_PickerHueBar = 33554432;
     QUERY->add_svar(QUERY, "int", "PickerHueBar", true,
                     &ImGuiColorEditFlags_PickerHueBar);
-    QUERY->doc_var(
-      QUERY,
-      "[Picker]      ColorPicker: bar for Hue, rectangle for Sat/Value.");
+    QUERY->doc_var(QUERY,
+                   "[Picker]      ColorPicker: bar for Hue, rectangle for Sat/Value.");
     static t_CKINT ImGuiColorEditFlags_PickerHueWheel = 67108864;
     QUERY->add_svar(QUERY, "int", "PickerHueWheel", true,
                     &ImGuiColorEditFlags_PickerHueWheel);
-    QUERY->doc_var(
-      QUERY,
-      "[Picker]      ColorPicker: wheel for Hue, triangle for Sat/Value.");
+    QUERY->doc_var(QUERY,
+                   "[Picker]      ColorPicker: wheel for Hue, triangle for Sat/Value.");
     static t_CKINT ImGuiColorEditFlags_InputRGB = 134217728;
-    QUERY->add_svar(QUERY, "int", "InputRGB", true,
-                    &ImGuiColorEditFlags_InputRGB);
+    QUERY->add_svar(QUERY, "int", "InputRGB", true, &ImGuiColorEditFlags_InputRGB);
     QUERY->doc_var(QUERY,
                    "[Input]       ColorEdit, ColorPicker: input and output "
                    "data in RGB format.");
     static t_CKINT ImGuiColorEditFlags_InputHSV = 268435456;
-    QUERY->add_svar(QUERY, "int", "InputHSV", true,
-                    &ImGuiColorEditFlags_InputHSV);
+    QUERY->add_svar(QUERY, "int", "InputHSV", true, &ImGuiColorEditFlags_InputHSV);
     QUERY->doc_var(QUERY,
                    "[Input]       ColorEdit, ColorPicker: input and output "
                    "data in HSV format.");
     QUERY->end_class(QUERY);
 
     QUERY->begin_class(QUERY, "UI_TreeNodeFlags", "Object");
-    QUERY->doc_class(
-      QUERY, "Flags for ImGui::TreeNodeEx(), ImGui::CollapsingHeader*().\n");
+    QUERY->doc_class(QUERY,
+                     "Flags for ImGui::TreeNodeEx(), ImGui::CollapsingHeader*().\n");
     static t_CKINT ImGuiTreeNodeFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTreeNodeFlags_None);
     static t_CKINT ImGuiTreeNodeFlags_Selected = 1;
-    QUERY->add_svar(QUERY, "int", "Selected", true,
-                    &ImGuiTreeNodeFlags_Selected);
+    QUERY->add_svar(QUERY, "int", "Selected", true, &ImGuiTreeNodeFlags_Selected);
     QUERY->doc_var(QUERY, "Draw as selected");
     static t_CKINT ImGuiTreeNodeFlags_Framed = 2;
     QUERY->add_svar(QUERY, "int", "Framed", true, &ImGuiTreeNodeFlags_Framed);
-    QUERY->doc_var(QUERY,
-                   "Draw frame with background (e.g. for CollapsingHeader)");
+    QUERY->doc_var(QUERY, "Draw frame with background (e.g. for CollapsingHeader)");
     static t_CKINT ImGuiTreeNodeFlags_AllowOverlap = 4;
     QUERY->add_svar(QUERY, "int", "AllowOverlap", true,
                     &ImGuiTreeNodeFlags_AllowOverlap);
-    QUERY->doc_var(
-      QUERY, "Hit testing to allow subsequent widgets to overlap this one");
+    QUERY->doc_var(QUERY,
+                   "Hit testing to allow subsequent widgets to overlap this one");
     static t_CKINT ImGuiTreeNodeFlags_NoTreePushOnOpen = 8;
     QUERY->add_svar(QUERY, "int", "NoTreePushOnOpen", true,
                     &ImGuiTreeNodeFlags_NoTreePushOnOpen);
@@ -2903,24 +2802,22 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "Don't automatically and temporarily open node when Logging is active "
       "(by default logging will automatically open tree nodes)");
     static t_CKINT ImGuiTreeNodeFlags_DefaultOpen = 32;
-    QUERY->add_svar(QUERY, "int", "DefaultOpen", true,
-                    &ImGuiTreeNodeFlags_DefaultOpen);
+    QUERY->add_svar(QUERY, "int", "DefaultOpen", true, &ImGuiTreeNodeFlags_DefaultOpen);
     QUERY->doc_var(QUERY, "Default node to be open");
     static t_CKINT ImGuiTreeNodeFlags_OpenOnDoubleClick = 64;
     QUERY->add_svar(QUERY, "int", "OpenOnDoubleClick", true,
                     &ImGuiTreeNodeFlags_OpenOnDoubleClick);
     QUERY->doc_var(QUERY, "Need double-click to open node");
     static t_CKINT ImGuiTreeNodeFlags_OpenOnArrow = 128;
-    QUERY->add_svar(QUERY, "int", "OpenOnArrow", true,
-                    &ImGuiTreeNodeFlags_OpenOnArrow);
+    QUERY->add_svar(QUERY, "int", "OpenOnArrow", true, &ImGuiTreeNodeFlags_OpenOnArrow);
     QUERY->doc_var(QUERY,
                    "Only open when clicking on the arrow part. If "
                    "ImGuiTreeNodeFlags_OpenOnDoubleClick is also set, "
                    "single-click arrow or double-click all box to open.");
     static t_CKINT ImGuiTreeNodeFlags_Leaf = 256;
     QUERY->add_svar(QUERY, "int", "Leaf", true, &ImGuiTreeNodeFlags_Leaf);
-    QUERY->doc_var(
-      QUERY, "No collapsing, no arrow (use as a convenience for leaf nodes).");
+    QUERY->doc_var(QUERY,
+                   "No collapsing, no arrow (use as a convenience for leaf nodes).");
     static t_CKINT ImGuiTreeNodeFlags_Bullet = 512;
     QUERY->add_svar(QUERY, "int", "Bullet", true, &ImGuiTreeNodeFlags_Bullet);
     QUERY->doc_var(
@@ -2990,15 +2887,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiSelectableFlags_AllowDoubleClick);
     QUERY->doc_var(QUERY, "Generate press events on double clicks too");
     static t_CKINT ImGuiSelectableFlags_Disabled = 8;
-    QUERY->add_svar(QUERY, "int", "Disabled", true,
-                    &ImGuiSelectableFlags_Disabled);
+    QUERY->add_svar(QUERY, "int", "Disabled", true, &ImGuiSelectableFlags_Disabled);
     QUERY->doc_var(QUERY, "Cannot be selected, display grayed out text");
     static t_CKINT ImGuiSelectableFlags_AllowOverlap = 16;
     QUERY->add_svar(QUERY, "int", "AllowOverlap", true,
                     &ImGuiSelectableFlags_AllowOverlap);
-    QUERY->doc_var(
-      QUERY,
-      "(WIP) Hit testing to allow subsequent widgets to overlap this one");
+    QUERY->doc_var(QUERY,
+                   "(WIP) Hit testing to allow subsequent widgets to overlap this one");
     QUERY->end_class(QUERY);
 
     QUERY->begin_class(QUERY, "UI_PopupFlags", "Object");
@@ -3043,10 +2938,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "always be == 2 (same as ImGuiMouseButton_Middle)");
     static t_CKINT ImGuiPopupFlags_NoReopen = 32;
     QUERY->add_svar(QUERY, "int", "NoReopen", true, &ImGuiPopupFlags_NoReopen);
-    QUERY->doc_var(
-      QUERY,
-      "For OpenPopup*(), BeginPopupContext*(): don't reopen same popup if "
-      "already open (won't reposition, won't reinitialize navigation)");
+    QUERY->doc_var(QUERY,
+                   "For OpenPopup*(), BeginPopupContext*(): don't reopen same popup if "
+                   "already open (won't reposition, won't reinitialize navigation)");
     static t_CKINT ImGuiPopupFlags_NoOpenOverExistingPopup = 128;
     QUERY->add_svar(QUERY, "int", "NoOpenOverExistingPopup", true,
                     &ImGuiPopupFlags_NoOpenOverExistingPopup);
@@ -3061,8 +2955,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "For BeginPopupContextWindow(): don't return true when "
                    "hovering items, only when hovering empty space");
     static t_CKINT ImGuiPopupFlags_AnyPopupId = 1024;
-    QUERY->add_svar(QUERY, "int", "AnyPopupId", true,
-                    &ImGuiPopupFlags_AnyPopupId);
+    QUERY->add_svar(QUERY, "int", "AnyPopupId", true, &ImGuiPopupFlags_AnyPopupId);
     QUERY->doc_var(QUERY,
                    "For IsPopupOpen(): ignore the ImGuiID parameter and test "
                    "for any popup.");
@@ -3113,16 +3006,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiTableFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableFlags_None);
     static t_CKINT ImGuiTableFlags_Resizable = 1;
-    QUERY->add_svar(QUERY, "int", "Resizable", true,
-                    &ImGuiTableFlags_Resizable);
+    QUERY->add_svar(QUERY, "int", "Resizable", true, &ImGuiTableFlags_Resizable);
     QUERY->doc_var(QUERY, "Enable resizing columns.");
     static t_CKINT ImGuiTableFlags_Reorderable = 2;
-    QUERY->add_svar(QUERY, "int", "Reorderable", true,
-                    &ImGuiTableFlags_Reorderable);
-    QUERY->doc_var(
-      QUERY,
-      "Enable reordering columns in header row (need calling "
-      "TableSetupColumn() + TableHeadersRow() to display headers)");
+    QUERY->add_svar(QUERY, "int", "Reorderable", true, &ImGuiTableFlags_Reorderable);
+    QUERY->doc_var(QUERY,
+                   "Enable reordering columns in header row (need calling "
+                   "TableSetupColumn() + TableHeadersRow() to display headers)");
     static t_CKINT ImGuiTableFlags_Hideable = 4;
     QUERY->add_svar(QUERY, "int", "Hideable", true, &ImGuiTableFlags_Hideable);
     QUERY->doc_var(QUERY, "Enable hiding/disabling columns in context menu.");
@@ -3175,12 +3065,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "BordersV", true, &ImGuiTableFlags_BordersV);
     QUERY->doc_var(QUERY, "Draw vertical borders.");
     static t_CKINT ImGuiTableFlags_BordersInner = 640;
-    QUERY->add_svar(QUERY, "int", "BordersInner", true,
-                    &ImGuiTableFlags_BordersInner);
+    QUERY->add_svar(QUERY, "int", "BordersInner", true, &ImGuiTableFlags_BordersInner);
     QUERY->doc_var(QUERY, "Draw inner borders.");
     static t_CKINT ImGuiTableFlags_BordersOuter = 1280;
-    QUERY->add_svar(QUERY, "int", "BordersOuter", true,
-                    &ImGuiTableFlags_BordersOuter);
+    QUERY->add_svar(QUERY, "int", "BordersOuter", true, &ImGuiTableFlags_BordersOuter);
     QUERY->doc_var(QUERY, "Draw outer borders.");
     static t_CKINT ImGuiTableFlags_Borders = 1920;
     QUERY->add_svar(QUERY, "int", "Borders", true, &ImGuiTableFlags_Borders);
@@ -3207,11 +3095,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiTableFlags_SizingFixedSame = 16384;
     QUERY->add_svar(QUERY, "int", "SizingFixedSame", true,
                     &ImGuiTableFlags_SizingFixedSame);
-    QUERY->doc_var(
-      QUERY,
-      "Columns default to _WidthFixed or _WidthAuto (if resizable or not "
-      "resizable), matching the maximum contents width of all columns. "
-      "Implicitly enable ImGuiTableFlags_NoKeepColumnsVisible.");
+    QUERY->doc_var(QUERY,
+                   "Columns default to _WidthFixed or _WidthAuto (if resizable or not "
+                   "resizable), matching the maximum contents width of all columns. "
+                   "Implicitly enable ImGuiTableFlags_NoKeepColumnsVisible.");
     static t_CKINT ImGuiTableFlags_SizingStretchProp = 24576;
     QUERY->add_svar(QUERY, "int", "SizingStretchProp", true,
                     &ImGuiTableFlags_SizingStretchProp);
@@ -3263,50 +3150,42 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "command count, items will be able to overflow into other columns). "
       "Generally incompatible with TableSetupScrollFreeze().");
     static t_CKINT ImGuiTableFlags_PadOuterX = 2097152;
-    QUERY->add_svar(QUERY, "int", "PadOuterX", true,
-                    &ImGuiTableFlags_PadOuterX);
+    QUERY->add_svar(QUERY, "int", "PadOuterX", true, &ImGuiTableFlags_PadOuterX);
     QUERY->doc_var(QUERY,
                    "Default if BordersOuterV is on. Enable outermost padding. "
                    "Generally desirable if you have headers.");
     static t_CKINT ImGuiTableFlags_NoPadOuterX = 4194304;
-    QUERY->add_svar(QUERY, "int", "NoPadOuterX", true,
-                    &ImGuiTableFlags_NoPadOuterX);
-    QUERY->doc_var(
-      QUERY, "Default if BordersOuterV is off. Disable outermost padding.");
+    QUERY->add_svar(QUERY, "int", "NoPadOuterX", true, &ImGuiTableFlags_NoPadOuterX);
+    QUERY->doc_var(QUERY,
+                   "Default if BordersOuterV is off. Disable outermost padding.");
     static t_CKINT ImGuiTableFlags_NoPadInnerX = 8388608;
-    QUERY->add_svar(QUERY, "int", "NoPadInnerX", true,
-                    &ImGuiTableFlags_NoPadInnerX);
+    QUERY->add_svar(QUERY, "int", "NoPadInnerX", true, &ImGuiTableFlags_NoPadInnerX);
     QUERY->doc_var(
       QUERY,
       "Disable inner padding between columns (double inner padding if "
       "BordersOuterV is on, single inner padding if BordersOuterV is off).");
     static t_CKINT ImGuiTableFlags_ScrollX = 16777216;
     QUERY->add_svar(QUERY, "int", "ScrollX", true, &ImGuiTableFlags_ScrollX);
-    QUERY->doc_var(
-      QUERY,
-      "Enable horizontal scrolling. Require 'outer_size' parameter of "
-      "BeginTable() to specify the container size. Changes default sizing "
-      "policy. Because this creates a child window, ScrollY is currently "
-      "generally recommended when using ScrollX.");
+    QUERY->doc_var(QUERY,
+                   "Enable horizontal scrolling. Require 'outer_size' parameter of "
+                   "BeginTable() to specify the container size. Changes default sizing "
+                   "policy. Because this creates a child window, ScrollY is currently "
+                   "generally recommended when using ScrollX.");
     static t_CKINT ImGuiTableFlags_ScrollY = 33554432;
     QUERY->add_svar(QUERY, "int", "ScrollY", true, &ImGuiTableFlags_ScrollY);
     QUERY->doc_var(QUERY,
                    "Enable vertical scrolling. Require 'outer_size' parameter "
                    "of BeginTable() to specify the container size.");
     static t_CKINT ImGuiTableFlags_SortMulti = 67108864;
-    QUERY->add_svar(QUERY, "int", "SortMulti", true,
-                    &ImGuiTableFlags_SortMulti);
-    QUERY->doc_var(
-      QUERY,
-      "Hold shift when clicking headers to sort on multiple column. "
-      "TableGetSortSpecs() may return specs where (SpecsCount > 1).");
+    QUERY->add_svar(QUERY, "int", "SortMulti", true, &ImGuiTableFlags_SortMulti);
+    QUERY->doc_var(QUERY,
+                   "Hold shift when clicking headers to sort on multiple column. "
+                   "TableGetSortSpecs() may return specs where (SpecsCount > 1).");
     static t_CKINT ImGuiTableFlags_SortTristate = 134217728;
-    QUERY->add_svar(QUERY, "int", "SortTristate", true,
-                    &ImGuiTableFlags_SortTristate);
-    QUERY->doc_var(
-      QUERY,
-      "Allow no sorting, disable default sorting. TableGetSortSpecs() may "
-      "return specs where (SpecsCount == 0).");
+    QUERY->add_svar(QUERY, "int", "SortTristate", true, &ImGuiTableFlags_SortTristate);
+    QUERY->doc_var(QUERY,
+                   "Allow no sorting, disable default sorting. TableGetSortSpecs() may "
+                   "return specs where (SpecsCount == 0).");
     static t_CKINT ImGuiTableFlags_HighlightHoveredColumn = 268435456;
     QUERY->add_svar(QUERY, "int", "HighlightHoveredColumn", true,
                     &ImGuiTableFlags_HighlightHoveredColumn);
@@ -3321,10 +3200,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableRowFlags_None);
     static t_CKINT ImGuiTableRowFlags_Headers = 1;
     QUERY->add_svar(QUERY, "int", "Headers", true, &ImGuiTableRowFlags_Headers);
-    QUERY->doc_var(
-      QUERY,
-      "Identify header row (set default background color + width of its "
-      "contents accounted differently for auto column width)");
+    QUERY->doc_var(QUERY,
+                   "Identify header row (set default background color + width of its "
+                   "contents accounted differently for auto column width)");
     QUERY->end_class(QUERY);
 
     QUERY->begin_class(QUERY, "UI_TableColumnFlags", "Object");
@@ -3332,8 +3210,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiTableColumnFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTableColumnFlags_None);
     static t_CKINT ImGuiTableColumnFlags_Disabled = 1;
-    QUERY->add_svar(QUERY, "int", "Disabled", true,
-                    &ImGuiTableColumnFlags_Disabled);
+    QUERY->add_svar(QUERY, "int", "Disabled", true, &ImGuiTableColumnFlags_Disabled);
     QUERY->doc_var(QUERY,
                    "Overriding/master disable flag: hide column, won't show in "
                    "context menu (unlike calling TableSetColumnEnabled() which "
@@ -3361,41 +3238,34 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "scrolling enabled (default if table sizing policy is "
                    "_SizingFixedFit and table is resizable).");
     static t_CKINT ImGuiTableColumnFlags_NoResize = 32;
-    QUERY->add_svar(QUERY, "int", "NoResize", true,
-                    &ImGuiTableColumnFlags_NoResize);
+    QUERY->add_svar(QUERY, "int", "NoResize", true, &ImGuiTableColumnFlags_NoResize);
     QUERY->doc_var(QUERY, "Disable manual resizing.");
     static t_CKINT ImGuiTableColumnFlags_NoReorder = 64;
-    QUERY->add_svar(QUERY, "int", "NoReorder", true,
-                    &ImGuiTableColumnFlags_NoReorder);
+    QUERY->add_svar(QUERY, "int", "NoReorder", true, &ImGuiTableColumnFlags_NoReorder);
     QUERY->doc_var(QUERY,
                    "Disable manual reordering this column, this will also "
                    "prevent other columns from crossing over this column.");
     static t_CKINT ImGuiTableColumnFlags_NoHide = 128;
-    QUERY->add_svar(QUERY, "int", "NoHide", true,
-                    &ImGuiTableColumnFlags_NoHide);
+    QUERY->add_svar(QUERY, "int", "NoHide", true, &ImGuiTableColumnFlags_NoHide);
     QUERY->doc_var(QUERY, "Disable ability to hide/disable this column.");
     static t_CKINT ImGuiTableColumnFlags_NoClip = 256;
-    QUERY->add_svar(QUERY, "int", "NoClip", true,
-                    &ImGuiTableColumnFlags_NoClip);
+    QUERY->add_svar(QUERY, "int", "NoClip", true, &ImGuiTableColumnFlags_NoClip);
     QUERY->doc_var(QUERY,
                    "Disable clipping for this column (all NoClip columns will "
                    "render in a same draw command).");
     static t_CKINT ImGuiTableColumnFlags_NoSort = 512;
-    QUERY->add_svar(QUERY, "int", "NoSort", true,
-                    &ImGuiTableColumnFlags_NoSort);
+    QUERY->add_svar(QUERY, "int", "NoSort", true, &ImGuiTableColumnFlags_NoSort);
     QUERY->doc_var(QUERY,
                    "Disable ability to sort on this field (even if "
                    "ImGuiTableFlags_Sortable is set on the table).");
     static t_CKINT ImGuiTableColumnFlags_NoSortAscending = 1024;
     QUERY->add_svar(QUERY, "int", "NoSortAscending", true,
                     &ImGuiTableColumnFlags_NoSortAscending);
-    QUERY->doc_var(QUERY,
-                   "Disable ability to sort in the ascending direction.");
+    QUERY->doc_var(QUERY, "Disable ability to sort in the ascending direction.");
     static t_CKINT ImGuiTableColumnFlags_NoSortDescending = 2048;
     QUERY->add_svar(QUERY, "int", "NoSortDescending", true,
                     &ImGuiTableColumnFlags_NoSortDescending);
-    QUERY->doc_var(QUERY,
-                   "Disable ability to sort in the descending direction.");
+    QUERY->doc_var(QUERY, "Disable ability to sort in the descending direction.");
     static t_CKINT ImGuiTableColumnFlags_NoHeaderLabel = 4096;
     QUERY->add_svar(QUERY, "int", "NoHeaderLabel", true,
                     &ImGuiTableColumnFlags_NoHeaderLabel);
@@ -3406,9 +3276,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiTableColumnFlags_NoHeaderWidth = 8192;
     QUERY->add_svar(QUERY, "int", "NoHeaderWidth", true,
                     &ImGuiTableColumnFlags_NoHeaderWidth);
-    QUERY->doc_var(
-      QUERY,
-      "Disable header text width contribution to automatic column width.");
+    QUERY->doc_var(QUERY,
+                   "Disable header text width contribution to automatic column width.");
     static t_CKINT ImGuiTableColumnFlags_PreferSortAscending = 16384;
     QUERY->add_svar(QUERY, "int", "PreferSortAscending", true,
                     &ImGuiTableColumnFlags_PreferSortAscending);
@@ -3425,8 +3294,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "IndentEnable", true,
                     &ImGuiTableColumnFlags_IndentEnable);
     QUERY->doc_var(
-      QUERY,
-      "Use current Indent value when entering cell (default for column 0).");
+      QUERY, "Use current Indent value when entering cell (default for column 0).");
     static t_CKINT ImGuiTableColumnFlags_IndentDisable = 131072;
     QUERY->add_svar(QUERY, "int", "IndentDisable", true,
                     &ImGuiTableColumnFlags_IndentDisable);
@@ -3441,23 +3309,19 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "TableHeadersRow() will submit an angled header row for "
                    "this column. Note this will add an extra row.");
     static t_CKINT ImGuiTableColumnFlags_IsEnabled = 16777216;
-    QUERY->add_svar(QUERY, "int", "IsEnabled", true,
-                    &ImGuiTableColumnFlags_IsEnabled);
+    QUERY->add_svar(QUERY, "int", "IsEnabled", true, &ImGuiTableColumnFlags_IsEnabled);
     QUERY->doc_var(QUERY,
                    "Status: is enabled == not hidden by user/api (referred to "
                    "as \"Hide\" in _DefaultHide and _NoHide) flags.");
     static t_CKINT ImGuiTableColumnFlags_IsVisible = 33554432;
-    QUERY->add_svar(QUERY, "int", "IsVisible", true,
-                    &ImGuiTableColumnFlags_IsVisible);
-    QUERY->doc_var(
-      QUERY, "Status: is visible == is enabled AND not clipped by scrolling.");
+    QUERY->add_svar(QUERY, "int", "IsVisible", true, &ImGuiTableColumnFlags_IsVisible);
+    QUERY->doc_var(QUERY,
+                   "Status: is visible == is enabled AND not clipped by scrolling.");
     static t_CKINT ImGuiTableColumnFlags_IsSorted = 67108864;
-    QUERY->add_svar(QUERY, "int", "IsSorted", true,
-                    &ImGuiTableColumnFlags_IsSorted);
+    QUERY->add_svar(QUERY, "int", "IsSorted", true, &ImGuiTableColumnFlags_IsSorted);
     QUERY->doc_var(QUERY, "Status: is currently part of the sort specs");
     static t_CKINT ImGuiTableColumnFlags_IsHovered = 134217728;
-    QUERY->add_svar(QUERY, "int", "IsHovered", true,
-                    &ImGuiTableColumnFlags_IsHovered);
+    QUERY->add_svar(QUERY, "int", "IsHovered", true, &ImGuiTableColumnFlags_IsHovered);
     QUERY->doc_var(QUERY, "Status: is hovered by mouse");
     QUERY->end_class(QUERY);
 
@@ -3484,9 +3348,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "automatically set when ImGuiTableFlags_RowBg is used)");
     static t_CKINT ImGuiTableBgTarget_RowBg1 = 2;
     QUERY->add_svar(QUERY, "int", "RowBg1", true, &ImGuiTableBgTarget_RowBg1);
-    QUERY->doc_var(
-      QUERY,
-      "Set row background color 1 (generally used for selection marking)");
+    QUERY->doc_var(QUERY,
+                   "Set row background color 1 (generally used for selection marking)");
     static t_CKINT ImGuiTableBgTarget_CellBg = 3;
     QUERY->add_svar(QUERY, "int", "CellBg", true, &ImGuiTableBgTarget_CellBg);
     QUERY->doc_var(QUERY, "Set cell background color (top-most color)");
@@ -3497,8 +3360,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiTabBarFlags_None = 0;
     QUERY->add_svar(QUERY, "int", "None", true, &ImGuiTabBarFlags_None);
     static t_CKINT ImGuiTabBarFlags_Reorderable = 1;
-    QUERY->add_svar(QUERY, "int", "Reorderable", true,
-                    &ImGuiTabBarFlags_Reorderable);
+    QUERY->add_svar(QUERY, "int", "Reorderable", true, &ImGuiTabBarFlags_Reorderable);
     QUERY->doc_var(QUERY,
                    "Allow manually dragging tabs to re-order them + New tabs "
                    "are appended at the end of list");
@@ -3525,8 +3387,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "Disable scrolling buttons (apply when fitting policy is "
                    "ImGuiTabBarFlags_FittingPolicyScroll)");
     static t_CKINT ImGuiTabBarFlags_NoTooltip = 32;
-    QUERY->add_svar(QUERY, "int", "NoTooltip", true,
-                    &ImGuiTabBarFlags_NoTooltip);
+    QUERY->add_svar(QUERY, "int", "NoTooltip", true, &ImGuiTabBarFlags_NoTooltip);
     QUERY->doc_var(QUERY, "Disable tooltips when hovering a tab");
     static t_CKINT ImGuiTabBarFlags_FittingPolicyResizeDown = 64;
     QUERY->add_svar(QUERY, "int", "FittingPolicyResizeDown", true,
@@ -3765,8 +3626,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->doc_var(QUERY, "[");
     static t_CKINT ImGuiKey_Backslash = 604;
     QUERY->add_svar(QUERY, "int", "Backslash", true, &ImGuiKey_Backslash);
-    QUERY->doc_var(
-      QUERY, "\\ (this text inhibit multiline comment caused by backslash)");
+    QUERY->doc_var(QUERY,
+                   "\\ (this text inhibit multiline comment caused by backslash)");
     static t_CKINT ImGuiKey_RightBracket = 605;
     QUERY->add_svar(QUERY, "int", "RightBracket", true, &ImGuiKey_RightBracket);
     QUERY->doc_var(QUERY, "]");
@@ -3804,16 +3665,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiKey_Keypad9 = 621;
     QUERY->add_svar(QUERY, "int", "Keypad9", true, &ImGuiKey_Keypad9);
     static t_CKINT ImGuiKey_KeypadDecimal = 622;
-    QUERY->add_svar(QUERY, "int", "KeypadDecimal", true,
-                    &ImGuiKey_KeypadDecimal);
+    QUERY->add_svar(QUERY, "int", "KeypadDecimal", true, &ImGuiKey_KeypadDecimal);
     static t_CKINT ImGuiKey_KeypadDivide = 623;
     QUERY->add_svar(QUERY, "int", "KeypadDivide", true, &ImGuiKey_KeypadDivide);
     static t_CKINT ImGuiKey_KeypadMultiply = 624;
-    QUERY->add_svar(QUERY, "int", "KeypadMultiply", true,
-                    &ImGuiKey_KeypadMultiply);
+    QUERY->add_svar(QUERY, "int", "KeypadMultiply", true, &ImGuiKey_KeypadMultiply);
     static t_CKINT ImGuiKey_KeypadSubtract = 625;
-    QUERY->add_svar(QUERY, "int", "KeypadSubtract", true,
-                    &ImGuiKey_KeypadSubtract);
+    QUERY->add_svar(QUERY, "int", "KeypadSubtract", true, &ImGuiKey_KeypadSubtract);
     static t_CKINT ImGuiKey_KeypadAdd = 626;
     QUERY->add_svar(QUERY, "int", "KeypadAdd", true, &ImGuiKey_KeypadAdd);
     static t_CKINT ImGuiKey_KeypadEnter = 627;
@@ -3823,8 +3681,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiKey_AppBack = 629;
     QUERY->add_svar(QUERY, "int", "AppBack", true, &ImGuiKey_AppBack);
     QUERY->doc_var(
-      QUERY,
-      "Available on some keyboard/mouses. Often referred as \"Browser Back\"");
+      QUERY, "Available on some keyboard/mouses. Often referred as \"Browser Back\"");
     static t_CKINT ImGuiKey_AppForward = 630;
     QUERY->add_svar(QUERY, "int", "AppForward", true, &ImGuiKey_AppForward);
     static t_CKINT ImGuiKey_GamepadStart = 631;
@@ -3834,51 +3691,43 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "GamepadBack", true, &ImGuiKey_GamepadBack);
     QUERY->doc_var(QUERY, "View (Xbox)      - (Switch)   Share (PS)");
     static t_CKINT ImGuiKey_GamepadFaceLeft = 633;
-    QUERY->add_svar(QUERY, "int", "GamepadFaceLeft", true,
-                    &ImGuiKey_GamepadFaceLeft);
+    QUERY->add_svar(QUERY, "int", "GamepadFaceLeft", true, &ImGuiKey_GamepadFaceLeft);
     QUERY->doc_var(
       QUERY,
       "X (Xbox)         Y (Switch)   Square (PS)         Tap: Toggle Menu. "
       "Hold: Windowing mode (Focus/Move/Resize windows)");
     static t_CKINT ImGuiKey_GamepadFaceRight = 634;
-    QUERY->add_svar(QUERY, "int", "GamepadFaceRight", true,
-                    &ImGuiKey_GamepadFaceRight);
+    QUERY->add_svar(QUERY, "int", "GamepadFaceRight", true, &ImGuiKey_GamepadFaceRight);
     QUERY->doc_var(QUERY,
                    "B (Xbox)         A (Switch)   Circle (PS)         Cancel / "
                    "Close / Exit");
     static t_CKINT ImGuiKey_GamepadFaceUp = 635;
-    QUERY->add_svar(QUERY, "int", "GamepadFaceUp", true,
-                    &ImGuiKey_GamepadFaceUp);
+    QUERY->add_svar(QUERY, "int", "GamepadFaceUp", true, &ImGuiKey_GamepadFaceUp);
     QUERY->doc_var(QUERY,
                    "Y (Xbox)         X (Switch)   Triangle (PS)       Text "
                    "Input / On-screen Keyboard");
     static t_CKINT ImGuiKey_GamepadFaceDown = 636;
-    QUERY->add_svar(QUERY, "int", "GamepadFaceDown", true,
-                    &ImGuiKey_GamepadFaceDown);
+    QUERY->add_svar(QUERY, "int", "GamepadFaceDown", true, &ImGuiKey_GamepadFaceDown);
     QUERY->doc_var(QUERY,
                    "A (Xbox)         B (Switch)   Cross (PS)          Activate "
                    "/ Open / Toggle / Tweak");
     static t_CKINT ImGuiKey_GamepadDpadLeft = 637;
-    QUERY->add_svar(QUERY, "int", "GamepadDpadLeft", true,
-                    &ImGuiKey_GamepadDpadLeft);
+    QUERY->add_svar(QUERY, "int", "GamepadDpadLeft", true, &ImGuiKey_GamepadDpadLeft);
     QUERY->doc_var(QUERY,
                    "D-pad Left                                        Move / "
                    "Tweak / Resize Window (in Windowing mode)");
     static t_CKINT ImGuiKey_GamepadDpadRight = 638;
-    QUERY->add_svar(QUERY, "int", "GamepadDpadRight", true,
-                    &ImGuiKey_GamepadDpadRight);
+    QUERY->add_svar(QUERY, "int", "GamepadDpadRight", true, &ImGuiKey_GamepadDpadRight);
     QUERY->doc_var(QUERY,
                    "D-pad Right                                       Move / "
                    "Tweak / Resize Window (in Windowing mode)");
     static t_CKINT ImGuiKey_GamepadDpadUp = 639;
-    QUERY->add_svar(QUERY, "int", "GamepadDpadUp", true,
-                    &ImGuiKey_GamepadDpadUp);
+    QUERY->add_svar(QUERY, "int", "GamepadDpadUp", true, &ImGuiKey_GamepadDpadUp);
     QUERY->doc_var(QUERY,
                    "D-pad Up                                          Move / "
                    "Tweak / Resize Window (in Windowing mode)");
     static t_CKINT ImGuiKey_GamepadDpadDown = 640;
-    QUERY->add_svar(QUERY, "int", "GamepadDpadDown", true,
-                    &ImGuiKey_GamepadDpadDown);
+    QUERY->add_svar(QUERY, "int", "GamepadDpadDown", true, &ImGuiKey_GamepadDpadDown);
     QUERY->doc_var(QUERY,
                    "D-pad Down                                        Move / "
                    "Tweak / Resize Window (in Windowing mode)");
@@ -3917,8 +3766,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "[Analog]                                          Move "
                    "Window (in Windowing mode)");
     static t_CKINT ImGuiKey_GamepadLStickUp = 649;
-    QUERY->add_svar(QUERY, "int", "GamepadLStickUp", true,
-                    &ImGuiKey_GamepadLStickUp);
+    QUERY->add_svar(QUERY, "int", "GamepadLStickUp", true, &ImGuiKey_GamepadLStickUp);
     QUERY->doc_var(QUERY,
                    "[Analog]                                          Move "
                    "Window (in Windowing mode)");
@@ -3937,8 +3785,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiKey_GamepadRStickRight);
     QUERY->doc_var(QUERY, "[Analog]");
     static t_CKINT ImGuiKey_GamepadRStickUp = 653;
-    QUERY->add_svar(QUERY, "int", "GamepadRStickUp", true,
-                    &ImGuiKey_GamepadRStickUp);
+    QUERY->add_svar(QUERY, "int", "GamepadRStickUp", true, &ImGuiKey_GamepadRStickUp);
     QUERY->doc_var(QUERY, "[Analog]");
     static t_CKINT ImGuiKey_GamepadRStickDown = 654;
     QUERY->add_svar(QUERY, "int", "GamepadRStickDown", true,
@@ -3973,12 +3820,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "Mod_Super", true, &ImGuiMod_Super);
     QUERY->doc_var(QUERY, "Windows/Super (non-macOS), Ctrl (macOS)");
     static t_CKINT ImGuiKey_KeysData_SIZE = 154;
-    QUERY->add_svar(QUERY, "int", "KeysData_SIZE", true,
-                    &ImGuiKey_KeysData_SIZE);
+    QUERY->add_svar(QUERY, "int", "KeysData_SIZE", true, &ImGuiKey_KeysData_SIZE);
     QUERY->doc_var(QUERY, "Size of KeysData[]: only hold named keys");
     static t_CKINT ImGuiKey_KeysData_OFFSET = 512;
-    QUERY->add_svar(QUERY, "int", "KeysData_OFFSET", true,
-                    &ImGuiKey_KeysData_OFFSET);
+    QUERY->add_svar(QUERY, "int", "KeysData_OFFSET", true, &ImGuiKey_KeysData_OFFSET);
     QUERY->doc_var(QUERY,
                    "Accesses to io.KeysData[] must use (key - "
                    "ImGuiKey_KeysData_OFFSET) index.");
@@ -3995,12 +3840,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiMouseCursor_Arrow = 0;
     QUERY->add_svar(QUERY, "int", "Arrow", true, &ImGuiMouseCursor_Arrow);
     static t_CKINT ImGuiMouseCursor_TextInput = 1;
-    QUERY->add_svar(QUERY, "int", "TextInput", true,
-                    &ImGuiMouseCursor_TextInput);
+    QUERY->add_svar(QUERY, "int", "TextInput", true, &ImGuiMouseCursor_TextInput);
     QUERY->doc_var(QUERY, "When hovering over InputText, etc.");
     static t_CKINT ImGuiMouseCursor_ResizeAll = 2;
-    QUERY->add_svar(QUERY, "int", "ResizeAll", true,
-                    &ImGuiMouseCursor_ResizeAll);
+    QUERY->add_svar(QUERY, "int", "ResizeAll", true, &ImGuiMouseCursor_ResizeAll);
     QUERY->doc_var(QUERY, "(Unused by Dear ImGui functions)");
     static t_CKINT ImGuiMouseCursor_ResizeNS = 3;
     QUERY->add_svar(QUERY, "int", "ResizeNS", true, &ImGuiMouseCursor_ResizeNS);
@@ -4009,22 +3852,16 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "ResizeEW", true, &ImGuiMouseCursor_ResizeEW);
     QUERY->doc_var(QUERY, "When hovering over a vertical border or a column");
     static t_CKINT ImGuiMouseCursor_ResizeNESW = 5;
-    QUERY->add_svar(QUERY, "int", "ResizeNESW", true,
-                    &ImGuiMouseCursor_ResizeNESW);
-    QUERY->doc_var(QUERY,
-                   "When hovering over the bottom-left corner of a window");
+    QUERY->add_svar(QUERY, "int", "ResizeNESW", true, &ImGuiMouseCursor_ResizeNESW);
+    QUERY->doc_var(QUERY, "When hovering over the bottom-left corner of a window");
     static t_CKINT ImGuiMouseCursor_ResizeNWSE = 6;
-    QUERY->add_svar(QUERY, "int", "ResizeNWSE", true,
-                    &ImGuiMouseCursor_ResizeNWSE);
-    QUERY->doc_var(QUERY,
-                   "When hovering over the bottom-right corner of a window");
+    QUERY->add_svar(QUERY, "int", "ResizeNWSE", true, &ImGuiMouseCursor_ResizeNWSE);
+    QUERY->doc_var(QUERY, "When hovering over the bottom-right corner of a window");
     static t_CKINT ImGuiMouseCursor_Hand = 7;
     QUERY->add_svar(QUERY, "int", "Hand", true, &ImGuiMouseCursor_Hand);
-    QUERY->doc_var(QUERY,
-                   "(Unused by Dear ImGui functions. Use for e.g. hyperlinks)");
+    QUERY->doc_var(QUERY, "(Unused by Dear ImGui functions. Use for e.g. hyperlinks)");
     static t_CKINT ImGuiMouseCursor_NotAllowed = 8;
-    QUERY->add_svar(QUERY, "int", "NotAllowed", true,
-                    &ImGuiMouseCursor_NotAllowed);
+    QUERY->add_svar(QUERY, "int", "NotAllowed", true, &ImGuiMouseCursor_NotAllowed);
     QUERY->doc_var(QUERY,
                    "When hovering something with disallowed interaction. "
                    "Usually a crossed circle.");
@@ -4047,8 +3884,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiViewportFlags_IsPlatformMonitor);
     QUERY->doc_var(QUERY, "Represent a Platform Monitor (unused yet)");
     static t_CKINT ImGuiViewportFlags_OwnedByApp = 4;
-    QUERY->add_svar(QUERY, "int", "OwnedByApp", true,
-                    &ImGuiViewportFlags_OwnedByApp);
+    QUERY->add_svar(QUERY, "int", "OwnedByApp", true, &ImGuiViewportFlags_OwnedByApp);
     QUERY->doc_var(QUERY,
                    "Platform Window: Was created/managed by the user "
                    "application? (rather than our backend)");
@@ -4076,8 +3912,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     &ImGuiViewportFlags_NoFocusOnClick);
     QUERY->doc_var(QUERY, "Platform Window: Don't take focus when clicked on.");
     static t_CKINT ImGuiViewportFlags_NoInputs = 128;
-    QUERY->add_svar(QUERY, "int", "NoInputs", true,
-                    &ImGuiViewportFlags_NoInputs);
+    QUERY->add_svar(QUERY, "int", "NoInputs", true, &ImGuiViewportFlags_NoInputs);
     QUERY->doc_var(QUERY,
                    "Platform Window: Make mouse pass through so we can drag "
                    "this window while peaking behind it.");
@@ -4088,8 +3923,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "Platform Window: Renderer doesn't need to clear the "
                    "framebuffer ahead (because we will fill it entirely).");
     static t_CKINT ImGuiViewportFlags_NoAutoMerge = 512;
-    QUERY->add_svar(QUERY, "int", "NoAutoMerge", true,
-                    &ImGuiViewportFlags_NoAutoMerge);
+    QUERY->add_svar(QUERY, "int", "NoAutoMerge", true, &ImGuiViewportFlags_NoAutoMerge);
     QUERY->doc_var(QUERY,
                    "Platform Window: Avoid merging this window into another "
                    "host window. This can only be set via ImGuiWindowClass "
@@ -4097,8 +3931,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "we are going to create a viewport in the first place!).");
     static t_CKINT ImGuiViewportFlags_TopMost = 1024;
     QUERY->add_svar(QUERY, "int", "TopMost", true, &ImGuiViewportFlags_TopMost);
-    QUERY->doc_var(QUERY,
-                   "Platform Window: Display on top (for tooltips only).");
+    QUERY->doc_var(QUERY, "Platform Window: Display on top (for tooltips only).");
     static t_CKINT ImGuiViewportFlags_CanHostOtherWindows = 2048;
     QUERY->add_svar(QUERY, "int", "CanHostOtherWindows", true,
                     &ImGuiViewportFlags_CanHostOtherWindows);
@@ -4109,16 +3942,14 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "probably code making the assumption that this is always and only on the "
       "MainViewport. Will fix once we add support for \"no main viewport\".");
     static t_CKINT ImGuiViewportFlags_IsMinimized = 4096;
-    QUERY->add_svar(QUERY, "int", "IsMinimized", true,
-                    &ImGuiViewportFlags_IsMinimized);
+    QUERY->add_svar(QUERY, "int", "IsMinimized", true, &ImGuiViewportFlags_IsMinimized);
     QUERY->doc_var(
       QUERY,
       "Platform Window: Window is minimized, can skip render. When minimized "
       "we tend to avoid using the viewport pos/size for clipping window or "
       "testing if they are contained in the viewport.");
     static t_CKINT ImGuiViewportFlags_IsFocused = 8192;
-    QUERY->add_svar(QUERY, "int", "IsFocused", true,
-                    &ImGuiViewportFlags_IsFocused);
+    QUERY->add_svar(QUERY, "int", "IsFocused", true, &ImGuiViewportFlags_IsFocused);
     QUERY->doc_var(QUERY,
                    "Platform Window: Window is focused (last call to "
                    "Platform_GetWindowFocus() returned true)");
@@ -4131,17 +3962,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiFocusedFlags_ChildWindows = 1;
     QUERY->add_svar(QUERY, "int", "ChildWindows", true,
                     &ImGuiFocusedFlags_ChildWindows);
-    QUERY->doc_var(QUERY,
-                   "Return true if any children of the window is focused");
+    QUERY->doc_var(QUERY, "Return true if any children of the window is focused");
     static t_CKINT ImGuiFocusedFlags_RootWindow = 2;
-    QUERY->add_svar(QUERY, "int", "RootWindow", true,
-                    &ImGuiFocusedFlags_RootWindow);
-    QUERY->doc_var(
-      QUERY,
-      "Test from root window (top most parent of the current hierarchy)");
+    QUERY->add_svar(QUERY, "int", "RootWindow", true, &ImGuiFocusedFlags_RootWindow);
+    QUERY->doc_var(QUERY,
+                   "Test from root window (top most parent of the current hierarchy)");
     static t_CKINT ImGuiFocusedFlags_AnyWindow = 4;
-    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
-                    &ImGuiFocusedFlags_AnyWindow);
+    QUERY->add_svar(QUERY, "int", "AnyWindow", true, &ImGuiFocusedFlags_AnyWindow);
     QUERY->doc_var(
       QUERY,
       "Return true if any window is focused. Important: If you are trying to "
@@ -4187,16 +4014,14 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "IsWindowHovered() only: Return true if any children of the "
                    "window is hovered");
     static t_CKINT ImGuiHoveredFlags_RootWindow = 2;
-    QUERY->add_svar(QUERY, "int", "RootWindow", true,
-                    &ImGuiHoveredFlags_RootWindow);
+    QUERY->add_svar(QUERY, "int", "RootWindow", true, &ImGuiHoveredFlags_RootWindow);
     QUERY->doc_var(QUERY,
                    "IsWindowHovered() only: Test from root window (top most "
                    "parent of the current hierarchy)");
     static t_CKINT ImGuiHoveredFlags_AnyWindow = 4;
-    QUERY->add_svar(QUERY, "int", "AnyWindow", true,
-                    &ImGuiHoveredFlags_AnyWindow);
-    QUERY->doc_var(
-      QUERY, "IsWindowHovered() only: Return true if any window is hovered");
+    QUERY->add_svar(QUERY, "int", "AnyWindow", true, &ImGuiHoveredFlags_AnyWindow);
+    QUERY->doc_var(QUERY,
+                   "IsWindowHovered() only: Return true if any window is hovered");
     static t_CKINT ImGuiHoveredFlags_NoPopupHierarchy = 8;
     QUERY->add_svar(QUERY, "int", "NoPopupHierarchy", true,
                     &ImGuiHoveredFlags_NoPopupHierarchy);
@@ -4239,8 +4064,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiHoveredFlags_AllowWhenDisabled = 1024;
     QUERY->add_svar(QUERY, "int", "AllowWhenDisabled", true,
                     &ImGuiHoveredFlags_AllowWhenDisabled);
-    QUERY->doc_var(
-      QUERY, "IsItemHovered() only: Return true even if the item is disabled");
+    QUERY->doc_var(QUERY,
+                   "IsItemHovered() only: Return true even if the item is disabled");
     static t_CKINT ImGuiHoveredFlags_NoNavOverride = 2048;
     QUERY->add_svar(QUERY, "int", "NoNavOverride", true,
                     &ImGuiHoveredFlags_NoNavOverride);
@@ -4251,42 +4076,36 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_svar(QUERY, "int", "AllowWhenOverlapped", true,
                     &ImGuiHoveredFlags_AllowWhenOverlapped);
     static t_CKINT ImGuiHoveredFlags_RectOnly = 928;
-    QUERY->add_svar(QUERY, "int", "RectOnly", true,
-                    &ImGuiHoveredFlags_RectOnly);
+    QUERY->add_svar(QUERY, "int", "RectOnly", true, &ImGuiHoveredFlags_RectOnly);
     static t_CKINT ImGuiHoveredFlags_RootAndChildWindows = 3;
     QUERY->add_svar(QUERY, "int", "RootAndChildWindows", true,
                     &ImGuiHoveredFlags_RootAndChildWindows);
     static t_CKINT ImGuiHoveredFlags_ForTooltip = 4096;
-    QUERY->add_svar(QUERY, "int", "ForTooltip", true,
-                    &ImGuiHoveredFlags_ForTooltip);
+    QUERY->add_svar(QUERY, "int", "ForTooltip", true, &ImGuiHoveredFlags_ForTooltip);
     QUERY->doc_var(QUERY,
                    "Shortcut for standard flags when using IsItemHovered() + "
                    "SetTooltip() sequence.");
     static t_CKINT ImGuiHoveredFlags_Stationary = 8192;
-    QUERY->add_svar(QUERY, "int", "Stationary", true,
-                    &ImGuiHoveredFlags_Stationary);
+    QUERY->add_svar(QUERY, "int", "Stationary", true, &ImGuiHoveredFlags_Stationary);
     QUERY->doc_var(
       QUERY,
       "Require mouse to be stationary for style.HoverStationaryDelay (~0.15 "
       "sec) _at least one time_. After this, can move on same item/window. "
       "Using the stationary test tends to reduces the need for a long delay.");
     static t_CKINT ImGuiHoveredFlags_DelayNone = 16384;
-    QUERY->add_svar(QUERY, "int", "DelayNone", true,
-                    &ImGuiHoveredFlags_DelayNone);
+    QUERY->add_svar(QUERY, "int", "DelayNone", true, &ImGuiHoveredFlags_DelayNone);
     QUERY->doc_var(QUERY,
                    "IsItemHovered() only: Return true immediately (default). "
                    "As this is the default you generally ignore this.");
     static t_CKINT ImGuiHoveredFlags_DelayShort = 32768;
-    QUERY->add_svar(QUERY, "int", "DelayShort", true,
-                    &ImGuiHoveredFlags_DelayShort);
+    QUERY->add_svar(QUERY, "int", "DelayShort", true, &ImGuiHoveredFlags_DelayShort);
     QUERY->doc_var(
       QUERY,
       "IsItemHovered() only: Return true after style.HoverDelayShort elapsed "
       "(~0.15 sec) (shared between items) + requires mouse to be stationary "
       "for style.HoverStationaryDelay (once per item).");
     static t_CKINT ImGuiHoveredFlags_DelayNormal = 65536;
-    QUERY->add_svar(QUERY, "int", "DelayNormal", true,
-                    &ImGuiHoveredFlags_DelayNormal);
+    QUERY->add_svar(QUERY, "int", "DelayNormal", true, &ImGuiHoveredFlags_DelayNormal);
     QUERY->doc_var(
       QUERY,
       "IsItemHovered() only: Return true after style.HoverDelayNormal elapsed "
@@ -4337,11 +4156,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     static t_CKINT ImGuiDockNodeFlags_NoDockingSplit = 16;
     QUERY->add_svar(QUERY, "int", "NoDockingSplit", true,
                     &ImGuiDockNodeFlags_NoDockingSplit);
-    QUERY->doc_var(QUERY,
-                   "Disable other windows/nodes from splitting this node.");
+    QUERY->doc_var(QUERY, "Disable other windows/nodes from splitting this node.");
     static t_CKINT ImGuiDockNodeFlags_NoResize = 32;
-    QUERY->add_svar(QUERY, "int", "NoResize", true,
-                    &ImGuiDockNodeFlags_NoResize);
+    QUERY->add_svar(QUERY, "int", "NoResize", true, &ImGuiDockNodeFlags_NoResize);
     QUERY->doc_var(
       QUERY,
       "Saved  Disable resizing node using the splitter/separators. Useful with "
@@ -4353,8 +4170,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                    "Tab bar will automatically hide when there is a single "
                    "window in the dock node.");
     static t_CKINT ImGuiDockNodeFlags_NoUndocking = 128;
-    QUERY->add_svar(QUERY, "int", "NoUndocking", true,
-                    &ImGuiDockNodeFlags_NoUndocking);
+    QUERY->add_svar(QUERY, "int", "NoUndocking", true, &ImGuiDockNodeFlags_NoUndocking);
     QUERY->doc_var(QUERY, "Disable undocking this node.");
     QUERY->end_class(QUERY);
 
@@ -4497,21 +4313,19 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->begin_class(QUERY, "UI_SizeCallback", "UI_Callback");
     QUERY->add_mfun(QUERY, ui_size_callback, "void", "handler");
     QUERY->add_arg(QUERY, "UI_SizeCallbackData", "data");
-    QUERY->doc_func(
-      QUERY, "Callback function for ImGui::SetNextWindowSizeConstraints()");
+    QUERY->doc_func(QUERY,
+                    "Callback function for ImGui::SetNextWindowSizeConstraints()");
     QUERY->end_class(QUERY);
 
     // update() vt offset
-    chugin_setVTableOffset(&ui_size_callback_vt_offset, "UI_SizeCallback",
-                           "handler");
+    chugin_setVTableOffset(&ui_size_callback_vt_offset, "UI_SizeCallback", "handler");
 
     BEGIN_CLASS("UI_ComboCallback", "UI_Callback");
     MFUN(ui_combo_callback, "void", "handler");
     ARG("int", "idx");
     END_CLASS();
 
-    chugin_setVTableOffset(&ui_combo_callback_vt_offset, "UI_ComboCallback",
-                           "handler");
+    chugin_setVTableOffset(&ui_combo_callback_vt_offset, "UI_ComboCallback", "handler");
 
     // complex, not yet implemented
     // BEGIN_CLASS("UI_InputTextCallback", "UI_Callback");
@@ -4619,6 +4433,21 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "string", "name");
     QUERY->add_arg(QUERY, "UI_Bool", "p_open");
     QUERY->add_arg(QUERY, "int", "flags"); // ImGuiWindowFlags
+    DOC_FUNC(
+      " `flags` of type UI_WindowFlags.  "
+      "- UI.begin() = push window to the stack and start appending to it. UI.end() = "
+      "pop window from the stack. "
+      "- Passing 'UI_Bool p_open != NULL' shows a window-closing widget in the "
+      "upper-right corner of the window, "
+      "  which clicking will set the boolean to false when clicked. "
+      "- You may append multiple times to the same window during the same frame by "
+      "calling Begin()/End() pairs multiple times. "
+      "  Some information such as 'flags' or 'p_open' will only be considered by the "
+      "first call to Begin(). "
+      "- Begin() return false to indicate the window is collapsed or fully clipped, so "
+      "you may early out and omit submitting "
+      "  anything to the window. Always call a matching End() for each Begin() call, "
+      "regardless of its return value! ");
 
     QUERY->add_sfun(QUERY, ui_end, "void", "end");
 
@@ -4665,8 +4494,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "popup/modal)? flags are of type UI_HoveredFlags.");
 
     SFUN(ui_GetWindowDpiScale, "float", "getWindowDpiScale");
-    DOC_FUNC(
-      "get DPI scale currently associated to the current window's viewport.");
+    DOC_FUNC("get DPI scale currently associated to the current window's viewport.");
 
     SFUN(ui_GetWindowPos, "vec2", "getWindowPos");
     DOC_FUNC(
@@ -4715,13 +4543,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, "vec2", "size_min");
     QUERY->add_arg(QUERY, "vec2", "size_max");
     QUERY->add_arg(QUERY, "UI_SizeCallback", "custom_callback");
-    QUERY->doc_func(
-      QUERY,
-      "set next window size limits. use 0.0f or FLT_MAX if you "
-      "don't want limits. Use -1 for both min and max of same "
-      "axis to preserve current size (which itself is a "
-      "constraint). Use callback to apply non-trivial programmatic "
-      "constraints.");
+    QUERY->doc_func(QUERY,
+                    "set next window size limits. use 0.0f or FLT_MAX if you "
+                    "don't want limits. Use -1 for both min and max of same "
+                    "axis to preserve current size (which itself is a "
+                    "constraint). Use callback to apply non-trivial programmatic "
+                    "constraints.");
 
     QUERY->add_sfun(QUERY, ui_SetNextWindowContentSize, "void",
                     "setNextWindowContentSize");
@@ -4733,26 +4560,22 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "menu bar, etc.) nor WindowPadding. set an axis to 0.0f to leave it "
       "automatic. call before Begin()");
 
-    QUERY->add_sfun(QUERY, ui_SetNextWindowCollapsed, "void",
-                    "setNextWindowCollapsed");
+    QUERY->add_sfun(QUERY, ui_SetNextWindowCollapsed, "void", "setNextWindowCollapsed");
     QUERY->add_arg(QUERY, "int", "collapsed");
     QUERY->add_arg(QUERY, "int", "cond" /*ImGuiCond*/);
-    QUERY->doc_func(QUERY,
-                    "set next window collapsed state. call before Begin()");
+    QUERY->doc_func(QUERY, "set next window collapsed state. call before Begin()");
 
     QUERY->add_sfun(QUERY, ui_SetNextWindowFocus, "void", "setNextWindowFocus");
-    QUERY->doc_func(
-      QUERY, "set next window to be focused / top-most. call before Begin()");
+    QUERY->doc_func(QUERY,
+                    "set next window to be focused / top-most. call before Begin()");
 
-    QUERY->add_sfun(QUERY, ui_SetNextWindowScroll, "void",
-                    "setNextWindowScroll");
+    QUERY->add_sfun(QUERY, ui_SetNextWindowScroll, "void", "setNextWindowScroll");
     QUERY->add_arg(QUERY, "vec2", "scroll");
     QUERY->doc_func(QUERY,
                     "set next window scrolling value (use < 0.0f to not affect "
                     "a given axis).");
 
-    QUERY->add_sfun(QUERY, ui_SetNextWindowBgAlpha, "void",
-                    "setNextWindowBgAlpha");
+    QUERY->add_sfun(QUERY, ui_SetNextWindowBgAlpha, "void", "setNextWindowBgAlpha");
     QUERY->add_arg(QUERY, "float", "alpha");
     QUERY->doc_func(
       QUERY,
@@ -4769,17 +4592,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // QUERY->doc_func(QUERY, "set next window viewport");
 
     // Content region -------------------------------------------------------
-    QUERY->add_sfun(QUERY, ui_GetContentRegionAvail, "vec2",
-                    "getContentRegionAvail");
-    QUERY->doc_func(QUERY,
-                    "equivalent to GetContentRegionMax() - GetCursorPos()");
+    QUERY->add_sfun(QUERY, ui_GetContentRegionAvail, "vec2", "getContentRegionAvail");
+    QUERY->doc_func(QUERY, "equivalent to GetContentRegionMax() - GetCursorPos()");
 
-    QUERY->add_sfun(QUERY, ui_GetContentRegionMax, "vec2",
-                    "getContentRegionMax");
-    QUERY->doc_func(
-      QUERY,
-      "current content boundaries (typically window boundaries including "
-      "scrolling, or current column boundaries), in windows coordinates");
+    QUERY->add_sfun(QUERY, ui_GetContentRegionMax, "vec2", "getContentRegionMax");
+    QUERY->doc_func(QUERY,
+                    "current content boundaries (typically window boundaries including "
+                    "scrolling, or current column boundaries), in windows coordinates");
 
     QUERY->add_sfun(QUERY, ui_GetWindowContentRegionMin, "vec2",
                     "getWindowContentRegionMin");
@@ -4839,18 +4658,16 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->add_sfun(QUERY, ui_SetScrollFromPosX, "void", "setScrollFromPosX");
     QUERY->add_arg(QUERY, "float", "local_x");
     QUERY->add_arg(QUERY, "float", "center_x_ratio");
-    QUERY->doc_func(
-      QUERY,
-      "adjust scrolling amount to make given position visible. Generally "
-      "GetCursorStartPos() + offset to compute a valid position.");
+    QUERY->doc_func(QUERY,
+                    "adjust scrolling amount to make given position visible. Generally "
+                    "GetCursorStartPos() + offset to compute a valid position.");
 
     QUERY->add_sfun(QUERY, ui_SetScrollFromPosY, "void", "setScrollFromPosY");
     QUERY->add_arg(QUERY, "float", "local_y");
     QUERY->add_arg(QUERY, "float", "center_y_ratio");
-    QUERY->doc_func(
-      QUERY,
-      "adjust scrolling amount to make given position visible. Generally "
-      "GetCursorStartPos() + offset to compute a valid position.");
+    QUERY->doc_func(QUERY,
+                    "adjust scrolling amount to make given position visible. Generally "
+                    "GetCursorStartPos() + offset to compute a valid position.");
 
     // Parameters stacks (shared) ------------------------------------------
 
@@ -4951,8 +4768,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     "get current font size (= height in pixels) of "
                     "current font with current scale applied");
 
-    QUERY->add_sfun(QUERY, ui_GetFontTexUvWhitePixel, "vec2",
-                    "getFontTexUvWhitePixel");
+    QUERY->add_sfun(QUERY, ui_GetFontTexUvWhitePixel, "vec2", "getFontTexUvWhitePixel");
     QUERY->doc_func(QUERY,
                     "get UV coordinate for a white pixel, useful to "
                     "draw custom shapes via the ImDrawList API");
@@ -4976,10 +4792,9 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     QUERY->add_sfun(QUERY, ui_GetColorU32ImVec4, "int", "getColorU32");
     QUERY->add_arg(QUERY, "vec4", "col");
-    QUERY->doc_func(
-      QUERY,
-      "retrieve given color with style alpha applied, packed as a "
-      "32-bit value suitable for ImDrawList");
+    QUERY->doc_func(QUERY,
+                    "retrieve given color with style alpha applied, packed as a "
+                    "32-bit value suitable for ImDrawList");
 
     QUERY->add_sfun(QUERY, ui_GetStyleColorVec4, "vec4", "getStyleColorVec4");
     QUERY->add_arg(QUERY, "int", "idx" /*ImGuiCol*/);
@@ -5030,8 +4845,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
                     "vertical separator.");
 
     QUERY->add_sfun(QUERY, ui_SameLine, "void", "sameLine");
-    QUERY->doc_func(QUERY,
-                    "implied offset_from_start_x = 0.0f, spacing = -1.0f");
+    QUERY->doc_func(QUERY, "implied offset_from_start_x = 0.0f, spacing = -1.0f");
 
     QUERY->add_sfun(QUERY, ui_SameLineEx, "void", "sameLine");
     QUERY->add_arg(QUERY, "float", "offset_from_start_x");
@@ -5076,12 +4890,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     QUERY->doc_func(QUERY, "lock horizontal starting position");
 
     QUERY->add_sfun(QUERY, ui_EndGroup, "void", "endGroup");
-    QUERY->doc_func(
-      QUERY,
-      "unlock horizontal starting position + capture the whole "
-      "group bounding box into one \"item\" (so you can use "
-      "IsItemHovered() or layout primitives such as SameLine() on "
-      "whole group, etc.)");
+    QUERY->doc_func(QUERY,
+                    "unlock horizontal starting position + capture the whole "
+                    "group bounding box into one \"item\" (so you can use "
+                    "IsItemHovered() or layout primitives such as SameLine() on "
+                    "whole group, etc.)");
 
     QUERY->add_sfun(QUERY, ui_AlignTextToFramePadding, "void",
                     "alignTextToFramePadding");
@@ -5125,8 +4938,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     QUERY->add_sfun(QUERY, ui_PushIDInt, "void", "pushID");
     QUERY->add_arg(QUERY, "int", "int_id");
-    QUERY->doc_func(QUERY,
-                    "push integer into the ID stack (will hash integer).");
+    QUERY->doc_func(QUERY, "push integer into the ID stack (will hash integer).");
 
     QUERY->add_sfun(QUERY, ui_PopID, "void", "popID");
     QUERY->doc_func(QUERY, "pop from the ID stack.");
@@ -5174,13 +4986,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     QUERY->add_sfun(QUERY, ui_TextWrappedUnformatted, "void", "textWrapped");
     QUERY->add_arg(QUERY, "string", "text");
-    QUERY->doc_func(
-      QUERY,
-      "shortcut for PushTextWrapPos(0.0f); Text(fmt, ...); "
-      "PopTextWrapPos();. Note that this won't work on an "
-      "auto-resizing window if there's no other widgets to extend "
-      "the window width, you may need to set a size using "
-      "SetNextWindowSize().");
+    QUERY->doc_func(QUERY,
+                    "shortcut for PushTextWrapPos(0.0f); Text(fmt, ...); "
+                    "PopTextWrapPos();. Note that this won't work on an "
+                    "auto-resizing window if there's no other widgets to extend "
+                    "the window width, you may need to set a size using "
+                    "SetNextWindowSize().");
 
     QUERY->add_sfun(QUERY, ui_LabelTextUnformatted, "void", "labelText");
     QUERY->add_arg(QUERY, "string", "label");
@@ -5280,8 +5091,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "`flags` param is an enum of type UI_ComboFlags");
 
     QUERY->add_sfun(QUERY, ui_EndCombo, "void", "endCombo");
-    QUERY->doc_func(QUERY,
-                    "only call EndCombo() if BeginCombo() returns true!");
+    QUERY->doc_func(QUERY, "only call EndCombo() if BeginCombo() returns true!");
 
     QUERY->add_sfun(QUERY, ui_ComboChar, "int", "combo");
     QUERY->add_arg(QUERY, "string", "label");
@@ -5724,8 +5534,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_InputScalarN_CKFLOAT, "int", "inputFloat");
     ARG("string", "label");
     ARG("float[]", "data");
-    DOC_FUNC(
-      "Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
+    DOC_FUNC("Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
 
     SFUN(ui_InputScalarNEx_CKFLOAT, "int", "inputFloat");
     ARG("string", "label");
@@ -5752,8 +5561,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_InputScalarN_CKINT, "int", "inputInt");
     ARG("string", "label");
     ARG("int[]", "data");
-    DOC_FUNC(
-      "Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
+    DOC_FUNC("Implied p_step = NULL, p_step_fast = NULL, format = NULL, flags = 0");
 
     SFUN(ui_InputScalarNEx_CKINT, "int", "inputInt");
     ARG("string", "label");
@@ -5789,6 +5597,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("UI_Float4", "color");
     ARG("int", "flags");
     ARG("vec4", "reference_color");
+
+    SFUN(ui_ColorPicker4_no_ref_col, "int", "colorPicker");
+    ARG("string", "label");
+    ARG("UI_Float4", "color");
+    ARG("int", "flags");
 
     SFUN(ui_ColorButton, "int", "colorButton");
     ARG("string", "desc_id");
@@ -6001,8 +5814,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_BeginMenuEx, "int", "beginMenu");
     ARG("string", "label");
     ARG("int", "enabled");
-    DOC_FUNC(
-      "create a sub-menu entry. only call EndMenu() if this returns true!");
+    DOC_FUNC("create a sub-menu entry. only call EndMenu() if this returns true!");
 
     SFUN(ui_EndMenu, "void", "endMenu");
     DOC_FUNC("only call EndMenu() if BeginMenu() returns true!");
@@ -6117,8 +5929,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     SFUN(ui_BeginPopupContextVoidEx, "int", "beginPopupContextVoid");
     ARG("string", "str_id");
     ARG("int", "popup_flags");
-    DOC_FUNC(
-      "open+begin popup when clicked in void (where there are no windows).");
+    DOC_FUNC("open+begin popup when clicked in void (where there are no windows).");
 
     SFUN(ui_IsPopupOpen, "int", "isPopupOpen");
     ARG("string", "str_id");
@@ -6375,8 +6186,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "widgets.");
 
     SFUN(ui_IsItemActivated, "int", "isItemActivated");
-    DOC_FUNC(
-      "was the last item just made active (item was previously inactive).");
+    DOC_FUNC("was the last item just made active (item was previously inactive).");
 
     SFUN(ui_IsItemDeactivated, "int", "isItemDeactivated");
     DOC_FUNC(
@@ -6406,16 +6216,13 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     DOC_FUNC("is any item focused?");
 
     SFUN(ui_GetItemID, "int", "getItemID");
-    DOC_FUNC(
-      "get ID of last item (~~ often same ImGui::GetID(label) beforehand)");
+    DOC_FUNC("get ID of last item (~~ often same ImGui::GetID(label) beforehand)");
 
     SFUN(ui_GetItemRectMin, "vec2", "getItemRectMin");
-    DOC_FUNC(
-      "get upper-left bounding rectangle of the last item (screen space)");
+    DOC_FUNC("get upper-left bounding rectangle of the last item (screen space)");
 
     SFUN(ui_GetItemRectMax, "vec2", "getItemRectMax");
-    DOC_FUNC(
-      "get lower-right bounding rectangle of the last item (screen space)");
+    DOC_FUNC("get lower-right bounding rectangle of the last item (screen space)");
 
     SFUN(ui_GetItemRectSize, "vec2", "getItemRectSize");
     DOC_FUNC("get size of last item");
@@ -6495,8 +6302,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "returns English name of the key. Those names a provided for debugging "
       "purpose and are not meant to be saved persistently not compared.");
 
-    SFUN(ui_SetNextFrameWantCaptureKeyboard, "void",
-         "setNextFrameWantCaptureKeyboard");
+    SFUN(ui_SetNextFrameWantCaptureKeyboard, "void", "setNextFrameWantCaptureKeyboard");
     ARG("int", "want_capture_keyboard");
     DOC_FUNC(
       "Override io.WantCaptureKeyboard flag next frame (said flag is left for "
@@ -6509,13 +6315,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
 
     SFUN(ui_IsMouseDown, "int", "isMouseDown");
     ARG("int", "button");
-    DOC_FUNC(
-      "is mouse button held. `button` is an enum of type UI_MouseButton");
+    DOC_FUNC("is mouse button held. `button` is an enum of type UI_MouseButton");
 
     SFUN(ui_IsMouseClicked, "int", "isMouseClicked");
     ARG("int", "button");
-    DOC_FUNC(
-      "Implied repeat = false. `button` is an enum of type UI_MouseButton");
+    DOC_FUNC("Implied repeat = false. `button` is an enum of type UI_MouseButton");
 
     SFUN(ui_IsMouseClickedEx, "int", "isMouseClicked");
     ARG("int", "button");
@@ -6612,8 +6416,7 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "set desired mouse cursor shape. `cursor_type` is an enum of type "
       "UI_MouseCursor");
 
-    SFUN(ui_SetNextFrameWantCaptureMouse, "void",
-         "setNextFrameWantCaptureMouse");
+    SFUN(ui_SetNextFrameWantCaptureMouse, "void", "setNextFrameWantCaptureMouse");
     ARG("int", "want_capture_mouse");
     DOC_FUNC(
       "Override io.WantCaptureMouse flag next frame (said flag is left for "
@@ -6667,22 +6470,19 @@ CK_DLL_SFUN(ui_get_style)
 // ============================================================================
 CK_DLL_SFUN(ui_ShowDemoWindow)
 {
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowDemoWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowMetricsWindow)
 {
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowMetricsWindow(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowDebugLogWindow)
 {
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowDebugLogWindow(p_open);
 }
 
@@ -6693,15 +6493,13 @@ CK_DLL_SFUN(ui_showStyleEditor)
 
 CK_DLL_SFUN(ui_ShowIDStackToolWindowEx)
 {
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowIDStackToolWindowEx(p_open);
 }
 
 CK_DLL_SFUN(ui_ShowAboutWindow)
 {
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
     cimgui::ImGui_ShowAboutWindow(p_open);
 }
 
@@ -6732,13 +6530,26 @@ CK_DLL_SFUN(ui_GetVersion)
 // structs
 // ============================================================================
 
+// UI_Bool -----------------------------------------------------------------
+
+CK_DLL_MFUN(ui_bool_get_value)
+{
+    RETURN->v_int = OBJ_MEMBER_INT(SELF, ui_bool_val_offset);
+}
+
+CK_DLL_MFUN(ui_bool_set_value)
+{
+    OBJ_MEMBER_INT(SELF, ui_bool_val_offset) = GET_NEXT_INT(ARGS);
+}
+
 // UI_String -----------------------------------------------------------------
 
 #define UI_STRING_DEFAULT_SIZE 256
 
 CK_DLL_CTOR(ui_string_ctor)
 {
-    char* s = new char[UI_STRING_DEFAULT_SIZE];
+    char* s                                     = new char[UI_STRING_DEFAULT_SIZE];
+    s[0]                                        = '\0';
     OBJ_MEMBER_UINT(SELF, ui_string_ptr_offset) = (t_CKUINT)s;
     OBJ_MEMBER_UINT(SELF, ui_string_cap_offset) = UI_STRING_DEFAULT_SIZE;
 }
@@ -6790,6 +6601,7 @@ CK_DLL_MFUN(ui_string_set_value)
 
     // copy string
     strncpy(ui_str, ck_str, ck_str_len);
+    ui_str[ck_str_len] = '\0';
 }
 
 // UI_Int -------------------------------------------------------------------
@@ -6951,7 +6763,7 @@ CK_DLL_CTOR(ui_float_ctor)
 
 CK_DLL_CTOR(ui_float_ctor_float)
 {
-    float* f = new float(GET_NEXT_FLOAT(ARGS));
+    float* f                                   = new float(GET_NEXT_FLOAT(ARGS));
     OBJ_MEMBER_UINT(SELF, ui_float_ptr_offset) = (t_CKUINT)f;
 }
 
@@ -7009,7 +6821,7 @@ CK_DLL_MFUN(ui_float2_set_value)
 
 CK_DLL_CTOR(ui_float3_ctor)
 {
-    float* f = new float[3]{ 0.0f, 0.0f, 0.0f };
+    float* f                                    = new float[3]{ 0.0f, 0.0f, 0.0f };
     OBJ_MEMBER_UINT(SELF, ui_float3_ptr_offset) = (t_CKUINT)f;
 }
 
@@ -7369,8 +7181,8 @@ CK_DLL_MFUN(ui_style_get_table_angled_headers_text_align)
 {
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
-    RETURN->v_vec2 = { style->TableAngledHeadersTextAlign.x,
-                       style->TableAngledHeadersTextAlign.y };
+    RETURN->v_vec2
+      = { style->TableAngledHeadersTextAlign.x, style->TableAngledHeadersTextAlign.y };
 }
 
 CK_DLL_MFUN(ui_style_get_color_button_position)
@@ -7391,8 +7203,7 @@ CK_DLL_MFUN(ui_style_get_selectable_text_align)
 {
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
-    RETURN->v_vec2
-      = { style->SelectableTextAlign.x, style->SelectableTextAlign.y };
+    RETURN->v_vec2 = { style->SelectableTextAlign.x, style->SelectableTextAlign.y };
 }
 
 CK_DLL_MFUN(ui_style_get_separator_text_border_size)
@@ -7406,24 +7217,21 @@ CK_DLL_MFUN(ui_style_get_separator_text_align)
 {
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
-    RETURN->v_vec2
-      = { style->SeparatorTextAlign.x, style->SeparatorTextAlign.y };
+    RETURN->v_vec2 = { style->SeparatorTextAlign.x, style->SeparatorTextAlign.y };
 }
 
 CK_DLL_MFUN(ui_style_get_separator_text_padding)
 {
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
-    RETURN->v_vec2
-      = { style->SeparatorTextPadding.x, style->SeparatorTextPadding.y };
+    RETURN->v_vec2 = { style->SeparatorTextPadding.x, style->SeparatorTextPadding.y };
 }
 
 CK_DLL_MFUN(ui_style_get_display_window_padding)
 {
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
-    RETURN->v_vec2
-      = { style->DisplayWindowPadding.x, style->DisplayWindowPadding.y };
+    RETURN->v_vec2 = { style->DisplayWindowPadding.x, style->DisplayWindowPadding.y };
 }
 
 CK_DLL_MFUN(ui_style_get_display_safe_area_padding)
@@ -7488,8 +7296,8 @@ CK_DLL_MFUN(ui_style_get_color)
     cimgui::ImGuiStyle* style
       = (cimgui::ImGuiStyle*)OBJ_MEMBER_UINT(SELF, ui_style_ptr_offset);
     int idx        = GET_NEXT_INT(ARGS);
-    RETURN->v_vec4 = { style->Colors[idx].x, style->Colors[idx].y,
-                       style->Colors[idx].z, style->Colors[idx].w };
+    RETURN->v_vec4 = { style->Colors[idx].x, style->Colors[idx].y, style->Colors[idx].z,
+                       style->Colors[idx].w };
 }
 
 CK_DLL_MFUN(ui_style_get_hover_stationary_delay)
@@ -7934,20 +7742,10 @@ CK_DLL_MFUN(ui_style_set_hover_flags_for_tooltip_nav)
 // UI_DrawList
 // ============================================================================
 
-#define CKVEC2_TO_IMVEC2(v)                                                    \
-    {                                                                          \
-        (float)v.x, (float)v.y                                                 \
-    }
-#define CKVEC3_TO_IMVEC3(v)                                                    \
-    {                                                                          \
-        (float)v.x, (float)v.y, (float)v.z                                     \
-    }
-#define CKVEC4_TO_IMVEC4(v)                                                    \
-    {                                                                          \
-        (float)v.x, (float)v.y, (float)v.z, (float)v.w                         \
-    }
-#define CKVEC4_TO_IMU32(v)                                                     \
-    (cimgui::ImGui_ColorConvertFloat4ToU32(CKVEC4_TO_IMVEC4(v)))
+#define CKVEC2_TO_IMVEC2(v) { (float)v.x, (float)v.y }
+#define CKVEC3_TO_IMVEC3(v) { (float)v.x, (float)v.y, (float)v.z }
+#define CKVEC4_TO_IMVEC4(v) { (float)v.x, (float)v.y, (float)v.z, (float)v.w }
+#define CKVEC4_TO_IMU32(v) (cimgui::ImGui_ColorConvertFloat4ToU32(CKVEC4_TO_IMVEC4(v)))
 
 CK_DLL_SFUN(ui_DrawList_PushClipRect)
 {
@@ -7976,15 +7774,15 @@ CK_DLL_SFUN(ui_DrawList_PopClipRect)
 CK_DLL_SFUN(ui_DrawList_GetClipRectMin)
 {
     cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
-    cimgui::ImVec2 clip_rect_min = cimgui::ImDrawList_GetClipRectMin(draw_list);
-    RETURN->v_vec2               = { clip_rect_min.x, clip_rect_min.y };
+    cimgui::ImVec2 clip_rect_min  = cimgui::ImDrawList_GetClipRectMin(draw_list);
+    RETURN->v_vec2                = { clip_rect_min.x, clip_rect_min.y };
 }
 
 CK_DLL_SFUN(ui_DrawList_GetClipRectMax)
 {
     cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
-    cimgui::ImVec2 clip_rect_max = cimgui::ImDrawList_GetClipRectMax(draw_list);
-    RETURN->v_vec2               = { clip_rect_max.x, clip_rect_max.y };
+    cimgui::ImVec2 clip_rect_max  = cimgui::ImDrawList_GetClipRectMax(draw_list);
+    RETURN->v_vec2                = { clip_rect_max.x, clip_rect_max.y };
 }
 
 CK_DLL_SFUN(ui_DrawList_AddLine)
@@ -7994,8 +7792,8 @@ CK_DLL_SFUN(ui_DrawList_AddLine)
     t_CKVEC2 p2                   = GET_NEXT_VEC2(ARGS);
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
-    cimgui::ImDrawList_AddLine(draw_list, CKVEC2_TO_IMVEC2(p1),
-                               CKVEC2_TO_IMVEC2(p2), CKVEC4_TO_IMU32(col));
+    cimgui::ImDrawList_AddLine(draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+                               CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddLineEx)
@@ -8006,9 +7804,8 @@ CK_DLL_SFUN(ui_DrawList_AddLineEx)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
     float thickness               = GET_NEXT_FLOAT(ARGS);
 
-    cimgui::ImDrawList_AddLineEx(draw_list, CKVEC2_TO_IMVEC2(p1),
-                                 CKVEC2_TO_IMVEC2(p2), CKVEC4_TO_IMU32(col),
-                                 thickness);
+    cimgui::ImDrawList_AddLineEx(draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+                                 CKVEC4_TO_IMU32(col), thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddRect)
@@ -8045,8 +7842,7 @@ CK_DLL_SFUN(ui_DrawList_AddRectFilled)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
     cimgui::ImDrawList_AddRectFilled(draw_list, CKVEC2_TO_IMVEC2(p_min),
-                                     CKVEC2_TO_IMVEC2(p_max),
-                                     CKVEC4_TO_IMU32(col));
+                                     CKVEC2_TO_IMVEC2(p_max), CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddRectFilledEx)
@@ -8058,9 +7854,9 @@ CK_DLL_SFUN(ui_DrawList_AddRectFilledEx)
     float rounding                = GET_NEXT_FLOAT(ARGS);
     int rounding_corners_flags    = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_AddRectFilledEx(
-      draw_list, CKVEC2_TO_IMVEC2(p_min), CKVEC2_TO_IMVEC2(p_max),
-      CKVEC4_TO_IMU32(col), rounding, rounding_corners_flags);
+    cimgui::ImDrawList_AddRectFilledEx(draw_list, CKVEC2_TO_IMVEC2(p_min),
+                                       CKVEC2_TO_IMVEC2(p_max), CKVEC4_TO_IMU32(col),
+                                       rounding, rounding_corners_flags);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddRectFilledMultiColor)
@@ -8088,9 +7884,9 @@ CK_DLL_SFUN(ui_DrawList_AddQuad)
     t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
-    cimgui::ImDrawList_AddQuad(draw_list, CKVEC2_TO_IMVEC2(p1),
-                               CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
-                               CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col));
+    cimgui::ImDrawList_AddQuad(draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+                               CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4),
+                               CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddQuadEx)
@@ -8103,10 +7899,9 @@ CK_DLL_SFUN(ui_DrawList_AddQuadEx)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
     float thickness               = GET_NEXT_FLOAT(ARGS);
 
-    cimgui::ImDrawList_AddQuadEx(draw_list, CKVEC2_TO_IMVEC2(p1),
-                                 CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
-                                 CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col),
-                                 thickness);
+    cimgui::ImDrawList_AddQuadEx(draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
+                                 CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4),
+                                 CKVEC4_TO_IMU32(col), thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddQuadFilled)
@@ -8118,9 +7913,9 @@ CK_DLL_SFUN(ui_DrawList_AddQuadFilled)
     t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
-    cimgui::ImDrawList_AddQuadFilled(
-      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
-      CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col));
+    cimgui::ImDrawList_AddQuadFilled(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                     CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                                     CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddTriangle)
@@ -8158,9 +7953,9 @@ CK_DLL_SFUN(ui_DrawList_AddTriangleFilled)
     t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
-    cimgui::ImDrawList_AddTriangleFilled(
-      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
-      CKVEC2_TO_IMVEC2(p3), CKVEC4_TO_IMU32(col));
+    cimgui::ImDrawList_AddTriangleFilled(draw_list, CKVEC2_TO_IMVEC2(p1),
+                                         CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+                                         CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddCircle)
@@ -8184,8 +7979,7 @@ CK_DLL_SFUN(ui_DrawList_AddCircleEx)
     float thickness               = GET_NEXT_FLOAT(ARGS);
 
     cimgui::ImDrawList_AddCircleEx(draw_list, CKVEC2_TO_IMVEC2(center), radius,
-                                   CKVEC4_TO_IMU32(col), num_segments,
-                                   thickness);
+                                   CKVEC4_TO_IMU32(col), num_segments, thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddCircleFilled)
@@ -8196,9 +7990,8 @@ CK_DLL_SFUN(ui_DrawList_AddCircleFilled)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
     t_CKINT num_segments          = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_AddCircleFilled(draw_list, CKVEC2_TO_IMVEC2(center),
-                                       radius, CKVEC4_TO_IMU32(col),
-                                       num_segments);
+    cimgui::ImDrawList_AddCircleFilled(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                       CKVEC4_TO_IMU32(col), num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddNgon)
@@ -8234,9 +8027,8 @@ CK_DLL_SFUN(ui_DrawList_AddNgonFilled)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
     int num_segments              = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_AddNgonFilled(draw_list, CKVEC2_TO_IMVEC2(center),
-                                     radius, CKVEC4_TO_IMU32(col),
-                                     num_segments);
+    cimgui::ImDrawList_AddNgonFilled(draw_list, CKVEC2_TO_IMVEC2(center), radius,
+                                     CKVEC4_TO_IMU32(col), num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddEllipse)
@@ -8247,8 +8039,7 @@ CK_DLL_SFUN(ui_DrawList_AddEllipse)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
     cimgui::ImDrawList_AddEllipse(draw_list, CKVEC2_TO_IMVEC2(center),
-                                  CKVEC2_TO_IMVEC2(radius),
-                                  CKVEC4_TO_IMU32(col));
+                                  CKVEC2_TO_IMVEC2(radius), CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddEllipseEx)
@@ -8261,9 +8052,9 @@ CK_DLL_SFUN(ui_DrawList_AddEllipseEx)
     int num_segments              = GET_NEXT_INT(ARGS);
     float thickness               = GET_NEXT_FLOAT(ARGS);
 
-    cimgui::ImDrawList_AddEllipseEx(
-      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius),
-      CKVEC4_TO_IMU32(col), rot, num_segments, thickness);
+    cimgui::ImDrawList_AddEllipseEx(draw_list, CKVEC2_TO_IMVEC2(center),
+                                    CKVEC2_TO_IMVEC2(radius), CKVEC4_TO_IMU32(col), rot,
+                                    num_segments, thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddEllipseFilled)
@@ -8274,8 +8065,7 @@ CK_DLL_SFUN(ui_DrawList_AddEllipseFilled)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
 
     cimgui::ImDrawList_AddEllipseFilled(draw_list, CKVEC2_TO_IMVEC2(center),
-                                        CKVEC2_TO_IMVEC2(radius),
-                                        CKVEC4_TO_IMU32(col));
+                                        CKVEC2_TO_IMVEC2(radius), CKVEC4_TO_IMU32(col));
 }
 
 CK_DLL_SFUN(ui_DrawList_AddEllipseFilledEx)
@@ -8287,9 +8077,9 @@ CK_DLL_SFUN(ui_DrawList_AddEllipseFilledEx)
     t_CKFLOAT rot                 = GET_NEXT_FLOAT(ARGS);
     int num_segments              = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_AddEllipseFilledEx(
-      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius),
-      CKVEC4_TO_IMU32(col), rot, num_segments);
+    cimgui::ImDrawList_AddEllipseFilledEx(draw_list, CKVEC2_TO_IMVEC2(center),
+                                          CKVEC2_TO_IMVEC2(radius),
+                                          CKVEC4_TO_IMU32(col), rot, num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddText)
@@ -8299,8 +8089,8 @@ CK_DLL_SFUN(ui_DrawList_AddText)
     t_CKVEC4 col                  = GET_NEXT_VEC4(ARGS);
     const char* text              = API->object->str(GET_NEXT_STRING(ARGS));
 
-    cimgui::ImDrawList_AddText(draw_list, CKVEC2_TO_IMVEC2(pos),
-                               CKVEC4_TO_IMU32(col), text);
+    cimgui::ImDrawList_AddText(draw_list, CKVEC2_TO_IMVEC2(pos), CKVEC4_TO_IMU32(col),
+                               text);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddTextEx)
@@ -8311,8 +8101,8 @@ CK_DLL_SFUN(ui_DrawList_AddTextEx)
     const char* text              = API->object->str(GET_NEXT_STRING(ARGS));
     const char* text_end          = API->object->str(GET_NEXT_STRING(ARGS));
 
-    cimgui::ImDrawList_AddTextEx(draw_list, CKVEC2_TO_IMVEC2(pos),
-                                 CKVEC4_TO_IMU32(col), text, text_end);
+    cimgui::ImDrawList_AddTextEx(draw_list, CKVEC2_TO_IMVEC2(pos), CKVEC4_TO_IMU32(col),
+                                 text, text_end);
 }
 
 // CK_DLL_SFUN(ui_DrawList_AddTextImFontPtr)
@@ -8335,9 +8125,8 @@ CK_DLL_SFUN(ui_DrawList_AddBezierCubic)
     int num_segments              = GET_NEXT_INT(ARGS);
 
     cimgui::ImDrawList_AddBezierCubic(
-      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
-      CKVEC2_TO_IMVEC2(p3), CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col),
-      thickness, num_segments);
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+      CKVEC2_TO_IMVEC2(p4), CKVEC4_TO_IMU32(col), thickness, num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddBezierQuadratic)
@@ -8351,8 +8140,8 @@ CK_DLL_SFUN(ui_DrawList_AddBezierQuadratic)
     int num_segments              = GET_NEXT_INT(ARGS);
 
     cimgui::ImDrawList_AddBezierQuadratic(
-      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2),
-      CKVEC2_TO_IMVEC2(p3), CKVEC4_TO_IMU32(col), thickness, num_segments);
+      draw_list, CKVEC2_TO_IMVEC2(p1), CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
+      CKVEC4_TO_IMU32(col), thickness, num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddPolyline)
@@ -8372,8 +8161,8 @@ CK_DLL_SFUN(ui_DrawList_AddPolyline)
         items[i] = CKVEC2_TO_IMVEC2(API->object->array_vec2_get_idx(points, i));
     }
 
-    cimgui::ImDrawList_AddPolyline(draw_list, items, num_items,
-                                   CKVEC4_TO_IMU32(col), flags, thickness);
+    cimgui::ImDrawList_AddPolyline(draw_list, items, num_items, CKVEC4_TO_IMU32(col),
+                                   flags, thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_AddConvexPolyFilled)
@@ -8433,8 +8222,7 @@ CK_DLL_SFUN(ui_DrawList_PathLineToMergeDuplicate)
     cimgui::ImDrawList* draw_list = cimgui::ImGui_GetWindowDrawList();
     t_CKVEC2 pos                  = GET_NEXT_VEC2(ARGS);
 
-    cimgui::ImDrawList_PathLineToMergeDuplicate(draw_list,
-                                                CKVEC2_TO_IMVEC2(pos));
+    cimgui::ImDrawList_PathLineToMergeDuplicate(draw_list, CKVEC2_TO_IMVEC2(pos));
 }
 
 CK_DLL_SFUN(ui_DrawList_PathFillConvex)
@@ -8460,8 +8248,7 @@ CK_DLL_SFUN(ui_DrawList_PathStroke)
     int flags                     = GET_NEXT_INT(ARGS);
     float thickness               = GET_NEXT_FLOAT(ARGS);
 
-    cimgui::ImDrawList_PathStroke(draw_list, CKVEC4_TO_IMU32(col), flags,
-                                  thickness);
+    cimgui::ImDrawList_PathStroke(draw_list, CKVEC4_TO_IMU32(col), flags, thickness);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathArcTo)
@@ -8473,8 +8260,8 @@ CK_DLL_SFUN(ui_DrawList_PathArcTo)
     float a_max                   = GET_NEXT_FLOAT(ARGS);
     t_CKINT num_segments          = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_PathArcTo(draw_list, CKVEC2_TO_IMVEC2(center), radius,
-                                 a_min, a_max, num_segments);
+    cimgui::ImDrawList_PathArcTo(draw_list, CKVEC2_TO_IMVEC2(center), radius, a_min,
+                                 a_max, num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathArcToFast)
@@ -8485,8 +8272,8 @@ CK_DLL_SFUN(ui_DrawList_PathArcToFast)
     t_CKINT a_min                 = GET_NEXT_INT(ARGS);
     t_CKINT a_max                 = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_PathArcToFast(draw_list, CKVEC2_TO_IMVEC2(center),
-                                     radius, a_min, a_max);
+    cimgui::ImDrawList_PathArcToFast(draw_list, CKVEC2_TO_IMVEC2(center), radius, a_min,
+                                     a_max);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathEllipticalArcTo)
@@ -8499,8 +8286,8 @@ CK_DLL_SFUN(ui_DrawList_PathEllipticalArcTo)
     float a_max                   = GET_NEXT_FLOAT(ARGS);
 
     cimgui::ImDrawList_PathEllipticalArcTo(draw_list, CKVEC2_TO_IMVEC2(center),
-                                           CKVEC2_TO_IMVEC2(radius), angle,
-                                           a_min, a_max);
+                                           CKVEC2_TO_IMVEC2(radius), angle, a_min,
+                                           a_max);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathEllipticalArcToEx)
@@ -8513,9 +8300,9 @@ CK_DLL_SFUN(ui_DrawList_PathEllipticalArcToEx)
     float a_max                   = GET_NEXT_FLOAT(ARGS);
     int num_segments              = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_PathEllipticalArcToEx(
-      draw_list, CKVEC2_TO_IMVEC2(center), CKVEC2_TO_IMVEC2(radius), angle,
-      a_min, a_max, num_segments);
+    cimgui::ImDrawList_PathEllipticalArcToEx(draw_list, CKVEC2_TO_IMVEC2(center),
+                                             CKVEC2_TO_IMVEC2(radius), angle, a_min,
+                                             a_max, num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathBezierCubicCurveTo)
@@ -8526,9 +8313,9 @@ CK_DLL_SFUN(ui_DrawList_PathBezierCubicCurveTo)
     t_CKVEC2 p4                   = GET_NEXT_VEC2(ARGS);
     int num_segments              = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_PathBezierCubicCurveTo(
-      draw_list, CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3),
-      CKVEC2_TO_IMVEC2(p4), num_segments);
+    cimgui::ImDrawList_PathBezierCubicCurveTo(draw_list, CKVEC2_TO_IMVEC2(p2),
+                                              CKVEC2_TO_IMVEC2(p3),
+                                              CKVEC2_TO_IMVEC2(p4), num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathBezierQuadraticCurveTo)
@@ -8538,8 +8325,8 @@ CK_DLL_SFUN(ui_DrawList_PathBezierQuadraticCurveTo)
     t_CKVEC2 p3                   = GET_NEXT_VEC2(ARGS);
     int num_segments              = GET_NEXT_INT(ARGS);
 
-    cimgui::ImDrawList_PathBezierQuadraticCurveTo(
-      draw_list, CKVEC2_TO_IMVEC2(p2), CKVEC2_TO_IMVEC2(p3), num_segments);
+    cimgui::ImDrawList_PathBezierQuadraticCurveTo(draw_list, CKVEC2_TO_IMVEC2(p2),
+                                                  CKVEC2_TO_IMVEC2(p3), num_segments);
 }
 
 CK_DLL_SFUN(ui_DrawList_PathRect)
@@ -8563,8 +8350,7 @@ CK_DLL_SFUN(ui_begin)
 {
     const char* name = API->object->str(GET_NEXT_STRING(ARGS));
 
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
 
     int flags = GET_NEXT_INT(ARGS);
 
@@ -8588,8 +8374,8 @@ CK_DLL_SFUN(ui_BeginChild)
     int child_flags    = GET_NEXT_INT(ARGS);
     int window_flags   = GET_NEXT_INT(ARGS);
 
-    cimgui::ImGui_BeginChild(str_id, { (float)size.x, (float)size.y },
-                             child_flags, window_flags);
+    cimgui::ImGui_BeginChild(str_id, { (float)size.x, (float)size.y }, child_flags,
+                             window_flags);
 }
 
 CK_DLL_SFUN(ui_EndChild)
@@ -8693,8 +8479,7 @@ static void uiSizeCallbackHandler(cimgui::ImGuiSizeCallbackData* data)
 
     Chuck_Object* ui_size_callback_ckobj = (Chuck_Object*)data->UserData;
     // must use shred associated with UI_SizeCallback instance
-    Chuck_VM_Shred* origin_shred
-      = chugin_getOriginShred(ui_size_callback_ckobj);
+    Chuck_VM_Shred* origin_shred = chugin_getOriginShred(ui_size_callback_ckobj);
 
     Chuck_Object* size_callback_data = API->object->create_without_shred(
       VM, API->type->lookup(VM, "UI_SizeCallbackData"), false);
@@ -8707,9 +8492,8 @@ static void uiSizeCallbackHandler(cimgui::ImGuiSizeCallbackData* data)
     theArg.value.v_object = size_callback_data;
 
     // invoke the update function in immediate mode
-    API->vm->invoke_mfun_immediate_mode(ui_size_callback_ckobj,
-                                        ui_size_callback_vt_offset, VM,
-                                        origin_shred, &theArg, 1);
+    API->vm->invoke_mfun_immediate_mode(
+      ui_size_callback_ckobj, ui_size_callback_vt_offset, VM, origin_shred, &theArg, 1);
 }
 
 CK_DLL_SFUN(ui_SetNextWindowSizeConstraints)
@@ -8719,10 +8503,9 @@ CK_DLL_SFUN(ui_SetNextWindowSizeConstraints)
     Chuck_Object* ui_size_callback = GET_NEXT_OBJECT(ARGS);
 
     // anonymous callback function
-    cimgui::ImGui_SetNextWindowSizeConstraints(
-      { (float)size_min.x, (float)size_min.y },
-      { (float)size_max.x, (float)size_max.y }, uiSizeCallbackHandler,
-      ui_size_callback);
+    cimgui::ImGui_SetNextWindowSizeConstraints({ (float)size_min.x, (float)size_min.y },
+                                               { (float)size_max.x, (float)size_max.y },
+                                               uiSizeCallbackHandler, ui_size_callback);
 }
 
 CK_DLL_SFUN(ui_SetNextWindowContentSize)
@@ -9307,8 +9090,7 @@ CK_DLL_SFUN(ui_ButtonEx)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
     t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
-    RETURN->v_int
-      = cimgui::ImGui_ButtonEx(label, { (float)size.x, (float)size.y });
+    RETURN->v_int     = cimgui::ImGui_ButtonEx(label, { (float)size.x, (float)size.y });
 }
 
 CK_DLL_SFUN(ui_SmallButton)
@@ -9322,8 +9104,8 @@ CK_DLL_SFUN(ui_InvisibleButton)
     const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
     t_CKVEC2 size      = GET_NEXT_VEC2(ARGS);
     int flags          = GET_NEXT_INT(ARGS);
-    RETURN->v_int      = cimgui::ImGui_InvisibleButton(
-      str_id, { (float)size.x, (float)size.y }, flags);
+    RETURN->v_int
+      = cimgui::ImGui_InvisibleButton(str_id, { (float)size.x, (float)size.y }, flags);
 }
 
 CK_DLL_SFUN(ui_ArrowButton)
@@ -9351,8 +9133,7 @@ CK_DLL_SFUN(ui_CheckboxFlagsIntPtr)
 
     int flags_value = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int
-      = cimgui::ImGui_CheckboxFlagsIntPtr(label, flags, flags_value);
+    RETURN->v_int = cimgui::ImGui_CheckboxFlagsIntPtr(label, flags, flags_value);
 }
 
 CK_DLL_SFUN(ui_RadioButton)
@@ -9376,12 +9157,10 @@ CK_DLL_SFUN(ui_RadioButtonIntPtr)
 
 CK_DLL_SFUN(ui_ProgressBar)
 {
-    float fraction = GET_NEXT_FLOAT(ARGS);
-    t_CKVEC2 size  = GET_NEXT_VEC2(ARGS);
-    const char* overlay
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = no overlay
-    cimgui::ImGui_ProgressBar(fraction, { (float)size.x, (float)size.y },
-                              overlay);
+    float fraction      = GET_NEXT_FLOAT(ARGS);
+    t_CKVEC2 size       = GET_NEXT_VEC2(ARGS);
+    const char* overlay = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = no overlay
+    cimgui::ImGui_ProgressBar(fraction, { (float)size.x, (float)size.y }, overlay);
 }
 
 CK_DLL_SFUN(ui_Bullet)
@@ -9397,7 +9176,7 @@ CK_DLL_SFUN(ui_BeginCombo)
     const char* label         = API->object->str(GET_NEXT_STRING(ARGS));
     const char* preview_value = API->object->str(GET_NEXT_STRING(ARGS));
     int flags                 = GET_NEXT_INT(ARGS);
-    RETURN->v_int = cimgui::ImGui_BeginCombo(label, preview_value, flags);
+    RETURN->v_int             = cimgui::ImGui_BeginCombo(label, preview_value, flags);
 }
 
 CK_DLL_SFUN(ui_EndCombo)
@@ -9413,19 +9192,17 @@ CK_DLL_SFUN(ui_ComboChar)
     int* current_item = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
     Chuck_ArrayInt* ck_string_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    int num_items = API->object->array_int_size(ck_string_array);
+    int num_items                   = API->object->array_int_size(ck_string_array);
 
     // copy array of chuck_string to array of const char*
-    const char** items
-      = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
+    const char** items = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
 
     for (int i = 0; i < num_items; i++) {
         items[i] = API->object->str(
           (Chuck_String*)API->object->array_int_get_idx(ck_string_array, i));
     }
 
-    RETURN->v_int
-      = cimgui::ImGui_ComboChar(label, current_item, items, num_items);
+    RETURN->v_int = cimgui::ImGui_ComboChar(label, current_item, items, num_items);
 }
 
 CK_DLL_SFUN(ui_ComboCharEx)
@@ -9436,21 +9213,20 @@ CK_DLL_SFUN(ui_ComboCharEx)
     int* current_item = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
     Chuck_ArrayInt* ck_string_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    int num_items = API->object->array_int_size(ck_string_array);
+    int num_items                   = API->object->array_int_size(ck_string_array);
 
     int popup_max_height_in_items = GET_NEXT_INT(ARGS);
 
     // copy array of chuck_string to array of const char*
-    const char** items
-      = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
+    const char** items = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
 
     for (int i = 0; i < num_items; i++) {
         items[i] = API->object->str(
           (Chuck_String*)API->object->array_int_get_idx(ck_string_array, i));
     }
 
-    RETURN->v_int = cimgui::ImGui_ComboCharEx(
-      label, current_item, items, num_items, popup_max_height_in_items);
+    RETURN->v_int = cimgui::ImGui_ComboCharEx(label, current_item, items, num_items,
+                                              popup_max_height_in_items);
 }
 
 CK_DLL_SFUN(ui_Combo)
@@ -9460,12 +9236,10 @@ CK_DLL_SFUN(ui_Combo)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     int* current_item = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
-    const char* items_separated_by_zeros
-      = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* items_separated_by_zeros = API->object->str(GET_NEXT_STRING(ARGS));
     printf("items_separated_by_zeros: %s\n", items_separated_by_zeros);
 
-    RETURN->v_int
-      = cimgui::ImGui_Combo(label, current_item, items_separated_by_zeros);
+    RETURN->v_int = cimgui::ImGui_Combo(label, current_item, items_separated_by_zeros);
 }
 
 CK_DLL_SFUN(ui_ComboEx)
@@ -9475,53 +9249,50 @@ CK_DLL_SFUN(ui_ComboEx)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     int* current_item = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
-    const char* items_separated_by_zeros
-      = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* items_separated_by_zeros = API->object->str(GET_NEXT_STRING(ARGS));
 
     int popup_max_height_in_items = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_ComboEx(
-      label, current_item, items_separated_by_zeros, popup_max_height_in_items);
+    RETURN->v_int = cimgui::ImGui_ComboEx(label, current_item, items_separated_by_zeros,
+                                          popup_max_height_in_items);
 }
 
 // ============================================================================
 // Widgets: Drag Sliders
 // ============================================================================
 
-#define UI_DRAG_EX_IMPL_FLOAT(func, type, ptr_offset)                          \
-    {                                                                          \
-        const char* label  = API->object->str(GET_NEXT_STRING(ARGS));          \
-        Chuck_Object* obj  = GET_NEXT_OBJECT(ARGS);                            \
-        type* v            = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);          \
-        float v_speed      = GET_NEXT_FLOAT(ARGS);                             \
-        float v_min        = GET_NEXT_FLOAT(ARGS);                             \
-        float v_max        = GET_NEXT_FLOAT(ARGS);                             \
-        const char* format = API->object->str(GET_NEXT_STRING(ARGS));          \
-        int flags          = GET_NEXT_INT(ARGS);                               \
-        RETURN->v_int                                                          \
-          = cimgui::func(label, v, v_speed, v_min, v_max, format, flags);      \
+#define UI_DRAG_EX_IMPL_FLOAT(func, type, ptr_offset)                                  \
+    {                                                                                  \
+        const char* label  = API->object->str(GET_NEXT_STRING(ARGS));                  \
+        Chuck_Object* obj  = GET_NEXT_OBJECT(ARGS);                                    \
+        type* v            = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);                  \
+        float v_speed      = GET_NEXT_FLOAT(ARGS);                                     \
+        float v_min        = GET_NEXT_FLOAT(ARGS);                                     \
+        float v_max        = GET_NEXT_FLOAT(ARGS);                                     \
+        const char* format = API->object->str(GET_NEXT_STRING(ARGS));                  \
+        int flags          = GET_NEXT_INT(ARGS);                                       \
+        RETURN->v_int = cimgui::func(label, v, v_speed, v_min, v_max, format, flags);  \
     }
 
-#define UI_DRAG_EX_IMPL_INT(func, type, ptr_offset)                            \
-    {                                                                          \
-        const char* label  = API->object->str(GET_NEXT_STRING(ARGS));          \
-        Chuck_Object* obj  = GET_NEXT_OBJECT(ARGS);                            \
-        type* v            = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);          \
-        float v_speed      = GET_NEXT_FLOAT(ARGS);                             \
-        int v_min          = GET_NEXT_INT(ARGS);                               \
-        int v_max          = GET_NEXT_INT(ARGS);                               \
-        const char* format = API->object->str(GET_NEXT_STRING(ARGS));          \
-        int flags          = GET_NEXT_INT(ARGS);                               \
-        RETURN->v_int                                                          \
-          = cimgui::func(label, v, v_speed, v_min, v_max, format, flags);      \
+#define UI_DRAG_EX_IMPL_INT(func, type, ptr_offset)                                    \
+    {                                                                                  \
+        const char* label  = API->object->str(GET_NEXT_STRING(ARGS));                  \
+        Chuck_Object* obj  = GET_NEXT_OBJECT(ARGS);                                    \
+        type* v            = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);                  \
+        float v_speed      = GET_NEXT_FLOAT(ARGS);                                     \
+        int v_min          = GET_NEXT_INT(ARGS);                                       \
+        int v_max          = GET_NEXT_INT(ARGS);                                       \
+        const char* format = API->object->str(GET_NEXT_STRING(ARGS));                  \
+        int flags          = GET_NEXT_INT(ARGS);                                       \
+        RETURN->v_int = cimgui::func(label, v, v_speed, v_min, v_max, format, flags);  \
     }
 
-#define UI_DRAG_IMPL(func, type, ptr_offset)                                   \
-    {                                                                          \
-        const char* label = API->object->str(GET_NEXT_STRING(ARGS));           \
-        Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);                             \
-        type* v           = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);           \
-        RETURN->v_int     = cimgui::func(label, v);                            \
+#define UI_DRAG_IMPL(func, type, ptr_offset)                                           \
+    {                                                                                  \
+        const char* label = API->object->str(GET_NEXT_STRING(ARGS));                   \
+        Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);                                     \
+        type* v           = (type*)OBJ_MEMBER_UINT(obj, ptr_offset);                   \
+        RETURN->v_int     = cimgui::func(label, v);                                    \
     }
 
 CK_DLL_SFUN(ui_DragFloat)
@@ -9568,35 +9339,30 @@ CK_DLL_SFUN(ui_DragFloatRange2)
 {
     const char* label     = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj_min = GET_NEXT_OBJECT(ARGS);
-    float* v_current_min
-      = (float*)OBJ_MEMBER_UINT(obj_min, ui_float2_ptr_offset);
+    float* v_current_min  = (float*)OBJ_MEMBER_UINT(obj_min, ui_float2_ptr_offset);
     Chuck_Object* obj_max = GET_NEXT_OBJECT(ARGS);
-    float* v_current_max
-      = (float*)OBJ_MEMBER_UINT(obj_max, ui_float2_ptr_offset);
+    float* v_current_max  = (float*)OBJ_MEMBER_UINT(obj_max, ui_float2_ptr_offset);
 
-    RETURN->v_int
-      = cimgui::ImGui_DragFloatRange2(label, v_current_min, v_current_max);
+    RETURN->v_int = cimgui::ImGui_DragFloatRange2(label, v_current_min, v_current_max);
 }
 
 CK_DLL_SFUN(ui_DragFloatRange2Ex)
 {
     const char* label     = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* obj_min = GET_NEXT_OBJECT(ARGS);
-    float* v_current_min
-      = (float*)OBJ_MEMBER_UINT(obj_min, ui_float2_ptr_offset);
+    float* v_current_min  = (float*)OBJ_MEMBER_UINT(obj_min, ui_float2_ptr_offset);
     Chuck_Object* obj_max = GET_NEXT_OBJECT(ARGS);
-    float* v_current_max
-      = (float*)OBJ_MEMBER_UINT(obj_max, ui_float2_ptr_offset);
-    float v_speed      = GET_NEXT_FLOAT(ARGS);
-    float v_min        = GET_NEXT_FLOAT(ARGS);
-    float v_max        = GET_NEXT_FLOAT(ARGS);
-    const char* format = API->object->str(GET_NEXT_STRING(ARGS));
+    float* v_current_max  = (float*)OBJ_MEMBER_UINT(obj_max, ui_float2_ptr_offset);
+    float v_speed         = GET_NEXT_FLOAT(ARGS);
+    float v_min           = GET_NEXT_FLOAT(ARGS);
+    float v_max           = GET_NEXT_FLOAT(ARGS);
+    const char* format    = API->object->str(GET_NEXT_STRING(ARGS));
     const char* format_max
       = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = same format as min
-    float power   = GET_NEXT_FLOAT(ARGS);
-    RETURN->v_int = cimgui::ImGui_DragFloatRange2Ex(
-      label, v_current_min, v_current_max, v_speed, v_min, v_max, format,
-      format_max, power);
+    float power = GET_NEXT_FLOAT(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_DragFloatRange2Ex(label, v_current_min, v_current_max, v_speed,
+                                        v_min, v_max, format, format_max, power);
 }
 
 CK_DLL_SFUN(ui_DragInt)
@@ -9647,8 +9413,7 @@ CK_DLL_SFUN(ui_DragIntRange2)
     Chuck_Object* obj_max = GET_NEXT_OBJECT(ARGS);
     int* v_current_max    = (int*)OBJ_MEMBER_UINT(obj_max, ui_int2_ptr_offset);
 
-    RETURN->v_int
-      = cimgui::ImGui_DragIntRange2(label, v_current_min, v_current_max);
+    RETURN->v_int = cimgui::ImGui_DragIntRange2(label, v_current_min, v_current_max);
 }
 
 CK_DLL_SFUN(ui_DragIntRange2Ex)
@@ -9664,10 +9429,10 @@ CK_DLL_SFUN(ui_DragIntRange2Ex)
     const char* format    = API->object->str(GET_NEXT_STRING(ARGS));
     const char* format_max
       = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = same format as min
-    int flags     = GET_NEXT_INT(ARGS);
-    RETURN->v_int = cimgui::ImGui_DragIntRange2Ex(
-      label, v_current_min, v_current_max, v_speed, v_min, v_max, format,
-      format_max, flags);
+    int flags = GET_NEXT_INT(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_DragIntRange2Ex(label, v_current_min, v_current_max, v_speed,
+                                      v_min, v_max, format, format_max, flags);
 }
 
 CK_DLL_SFUN(ui_DragScalarN_CKINT)
@@ -9683,8 +9448,8 @@ CK_DLL_SFUN(ui_DragScalarN_CKINT)
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
-    RETURN->v_int = cimgui::ImGui_DragScalarN(label, cimgui::ImGuiDataType_S32,
-                                              v, num_components);
+    RETURN->v_int
+      = cimgui::ImGui_DragScalarN(label, cimgui::ImGuiDataType_S32, v, num_components);
 
     API->object->array_int_clear(ck_array);
 
@@ -9713,9 +9478,9 @@ CK_DLL_SFUN(ui_DragScalarNEx_CKINT)
     const char* format = API->object->str(GET_NEXT_STRING(ARGS));
     int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_DragScalarNEx(
-      label, cimgui::ImGuiDataType_S32, v, num_components, speed, &v_min,
-      &v_max, format, flags);
+    RETURN->v_int
+      = cimgui::ImGui_DragScalarNEx(label, cimgui::ImGuiDataType_S32, v, num_components,
+                                    speed, &v_min, &v_max, format, flags);
 
     // copy back
     API->object->array_int_clear(ck_array);
@@ -9737,8 +9502,8 @@ CK_DLL_SFUN(ui_DragScalarN_CKFLOAT)
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
-    RETURN->v_int = cimgui::ImGui_DragScalarN(
-      label, cimgui::ImGuiDataType_Float, v, num_components);
+    RETURN->v_int = cimgui::ImGui_DragScalarN(label, cimgui::ImGuiDataType_Float, v,
+                                              num_components);
 
     API->object->array_float_clear(ck_array);
 
@@ -9768,9 +9533,9 @@ CK_DLL_SFUN(ui_DragScalarNEx_CKFLOAT)
     const char* format = API->object->str(GET_NEXT_STRING(ARGS));
     int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_DragScalarNEx(
-      label, cimgui::ImGuiDataType_Float, v, num_components, speed, &v_min,
-      &v_max, format, flags);
+    RETURN->v_int = cimgui::ImGui_DragScalarNEx(label, cimgui::ImGuiDataType_Float, v,
+                                                num_components, speed, &v_min, &v_max,
+                                                format, flags);
 
     // copy back to chuck array (no set in API, have to clear and re-push)
     API->object->array_float_clear(ck_array);
@@ -9803,14 +9568,12 @@ CK_DLL_SFUN(ui_SliderFloatEx)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     float* v          = (float*)OBJ_MEMBER_UINT(obj, ui_float_ptr_offset);
 
-    float v_min = GET_NEXT_FLOAT(ARGS);
-    float v_max = GET_NEXT_FLOAT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
-    int flags = GET_NEXT_INT(ARGS);
+    float v_min        = GET_NEXT_FLOAT(ARGS);
+    float v_max        = GET_NEXT_FLOAT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
+    int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int
-      = cimgui::ImGui_SliderFloatEx(label, v, v_min, v_max, format, flags);
+    RETURN->v_int = cimgui::ImGui_SliderFloatEx(label, v, v_min, v_max, format, flags);
 }
 
 CK_DLL_SFUN(ui_SliderAngle)
@@ -9833,13 +9596,12 @@ CK_DLL_SFUN(ui_SliderAngleEx)
     float v_degrees_min = GET_NEXT_FLOAT(ARGS);
     float v_degrees_max = GET_NEXT_FLOAT(ARGS);
 
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
 
     int flags = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SliderAngleEx(label, v, v_degrees_min,
-                                                v_degrees_max, format, flags);
+    RETURN->v_int = cimgui::ImGui_SliderAngleEx(label, v, v_degrees_min, v_degrees_max,
+                                                format, flags);
 }
 
 CK_DLL_SFUN(ui_SliderInt)
@@ -9862,14 +9624,12 @@ CK_DLL_SFUN(ui_SliderIntEx)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     int* v            = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
-    int v_min = GET_NEXT_INT(ARGS);
-    int v_max = GET_NEXT_INT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
-    int flags = GET_NEXT_INT(ARGS);
+    int v_min          = GET_NEXT_INT(ARGS);
+    int v_max          = GET_NEXT_INT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
+    int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int
-      = cimgui::ImGui_SliderIntEx(label, v, v_min, v_max, format, flags);
+    RETURN->v_int = cimgui::ImGui_SliderIntEx(label, v, v_min, v_max, format, flags);
 }
 
 CK_DLL_SFUN(ui_SliderScalarN_CKINT)
@@ -9888,8 +9648,8 @@ CK_DLL_SFUN(ui_SliderScalarN_CKINT)
     int v_min = GET_NEXT_INT(ARGS);
     int v_max = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SliderScalarN(
-      label, cimgui::ImGuiDataType_S32, v, num_components, &v_min, &v_max);
+    RETURN->v_int = cimgui::ImGui_SliderScalarN(label, cimgui::ImGuiDataType_S32, v,
+                                                num_components, &v_min, &v_max);
 
     API->object->array_int_clear(ck_array);
 
@@ -9912,15 +9672,14 @@ CK_DLL_SFUN(ui_SliderScalarNEx_CKINT)
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
-    int v_min = GET_NEXT_INT(ARGS);
-    int v_max = GET_NEXT_INT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
-    int flags = GET_NEXT_INT(ARGS);
+    int v_min          = GET_NEXT_INT(ARGS);
+    int v_max          = GET_NEXT_INT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
+    int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SliderScalarNEx(
-      label, cimgui::ImGuiDataType_S32, v, num_components, &v_min, &v_max,
-      format, flags);
+    RETURN->v_int
+      = cimgui::ImGui_SliderScalarNEx(label, cimgui::ImGuiDataType_S32, v,
+                                      num_components, &v_min, &v_max, format, flags);
 
     // copy back
     API->object->array_int_clear(ck_array);
@@ -9945,8 +9704,8 @@ CK_DLL_SFUN(ui_SliderScalarN_CKFLOAT)
     float v_min = GET_NEXT_FLOAT(ARGS);
     float v_max = GET_NEXT_FLOAT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SliderScalarN(
-      label, cimgui::ImGuiDataType_Float, v, num_components, &v_min, &v_max);
+    RETURN->v_int = cimgui::ImGui_SliderScalarN(label, cimgui::ImGuiDataType_Float, v,
+                                                num_components, &v_min, &v_max);
 
     API->object->array_float_clear(ck_array);
 
@@ -9969,15 +9728,14 @@ CK_DLL_SFUN(ui_SliderScalarNEx_CKFLOAT)
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
-    float v_min = GET_NEXT_FLOAT(ARGS);
-    float v_max = GET_NEXT_FLOAT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
-    int flags = GET_NEXT_INT(ARGS);
+    float v_min        = GET_NEXT_FLOAT(ARGS);
+    float v_max        = GET_NEXT_FLOAT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
+    int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SliderScalarNEx(
-      label, cimgui::ImGuiDataType_Float, v, num_components, &v_min, &v_max,
-      format, flags);
+    RETURN->v_int
+      = cimgui::ImGui_SliderScalarNEx(label, cimgui::ImGuiDataType_Float, v,
+                                      num_components, &v_min, &v_max, format, flags);
 
     // copy back
     API->object->array_float_clear(ck_array);
@@ -9997,8 +9755,8 @@ CK_DLL_SFUN(ui_VSliderFloat)
     float v_min = GET_NEXT_FLOAT(ARGS);
     float v_max = GET_NEXT_FLOAT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_VSliderFloat(
-      label, { (float)size.x, (float)size.y }, v, v_min, v_max);
+    RETURN->v_int = cimgui::ImGui_VSliderFloat(label, { (float)size.x, (float)size.y },
+                                               v, v_min, v_max);
 }
 
 CK_DLL_SFUN(ui_VSliderFloatEx)
@@ -10009,11 +9767,10 @@ CK_DLL_SFUN(ui_VSliderFloatEx)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     float* v          = (float*)OBJ_MEMBER_UINT(obj, ui_float_ptr_offset);
 
-    float v_min = GET_NEXT_FLOAT(ARGS);
-    float v_max = GET_NEXT_FLOAT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
-    int flags = GET_NEXT_INT(ARGS);
+    float v_min        = GET_NEXT_FLOAT(ARGS);
+    float v_max        = GET_NEXT_FLOAT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.3f"
+    int flags          = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_VSliderFloatEx(
       label, { (float)size.x, (float)size.y }, v, v_min, v_max, format, flags);
@@ -10030,8 +9787,8 @@ CK_DLL_SFUN(ui_VSliderInt)
     int v_min = GET_NEXT_INT(ARGS);
     int v_max = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_VSliderInt(
-      label, { (float)size.x, (float)size.y }, v, v_min, v_max);
+    RETURN->v_int = cimgui::ImGui_VSliderInt(label, { (float)size.x, (float)size.y }, v,
+                                             v_min, v_max);
 }
 
 CK_DLL_SFUN(ui_VSliderIntEx)
@@ -10042,22 +9799,20 @@ CK_DLL_SFUN(ui_VSliderIntEx)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     int* v            = (int*)OBJ_MEMBER_UINT(obj, ui_int_ptr_offset);
 
-    int v_min = GET_NEXT_INT(ARGS);
-    int v_max = GET_NEXT_INT(ARGS);
-    const char* format
-      = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
-    int flags = GET_NEXT_INT(ARGS);
+    int v_min          = GET_NEXT_INT(ARGS);
+    int v_max          = GET_NEXT_INT(ARGS);
+    const char* format = API->object->str(GET_NEXT_STRING(ARGS)); // NULL = "%.0f"
+    int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_VSliderIntEx(
-      label, { (float)size.x, (float)size.y }, v, v_min, v_max, format, flags);
+    RETURN->v_int = cimgui::ImGui_VSliderIntEx(label, { (float)size.x, (float)size.y },
+                                               v, v_min, v_max, format, flags);
 }
 
 // ============================================================================
 // Widgets: Input with Keyboard
 // ============================================================================
 
-static char* UI_String_ResizeBuffer(Chuck_Object* obj, size_t new_cap,
-                                    CK_DL_API API)
+static char* UI_String_ResizeBuffer(Chuck_Object* obj, size_t new_cap, CK_DL_API API)
 {
     char* buf      = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
     size_t buf_cap = OBJ_MEMBER_UINT(obj, ui_string_cap_offset);
@@ -10101,10 +9856,10 @@ CK_DLL_SFUN(ui_InputTextEx)
 CK_DLL_SFUN(ui_InputTextMultiline)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
-
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
-    char* buf         = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
-    int buf_size      = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
+
+    char* buf    = UI_String_ResizeBuffer(obj, strlen(label), API);
+    int buf_size = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
 
     RETURN->v_int = cimgui::ImGui_InputTextMultiline(label, buf, buf_size);
 }
@@ -10120,8 +9875,7 @@ CK_DLL_SFUN(ui_InputTextMultilineEx)
     char* buf = UI_String_ResizeBuffer(obj, input_max_len, API);
 
     RETURN->v_int = cimgui::ImGui_InputTextMultilineEx(
-      label, buf, input_max_len, { (float)size.x, (float)size.y }, flags, NULL,
-      NULL);
+      label, buf, input_max_len, { (float)size.x, (float)size.y }, flags, NULL, NULL);
 }
 CK_DLL_SFUN(ui_InputTextWithHint)
 {
@@ -10131,8 +9885,7 @@ CK_DLL_SFUN(ui_InputTextWithHint)
     char* buf         = (char*)OBJ_MEMBER_UINT(obj, ui_string_ptr_offset);
     int buf_size      = OBJ_MEMBER_INT(obj, ui_string_cap_offset);
 
-    RETURN->v_int
-      = cimgui::ImGui_InputTextWithHint(label, hint, buf, buf_size, 0);
+    RETURN->v_int = cimgui::ImGui_InputTextWithHint(label, hint, buf, buf_size, 0);
 }
 CK_DLL_SFUN(ui_InputTextWithHintEx)
 {
@@ -10144,15 +9897,15 @@ CK_DLL_SFUN(ui_InputTextWithHintEx)
 
     char* buf = UI_String_ResizeBuffer(obj, input_max_len, API);
 
-    RETURN->v_int = cimgui::ImGui_InputTextWithHintEx(
-      label, hint, buf, input_max_len, flags, NULL, NULL);
+    RETURN->v_int = cimgui::ImGui_InputTextWithHintEx(label, hint, buf, input_max_len,
+                                                      flags, NULL, NULL);
 }
 
 CK_DLL_SFUN(ui_InputFloat)
 {
     const char* label      = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* ui_float = GET_NEXT_OBJECT(ARGS);
-    float* v = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
+    float* v               = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
 
     RETURN->v_int = cimgui::ImGui_InputFloat(label, v);
 }
@@ -10161,11 +9914,11 @@ CK_DLL_SFUN(ui_InputFloatEx)
 {
     const char* label      = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* ui_float = GET_NEXT_OBJECT(ARGS);
-    float* v           = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
-    float step         = GET_NEXT_FLOAT(ARGS);
-    float step_fast    = GET_NEXT_FLOAT(ARGS);
-    const char* format = API->object->str(GET_NEXT_STRING(ARGS));
-    int flags          = GET_NEXT_INT(ARGS);
+    float* v               = (float*)OBJ_MEMBER_UINT(ui_float, ui_float_ptr_offset);
+    float step             = GET_NEXT_FLOAT(ARGS);
+    float step_fast        = GET_NEXT_FLOAT(ARGS);
+    const char* format     = API->object->str(GET_NEXT_STRING(ARGS));
+    int flags              = GET_NEXT_INT(ARGS);
 
     RETURN->v_int
       = cimgui::ImGui_InputFloatEx(label, v, step, step_fast, format, flags);
@@ -10195,19 +9948,19 @@ CK_DLL_SFUN(ui_InputScalarN_CKINT)
 {
     const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components    = API->object->array_int_size(ck_array);
+    int num_components       = API->object->array_int_size(ck_array);
 
     int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
-    RETURN->v_int = cimgui::ImGui_InputScalarN(label, cimgui::ImGuiDataType_S32,
-                                               v, num_components);
+    RETURN->v_int
+      = cimgui::ImGui_InputScalarN(label, cimgui::ImGuiDataType_S32, v, num_components);
 
     // copy back
     API->object->array_int_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_int_push_back(ck_array, v[i]);
     }
 }
@@ -10216,10 +9969,10 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKINT)
 {
     const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayInt* ck_array = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components    = API->object->array_int_size(ck_array);
+    int num_components       = API->object->array_int_size(ck_array);
 
     int* v = ARENA_PUSH_COUNT(&audio_frame_arena, int, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_int_get_idx(ck_array, i);
     }
 
@@ -10228,13 +9981,13 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKINT)
     const char* format = API->object->str(GET_NEXT_STRING(ARGS));
     int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_InputScalarNEx(
-      label, cimgui::ImGuiDataType_S32, v, num_components, &step, &step_fast,
-      format, flags);
+    RETURN->v_int
+      = cimgui::ImGui_InputScalarNEx(label, cimgui::ImGuiDataType_S32, v,
+                                     num_components, &step, &step_fast, format, flags);
 
     // copy back
     API->object->array_int_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_int_push_back(ck_array, v[i]);
     }
 }
@@ -10243,19 +9996,19 @@ CK_DLL_SFUN(ui_InputScalarN_CKFLOAT)
 {
     const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components      = API->object->array_float_size(ck_array);
+    int num_components         = API->object->array_float_size(ck_array);
 
     float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
-    RETURN->v_int = cimgui::ImGui_InputScalarN(
-      label, cimgui::ImGuiDataType_Float, v, num_components);
+    RETURN->v_int = cimgui::ImGui_InputScalarN(label, cimgui::ImGuiDataType_Float, v,
+                                               num_components);
 
     // copy back
     API->object->array_float_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_float_push_back(ck_array, v[i]);
     }
 }
@@ -10264,10 +10017,10 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT)
 {
     const char* label          = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_ArrayFloat* ck_array = (Chuck_ArrayFloat*)GET_NEXT_OBJECT(ARGS);
-    size_t num_components      = API->object->array_float_size(ck_array);
+    int num_components         = API->object->array_float_size(ck_array);
 
     float* v = ARENA_PUSH_COUNT(&audio_frame_arena, float, num_components);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         v[i] = API->object->array_float_get_idx(ck_array, i);
     }
 
@@ -10276,13 +10029,13 @@ CK_DLL_SFUN(ui_InputScalarNEx_CKFLOAT)
     const char* format = API->object->str(GET_NEXT_STRING(ARGS));
     int flags          = GET_NEXT_INT(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_InputScalarNEx(
-      label, cimgui::ImGuiDataType_Float, v, num_components, &step, &step_fast,
-      format, flags);
+    RETURN->v_int
+      = cimgui::ImGui_InputScalarNEx(label, cimgui::ImGuiDataType_Float, v,
+                                     num_components, &step, &step_fast, format, flags);
 
     // copy back
     API->object->array_float_clear(ck_array);
-    for (size_t i = 0; i < num_components; ++i) {
+    for (int i = 0; i < num_components; ++i) {
         API->object->array_float_push_back(ck_array, v[i]);
     }
 }
@@ -10329,11 +10082,20 @@ CK_DLL_SFUN(ui_ColorPicker4)
     int flags         = GET_NEXT_INT(ARGS);
     t_CKVEC4 ref_col  = GET_NEXT_VEC4(ARGS);
 
-    float ref_color_arr[4] = { (float)ref_col.x, (float)ref_col.y,
-                               (float)ref_col.z, (float)ref_col.w };
+    float ref_color_arr[4]
+      = { (float)ref_col.x, (float)ref_col.y, (float)ref_col.z, (float)ref_col.w };
 
-    RETURN->v_int
-      = cimgui::ImGui_ColorPicker4(label, col, flags, ref_color_arr);
+    RETURN->v_int = cimgui::ImGui_ColorPicker4(label, col, flags, ref_color_arr);
+}
+
+CK_DLL_SFUN(ui_ColorPicker4_no_ref_col)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* col        = (float*)OBJ_MEMBER_UINT(obj, ui_float4_ptr_offset);
+    int flags         = GET_NEXT_INT(ARGS);
+
+    RETURN->v_int = cimgui::ImGui_ColorPicker4(label, col, flags, NULL);
 }
 
 CK_DLL_SFUN(ui_ColorButton)
@@ -10343,8 +10105,7 @@ CK_DLL_SFUN(ui_ColorButton)
     int flags        = GET_NEXT_INT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_ColorButton(
-      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w },
-      flags);
+      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w }, flags);
 }
 
 CK_DLL_SFUN(ui_ColorButtonEx)
@@ -10355,8 +10116,8 @@ CK_DLL_SFUN(ui_ColorButtonEx)
     t_CKVEC2 size    = GET_NEXT_VEC2(ARGS);
 
     RETURN->v_int = cimgui::ImGui_ColorButtonEx(
-      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w },
-      flags, { (float)size.x, (float)size.y });
+      desc, { (float)color.x, (float)color.y, (float)color.z, (float)color.w }, flags,
+      { (float)size.x, (float)size.y });
 }
 
 CK_DLL_SFUN(ui_SetColorEditOptions)
@@ -10393,7 +10154,7 @@ CK_DLL_SFUN(ui_TreeNodeExStrUnformatted)
     const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
     int flags          = GET_NEXT_INT(ARGS);
     const char* text   = API->object->str(GET_NEXT_STRING(ARGS));
-    RETURN->v_int = cimgui::ImGui_TreeNodeExStrUnformatted(str_id, flags, text);
+    RETURN->v_int      = cimgui::ImGui_TreeNodeExStrUnformatted(str_id, flags, text);
 }
 
 CK_DLL_SFUN(ui_TreePush)
@@ -10452,8 +10213,8 @@ CK_DLL_SFUN(ui_SelectableEx)
     int flags         = GET_NEXT_INT(ARGS);
     t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SelectableEx(
-      label, selected, flags, { (float)size.x, (float)size.y });
+    RETURN->v_int = cimgui::ImGui_SelectableEx(label, selected, flags,
+                                               { (float)size.x, (float)size.y });
 }
 
 CK_DLL_SFUN(ui_SelectableBoolPtr)
@@ -10476,8 +10237,8 @@ CK_DLL_SFUN(ui_SelectableBoolPtrEx)
     int flags     = GET_NEXT_INT(ARGS);
     t_CKVEC2 size = GET_NEXT_VEC2(ARGS);
 
-    RETURN->v_int = cimgui::ImGui_SelectableBoolPtrEx(
-      label, v, flags, { (float)size.x, (float)size.y });
+    RETURN->v_int = cimgui::ImGui_SelectableBoolPtrEx(label, v, flags,
+                                                      { (float)size.x, (float)size.y });
 }
 
 // ============================================================================
@@ -10488,8 +10249,7 @@ CK_DLL_SFUN(ui_BeginListBox)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
     t_CKVEC2 size     = GET_NEXT_VEC2(ARGS);
-    RETURN->v_int
-      = cimgui::ImGui_BeginListBox(label, { (float)size.x, (float)size.y });
+    RETURN->v_int = cimgui::ImGui_BeginListBox(label, { (float)size.x, (float)size.y });
 }
 
 CK_DLL_SFUN(ui_EndListBox)
@@ -10501,9 +10261,9 @@ CK_DLL_SFUN(ui_ListBox)
 {
     const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
     Chuck_Object* ui_int_obj = GET_NEXT_OBJECT(ARGS);
-    int* current_item = (int*)OBJ_MEMBER_UINT(ui_int_obj, ui_int_ptr_offset);
-    Chuck_ArrayInt* items = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
-    int height_in_items   = GET_NEXT_INT(ARGS);
+    int* current_item        = (int*)OBJ_MEMBER_UINT(ui_int_obj, ui_int_ptr_offset);
+    Chuck_ArrayInt* items    = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+    int height_in_items      = GET_NEXT_INT(ARGS);
 
     // copy chuck string array to arena
     int num_items = API->object->array_int_size(items);
@@ -10511,12 +10271,12 @@ CK_DLL_SFUN(ui_ListBox)
       = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
 
     for (int i = 0; i < num_items; ++i) {
-        items_arr[i] = API->object->str(
-          (Chuck_String*)API->object->array_int_get_idx(items, i));
+        items_arr[i]
+          = API->object->str((Chuck_String*)API->object->array_int_get_idx(items, i));
     }
 
-    RETURN->v_int = cimgui::ImGui_ListBox(label, current_item, items_arr,
-                                          num_items, height_in_items);
+    RETURN->v_int = cimgui::ImGui_ListBox(label, current_item, items_arr, num_items,
+                                          height_in_items);
 }
 
 // ============================================================================
@@ -10556,8 +10316,8 @@ CK_DLL_SFUN(ui_PlotLinesEx)
     }
 
     cimgui::ImGui_PlotLinesEx(
-      label, values_arr, num_values, values_offset, overlay_text, scale_min,
-      scale_max, { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
+      label, values_arr, num_values, values_offset, overlay_text, scale_min, scale_max,
+      { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
 }
 
 CK_DLL_SFUN(ui_PlotHistogram)
@@ -10593,8 +10353,8 @@ CK_DLL_SFUN(ui_PlotHistogramEx)
     }
 
     cimgui::ImGui_PlotHistogramEx(
-      label, values_arr, num_values, values_offset, overlay_text, scale_min,
-      scale_max, { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
+      label, values_arr, num_values, values_offset, overlay_text, scale_min, scale_max,
+      { (float)graph_size.x, (float)graph_size.y }, sizeof(float));
 }
 
 // ============================================================================
@@ -10650,12 +10410,10 @@ CK_DLL_SFUN(ui_MenuItemBoolPtr)
     const char* label    = API->object->str(GET_NEXT_STRING(ARGS));
     const char* shortcut = API->object->str(GET_NEXT_STRING(ARGS));
 
-    bool* selected
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* selected = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
 
-    bool enabled = GET_NEXT_INT(ARGS);
-    RETURN->v_int
-      = cimgui::ImGui_MenuItemBoolPtr(label, shortcut, selected, enabled);
+    bool enabled  = GET_NEXT_INT(ARGS);
+    RETURN->v_int = cimgui::ImGui_MenuItemBoolPtr(label, shortcut, selected, enabled);
 }
 
 // ============================================================================
@@ -10698,8 +10456,7 @@ CK_DLL_SFUN(ui_BeginPopupModal)
 {
     const char* name = API->object->str(GET_NEXT_STRING(ARGS));
 
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
 
     int flags = GET_NEXT_INT(ARGS);
 
@@ -10739,7 +10496,7 @@ CK_DLL_SFUN(ui_BeginPopupContextItemEx)
 {
     const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
     int popup_flags    = GET_NEXT_INT(ARGS);
-    RETURN->v_int = cimgui::ImGui_BeginPopupContextItemEx(str_id, popup_flags);
+    RETURN->v_int      = cimgui::ImGui_BeginPopupContextItemEx(str_id, popup_flags);
 }
 
 CK_DLL_SFUN(ui_BeginPopupContextWindow)
@@ -10751,8 +10508,7 @@ CK_DLL_SFUN(ui_BeginPopupContextWindowEx)
 {
     const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
     int popup_flags    = GET_NEXT_INT(ARGS);
-    RETURN->v_int
-      = cimgui::ImGui_BeginPopupContextWindowEx(str_id, popup_flags);
+    RETURN->v_int      = cimgui::ImGui_BeginPopupContextWindowEx(str_id, popup_flags);
 }
 
 CK_DLL_SFUN(ui_BeginPopupContextVoid)
@@ -10764,7 +10520,7 @@ CK_DLL_SFUN(ui_BeginPopupContextVoidEx)
 {
     const char* str_id = API->object->str(GET_NEXT_STRING(ARGS));
     int popup_flags    = GET_NEXT_INT(ARGS);
-    RETURN->v_int = cimgui::ImGui_BeginPopupContextVoidEx(str_id, popup_flags);
+    RETURN->v_int      = cimgui::ImGui_BeginPopupContextVoidEx(str_id, popup_flags);
 }
 
 CK_DLL_SFUN(ui_IsPopupOpen)
@@ -10796,8 +10552,7 @@ CK_DLL_SFUN(ui_BeginTableEx)
     float inner_width   = GET_NEXT_FLOAT(ARGS);
 
     RETURN->v_int = cimgui::ImGui_BeginTableEx(
-      str_id, column, flags, { (float)outer_size.x, (float)outer_size.y },
-      inner_width);
+      str_id, column, flags, { (float)outer_size.x, (float)outer_size.y }, inner_width);
 }
 
 CK_DLL_SFUN(ui_EndTable)
@@ -10843,8 +10598,7 @@ CK_DLL_SFUN(ui_TableSetupColumnEx)
     float init_width_or_weight = GET_NEXT_FLOAT(ARGS);
     int user_id                = GET_NEXT_INT(ARGS);
 
-    cimgui::ImGui_TableSetupColumnEx(label, flags, init_width_or_weight,
-                                     user_id);
+    cimgui::ImGui_TableSetupColumnEx(label, flags, init_width_or_weight, user_id);
 }
 
 CK_DLL_SFUN(ui_TableSetupScrollFreeze)
@@ -10935,8 +10689,7 @@ CK_DLL_SFUN(ui_BeginTabItem)
 {
     const char* label = API->object->str(GET_NEXT_STRING(ARGS));
 
-    bool* p_open
-      = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
+    bool* p_open = CHUGL_UI_VAL_PTR(bool, GET_NEXT_OBJECT(ARGS), ui_bool_val_offset);
 
     int flags     = GET_NEXT_INT(ARGS);
     RETURN->v_int = cimgui::ImGui_BeginTabItem(label, p_open, flags);
@@ -10956,8 +10709,7 @@ CK_DLL_SFUN(ui_TabItemButton)
 
 CK_DLL_SFUN(ui_SetTabItemClosed)
 {
-    const char* tab_or_docked_window_label
-      = API->object->str(GET_NEXT_STRING(ARGS));
+    const char* tab_or_docked_window_label = API->object->str(GET_NEXT_STRING(ARGS));
     cimgui::ImGui_SetTabItemClosed(tab_or_docked_window_label);
 }
 
@@ -10994,10 +10746,9 @@ CK_DLL_SFUN(ui_PushClipRect)
     t_CKVEC2 clip_rect_min                = GET_NEXT_VEC2(ARGS);
     t_CKVEC2 clip_rect_max                = GET_NEXT_VEC2(ARGS);
     bool intersect_with_current_clip_rect = GET_NEXT_INT(ARGS);
-    cimgui::ImGui_PushClipRect(
-      { (float)clip_rect_min.x, (float)clip_rect_min.y },
-      { (float)clip_rect_max.x, (float)clip_rect_max.y },
-      intersect_with_current_clip_rect);
+    cimgui::ImGui_PushClipRect({ (float)clip_rect_min.x, (float)clip_rect_min.y },
+                               { (float)clip_rect_max.x, (float)clip_rect_max.y },
+                               intersect_with_current_clip_rect);
 }
 
 CK_DLL_SFUN(ui_PopClipRect)
@@ -11175,8 +10926,8 @@ CK_DLL_SFUN(ui_ColorConvertRGBtoHSV)
 {
     t_CKVEC3 rgb = GET_NEXT_VEC3(ARGS);
     float h, s, v;
-    cimgui::ImGui_ColorConvertRGBtoHSV((float)rgb.x, (float)rgb.y, (float)rgb.z,
-                                       &h, &s, &v);
+    cimgui::ImGui_ColorConvertRGBtoHSV((float)rgb.x, (float)rgb.y, (float)rgb.z, &h, &s,
+                                       &v);
 
     RETURN->v_vec3 = { h, s, v };
 }
@@ -11185,8 +10936,8 @@ CK_DLL_SFUN(ui_ColorConvertHSVtoRGB)
 {
     t_CKVEC3 hsv = GET_NEXT_VEC3(ARGS);
     float r, g, b;
-    cimgui::ImGui_ColorConvertHSVtoRGB((float)hsv.x, (float)hsv.y, (float)hsv.z,
-                                       &r, &g, &b);
+    cimgui::ImGui_ColorConvertHSVtoRGB((float)hsv.x, (float)hsv.y, (float)hsv.z, &r, &g,
+                                       &b);
 
     RETURN->v_vec3 = { r, g, b };
 }
@@ -11228,7 +10979,7 @@ CK_DLL_SFUN(ui_GetKeyPressedAmount)
     int key            = GET_NEXT_INT(ARGS);
     float repeat_delay = GET_NEXT_FLOAT(ARGS);
     float rate         = GET_NEXT_FLOAT(ARGS);
-    RETURN->v_int = cimgui::ImGui_GetKeyPressedAmount(key, repeat_delay, rate);
+    RETURN->v_int      = cimgui::ImGui_GetKeyPressedAmount(key, repeat_delay, rate);
 }
 
 CK_DLL_SFUN(ui_GetKeyName)
@@ -11292,8 +11043,7 @@ CK_DLL_SFUN(ui_IsMouseHoveringRectEx)
     t_CKVEC2 r_max = GET_NEXT_VEC2(ARGS);
     bool clip      = GET_NEXT_INT(ARGS);
     RETURN->v_int  = cimgui::ImGui_IsMouseHoveringRectEx(
-      { (float)r_min.x, (float)r_min.y }, { (float)r_max.x, (float)r_max.y },
-      clip);
+      { (float)r_min.x, (float)r_min.y }, { (float)r_max.x, (float)r_max.y }, clip);
 }
 
 CK_DLL_SFUN(ui_IsMousePosValid)
@@ -11317,16 +11067,15 @@ CK_DLL_SFUN(ui_IsMouseDragging)
 {
     int button           = GET_NEXT_INT(ARGS);
     float lock_threshold = GET_NEXT_FLOAT(ARGS);
-    RETURN->v_int = cimgui::ImGui_IsMouseDragging(button, lock_threshold);
+    RETURN->v_int        = cimgui::ImGui_IsMouseDragging(button, lock_threshold);
 }
 
 CK_DLL_SFUN(ui_GetMouseDragDelta)
 {
     int button           = GET_NEXT_INT(ARGS);
     float lock_threshold = GET_NEXT_FLOAT(ARGS);
-    cimgui::ImVec2 delta
-      = cimgui::ImGui_GetMouseDragDelta(button, lock_threshold);
-    RETURN->v_vec2 = { delta.x, delta.y };
+    cimgui::ImVec2 delta = cimgui::ImGui_GetMouseDragDelta(button, lock_threshold);
+    RETURN->v_vec2       = { delta.x, delta.y };
 }
 
 CK_DLL_SFUN(ui_ResetMouseDragDelta)

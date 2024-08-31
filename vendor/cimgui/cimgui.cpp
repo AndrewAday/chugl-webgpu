@@ -1747,8 +1747,9 @@ CIMGUI_API bool cimgui::ImGui_TreeNodeStr(const char* str_id, const char* fmt,
 {
     va_list args;
     va_start(args, fmt);
-    return ::ImGui::TreeNodeV(str_id, fmt, args);
+    bool b = ::ImGui::TreeNodeV(str_id, fmt, args);
     va_end(args);
+    return b;
 }
 
 CIMGUI_API bool cimgui::ImGui_TreeNodeStrUnformatted(const char* str_id,
@@ -1762,8 +1763,9 @@ CIMGUI_API bool cimgui::ImGui_TreeNodePtr(const void* ptr_id, const char* fmt,
 {
     va_list args;
     va_start(args, fmt);
-    return ::ImGui::TreeNodeV(ptr_id, fmt, args);
+    bool b = ::ImGui::TreeNodeV(ptr_id, fmt, args);
     va_end(args);
+    return b;
 }
 
 CIMGUI_API bool cimgui::ImGui_TreeNodePtrUnformatted(const void* ptr_id,
@@ -1796,8 +1798,9 @@ CIMGUI_API bool cimgui::ImGui_TreeNodeExStr(const char* str_id,
 {
     va_list args;
     va_start(args, fmt);
-    return ::ImGui::TreeNodeExV(str_id, flags, fmt, args);
+    bool b = ::ImGui::TreeNodeExV(str_id, flags, fmt, args);
     va_end(args);
+    return b;
 }
 
 CIMGUI_API bool cimgui::ImGui_TreeNodeExStrUnformatted(const char* str_id,
@@ -1813,8 +1816,9 @@ CIMGUI_API bool cimgui::ImGui_TreeNodeExPtr(const void* ptr_id,
 {
     va_list args;
     va_start(args, fmt);
-    return ::ImGui::TreeNodeExV(ptr_id, flags, fmt, args);
+    bool b = ::ImGui::TreeNodeExV(ptr_id, flags, fmt, args);
     va_end(args);
+    return b;
 }
 
 CIMGUI_API bool cimgui::ImGui_TreeNodeExPtrUnformatted(const void* ptr_id,

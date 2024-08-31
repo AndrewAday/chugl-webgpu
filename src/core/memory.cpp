@@ -43,8 +43,6 @@ void* Arena::top(Arena* a)
 
 void* Arena::push(Arena* a, u64 size)
 {
-    ASSERT(a->base != NULL); // must be initialized
-
     // reallocate more memory if needed
     if (a->curr + size > a->cap) {
         u64 oldCap = a->cap;
@@ -122,4 +120,16 @@ u64 Arena::offsetOf(Arena* a, void* ptr)
     ASSERT(ptr < a->base + a->curr); // must be within the arena
 
     return (u64)((u8*)ptr - a->base);
+}
+
+bool Arena::containsItem(Arena* a, void* ptr, size_t size)
+{
+    u8* comp = a->base;
+    while (comp < a->base + a->curr) {
+        if (memcmp(comp, ptr, size) == 0) {
+            return true;
+        }
+        comp += size;
+    }
+    return false;
 }

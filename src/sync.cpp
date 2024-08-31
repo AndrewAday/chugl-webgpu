@@ -39,15 +39,49 @@ struct CHUGL_Window {
     float content_scale_x, content_scale_y;
 
     // window frame size
-    int window_frame_left, window_frame_top, window_frame_right,
-      window_frame_bottom;
+    int window_frame_left, window_frame_top, window_frame_right, window_frame_bottom;
 
     float window_opacity;
+
+    f64 fps; // updated every second by the graphics thread
 
     // locks
     spinlock window_lock;
 };
 CHUGL_Window chugl_window;
+
+static f64 window_dt_sec = 0;
+static spinlock window_dt_lock;
+
+void CHUGL_Window_dt(f64 dt)
+{
+    spinlock::lock(&window_dt_lock);
+    window_dt_sec = dt;
+    spinlock::unlock(&window_dt_lock);
+}
+
+f64 CHUGL_Window_dt()
+{
+    spinlock::lock(&window_dt_lock);
+    f64 dt = window_dt_sec;
+    spinlock::unlock(&window_dt_lock);
+    return dt;
+}
+
+void CHUGL_Window_fps(f64 fps)
+{
+    spinlock::lock(&chugl_window.window_lock);
+    chugl_window.fps = fps;
+    spinlock::unlock(&chugl_window.window_lock);
+}
+
+f64 CHUGL_Window_fps()
+{
+    spinlock::lock(&chugl_window.window_lock);
+    f64 fps = chugl_window.fps;
+    spinlock::unlock(&chugl_window.window_lock);
+    return fps;
+}
 
 void CHUGL_Window_Closeable(bool closeable)
 {
@@ -124,8 +158,8 @@ bool CHUGL_Window_Decorated()
     return decorated;
 }
 
-void CHUGL_Window_Size(int window_width, int window_height,
-                       int framebuffer_width, int framebuffer_height)
+void CHUGL_Window_Size(int window_width, int window_height, int framebuffer_width,
+                       int framebuffer_height)
 {
     spinlock::lock(&chugl_window.window_lock);
     chugl_window.window_width       = window_width;
@@ -178,6 +212,13 @@ struct CHUGL_Mouse {
     double xpos = 0.0, ypos = 0.0;
     double dx = 0.0, dy = 0.0;
 
+    bool left_button           = false;
+    bool right_button          = false;
+    bool left_button_click     = false;
+    bool right_button_click    = false;
+    bool left_button_released  = false;
+    bool right_button_released = false;
+
     spinlock mouse_lock;
 };
 CHUGL_Mouse chugl_mouse;
@@ -213,22 +254,92 @@ t_CKVEC2 CHUGL_Mouse_Delta()
     return delta;
 }
 
-void CHUGL_Zero_Mouse_Deltas()
+void CHUGL_Zero_MouseDeltasAndClickState()
 {
     spinlock::lock(&chugl_mouse.mouse_lock);
-    chugl_mouse.dx = 0.0;
-    chugl_mouse.dy = 0.0;
+    chugl_mouse.dx                    = 0.0;
+    chugl_mouse.dy                    = 0.0;
+    chugl_mouse.left_button_click     = false;
+    chugl_mouse.right_button_click    = false;
+    chugl_mouse.left_button_released  = false;
+    chugl_mouse.right_button_released = false;
     spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_LeftButton()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button = chugl_mouse.left_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button;
+}
+
+void CHUGL_Mouse_LeftButton(bool left_button)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.left_button          = left_button;
+    chugl_mouse.left_button_click    = left_button;
+    chugl_mouse.left_button_released = !left_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_RightButton()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button = chugl_mouse.right_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button;
+}
+
+void CHUGL_Mouse_RightButton(bool right_button)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.right_button          = right_button;
+    chugl_mouse.right_button_click    = right_button;
+    chugl_mouse.right_button_released = !right_button;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+bool CHUGL_Mouse_LeftButtonClick()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button_click = chugl_mouse.left_button_click;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button_click;
+}
+
+bool CHUGL_Mouse_RightButtonClick()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button_click = chugl_mouse.right_button_click;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button_click;
+}
+
+bool CHUGL_Mouse_LeftButtonReleased()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool left_button_released = chugl_mouse.left_button_released;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return left_button_released;
+}
+
+bool CHUGL_Mouse_RightButtonReleased()
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    bool right_button_released = chugl_mouse.right_button_released;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return right_button_released;
 }
 
 // ============================================================================
 // ChuGL Event API
 // ============================================================================
 
-#define CHUGL_EventTable                                                       \
-    X(NEXT_FRAME = 0, "NextFrameEvent")                                        \
-    X(WINDOW_RESIZE, "WindowResizeEvent")                                      \
-    X(WINDOW_CLOSE, "WindowCloseEvent")                                        \
+#define CHUGL_EventTable                                                               \
+    X(NEXT_FRAME = 0, "NextFrameEvent")                                                \
+    X(WINDOW_RESIZE, "WindowResizeEvent")                                              \
+    X(WINDOW_CLOSE, "WindowCloseEvent")                                                \
     X(CONTENT_SCALE, "ContentScaleChangedEvent")
 
 enum CHUGL_EventType {
@@ -266,15 +377,12 @@ static Chuck_Event* events[CHUGL_EVENT_TYPE_COUNT] = {};
 
 static void Event_Init(CK_DL_API api, Chuck_VM* vm)
 {
-    if (chuckEventQueue == NULL)
-        chuckEventQueue = api->vm->create_event_buffer(vm);
+    if (chuckEventQueue == NULL) chuckEventQueue = api->vm->create_event_buffer(vm);
 
     for (u32 i = 0; i < CHUGL_EVENT_TYPE_COUNT; i++) {
         if (events[i] != NULL) continue;
-        Chuck_DL_Api::Type type
-          = api->type->lookup(vm, CHUGL_EventTypeNames[i]);
-        events[i]
-          = (Chuck_Event*)api->object->create_without_shred(vm, type, true);
+        Chuck_DL_Api::Type type = api->type->lookup(vm, CHUGL_EventTypeNames[i]);
+        events[i] = (Chuck_Event*)api->object->create_without_shred(vm, type, true);
     }
 }
 

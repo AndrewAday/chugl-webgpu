@@ -5,21 +5,22 @@
 #include <glfw3webgpu/glfw3webgpu.h>
 #include <webgpu/webgpu.h>
 
-#define WGPU_RELEASE_RESOURCE(Type, Name)                                      \
-    if (Name) {                                                                \
-        wgpu##Type##Release(Name);                                             \
-        Name = NULL;                                                           \
+#define WGPU_RELEASE_RESOURCE(Type, Name)                                              \
+    if (Name) {                                                                        \
+        wgpu##Type##Release(Name);                                                     \
+        Name = NULL;                                                                   \
     }
 
-#define WGPU_DESTROY_RESOURCE(Type, Name)                                      \
-    ASSERT(Name != NULL);                                                      \
-    wgpu##Type##Destroy(Name);
+#define WGPU_DESTROY_RESOURCE(Type, Name)                                              \
+    if (Name) {                                                                        \
+        wgpu##Type##Destroy(Name);                                                     \
+    }
 
-#define WGPU_DESTROY_AND_RELEASE_BUFFER(Name)                                  \
-    if (Name) {                                                                \
-        wgpuBufferDestroy(Name);                                               \
-        wgpuBufferRelease(Name);                                               \
-        Name = NULL;                                                           \
+#define WGPU_DESTROY_AND_RELEASE_BUFFER(Name)                                          \
+    if (Name) {                                                                        \
+        wgpuBufferDestroy(Name);                                                       \
+        wgpuBufferRelease(Name);                                                       \
+        Name = NULL;                                                                   \
     }
 
 // ============================================================================
@@ -41,6 +42,9 @@ struct GraphicsContext {
     WGPUTextureDescriptor depthTextureDesc;
     WGPUTextureView depthTextureView;
 
+    WGPUTexture multisampled_texture;
+    WGPUTextureView multisampled_texture_view;
+
     // Per frame resources --------
     WGPUTextureView backbufferView;
     WGPUCommandEncoder commandEncoder;
@@ -51,6 +55,7 @@ struct GraphicsContext {
 
     // Window and surface --------
     WGPUSurface surface;
+    bool window_minimized;
 
     // Device limits --------
     WGPULimits limits;
@@ -59,7 +64,7 @@ struct GraphicsContext {
 
     // Methods --------
     static bool init(GraphicsContext* context, GLFWwindow* window);
-    static void prepareFrame(GraphicsContext* ctx);
+    static bool prepareFrame(GraphicsContext* ctx);
     static void presentFrame(GraphicsContext* ctx);
     static void resize(GraphicsContext* ctx, u32 width, u32 height);
     static void release(GraphicsContext* ctx);
@@ -89,6 +94,96 @@ struct IndexBuffer {
                      const char* label);
 };
 
+// grows buffer to new size, copying old data
+struct GPU_Buffer {
+    WGPUBuffer buf;
+    WGPUBufferUsageFlags usage;
+    u64 capacity; // total size in bytes
+    u64 size;     // current size in bytes
+
+    // resizes buffer, does NOT copy old data
+    // returns true if buffer was recreated
+    static bool resizeNoCopy(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                             u64 new_size, WGPUBufferUsageFlags usage_flags);
+
+    // optional, initialize size
+    static void init(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                     WGPUBufferUsageFlags usage_flags, u64 new_capacity)
+    {
+        ASSERT(!gpu_buffer->buf);
+
+        WGPUBufferDescriptor desc = {};
+        desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
+        desc.size                 = NEXT_MULT(new_capacity, 4);
+
+        WGPUBuffer new_buf = wgpuDeviceCreateBuffer(gctx->device, &desc);
+
+        // update buffer
+        gpu_buffer->buf      = new_buf;
+        gpu_buffer->capacity = desc.size;
+        gpu_buffer->usage    = desc.usage;
+    }
+
+    // returns true if buffer was recreated (because of capacity or usage flags)
+    static bool write(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                      WGPUBufferUsageFlags usage_flags, u64 offset, const void* data,
+                      u64 size)
+    {
+        bool recreated = false;
+        if (size == 0) return recreated;
+
+        if (offset + size > gpu_buffer->capacity
+            || (usage_flags & gpu_buffer->usage) != usage_flags) {
+
+            recreated = true;
+
+            // recreating buffer with non-zero offset is bug
+            // because we do NOT copy the data from the old buffer
+            ASSERT(offset == 0);
+
+            // grow buffer
+            u64 new_capacity = MAX(gpu_buffer->capacity * 2, size + offset);
+            new_capacity     = NEXT_MULT(new_capacity, 4); // align to 4 bytes
+            ASSERT(new_capacity % 4 == 0);
+
+            // TODO: how to copy data between buffers?
+            // what is going on with mapping?
+            // is copying a synchronous or asynchronous operation?
+            // when is it safe to release the old buffer?
+
+            WGPUBufferDescriptor desc = {};
+            desc.usage                = usage_flags | WGPUBufferUsage_CopyDst;
+            desc.size                 = new_capacity;
+
+            WGPUBuffer new_buf = wgpuDeviceCreateBuffer(gctx->device, &desc);
+
+            // release old buffer
+            WGPU_DESTROY_AND_RELEASE_BUFFER(gpu_buffer->buf);
+
+            // update buffer
+            gpu_buffer->buf      = new_buf;
+            gpu_buffer->capacity = desc.size;
+            gpu_buffer->usage    = desc.usage;
+        }
+
+        wgpuQueueWriteBuffer(gctx->queue, gpu_buffer->buf, offset, data, size);
+        gpu_buffer->size = offset + size;
+        return recreated;
+    }
+
+    // returns true if buffer was recreated (because of capacity or usage flags)
+    static bool write(GraphicsContext* gctx, GPU_Buffer* gpu_buffer,
+                      WGPUBufferUsageFlags usage_flags, const void* data, u64 size)
+    {
+        return write(gctx, gpu_buffer, usage_flags, 0, data, size);
+    }
+
+    static void destroy(GPU_Buffer* buffer)
+    {
+        WGPU_DESTROY_AND_RELEASE_BUFFER(buffer->buf);
+    }
+};
+
 // ============================================================================
 // Attributes
 // ============================================================================
@@ -104,6 +199,10 @@ struct VertexBufferLayout {
     static void init(VertexBufferLayout* layout, u8 attribute_count,
                      u32* attribute_strides // stride in count NOT bytes
     );
+
+    static void init(VertexBufferLayout* layout, u8 format_count,
+                     WGPUVertexFormat* formats // stride in count NOT bytes
+    );
 };
 
 // ============================================================================
@@ -117,8 +216,8 @@ struct ShaderModule {
     // only support wgsl for now (can change into union later)
     WGPUShaderModuleWGSLDescriptor wgsl_desc;
 
-    static void init(GraphicsContext* ctx, ShaderModule* module,
-                     const char* code, const char* label);
+    static void init(GraphicsContext* ctx, ShaderModule* module, const char* code,
+                     const char* label);
 
     static void release(ShaderModule* module);
 };
@@ -148,10 +247,6 @@ struct RenderPipeline {
     WGPURenderPipeline pipeline;
     WGPURenderPipelineDescriptor desc;
 
-    // binding layouts: per frame, per material, per draw
-    // jk, using auto layout now
-    // WGPUBindGroupLayout bindGroupLayouts[3];
-
     // possible optimization: only store material bind group in render pipeline
     // all pipelines can share global bind groups for per frame
     // and renderable models need their own per draw bind groups
@@ -166,8 +261,7 @@ struct RenderPipeline {
     WGPUBufferDescriptor frameUniformBufferDesc;
 
     static void init(GraphicsContext* ctx, RenderPipeline* pipeline,
-                     const char* vertexShaderCode,
-                     const char* fragmentShaderCode);
+                     const char* vertexShaderCode, const char* fragmentShaderCode);
 
     static void release(RenderPipeline* pipeline);
 };
@@ -198,21 +292,36 @@ struct Texture {
     u32 height;
     u32 depth;
     u32 mip_level_count;
+    u32 sample_count;
 
     WGPUTextureFormat format;
     WGPUTextureDimension dimension;
+    WGPUTextureUsageFlags usage;
+
     WGPUTexture texture;
     WGPUTextureView view;
     // WGPUSampler sampler;
 
-    static void initFromFile(GraphicsContext* ctx, Texture* texture,
-                             const char* filename, bool genMipMaps);
+    static void init(GraphicsContext* gctx, Texture* texture, u32 width, u32 height,
+                     u32 depth, bool gen_mipmaps, const char* label,
+                     WGPUTextureFormat format, WGPUTextureUsageFlags usage,
+                     WGPUTextureDimension dimension);
 
-    static void initFromBuff(GraphicsContext* ctx, Texture* texture,
-                             const u8* data, u64 dataLen);
+    static void initFromFile(GraphicsContext* ctx, Texture* texture,
+                             const char* filename, bool genMipMaps,
+                             WGPUTextureUsageFlags usage_flags);
+
+    // initializes from image data read into memory, NOT raw buffer
+    static void initFromBuff(GraphicsContext* ctx, Texture* texture, const u8* data,
+                             u64 dataLen);
 
     static void initSinglePixel(GraphicsContext* ctx, Texture* texture,
                                 u8 pixelData[4]);
+
+    static void initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
+                                  const char* label, const void* pixelData,
+                                  int pixel_width, int pixel_height, bool genMipMaps,
+                                  WGPUTextureUsageFlags usage_flags);
 
     static void release(Texture* texture);
 };
@@ -297,3 +406,23 @@ WGPUMultisampleState G_createMultisampleState(u8 sample_count);
 
 WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
                                       const char* label);
+
+WGPUBlendState G_createBlendState(bool enableBlend);
+
+struct DepthStencilTextureResult {
+    WGPUTexture tex;
+    WGPUTextureView view;
+};
+DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
+                                                      u32 sample_count, u32 width,
+                                                      u32 height);
+
+u32 G_mipLevels(int width, int height);
+u32 G_mipLevelsLimit(u32 w, u32 h, u32 downscale_limit);
+
+// calculate mip size from original size
+struct G_MipSize {
+    u32 width;
+    u32 height;
+};
+G_MipSize G_mipLevelSize(int width, int height, u32 mip_level);

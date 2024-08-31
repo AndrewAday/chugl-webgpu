@@ -31,3 +31,8 @@ T.assert(
     defaultSampler.filterMip == TextureSampler.FILTER_LINEAR,
     "defaultSampler values incorrect"
 );
+
+/* 
+Texture tests
+*/
+

@@ -3,8 +3,14 @@ GGen A; GGen B;
 T.assert(A.id() + 1 == B.id(), "ids not sequential");
 
 // component Name
-A.name("A");
-T.assert(A.name() == "A", "name not set correctly");
+T.assert(A.name() == "", "name not empty");
+// A.name("A");
+"A" => A.name;
+T.assert(A.name() == "A", "Expected name A, but name was: " + A.name());
+"1234567890" + "1234567890" + "1234567890" + "1234567890" + "1234567890" + "1234567890" + "1234567890" => A.name;
+// make sure name is truncated properly to 63 chars
+T.assert(A.name() == "123456789012345678901234567890123456789012345678901234567890123", "name not truncated");
+T.assert(A.name().length() == 63, "name not truncated to 63 chars");
 
 // identity transform
 T.assert(

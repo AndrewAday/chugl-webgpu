@@ -77,9 +77,54 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_SCALE,
     SG_COMMAND_SCENE_CREATE,
     SG_COMMAND_SCENE_BG_COLOR,
-    SG_COMMAND_GEO_CREATE,
+    SG_COMMAND_SCENE_SET_MAIN_CAMERA,
+
+    // shader
+    SG_COMMAND_SHADER_CREATE,
+
+    // material
     SG_COMMAND_MATERIAL_CREATE,
+    SG_COMMAND_MATERIAL_UPDATE_PSO,
+    SG_COMMAND_MATERIAL_SET_UNIFORM,
+    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
+    SG_COMMAND_MATERIAL_SET_SAMPLER,
+    SG_COMMAND_MATERIAL_SET_TEXTURE,
+    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL,
+
+    // mesh
     SG_COMMAND_MESH_CREATE,
+
+    // camera
+    SG_COMMAND_CAMERA_CREATE,
+    SG_COMMAND_CAMERA_SET_PARAMS,
+
+    // text
+    SG_COMMAND_TEXT_REBUILD,
+    SG_COMMAND_TEXT_DEFAULT_FONT,
+
+    // gpass
+    // TODO gpass remove everything except _update
+    SG_COMMAND_PASS_CREATE,
+    SG_COMMAND_PASS_UPDATE,
+    SG_COMMAND_PASS_CONNECT,
+    SG_COMMAND_PASS_DISCONNECT,
+
+    // geometry
+    SG_COMMAND_GEO_CREATE,
+    SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
+    SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE,
+    SG_COMMAND_GEO_SET_VERTEX_COUNT,
+    SG_COMMAND_GEO_SET_INDICES,
+
+    // texture
+    SG_COMMAND_TEXTURE_CREATE,
+    SG_COMMAND_TEXTURE_DATA,
+    SG_COMMAND_TEXTURE_FROM_FILE,
+
+    // buffer
+    SG_COMMAND_BUFFER_UPDATE,
+    SG_COMMAND_BUFFER_WRITE,
+
     SG_COMMAND_COUNT
 };
 
@@ -219,17 +264,113 @@ struct SG_Command_SceneBGColor : public SG_Command {
     glm::vec4 color;
 };
 
+struct SG_Command_SceneSetMainCamera : public SG_Command {
+    SG_ID scene_id;
+    SG_ID camera_id;
+};
+
 struct SG_Command_GeoCreate : public SG_Command {
     SG_ID sg_id;
     SG_GeometryParams params;
     SG_GeometryType geo_type;
 };
 
-// TODO: need way to specify config (doublesided, alpha, etc)
+struct SG_Command_GeoSetVertexAttribute : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    int num_components;
+    int data_len;          // # of floats in data array
+    ptrdiff_t data_offset; // byte offset into command queue arena for attribute data
+};
+
+struct SG_Command_GeometrySetPulledVertexAttribute : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    size_t data_bytes;
+    ptrdiff_t data_offset;
+};
+
+struct SG_Command_GeometrySetVertexCount : public SG_Command {
+    SG_ID sg_id;
+    int count;
+};
+
+struct SG_Command_GeoSetIndices : public SG_Command {
+    SG_ID sg_id;
+    int index_count;
+    ptrdiff_t indices_offset;
+};
+
+struct SG_Command_TextureCreate : public SG_Command {
+    SG_ID sg_id;
+    SG_TextureDesc desc;
+};
+
+struct SG_Command_TextureData : public SG_Command {
+    SG_ID sg_id;
+    int width; // for now bytes per row is always width * 4
+    int height;
+    ptrdiff_t data_offset;
+};
+
+struct SG_Command_TextureFromFile : public SG_Command {
+    SG_ID sg_id;
+    ptrdiff_t filepath_offset;
+};
+
+struct SG_Command_ShaderCreate : public SG_Command {
+    SG_ID sg_id;
+    // strings to be freed by render thread
+    ptrdiff_t vertex_string_offset;
+    ptrdiff_t vertex_filepath_offset;
+    ptrdiff_t fragment_string_offset;
+    ptrdiff_t fragment_filepath_offset;
+    ptrdiff_t compute_string_offset;
+    ptrdiff_t compute_filepath_offset;
+    WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+};
+
 struct SG_Command_MaterialCreate : public SG_Command {
     SG_ID sg_id;
-    SG_MaterialParams params;
+    // SG_MaterialParams params;
     SG_MaterialType material_type;
+    SG_MaterialPipelineState pso;
+};
+
+struct SG_Command_MaterialUpdatePSO : public SG_Command {
+    SG_ID sg_id;
+    SG_MaterialPipelineState pso;
+};
+
+struct SG_Command_MaterialSetUniform : public SG_Command {
+    SG_ID sg_id;
+    SG_MaterialUniform uniform;
+    int location;
+};
+
+struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    ptrdiff_t data_offset;
+    int data_size_bytes;
+};
+
+struct SG_Command_MaterialSetStorageBufferExternal : public SG_Command {
+    SG_ID material_id;
+    int location;
+    SG_ID buffer_id;
+};
+
+struct SG_Command_MaterialSetSampler : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    SG_Sampler sampler;
+};
+
+struct SG_Command_MaterialSetTexture : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    SG_ID texture_id;
 };
 
 struct SG_Command_Mesh_Create : public SG_Command {
@@ -238,12 +379,71 @@ struct SG_Command_Mesh_Create : public SG_Command {
     SG_ID mat_id;
 };
 
+// text commands -----------------------------------------------------
+
+struct SG_Command_TextDefaultFont : public SG_Command {
+    ptrdiff_t font_path_str_offset;
+};
+
+struct SG_Command_TextRebuild : public SG_Command {
+    SG_ID text_id; // lazily create text if not found
+    SG_ID material_id;
+    glm::vec2 control_point; // TODO do as material uniform
+    float vertical_spacing;
+    ptrdiff_t font_path_str_offset;
+    ptrdiff_t text_str_offset;
+};
+
+// camera commands -----------------------------------------------------
+
+struct SG_Command_CameraCreate : public SG_Command {
+    SG_Camera camera;
+};
+
+struct SG_Command_CameraSetParams : public SG_Command {
+    SG_ID camera_id;
+    SG_CameraParams params;
+};
+
+// pass commands -----------------------------------------------------
+
+struct SG_Command_PassCreate : public SG_Command {
+    SG_ID pass_id;
+    SG_PassType pass_type;
+};
+
+// TODO consolidate into single struct, copy all of SG_Pass?
+struct SG_Command_PassUpdate : public SG_Command {
+    SG_Pass pass;
+};
+
+struct SG_Command_PassConnect : public SG_Command {
+    SG_ID pass_id;
+    SG_ID next_pass_id;
+};
+
+// b2 physics commands -----------------------------------------------------
+
 struct SG_Command_b2World_Set : public SG_Command {
     u32 b2_world_id;
 };
 
 struct SG_Command_b2_SubstepCount : public SG_Command {
     u32 substep_count;
+};
+
+// buffer commands -----------------------------------------------------
+
+struct SG_Command_BufferUpdate : public SG_Command {
+    SG_ID buffer_id;
+    SG_BufferDesc desc;
+};
+
+struct SG_Command_BufferWrite : public SG_Command {
+    SG_ID buffer_id;
+    u64 offset_bytes;
+    u64 data_size_bytes;
+    ptrdiff_t data_offset;
 };
 
 // ============================================================================
@@ -275,9 +475,9 @@ void* CQ_ReadCommandGetOffset(u64 byte_offset);
 
 void CQ_PushCommand_WindowClose();
 void CQ_PushCommand_WindowMode(SG_WindowMode mode, int width, int height);
-void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height,
-                                     int max_width, int max_height,
-                                     int aspect_ratio_x, int aspect_ratio_y);
+void CQ_PushCommand_WindowSizeLimits(int min_width, int min_height, int max_width,
+                                     int max_height, int aspect_ratio_x,
+                                     int aspect_ratio_y);
 void CQ_PushCommand_WindowPosition(int x, int y);
 void CQ_PushCommand_WindowCenter();
 void CQ_PushCommand_WindowTitle(const char* title);
@@ -286,8 +486,8 @@ void CQ_PushCommand_WindowAttribute(CHUGL_WindowAttrib attrib, bool value);
 void CQ_PushCommand_WindowOpacity(float opacity);
 
 void CQ_PushCommand_MouseMode(int mode);
-void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data,
-                                u32 width, u32 height, u32 xhot, u32 yhot);
+void CQ_PushCommand_MouseCursor(CK_DL_API API, Chuck_ArrayInt* image_data, u32 width,
+                                u32 height, u32 xhot, u32 yhot);
 
 void CQ_PushCommand_MouseCursorNormal();
 
@@ -297,8 +497,7 @@ void CQ_PushCommand_UI_Disabled(bool disabled);
 // components
 
 void CQ_PushCommand_GG_Scene(SG_Scene* scene);
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj,
-                                    t_CKUINT component_offset_id,
+void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offset_id,
                                     CK_DL_API API);
 void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child);
 void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child);
@@ -306,16 +505,67 @@ void CQ_PushCommand_SetPosition(SG_Transform* xform);
 void CQ_PushCommand_SetRotation(SG_Transform* xform);
 void CQ_PushCommand_SetScale(SG_Transform* xform);
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj,
-                                     t_CKUINT component_offset_id,
+SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_offset_id,
                                      CK_DL_API API);
 
 void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
-void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
+void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera);
 
+// geometry
+void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
+void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
+                                               int num_components, f32* data,
+                                               int data_len);
+void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count);
+void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int location,
+                                                     void* data, size_t bytes);
+void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
+
+// texture
+void CQ_PushCommand_TextureCreate(SG_Texture* texture);
+void CQ_PushCommand_TextureData(
+  SG_Texture* texture); // TODO currently assumes texture data is already set
+
+void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath);
+
+// shader
+void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
+
+// material
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
+void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material);
+void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
+
+void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
+                                             Chuck_ArrayFloat* ck_arr);
+void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
+                                                     int location, SG_Buffer* buffer);
+
+void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location);
+void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location);
+
+// mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
+
+// camera
+void CQ_PushCommand_CameraCreate(SG_Camera* camera);
+void CQ_PushCommand_CameraSetParams(SG_Camera* camera);
+
+// text
+void CQ_PushCommand_TextRebuild(SG_Text* text);
+void CQ_PushCommand_TextDefaultFont(const char* font_path);
+
+// pass
+// void CQ_PushCommand_PassCreate(SG_Pass* pass);
+void CQ_PushCommand_PassUpdate(SG_Pass* pass);
+void CQ_PushCommand_PassConnect(SG_Pass* pass, SG_Pass* next_pass);
+void CQ_PushCommand_PassDisconnect(SG_Pass* pass, SG_Pass* next_pass);
 
 // b2
 void CQ_PushCommand_b2World_Set(u32 world_id);
 void CQ_PushCommand_b2SubstepCount(u32 substep_count);
+
+// buffer
+void CQ_PushCommand_BufferUpdate(SG_Buffer* buffer);
+void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
+                                u64 offset_bytes);

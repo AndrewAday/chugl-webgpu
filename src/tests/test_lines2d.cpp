@@ -265,11 +265,10 @@ static LinesRenderState createPipeline(const char* shader)
 
     // vertex state
     WGPUVertexState vertexState = {};
-    vertexState.bufferCount
-      = 0; // programmable vertex pulling, no vertex buffers
-    vertexState.buffers    = NULL;
-    vertexState.module     = vertexShaderModule;
-    vertexState.entryPoint = "vs_main";
+    vertexState.bufferCount     = 0; // programmable vertex pulling, no vertex buffers
+    vertexState.buffers         = NULL;
+    vertexState.module          = vertexShaderModule;
+    vertexState.entryPoint      = "vs_main";
 
     // fragment state
     WGPUFragmentState fragmentState = {};
@@ -289,8 +288,7 @@ static LinesRenderState createPipeline(const char* shader)
     pipeline_desc.depthStencil                 = &depth_stencil_state;
     pipeline_desc.multisample                  = multisampleState;
 
-    state.pipeline
-      = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
+    state.pipeline = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
     ASSERT(state.pipeline);
 
     WGPUBindGroupLayout layout
@@ -300,8 +298,7 @@ static LinesRenderState createPipeline(const char* shader)
         // create uniform buffer
         WGPUBufferDescriptor uniform_buffer_desc = {};
         uniform_buffer_desc.size                 = sizeof(Uniforms);
-        uniform_buffer_desc.usage
-          = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        uniform_buffer_desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
 
         state.uniform_buffer
           = wgpuDeviceCreateBuffer(gctx->device, &uniform_buffer_desc);
@@ -310,10 +307,8 @@ static LinesRenderState createPipeline(const char* shader)
         // create positions storage buffer
         WGPUBufferDescriptor positions_buffer_desc = {};
         positions_buffer_desc.size                 = MEGABYTE;
-        positions_buffer_desc.usage
-          = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
-        state.positions
-          = wgpuDeviceCreateBuffer(gctx->device, &positions_buffer_desc);
+        positions_buffer_desc.usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
+        state.positions = wgpuDeviceCreateBuffer(gctx->device, &positions_buffer_desc);
 
         // create bind group entry for uniforms
         WGPUBindGroupEntry entries[2]     = {};
@@ -384,8 +379,8 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
     uniforms.line_point_count = num_points;
     uniforms.line_width       = line_width;
     uniforms.line_width_ratio = line_width_ratio;
-    wgpuQueueWriteBuffer(gctx->queue, lines2D_state.uniform_buffer, 0,
-                         &uniforms, sizeof(Uniforms));
+    wgpuQueueWriteBuffer(gctx->queue, lines2D_state.uniform_buffer, 0, &uniforms,
+                         sizeof(Uniforms));
 
     { // update positions buffer
 
@@ -394,8 +389,7 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
             line_points[0] = line_points[num_points]; // copy last point
         } else {
             glm::vec3 diff = line_points[2] - line_points[1];
-            line_points[0]
-              = line_points[1] - diff; // extend in opposite direction
+            line_points[0] = line_points[1] - diff; // extend in opposite direction
         }
 
         // sentinal end points
@@ -403,27 +397,25 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
             line_points[num_points + 1] = line_points[1]; // copy first point
             line_points[num_points + 2] = line_points[2]; // copy second point
         } else {
-            glm::vec3 diff
-              = line_points[num_points] - line_points[num_points - 1];
+            glm::vec3 diff = line_points[num_points] - line_points[num_points - 1];
             line_points[num_points + 1]
               = line_points[num_points] + diff; // extend in same direction
         }
 
-        wgpuQueueWriteBuffer(gctx->queue, lines2D_state.positions, 0,
-                             line_points, sizeof(line_points));
+        wgpuQueueWriteBuffer(gctx->queue, lines2D_state.positions, 0, line_points,
+                             sizeof(line_points));
     }
 
     { // 3D line test
-        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.uniform_buffer, 0,
-                             &uniforms, sizeof(Uniforms));
+        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.uniform_buffer, 0, &uniforms,
+                             sizeof(Uniforms));
 
-        lines3d_output_count
-          = Lines3D_Generate(glm::vec3(1.0f, 0.0f, 0.0f), 0.1f, lines3d_input,
-                             ARRAY_LENGTH(lines3d_input), lines3d_output,
-                             ARRAY_LENGTH(lines3d_output));
+        lines3d_output_count = Lines3D_Generate(
+          glm::vec3(1.0f, 0.0f, 0.0f), 0.1f, lines3d_input, ARRAY_LENGTH(lines3d_input),
+          lines3d_output, ARRAY_LENGTH(lines3d_output));
 
-        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.positions, 0,
-                             lines3d_output, sizeof(lines3d_output));
+        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.positions, 0, lines3d_output,
+                             sizeof(lines3d_output));
     }
 }
 
@@ -515,20 +507,18 @@ static void drawUI(WGPURenderPassEncoder pass)
     ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
 }
 
-static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view,
-                                   glm::vec3 camPos)
+static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 {
     updateBuffers(proj, view, camPos);
 
     GraphicsContext::prepareFrame(gctx);
 
-    WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(
-      gctx->commandEncoder, &gctx->renderPassDesc);
+    WGPURenderPassEncoder renderPass
+      = wgpuCommandEncoderBeginRenderPass(gctx->commandEncoder, &gctx->renderPassDesc);
 
     wgpuRenderPassEncoderSetPipeline(renderPass, lines2D_state.pipeline);
 
-    wgpuRenderPassEncoderSetBindGroup(renderPass, 0, lines2D_state.bind_group,
-                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(renderPass, 0, lines2D_state.bind_group, 0, 0);
 
     // wgpuRenderPassEncoderDraw(
     // WGPURenderPassEncoder renderPassEncoder,
@@ -542,8 +532,7 @@ static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view,
 
     // draw lines3d
     wgpuRenderPassEncoderSetPipeline(renderPass, lines3D_state.pipeline);
-    wgpuRenderPassEncoderSetBindGroup(renderPass, 0, lines3D_state.bind_group,
-                                      0, 0);
+    wgpuRenderPassEncoderSetBindGroup(renderPass, 0, lines3D_state.bind_group, 0, 0);
     wgpuRenderPassEncoderDraw(renderPass, lines3d_output_count, 1, 0, 0);
 
     drawUI(renderPass);
@@ -565,12 +554,11 @@ static size_t Lines3D_Generate(glm::vec3 init_normal, float line_width,
                                glm::vec3* in_points, size_t in_point_count,
                                glm::vec3* out_points, size_t out_point_cap)
 {
-#define PUSH_VERTEX(v)                                                         \
-    {                                                                          \
-        out_points[vertex_id++] = (v);                                         \
-        printf("Vertex %zu: (%.2f, %.2f, %.2f)\n", vertex_id,                  \
-               out_points[vertex_id].x, out_points[vertex_id].y,               \
-               out_points[vertex_id].z);                                       \
+#define PUSH_VERTEX(v)                                                                 \
+    {                                                                                  \
+        out_points[vertex_id++] = (v);                                                 \
+        printf("Vertex %zu: (%.2f, %.2f, %.2f)\n", vertex_id, out_points[vertex_id].x, \
+               out_points[vertex_id].y, out_points[vertex_id].z);                      \
     }
 
     // make sure we have enough memory for output verctices + sentinel points
@@ -604,25 +592,22 @@ static size_t Lines3D_Generate(glm::vec3 init_normal, float line_width,
 
         // calculate miter direction using azaday formula
         // project next_p onto plane defined by curr_p and prev_p
-        glm::vec3 next_p_proj
-          = next_p - glm::dot(next_p - curr_p, plane_n) * plane_n;
+        glm::vec3 next_p_proj = next_p - glm::dot(next_p - curr_p, plane_n) * plane_n;
         // cone length
         float L                  = glm::length(next_p - curr_p);
         glm::vec3 prev_p_on_cone = curr_p + L * prev_dir;
 
         glm::vec3 dir_prev_p_to_proj
-          = glm::normalize(next_p_proj - prev_p_on_cone); // d1
-        float dist_prev_p_to_next_p
-          = glm::length(next_p - prev_p_on_cone); // |d2|
-        glm::vec3 dir_prev_p_to_next_p
-          = glm::normalize(next_p - prev_p_on_cone); // d2
+          = glm::normalize(next_p_proj - prev_p_on_cone);                      // d1
+        float dist_prev_p_to_next_p    = glm::length(next_p - prev_p_on_cone); // |d2|
+        glm::vec3 dir_prev_p_to_next_p = glm::normalize(next_p - prev_p_on_cone); // d2
 
         // calculate radius of cone that would be formed by the miter
         float r = dist_prev_p_to_next_p
                   / (2.0f * glm::dot(dir_prev_p_to_proj, dir_prev_p_to_next_p));
         // calculate origin of bottom of cone (center of triangle)
         glm::vec3 cone_bottom_origin = prev_p_on_cone + r * dir_prev_p_to_proj;
-        glm::vec3 dir_miter = glm::normalize(cone_bottom_origin - curr_p);
+        glm::vec3 dir_miter          = glm::normalize(cone_bottom_origin - curr_p);
 
         // calculate miter length (todo add line_width_ratio option)
         float miter_length = line_width / glm::dot(dir_miter, segment_n);
