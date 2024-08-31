@@ -896,8 +896,7 @@ const char* output_pass_shader_string = R"glsl(
 
         color = pow(color, vec3<f32>(1. / u_Gamma));
         // return vec4<f32>(color, 1.0); // how does alpha work?
-        // return vec4<f32>(color, hdrColor.a);
-        return hdrColor;
+        return vec4<f32>(color, hdrColor.a);
     } 
 
 
