@@ -416,3 +416,13 @@ struct DepthStencilTextureResult {
 DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
                                                       u32 sample_count, u32 width,
                                                       u32 height);
+
+u32 G_mipLevels(int width, int height);
+u32 G_mipLevelsLimit(u32 w, u32 h, u32 downscale_limit);
+
+// calculate mip size from original size
+struct G_MipSize {
+    u32 width;
+    u32 height;
+};
+G_MipSize G_mipLevelSize(int width, int height, u32 mip_level);

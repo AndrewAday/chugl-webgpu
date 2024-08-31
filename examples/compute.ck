@@ -1,6 +1,6 @@
 // Render Graph
 GG.rootPass() --> ComputePass compute_pass --> GG.renderPass();
-100 => int NUM_BOIDS;
+5000 => int NUM_BOIDS;
 (NUM_BOIDS / 64) + 1 => int work_group_count;
 compute_pass.workgroup(work_group_count, 1, 1);
 
@@ -193,7 +193,7 @@ for (int i; i < initial_boid_pos_and_velocity.size(); i++) {
 boids_buffer_a.write(initial_boid_pos_and_velocity);
 
 UI_Float cohesion_radius(.35);
-UI_Float separation_radius(.25);
+UI_Float separation_radius(.1);
 UI_Float alignment_radius(.5);
 UI_Float cohesion_factor(.002);
 UI_Float separation_factor(.005);

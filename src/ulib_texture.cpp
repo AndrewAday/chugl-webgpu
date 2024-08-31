@@ -185,7 +185,7 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
     ulib_texture_createDefaults(QUERY->ck_api(QUERY));
 }
 
-static SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc)
+SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc)
 {
     CK_DL_API API = g_chuglAPI;
 
@@ -219,7 +219,8 @@ void ulib_texture_createDefaults(CK_DL_API API)
     //  default render texture (hdr)
     {
         SG_Texture* tex = ulib_texture_createTexture(
-          { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+          { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+              | WGPUTextureUsage_StorageBinding,
             WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float });
         // set global
         g_builtin_textures.default_render_texture_id = tex->id;

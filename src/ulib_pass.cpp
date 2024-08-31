@@ -55,6 +55,7 @@ CK_DLL_MFUN(screenpass_set_shader);
 // OutputPass : ScreenPass
 CK_DLL_CTOR(outputpass_ctor);
 CK_DLL_MFUN(outputpass_set_input_texture);
+CK_DLL_MFUN(outputpass_set_tonemap);
 
 // ComputePass
 CK_DLL_CTOR(computepass_ctor); // don't send creation CQ Command until shader is set
@@ -64,6 +65,20 @@ CK_DLL_MFUN(computepass_set_storage_buffer);
 CK_DLL_MFUN(computepass_set_uniform_int);
 CK_DLL_MFUN(computepass_set_uniform_float2);
 CK_DLL_MFUN(computepass_set_workgroup);
+
+// BloomPass
+CK_DLL_CTOR(bloompass_ctor); // don't send creation CQ Command until shader is set
+CK_DLL_MFUN(bloompass_set_input_render_texture);
+CK_DLL_MFUN(bloompass_get_output_render_texture);
+CK_DLL_MFUN(bloompass_set_internal_blend);
+CK_DLL_MFUN(bloompass_set_final_blend);
+CK_DLL_MFUN(bloompass_get_internal_blend);
+CK_DLL_MFUN(bloompass_get_final_blend);
+
+// bloom pass params
+// SG_ID bloom_downscale_material_id;
+// SG_ID bloom_upscale_material_id;
+// SG_ID bloom_input_render_texture_id;
 
 /*
 ==optimize==
@@ -158,8 +173,11 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
 
         CTOR(outputpass_ctor);
 
-        MFUN(outputpass_set_input_texture, "void", "inputTexture");
+        MFUN(outputpass_set_input_texture, "void", "input");
         ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "input_texture");
+
+        MFUN(outputpass_set_tonemap, "void", "tonemap");
+        ARG("int", "tonemap_type");
 
         END_CLASS();
     }
@@ -195,6 +213,40 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
         ARG("int", "z");
 
         END_CLASS();
+
+        { // BloomPass
+            BEGIN_CLASS("BloomPass", SG_CKNames[SG_COMPONENT_PASS]);
+
+            CTOR(bloompass_ctor);
+
+            MFUN(bloompass_set_input_render_texture, "void", "input");
+            ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "bloom_texture");
+            DOC_FUNC("Set the render texture to apply bloom to");
+
+            MFUN(bloompass_get_output_render_texture, SG_CKNames[SG_COMPONENT_TEXTURE],
+                 "output");
+            DOC_FUNC("Get the render texture that the bloom pass writes to");
+
+            MFUN(bloompass_set_internal_blend, "void", "internalBlend");
+            ARG("float", "blend_factor");
+            DOC_FUNC(
+              "Set the blend factor between mip levels of the bloom texture during "
+              "upsample");
+
+            MFUN(bloompass_set_final_blend, "void", "blend");
+            ARG("float", "blend_factor");
+            DOC_FUNC(
+              "Set the blend factor between the bloom texture and the original image");
+
+            MFUN(bloompass_get_internal_blend, "float", "internalBlend");
+            DOC_FUNC("Get the blend factor between mip levels of the bloom texture");
+
+            MFUN(bloompass_get_final_blend, "float", "blend");
+            DOC_FUNC(
+              "Get the blend factor between the bloom texture and the original image");
+
+            END_CLASS();
+        }
     }
 }
 
@@ -414,7 +466,7 @@ SG_Pass* ulib_pass_createOutputPass(Chuck_Object* ckobj)
     SG_Material::uniformFloat(mat, 3, 1.0); // exposure
     CQ_PushCommand_MaterialSetUniform(mat, 3);
 
-    SG_Material::uniformInt(mat, 4, 0); // TONEMAP_NONE
+    SG_Material::uniformInt(mat, 4, 4); // TONEMAP_ACES
     CQ_PushCommand_MaterialSetUniform(mat, 4);
 
     // push pass through CQ
@@ -444,6 +496,21 @@ CK_DLL_MFUN(outputpass_set_input_texture)
     // set uniform
     SG_Material::setTexture(material, 0, input_texture);
     CQ_PushCommand_MaterialSetTexture(material, 0);
+}
+
+CK_DLL_MFUN(outputpass_set_tonemap)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+    ASSERT(pass->pass_type == SG_PassType_Screen);
+
+    t_CKINT tonemap_type = GET_NEXT_INT(ARGS);
+
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+    ASSERT(material);
+
+    // set uniform
+    SG_Material::uniformInt(material, 4, tonemap_type);
+    CQ_PushCommand_MaterialSetUniform(material, 4);
 }
 
 // ============================================================================
@@ -559,4 +626,110 @@ CK_DLL_MFUN(computepass_set_uniform_int)
     // set uniform
     SG_Material::uniformInt(material, location, uniform_value);
     CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+// ============================================================================
+// BloomPass
+// ============================================================================
+
+CK_DLL_CTOR(bloompass_ctor)
+{
+    SG_Pass* pass                              = SG_CreatePass(SELF, SG_PassType_Bloom);
+    OBJ_MEMBER_UINT(SELF, component_offset_id) = pass->id;
+
+    SG_Shader* bloom_downsample_shader
+      = SG_GetShader(g_material_builtin_shaders.bloom_downsample_shader_id);
+    SG_Shader* bloom_upsample_shader
+      = SG_GetShader(g_material_builtin_shaders.bloom_upsample_shader_id);
+
+    // create output render texture
+    SG_Texture* output_render_texture = ulib_texture_createTexture(
+      { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+          | WGPUTextureUsage_StorageBinding,
+        WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float });
+
+    SG_Material* bloom_downsample_mat
+      = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_downsample_shader);
+    SG_Material* bloom_upsample_mat
+      = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_upsample_shader);
+
+    // initialize uniforms
+    SG_Material::uniformFloat(bloom_upsample_mat, 4, 0.85);
+    CQ_PushCommand_MaterialSetUniform(bloom_upsample_mat, 4);
+    SG_Material::uniformFloat(bloom_upsample_mat, 5, 0.2);
+    CQ_PushCommand_MaterialSetUniform(bloom_upsample_mat, 5);
+
+    // update pass
+    pass->bloom_downsample_material_id = bloom_downsample_mat->id;
+    pass->bloom_upsample_material_id   = bloom_upsample_mat->id;
+    SG_Pass::bloomOutputRenderTexture(pass, output_render_texture);
+    // TODO create default render texture? necessary if we can't use a single texture as
+    // both input and storage
+
+    CQ_PushCommand_PassUpdate(pass);
+}
+
+CK_DLL_MFUN(bloompass_set_input_render_texture)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+
+    SG_Texture* bloom_texture
+      = SG_GetTexture(OBJ_MEMBER_UINT(GET_NEXT_OBJECT(ARGS), component_offset_id));
+
+    SG_Pass::bloomInputRenderTexture(pass, bloom_texture);
+
+    CQ_PushCommand_PassUpdate(pass);
+}
+
+CK_DLL_MFUN(bloompass_get_output_render_texture)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+
+    SG_Texture* bloom_texture = SG_GetTexture(pass->bloom_output_render_texture_id);
+
+    RETURN->v_object = bloom_texture ? bloom_texture->ckobj : NULL;
+}
+
+CK_DLL_MFUN(bloompass_set_internal_blend)
+{
+    SG_Pass* pass   = GET_PASS(SELF);
+    t_CKFLOAT blend = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material* bloom_upsample_material
+      = SG_GetMaterial(pass->bloom_upsample_material_id);
+
+    SG_Material::uniformFloat(bloom_upsample_material, 4, blend);
+    CQ_PushCommand_MaterialSetUniform(bloom_upsample_material, 4);
+}
+
+CK_DLL_MFUN(bloompass_set_final_blend)
+{
+    SG_Pass* pass   = GET_PASS(SELF);
+    t_CKFLOAT blend = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material* bloom_upsample_material
+      = SG_GetMaterial(pass->bloom_upsample_material_id);
+
+    SG_Material::uniformFloat(bloom_upsample_material, 5, blend);
+    CQ_PushCommand_MaterialSetUniform(bloom_upsample_material, 5);
+}
+
+CK_DLL_MFUN(bloompass_get_internal_blend)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+
+    SG_Material* bloom_upsample_material
+      = SG_GetMaterial(pass->bloom_upsample_material_id);
+
+    RETURN->v_float = bloom_upsample_material->uniforms[4].as.f;
+}
+
+CK_DLL_MFUN(bloompass_get_final_blend)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+
+    SG_Material* bloom_upsample_material
+      = SG_GetMaterial(pass->bloom_upsample_material_id);
+
+    RETURN->v_float = bloom_upsample_material->uniforms[5].as.f;
 }

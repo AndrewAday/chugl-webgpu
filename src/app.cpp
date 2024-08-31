@@ -760,22 +760,29 @@ struct App {
                     // TODO: maybe don't need WindowTexture, let null texture default to
                     // window tex? but that would only work in renderpass context...
                     // TODO fix texture creation
-                    WGPUTextureView resolve_target_view = NULL;
+                    R_Texture* r_tex
+                      = Component_GetTexture(pass->sg_pass.resolve_target_id);
+
+                    // descriptor for view at mip 0
+                    WGPUTextureViewDescriptor view_desc = {};
+                    view_desc.label                     = "renderpass target view";
+                    view_desc.format                    = r_tex->gpu_texture.format;
+                    view_desc.dimension                 = WGPUTextureViewDimension_2D;
+                    view_desc.baseMipLevel              = 0;
+                    view_desc.mipLevelCount             = 1;
+                    view_desc.arrayLayerCount           = 1;
+
+                    // no render texture bound, skip this pass
+                    if (!r_tex) break;
+
+                    // TODO check auto-rebuild property on RenderPass
+                    // assuming always auto-rebuild
+                    R_Texture::rebuild(&app->gctx, r_tex, app->window_fb_width,
+                                       app->window_fb_height);
+                    WGPUTextureView resolve_target_view
+                      = wgpuTextureCreateView(r_tex->gpu_texture.texture, &view_desc);
                     WGPUTextureFormat color_attachment_format
-                      = WGPUTextureFormat_Undefined;
-                    if (pass->sg_pass.resolve_target_id != 0) {
-                        R_Texture* r_tex
-                          = Component_GetTexture(pass->sg_pass.resolve_target_id);
-                        // TODO check auto-rebuild property on RenderPass
-                        // assuming always auto-rebuild
-                        R_Texture::rebuild(&app->gctx, r_tex, app->window_fb_width,
-                                           app->window_fb_height);
-                        resolve_target_view     = r_tex->gpu_texture.view;
-                        color_attachment_format = r_tex->gpu_texture.format;
-                    } else {
-                        resolve_target_view     = app->gctx.backbufferView;
-                        color_attachment_format = app->gctx.swapChainFormat;
-                    }
+                      = r_tex->gpu_texture.format;
 
                     // it's ok for camera to be null
                     // TODO re-add camera check after adding GCamera default controllers
@@ -797,6 +804,8 @@ struct App {
                         wgpuRenderPassEncoderRelease(render_pass);
                     }
 
+                    // cleanup
+                    WGPU_RELEASE_RESOURCE(TextureView, resolve_target_view);
                 } break;
                 case SG_PassType_Screen: {
                     // TODO support passing texture from chuck
@@ -894,6 +903,236 @@ struct App {
                     wgpuComputePassEncoderEnd(compute_pass);
                     WGPU_RELEASE_RESOURCE(ComputePassEncoder, compute_pass);
                 }; break;
+                case SG_PassType_Bloom: {
+
+                    R_Texture* render_texture = Component_GetTexture(
+                      pass->sg_pass.bloom_input_render_texture_id);
+
+                    R_Texture* output_texture = Component_GetTexture(
+                      pass->sg_pass.bloom_output_render_texture_id);
+
+                    if (!render_texture || !output_texture) break;
+
+                    // resize output texture
+                    // TODO optimize: create all texture views at once
+                    R_Texture::rebuild(&app->gctx, output_texture,
+                                       render_texture->gpu_texture.width,
+                                       render_texture->gpu_texture.height);
+
+                    ASSERT(render_texture->gpu_texture.usage
+                           & WGPUTextureUsage_RenderAttachment);
+
+                    SG_Sampler bloom_sampler = {
+                        // bilinear, clamp to edge
+                        SG_SAMPLER_WRAP_CLAMP_TO_EDGE, SG_SAMPLER_WRAP_CLAMP_TO_EDGE,
+                        SG_SAMPLER_WRAP_CLAMP_TO_EDGE, SG_SAMPLER_FILTER_LINEAR,
+                        SG_SAMPLER_FILTER_LINEAR,      SG_SAMPLER_FILTER_NEAREST,
+                    };
+                    u32 bloom_mip_levels
+                      = G_mipLevelsLimit(render_texture->gpu_texture.width,
+                                         render_texture->gpu_texture.height, 10);
+                    ASSERT(bloom_mip_levels
+                           <= render_texture->gpu_texture.mip_level_count);
+
+                    { // downscale
+                        R_Material* bloom_downscale_material = Component_GetMaterial(
+                          pass->sg_pass.bloom_downsample_material_id);
+                        R_Shader* bloom_downscale_shader = Component_GetShader(
+                          bloom_downscale_material->pso.sg_shader_id);
+                        ASSERT(bloom_downscale_material->pso.exclude_from_render_pass);
+                        WGPUComputePipeline downscale_pipeline
+                          = R_GetComputePassPipeline(&app->gctx,
+                                                     bloom_downscale_shader);
+
+                        // set the material uniforms that only need to be set once, not
+                        // per mip level dispatch
+                        R_Material::setSamplerBinding(
+                          &app->gctx, bloom_downscale_material, 1, bloom_sampler);
+
+                        ASSERT(render_texture->gpu_texture.mip_level_count > 1);
+
+                        glm::uvec2 mip_size
+                          = glm::uvec2(render_texture->gpu_texture.width / 2,
+                                       render_texture->gpu_texture.height / 2);
+                        ASSERT(sizeof(mip_size) == 2 * sizeof(u32));
+
+                        // downsample, writing from from mip level i --> i + 1
+                        for (u32 i = 0; i < bloom_mip_levels - 1; i++) {
+                            // create storage texture view for mip level i + 1
+                            WGPUTextureViewDescriptor view_desc = {};
+                            view_desc.label        = "bloom downscale mip level";
+                            view_desc.format       = render_texture->gpu_texture.format;
+                            view_desc.dimension    = WGPUTextureViewDimension_2D;
+                            view_desc.baseMipLevel = i + 1;
+                            view_desc.mipLevelCount   = 1;
+                            view_desc.arrayLayerCount = 1;
+
+                            WGPUTextureView dst_mip_view = wgpuTextureCreateView(
+                              render_texture->gpu_texture.texture, &view_desc);
+
+                            view_desc.baseMipLevel       = i;
+                            WGPUTextureView src_mip_view = wgpuTextureCreateView(
+                              render_texture->gpu_texture.texture, &view_desc);
+
+                            // TODO: do we need to refcount the texture view binding?
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_downscale_material, 0, src_mip_view);
+
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_downscale_material, 2, dst_mip_view);
+
+                            R_Material::setUniformBinding(
+                              &app->gctx, bloom_downscale_material, 3, &i, sizeof(i));
+
+                            const int compute_pass_binding_location = 0;
+                            { // update bind group
+                                WGPUBindGroupLayout layout
+                                  = wgpuComputePipelineGetBindGroupLayout(
+                                    downscale_pipeline, compute_pass_binding_location);
+
+                                R_Material::rebuildBindGroup(bloom_downscale_material,
+                                                             &app->gctx, layout);
+                            }
+
+                            WGPUComputePassEncoder bloom_pass
+                              = wgpuCommandEncoderBeginComputePass(
+                                app->gctx.commandEncoder, NULL);
+                            wgpuComputePassEncoderSetPipeline(bloom_pass,
+                                                              downscale_pipeline);
+
+                            wgpuComputePassEncoderSetBindGroup(
+                              bloom_pass, compute_pass_binding_location,
+                              bloom_downscale_material->bind_group, 0, NULL);
+
+                            // dispatch
+                            wgpuComputePassEncoderDispatchWorkgroups(
+                              bloom_pass, ceil(mip_size.x / 8.0f),
+                              ceil(mip_size.y / 8.0f), 1);
+
+                            mip_size = mip_size / 2u;
+
+                            wgpuComputePassEncoderEnd(bloom_pass);
+                            WGPU_RELEASE_RESOURCE(ComputePassEncoder, bloom_pass);
+
+                            // cleanup
+                            // cleanup
+                            WGPU_RELEASE_RESOURCE(TextureView, src_mip_view);
+                            WGPU_RELEASE_RESOURCE(TextureView, dst_mip_view);
+
+                        } // end for
+                    } // end downscale
+
+                    { // upscale
+                        R_Material* bloom_upscale_material = Component_GetMaterial(
+                          pass->sg_pass.bloom_upsample_material_id);
+                        R_Shader* bloom_upscale_shader = Component_GetShader(
+                          bloom_upscale_material->pso.sg_shader_id);
+                        ASSERT(bloom_upscale_material->pso.exclude_from_render_pass);
+                        WGPUComputePipeline upscale_pipeline
+                          = R_GetComputePassPipeline(&app->gctx, bloom_upscale_shader);
+                        // set the material uniforms that only need to be set once, not
+                        // per mip level dispatch
+                        R_Material::setSamplerBinding(
+                          &app->gctx, bloom_upscale_material, 1, bloom_sampler);
+
+                        glm::uvec2 full_res_size
+                          = glm::uvec2(render_texture->gpu_texture.width,
+                                       render_texture->gpu_texture.height);
+                        ASSERT(sizeof(full_res_size) == 2 * sizeof(u32));
+                        R_Material::setUniformBinding( // full resolution
+                          &app->gctx, bloom_upscale_material, 3, &full_res_size,
+                          sizeof(full_res_size));
+
+                        bool first_upsample = true;
+                        for (u32 i = bloom_mip_levels - 1; i >= 1; i--) {
+                            // calculate size of texture we are writing to
+                            G_MipSize mip_size = G_mipLevelSize(
+                              render_texture->gpu_texture.width,
+                              render_texture->gpu_texture.height, i - 1);
+
+                            // create texture view for src texture
+                            WGPUTextureViewDescriptor view_desc = {};
+                            view_desc.label        = "bloom upscale mip level";
+                            view_desc.format       = render_texture->gpu_texture.format;
+                            view_desc.dimension    = WGPUTextureViewDimension_2D;
+                            view_desc.baseMipLevel = i;
+                            view_desc.mipLevelCount   = 1;
+                            view_desc.arrayLayerCount = 1;
+
+                            // TODO don't need to recreate src views, can save from
+                            // downsample pass
+                            WGPUTextureView src_mip_view = wgpuTextureCreateView(
+                              first_upsample ? render_texture->gpu_texture.texture :
+                                               output_texture->gpu_texture.texture,
+                              &view_desc);
+
+                            view_desc.baseMipLevel       = i - 1;
+                            view_desc.mipLevelCount      = 1;
+                            WGPUTextureView dst_mip_view = wgpuTextureCreateView(
+                              output_texture->gpu_texture.texture, &view_desc);
+
+                            // get view from next next mip in downsample chain
+                            WGPUTextureView downsampled_mip_view
+                              = wgpuTextureCreateView(
+                                render_texture->gpu_texture.texture, &view_desc);
+
+                            // TODO: do we need to refcount the texture view binding?
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_upscale_material, 0, src_mip_view);
+
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_upscale_material, 2, dst_mip_view);
+
+                            R_Material::setTextureViewBinding(&app->gctx,
+                                                              bloom_upscale_material, 6,
+                                                              downsampled_mip_view);
+
+                            // TODO need to have separate uniform buffer for mip levels
+                            // overwriting to the same buffer on each dispatch is not
+                            // working after queue submission, all mip levels are the
+                            // same (i.e. equal 1)
+                            // R_Material::setUniformBinding( // mip level
+                            //   &app->gctx, bloom_upscale_material, 3, &i, sizeof(i));
+
+                            const int compute_pass_binding_location = 0;
+                            { // update bind group
+                                WGPUBindGroupLayout layout
+                                  = wgpuComputePipelineGetBindGroupLayout(
+                                    upscale_pipeline, compute_pass_binding_location);
+
+                                R_Material::rebuildBindGroup(bloom_upscale_material,
+                                                             &app->gctx, layout);
+                            }
+
+                            WGPUComputePassEncoder bloom_pass
+                              = wgpuCommandEncoderBeginComputePass(
+                                app->gctx.commandEncoder, NULL);
+                            wgpuComputePassEncoderSetPipeline(bloom_pass,
+                                                              upscale_pipeline);
+
+                            wgpuComputePassEncoderSetBindGroup(
+                              bloom_pass, compute_pass_binding_location,
+                              bloom_upscale_material->bind_group, 0, NULL);
+
+                            // dispatch
+                            wgpuComputePassEncoderDispatchWorkgroups(
+                              bloom_pass, ceil(mip_size.width / 8.0f),
+                              ceil(mip_size.height / 8.0f), 1);
+
+                            wgpuComputePassEncoderEnd(bloom_pass);
+                            WGPU_RELEASE_RESOURCE(ComputePassEncoder, bloom_pass);
+
+                            // cleanup
+                            WGPU_RELEASE_RESOURCE(TextureView, src_mip_view);
+                            WGPU_RELEASE_RESOURCE(TextureView, dst_mip_view);
+                            WGPU_RELEASE_RESOURCE(TextureView, downsampled_mip_view);
+                            first_upsample = false;
+                        }
+                    }
+
+                    // cleanup
+
+                } break;
                 default: ASSERT(false);
             }
 

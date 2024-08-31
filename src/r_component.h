@@ -187,14 +187,14 @@ struct R_Texture : public R_Component {
     static void init(R_Texture* texture); // called by Renderer-Tester only
 
     // resizes texture and updates generation, clears any previous data
-    // does NOT gen mipmaps. used for framebuffer attachments
+    // does gen mipmaps. used for framebuffer attachments
     static void rebuild(GraphicsContext* gctx, R_Texture* r_tex, u32 width, u32 height)
     {
         bool needs_rebuild = r_tex->gpu_texture.width != width
                              || r_tex->gpu_texture.height != height
                              || r_tex->gpu_texture.texture == NULL;
         if (needs_rebuild) {
-            Texture::init(gctx, &r_tex->gpu_texture, width, height, 1, false,
+            Texture::init(gctx, &r_tex->gpu_texture, width, height, 1, true,
                           r_tex->name.c_str(), r_tex->desc.format,
                           WGPUTextureUsage_RenderAttachment | r_tex->desc.usage_flags,
                           r_tex->desc.dimension);
@@ -296,36 +296,6 @@ struct R_Material : public R_Component {
                                // Component_MaterialCreate
     WGPUBindGroup bind_group;
 
-    // Arena bindings;         // array of R_Binding
-    // Arena bindGroupEntries; // wgpu bindgroup entries. 1:1 with bindings
-    // WGPUBindGroup bindGroup;
-
-    // TODO: figure out how to include MaterialTextureView
-    // maybe as part of the R_BIND_TEXTURE_ID binding,
-    // because every texture needs a texture view
-
-    // Arena uniformData;         // cpu-side uniform data buffer
-    //                            // used by all bindings of type R_BIND_UNIFORM
-    // WGPUBuffer gpuUniformBuff; // gpu-side uniform buffer
-    // WGPUBufferDescriptor uniformBuffDesc;
-
-    // textures (TODO: convert to SG_ID of SG_Texture)
-    // SG_Texture* baseColorTexture;
-    // MaterialTextureView baseColorTextureView;
-
-    // SG_Texture* metallicRoughnessTexture;
-    // MaterialTextureView metallicRoughnessTextureView;
-
-    // shared textures (by all material types)
-    // SG_Texture* normalTexture;
-    // MaterialTextureView normalTextureView;
-    // SG_Texture* occlusionTexture;
-    // SG_Texture* emissiveTexture;
-
-    // constructors ----------------------------------------------
-    // static void init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig*
-    // config);
-
     static void updatePSO(GraphicsContext* gctx, R_Material* mat,
                           SG_MaterialPipelineState* pso);
 
@@ -343,6 +313,8 @@ struct R_Material : public R_Component {
                                   SG_Sampler sampler);
     static void setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
                                   SG_ID texture_id);
+    static void setTextureViewBinding(GraphicsContext* gctx, R_Material* mat,
+                                      u32 location, WGPUTextureView view);
     static void setExternalStorageBinding(GraphicsContext* gctx, R_Material* mat,
                                           u32 location, GPU_Buffer* buffer);
     static void removeBinding(R_Material* mat, u32 location)

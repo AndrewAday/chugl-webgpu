@@ -826,7 +826,7 @@ const char* output_pass_shader_string = R"glsl(
     @group(0) @binding(1) var texture_sampler: sampler;
     @group(0) @binding(2) var<uniform> u_Gamma: f32 = 2.2;
     @group(0) @binding(3) var<uniform> u_Exposure: f32 = 1.;
-    @group(0) @binding(4) var<uniform> u_Tonemap: i32 = TONEMAP_REINHARD;
+    @group(0) @binding(4) var<uniform> u_Tonemap: i32 = TONEMAP_NONE;
 
     // Helpers ==================================================================
     fn Uncharted2Tonemap(x: vec3<f32>) -> vec3<f32> {
@@ -895,12 +895,229 @@ const char* output_pass_shader_string = R"glsl(
         }
 
         color = pow(color, vec3<f32>(1. / u_Gamma));
-        // return vec4<f32>(color, 1); // how does alpha work?
+        // return vec4<f32>(color, 1.0); // how does alpha work?
         // return vec4<f32>(color, hdrColor.a);
         return hdrColor;
     } 
 
 
+
+)glsl";
+
+const char* bloom_downsample_shader_string = R"glsl(
+
+@group(0) @binding(0) var u_input_texture: texture_2d<f32>;
+@group(0) @binding(1) var u_input_tex_sampler: sampler;
+@group(0) @binding(2) var u_out_texture: texture_storage_2d<rgba16float, write>; // hdr
+@group(0) @binding(3) var<uniform> u_mip_level: i32; 
+
+fn luma(c : vec3f) -> f32
+{
+    return dot(c, vec3f(0.2126729, 0.7151522, 0.0721750));
+}
+
+// [Karis2013] proposed reducing the dynamic range before averaging
+fn karis_avg(c : vec4f) -> vec4f
+{
+    return c / (1.0 + luma(c.rgb));
+}
+
+// const GROUP_SIZE =         8;
+// const GROUP_THREAD_COUNT = (GROUP_SIZE * GROUP_SIZE);
+// const FILTER_SIZE =        3;
+// const FILTER_RADIUS =      (FILTER_SIZE / 2);
+// const TILE_SIZE =          (GROUP_SIZE + 2 * FILTER_RADIUS);
+// const TILE_PIXEL_COUNT =   (TILE_SIZE * TILE_SIZE);
+const GROUP_SIZE =         8u;
+const GROUP_THREAD_COUNT = 64u;
+const FILTER_SIZE =        3u;
+const FILTER_RADIUS =      1u;
+const TILE_SIZE =          10u;
+const TILE_PIXEL_COUNT =   100u;
+
+var<workgroup> sm_r : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_g : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_b : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_a : array<f32, TILE_PIXEL_COUNT>;
+
+fn max3(v : vec3f) -> f32
+{
+    return max (max (v.x, v.y), v.z);
+}
+
+fn store_lds(idx : u32, c : vec4f)
+{
+    sm_r[idx] = c.r;
+    sm_g[idx] = c.g;
+    sm_b[idx] = c.b;
+    sm_a[idx] = c.a;
+}
+
+fn load_lds(idx : u32) -> vec4f
+{
+    return vec4f(sm_r[idx], sm_g[idx], sm_b[idx], sm_a[idx]);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(
+    @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+    @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+    @builtin(local_invocation_index) LocalInvocationIndex : u32, // ranges from 0 - 63
+    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
+)
+{
+    // TODO use same texel size logic in upsample shader
+    let output_size = textureDimensions(u_out_texture);
+    let texel_size = 1.0 / vec2f(f32(output_size.x), f32(output_size.y));
+    let pixel_coords :vec2i  = vec2<i32>(GlobalInvocationID.xy);
+    let base_index : vec2f   = vec2<f32>(WorkGroupID.xy) * f32(GROUP_SIZE) - f32(FILTER_RADIUS);
+
+    // The first (TILE_PIXEL_COUNT - GROUP_THREAD_COUNT) threads load at most 2 texel values
+    for (var i = LocalInvocationIndex; i < TILE_PIXEL_COUNT; i += GROUP_THREAD_COUNT)
+    {
+        let uv = (vec2f(base_index) + vec2f(0.5, 0.5)) * texel_size;
+        let uv_offset = vec2f(f32(i % TILE_SIZE), f32(i / TILE_SIZE)) * texel_size;
+        
+        let color = textureSampleLevel(u_input_texture, u_input_tex_sampler, uv + uv_offset, f32(u_mip_level));
+        store_lds(i, color);
+    }
+
+    workgroupBarrier();
+
+    // Based on [Jimenez14] http://goo.gl/eomGso
+    // center texel
+    let sm_idx = (LocalInvocationID.x + FILTER_RADIUS) + (LocalInvocationID.y + FILTER_RADIUS) * TILE_SIZE;
+
+    let A = load_lds(sm_idx - TILE_SIZE - 1u);
+    let B = load_lds(sm_idx - TILE_SIZE    );
+    let C = load_lds(sm_idx - TILE_SIZE + 1u);
+    let F = load_lds(sm_idx - 1u            );
+    let G = load_lds(sm_idx                );
+    let H = load_lds(sm_idx + 1u            );
+    let K = load_lds(sm_idx + TILE_SIZE - 1u);
+    let L = load_lds(sm_idx + TILE_SIZE    );
+    let M = load_lds(sm_idx + TILE_SIZE + 1u);
+
+    let D = (A + B + G + F) * 0.25; // top left
+    let E = (B + C + H + G) * 0.25; // top right
+    let I = (F + G + L + K) * 0.25; // bottom left
+    let J = (G + H + M + L) * 0.25; // bottom right
+
+    let div = (1.0 / 4.0) * vec2f(0.5, 0.125);
+
+    var c : vec4f =  karis_avg((D + E + I + J) * div.x);
+    c += karis_avg((A + B + G + F) * div.y);
+    c += karis_avg((B + C + H + G) * div.y);
+    c += karis_avg((F + G + L + K) * div.y);
+    c += karis_avg((G + H + M + L) * div.y);
+
+
+	textureStore(u_out_texture, pixel_coords, c);
+}
+)glsl";
+
+
+const char* bloom_upsample_shader_string = R"glsl(
+
+@group(0) @binding(0) var u_input_texture: texture_2d<f32>; // output_render_texture at mip i
+@group(0) @binding(1) var u_sampler: sampler;
+@group(0) @binding(2) var u_output_texture: texture_storage_2d<rgba16float, write>; // output_render_texture at mip i - 1
+// @group(0) @binding(3) var<uniform> u_mip_level: i32; // doesn't seem mip level affects 1-mip views
+@group(0) @binding(3) var<uniform> u_full_resolution_size: vec2<u32>;  // same across all calls
+@group(0) @binding(4) var<uniform> u_internal_blend: f32; // linear blend between mip levels
+@group(0) @binding(5) var<uniform> u_final_blend: f32; // linear blend with original image
+@group(0) @binding(6) var u_downsample_texture: texture_2d<f32>; // mip level i-1 of downsample chain
+
+// const GROUP_SIZE =         8;
+// const GROUP_THREAD_COUNT = (GROUP_SIZE * GROUP_SIZE);
+// const FILTER_SIZE =        3;
+// const FILTER_RADIUS =      (FILTER_SIZE / 2);
+// const TILE_SIZE =          (GROUP_SIZE + 2 * FILTER_RADIUS);
+// const TILE_PIXEL_COUNT =   (TILE_SIZE * TILE_SIZE);
+const GROUP_SIZE =         8u;
+const GROUP_THREAD_COUNT = 64u;
+const FILTER_SIZE =        3u;
+const FILTER_RADIUS =      1u;
+const TILE_SIZE =          10u;
+const TILE_PIXEL_COUNT =   100u;
+
+
+var<workgroup> sm_r : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_g : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_b : array<f32, TILE_PIXEL_COUNT>;
+var<workgroup> sm_a : array<f32, TILE_PIXEL_COUNT>;
+
+fn store_lds(idx : u32, c : vec4f)
+{
+    sm_r[idx] = c.r;
+    sm_g[idx] = c.g;
+    sm_b[idx] = c.b;
+    sm_a[idx] = c.a;
+}
+
+fn load_lds(idx : u32) -> vec4f
+{
+    return vec4f(sm_r[idx], sm_g[idx], sm_b[idx], sm_a[idx]);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(
+    @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+    @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+    @builtin(local_invocation_index) LocalInvocationIndex : u32, // ranges from 0 - 63
+    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
+)
+{
+    let output_size = textureDimensions(u_output_texture);
+    let texel_size = 1.0 / vec2f(f32(output_size.x), f32(output_size.y));
+	let pixel_coords = vec2<i32>(GlobalInvocationID.xy);
+    let base_index : vec2f   = vec2<f32>(WorkGroupID.xy) * f32(GROUP_SIZE) - f32(FILTER_RADIUS);
+
+    // The first (TILE_PIXEL_COUNT - GROUP_THREAD_COUNT) threads load at most 2 texel values
+    for (var i = LocalInvocationIndex; i < TILE_PIXEL_COUNT; i += GROUP_THREAD_COUNT)
+    {
+        let uv        = (base_index + 0.5) * texel_size;
+        let uv_offset = vec2f(f32(i % TILE_SIZE), f32(i / TILE_SIZE)) * texel_size;
+        
+        // let color = textureSampleLevel(u_input_texture, u_sampler, (uv + uv_offset), f32(u_mip_level));
+        let color = textureSampleLevel(u_input_texture, u_sampler, (uv + uv_offset), 0.0);
+        store_lds(i, color);
+    }
+
+    workgroupBarrier();
+
+    // center texel
+    let sm_idx = (LocalInvocationID.x + u32(FILTER_RADIUS)) + (LocalInvocationID.y + u32(FILTER_RADIUS)) * u32(TILE_SIZE);
+
+    // Based on [Jimenez14] http://goo.gl/eomGso
+    var s : vec4f;
+    s =  load_lds(sm_idx - TILE_SIZE - 1u);
+    s += load_lds(sm_idx - TILE_SIZE    ) * 2.0;
+    s += load_lds(sm_idx - TILE_SIZE + 1u);
+	
+    s += load_lds(sm_idx - 1u) * 2.0;
+    s += load_lds(sm_idx    ) * 4.0;
+    s += load_lds(sm_idx + 1u) * 2.0;
+	
+    s += load_lds(sm_idx + TILE_SIZE - 1u);
+    s += load_lds(sm_idx + TILE_SIZE    ) * 2.0;
+    s += load_lds(sm_idx + TILE_SIZE + 1u);
+
+    let bloom : vec4f = s * (1.0 / 16.0);
+
+	// let curr_pixel = textureLoad(u_downsample_texture, pixel_coords, u_mip_level - 1);
+	let curr_pixel = textureLoad(u_downsample_texture, pixel_coords, 0);
+    var out_pixel : vec4f = curr_pixel;
+
+    // if this is last mip level
+    if (all(output_size == u_full_resolution_size)) {
+        out_pixel = mix(curr_pixel, bloom, u_final_blend);
+    } else {
+        out_pixel = mix(curr_pixel, bloom, u_internal_blend);
+    }
+
+	textureStore(u_output_texture, pixel_coords, out_pixel);
+}
 
 )glsl";
 

@@ -768,6 +768,9 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                 bind_group_entry->size   = binding->size;
                 bind_group_entry->buffer = binding->as.storage_external->buf;
             } break;
+            case R_BIND_TEXTURE_VIEW: {
+                bind_group_entry->textureView = binding->as.textureView;
+            } break;
             default: ASSERT(false);
         }
     }
@@ -810,6 +813,13 @@ void R_Material::setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 l
 {
     R_Material::setBinding(gctx, mat, location, R_BIND_TEXTURE_ID, &texture_id,
                            sizeof(texture_id));
+}
+
+void R_Material::setTextureViewBinding(GraphicsContext* gctx, R_Material* mat,
+                                       u32 location, WGPUTextureView view)
+{
+    R_Material::setBinding(gctx, mat, location, R_BIND_TEXTURE_VIEW, &view,
+                           sizeof(WGPUTextureView));
 }
 
 void R_Material::setExternalStorageBinding(GraphicsContext* gctx, R_Material* mat,
@@ -865,6 +875,9 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         // for now, always rebuild (external buffer may have changed but maintained same
         // size)
         mat->fresh_bind_group = false;
+    } else if (type == R_BIND_TEXTURE_VIEW) {
+        // simple, always rebuild
+        mat->fresh_bind_group = false;
     }
 
     binding->type = type;
@@ -886,11 +899,11 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
             binding->as.textureID = tex->id;
             binding->generation   = tex->generation;
         } break;
-        // case R_BIND_TEXTURE_VIEW: {
-        //     ASSERT(bytes == sizeof(WGPUTextureView));
-        //     binding->as.textureView = *(WGPUTextureView*)data;
-        //     break;
-        // }
+        case R_BIND_TEXTURE_VIEW: {
+            ASSERT(bytes == sizeof(WGPUTextureView));
+            binding->as.textureView = *(WGPUTextureView*)data;
+            break;
+        }
         case R_BIND_SAMPLER: {
             ASSERT(bytes == sizeof(SamplerConfig));
             binding->as.samplerConfig = *(SamplerConfig*)data;

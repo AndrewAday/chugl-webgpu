@@ -1078,7 +1078,7 @@ bool SG_Pass::connect(SG_Pass* this_pass, SG_Pass* next_pass)
 {
     if (!this_pass || !next_pass) return false;
     if (this_pass->next_pass_id == next_pass->id) return true;
-    if (isConnected(this_pass, next_pass)) return false;
+    if (isConnected(next_pass, this_pass)) return false;
 
     SG_AddRef(next_pass);
     SG_DecrementRef(this_pass->next_pass_id);
@@ -1141,4 +1141,18 @@ void SG_Pass::computeShader(SG_Pass* pass, SG_Material* material, SG_Shader* sha
 
     // the material is internal, ckobj=NULL so no need to refcount
     pass->compute_material_id = material ? material->id : 0;
+}
+
+void SG_Pass::bloomOutputRenderTexture(SG_Pass* pass, SG_Texture* tex)
+{
+    SG_AddRef(tex);
+    SG_DecrementRef(pass->bloom_output_render_texture_id);
+    pass->bloom_output_render_texture_id = tex ? tex->id : 0;
+}
+
+void SG_Pass::bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex)
+{
+    SG_AddRef(tex);
+    SG_DecrementRef(pass->bloom_input_render_texture_id);
+    pass->bloom_input_render_texture_id = tex ? tex->id : 0;
 }

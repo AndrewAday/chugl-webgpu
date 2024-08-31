@@ -1035,9 +1035,28 @@ void DepthTexture::release(DepthTexture* depthTexture)
 #define NUMBER_OF_TEXTURE_FORMATS WGPUTextureFormat_ASTC12x12UnormSrgb // 94
 
 /// @brief Determines the number of mip levels needed for a full mip chain
-static u32 mipLevelCount(int width, int height)
+u32 G_mipLevels(int width, int height)
 {
     return (u32)(floor((float)(log2(MAX(width, height))))) + 1;
+}
+
+// calculate number of mip levels based on downscale limit
+u32 G_mipLevelsLimit(u32 w, u32 h, u32 downscale_limit)
+{
+    if (downscale_limit >= w || downscale_limit >= h) return 1;
+
+    u32 mip_levels = G_mipLevels(w, h) - G_mipLevels(downscale_limit, downscale_limit);
+
+    ASSERT(mip_levels > 0);
+    return mip_levels;
+}
+
+G_MipSize G_mipLevelSize(int width, int height, u32 mip_level)
+{
+    return {
+        MAX(1u, (u32) (glm::floor(float(width) / glm::pow(2.0, mip_level)))),
+        MAX(1u, (u32) (glm::floor(float(height) / glm::pow(2.0, mip_level))))
+    };
 }
 
 // TODO make part of GraphicsContext and cleanup
@@ -1463,7 +1482,6 @@ void Texture::init(GraphicsContext* gctx, Texture* texture, u32 width, u32 heigh
         ASSERT(!(gen_mipmaps && depth > 1));
         ASSERT(!(gen_mipmaps && dimension == WGPUTextureDimension_3D));
     }
-    bool is_storage = usage & WGPUTextureUsage_StorageBinding;
 
     WGPU_RELEASE_RESOURCE(Texture, texture->texture);
     WGPU_RELEASE_RESOURCE(TextureView, texture->view);
@@ -1475,9 +1493,8 @@ void Texture::init(GraphicsContext* gctx, Texture* texture, u32 width, u32 heigh
 
     // default always gen mipmaps
     // except storage textures can't have mipmaps
-    texture->mip_level_count
-      = gen_mipmaps && !is_storage ? mipLevelCount(width, height) : 1u;
-    texture->sample_count = 1; // multisampling not supported yet
+    texture->mip_level_count = gen_mipmaps ? G_mipLevels(width, height) : 1u;
+    texture->sample_count    = 1; // multisampling not supported yet
 
     texture->format    = format;
     texture->dimension = dimension;

@@ -85,6 +85,10 @@ struct chugl_MaterialBuiltinShaders {
 
     // screen shaders
     SG_ID output_pass_shader_id;
+
+    // compute shaders
+    SG_ID bloom_downsample_shader_id;
+    SG_ID bloom_upsample_shader_id;
 };
 static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
 
@@ -94,6 +98,9 @@ struct chugl_builtin_textures {
     SG_ID default_render_texture_id;
 };
 static chugl_builtin_textures g_builtin_textures;
+
+// impl in ulib_texture.cpp
+SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc);
 
 Arena audio_frame_arena;
 

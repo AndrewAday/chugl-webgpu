@@ -542,6 +542,7 @@ enum SG_PassType : u8 {
     SG_PassType_Render,
     SG_PassType_Compute,
     SG_PassType_Screen,
+    SG_PassType_Bloom, // hacking in bloom for now
 };
 
 // union SG_PassParams {
@@ -572,6 +573,13 @@ struct SG_Pass : public SG_Component {
     SG_ID compute_shader_id;
     SG_ID compute_material_id; // created implicitly, material.pos.shader_id =
                                // compute_shader_id
+
+    // bloom pass params
+    SG_ID bloom_downsample_material_id;
+    SG_ID bloom_upsample_material_id;
+    SG_ID bloom_input_render_texture_id;
+    SG_ID bloom_output_render_texture_id;
+
     struct {
         u32 x, y, z;
     } workgroup;
@@ -596,6 +604,10 @@ struct SG_Pass : public SG_Component {
     // computepass methods
     static void computeShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader);
 
+    // bloom pass methods
+    static void bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex);
+    static void bloomOutputRenderTexture(SG_Pass* pass, SG_Texture* tex);
+
     static void workgroupSize(SG_Pass* pass, u32 x, u32 y, u32 z)
     {
         pass->workgroup.x = x;
@@ -603,7 +615,6 @@ struct SG_Pass : public SG_Component {
         pass->workgroup.z = z;
     }
 };
-
 
 // ============================================================================
 // SG Component Manager

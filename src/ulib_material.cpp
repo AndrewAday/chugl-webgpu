@@ -791,6 +791,13 @@ chugl_createShader(CK_DL_API API, const char* vertex_string,
     return shader->id;
 }
 
+static SG_ID chugl_createComputeShader(const char* compute_string,
+                                       const char* compute_filepath)
+{
+    return chugl_createShader(g_chuglAPI, NULL, NULL, NULL, NULL, NULL, 0, compute_string,
+                       compute_filepath);
+}
+
 void chugl_initDefaultMaterials()
 {
     static WGPUVertexFormat standard_vertex_layout[] = {
@@ -818,4 +825,10 @@ void chugl_initDefaultMaterials()
     g_material_builtin_shaders.output_pass_shader_id
       = chugl_createShader(g_chuglAPI, output_pass_shader_string,
                            output_pass_shader_string, NULL, NULL, NULL, 0);
+
+    g_material_builtin_shaders.bloom_downsample_shader_id
+      = chugl_createComputeShader(bloom_downsample_shader_string, NULL);
+
+    g_material_builtin_shaders.bloom_upsample_shader_id
+      = chugl_createComputeShader(bloom_upsample_shader_string, NULL);
 }
