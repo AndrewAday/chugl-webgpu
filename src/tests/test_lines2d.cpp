@@ -210,11 +210,6 @@ struct LinesRenderState {
 static LinesRenderState lines2D_state = {};
 static LinesRenderState lines3D_state = {};
 
-// static WGPURenderPipeline lines2D_pipeline = NULL;
-// static WGPUBuffer lines2d_uniform_buffer   = NULL;
-// static WGPUBuffer lines2d_positions        = NULL;
-// static WGPUBindGroup lines2d_bind_group    = NULL;
-
 #define MAX_LINE_POINTS 1024
 static glm::vec3 line_points[MAX_LINE_POINTS] = {};
 // static u32 line_colors[MAX_LINE_POINTS]       = {}; // TODO
@@ -222,6 +217,14 @@ static size_t num_points      = 3;
 static float line_width       = 0.01f;
 static float line_width_ratio = 0.5f;
 static bool line_loop         = false;
+
+static glm::vec3 lines3d_output[(MAX_LINE_POINTS + 3) * 2] = {};
+static size_t lines3d_output_count                         = 0;
+static glm::vec3 lines3d_input[]                           = {
+    glm::vec3(0.0f, 0.0f, 1.0f),
+    glm::vec3(0.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 2.0f, 1.0f),
+};
 
 static LinesRenderState createPipeline(const char* shader)
 {
@@ -306,7 +309,7 @@ static LinesRenderState createPipeline(const char* shader)
 
         // create positions storage buffer
         WGPUBufferDescriptor positions_buffer_desc = {};
-        positions_buffer_desc.size                 = sizeof(line_points);
+        positions_buffer_desc.size                 = MEGABYTE;
         positions_buffer_desc.usage
           = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
         state.positions
@@ -411,10 +414,16 @@ static void updateBuffers(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
     }
 
     { // 3D line test
-        static glm::vec3 lines3d_output[(MAX_LINE_POINTS + 3) * 2]{};
-        Lines3D_Generate(glm::vec3(0.0f, 1.0f, 0.0f), 0.1f, line_points,
-                         num_points, lines3d_output,
-                         ARRAY_LENGTH(lines3d_output));
+        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.uniform_buffer, 0,
+                             &uniforms, sizeof(Uniforms));
+
+        lines3d_output_count
+          = Lines3D_Generate(glm::vec3(1.0f, 0.0f, 0.0f), 0.1f, lines3d_input,
+                             ARRAY_LENGTH(lines3d_input), lines3d_output,
+                             ARRAY_LENGTH(lines3d_output));
+
+        wgpuQueueWriteBuffer(gctx->queue, lines3D_state.positions, 0,
+                             lines3d_output, sizeof(lines3d_output));
     }
 }
 
@@ -472,6 +481,30 @@ static void drawUI(WGPURenderPassEncoder pass)
     for (size_t i = 0; i < num_points + 2; ++i) {
         Text("Point %zu: (%.2f, %.2f)", i, line_points[i].x, line_points[i].y);
     }
+    Separator();
+
+    // for (size_t i = 0; i < ; ++i) {
+    //     int idx = i + 1;
+    //     PushID(idx);
+    //     DragFloat3("##lines_3d_point", (float*)&line_points[idx], 0.01f);
+    //     SameLine();
+    //     if (Button("Remove##lines_3d")) {
+    //         for (size_t j = idx; j < num_points - 1; ++j) {
+    //             line_points[j] = line_points[j + 1];
+    //         }
+    //         num_points = MAX(num_points - 1, 0);
+    //     }
+    //     PopID();
+    // }
+    // if (Button("Add Point##lines_3d")) {
+    //     num_points = MIN(num_points + 1, MAX_LINE_POINTS);
+    // }
+
+    // display lines3D points
+    for (size_t i = 0; i < lines3d_output_count; ++i) {
+        Text("Point %zu: (%.2f, %.2f, %.2f)", i, lines3d_output[i].x,
+             lines3d_output[i].y, lines3d_output[i].z);
+    }
 
     ImGui::End();
 
@@ -507,6 +540,12 @@ static void _Test_Lines2D_onRender(glm::mat4 proj, glm::mat4 view,
     const u32 vertex_count = line_loop ? 2 * (num_points + 1) : 2 * num_points;
     wgpuRenderPassEncoderDraw(renderPass, vertex_count, 1, 0, 0);
 
+    // draw lines3d
+    wgpuRenderPassEncoderSetPipeline(renderPass, lines3D_state.pipeline);
+    wgpuRenderPassEncoderSetBindGroup(renderPass, 0, lines3D_state.bind_group,
+                                      0, 0);
+    wgpuRenderPassEncoderDraw(renderPass, lines3d_output_count, 1, 0, 0);
+
     drawUI(renderPass);
 
     wgpuRenderPassEncoderEnd(renderPass);
@@ -526,7 +565,13 @@ static size_t Lines3D_Generate(glm::vec3 init_normal, float line_width,
                                glm::vec3* in_points, size_t in_point_count,
                                glm::vec3* out_points, size_t out_point_cap)
 {
-#define PUSH_VERTEX(v) out_points[vertex_id++] = (v)
+#define PUSH_VERTEX(v)                                                         \
+    {                                                                          \
+        out_points[vertex_id++] = (v);                                         \
+        printf("Vertex %zu: (%.2f, %.2f, %.2f)\n", vertex_id,                  \
+               out_points[vertex_id].x, out_points[vertex_id].y,               \
+               out_points[vertex_id].z);                                       \
+    }
 
     // make sure we have enough memory for output verctices + sentinel points
     ASSERT(out_point_cap >= 2 * (in_point_count + 3));
