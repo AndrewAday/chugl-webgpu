@@ -146,8 +146,8 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
         static t_CKINT texture_format_rgba8unorm  = WGPUTextureFormat_RGBA8Unorm;
         static t_CKINT texture_format_rgba16float = WGPUTextureFormat_RGBA16Float;
-        static t_CKINT texture_format_depth24plusstencil8
-          = WGPUTextureFormat_Depth24PlusStencil8;
+        // static t_CKINT texture_format_depth24plusstencil8
+        //   = WGPUTextureFormat_Depth24PlusStencil8;
         SVAR("int", "Format_RGBA8Unorm", &texture_format_rgba8unorm);
         SVAR("int", "Format_RGBA16Float", &texture_format_rgba16float);
         // SVAR("int", "Format_Depth24PlusStencil8",
@@ -284,8 +284,8 @@ CK_DLL_MFUN(texture_write)
     // TODO move into member fn?
     {
         Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
-        t_CKUINT width         = GET_NEXT_INT(ARGS);
-        t_CKUINT height        = GET_NEXT_INT(ARGS);
+        t_CKINT width          = GET_NEXT_INT(ARGS);
+        t_CKINT height         = GET_NEXT_INT(ARGS);
 
         int ck_arr_len = API->object->array_int_size(ck_arr);
 

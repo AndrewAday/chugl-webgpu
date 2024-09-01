@@ -545,6 +545,7 @@ void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params)
       = ARENA_PUSH_COUNT(builder->tangent_arena, gvec4f, vertex_count);
     gvec3i* indices_array
       = ARENA_PUSH_COUNT(builder->indices_arena, gvec3i, index_tri_count);
+    UNUSED_VAR(tangent_array);
 
     u32 index = 0;
     for (u32 iy = 0; iy < gridY1; iy++) {
@@ -668,6 +669,7 @@ void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params)
     gvec2f* texcoords  = ARENA_PUSH_COUNT(builder->uv_arena, gvec2f, vertex_count);
     gvec4f* tangents   = ARENA_PUSH_COUNT(builder->tangent_arena, gvec4f, vertex_count);
     u32* indices_array = ARENA_PUSH_COUNT(builder->indices_arena, u32, index_count);
+    UNUSED_VAR(tangents);
 
     for (u32 i = 0; i < vertex_count; i++) {
         positions[i] = { verts[i].x, verts[i].y, verts[i].z };

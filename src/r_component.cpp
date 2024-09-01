@@ -1885,12 +1885,11 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
 // called by renderer after flushing all commands
 void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
-                                   R_Font* default_font, SG_ID main_scene_id)
+                                   R_Font* default_font)
 {
-    R_Scene* main_scene = Component_GetScene(main_scene_id);
-
     // TODO:
-    // handle xforms changing geo/mat by marking g2m as stale
+    // handle xforms changing geo/mat by marking g2m as stale in add subgraph to scene
+    // fn
     size_t index = 0;
     SG_ID* sg_id;
     while (hashmap_iter(materials_with_new_pso, &index, (void**)&sg_id)) {

@@ -774,6 +774,14 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            WGPUVertexFormat* vertex_layout, int vertex_layout_len,
                            const char* compute_string, const char* compute_filepath)
 {
+#define NULL_TO_EMPTY(s) (s ? s : "")
+    vertex_string     = NULL_TO_EMPTY(vertex_string);
+    fragment_string   = NULL_TO_EMPTY(fragment_string);
+    vertex_filepath   = NULL_TO_EMPTY(vertex_filepath);
+    fragment_filepath = NULL_TO_EMPTY(fragment_filepath);
+    compute_string    = NULL_TO_EMPTY(compute_string);
+    compute_filepath  = NULL_TO_EMPTY(compute_filepath);
+
     Arena* arena      = &SG_ShaderArena;
     size_t offset     = arena->curr;
     SG_Shader* shader = ARENA_PUSH_TYPE(arena, SG_Shader);
@@ -800,6 +808,8 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
     hashmap_set(locator, &loc);
 
     return shader;
+
+#undef NULL_TO_EMPTY
 }
 
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,

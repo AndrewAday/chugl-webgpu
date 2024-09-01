@@ -705,8 +705,8 @@ struct App {
             while (CQ_ReadCommandQueueIter(&cmd)) _R_HandleCommand(app, cmd);
             CQ_ReadCommandQueueClear();
             // tasks to do after command queue is flushed (batched)
-            Material_batchUpdatePipelines(&app->gctx, app->FTLibrary, app->default_font,
-                                          app->mainScene);
+            Material_batchUpdatePipelines(&app->gctx, app->FTLibrary,
+                                          app->default_font);
         }
 
         // process any glfw options passed from chuck
@@ -821,8 +821,6 @@ struct App {
                         screen_texture_format = r_tex->gpu_texture.format;
                     }
 
-                    pass->sg_pass.screen_material_id; // get shader from here
-
                     R_Pass::updateScreenPassDesc(&app->gctx, pass, screen_texture_view);
                     WGPURenderPassEncoder render_pass
                       = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
@@ -930,9 +928,13 @@ struct App {
                     };
                     u32 bloom_mip_levels
                       = G_mipLevelsLimit(render_texture->gpu_texture.width,
-                                         render_texture->gpu_texture.height, 10);
+                                         render_texture->gpu_texture.height, 1);
+                    bloom_mip_levels
+                      = MIN(bloom_mip_levels, pass->sg_pass.bloom_num_blur_levels);
                     ASSERT(bloom_mip_levels
                            <= render_texture->gpu_texture.mip_level_count);
+
+                    if (bloom_mip_levels == 0) break;
 
                     { // downscale
                         R_Material* bloom_downscale_material = Component_GetMaterial(
@@ -1457,7 +1459,7 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
             if (geo_count == 0) continue;
 
             // set per_material bind group
-            R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
+            // R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
 
             wgpuRenderPassEncoderSetBindGroup(render_pass, PER_MATERIAL_GROUP,
@@ -1728,7 +1730,8 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_GG_SCENE: {
             app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
             // update scene's render state
-            R_Scene* scene = Component_GetScene(app->mainScene);
+            // TODO check multiple renderpasses, see if this is necessary
+            // R_Scene* scene = Component_GetScene(app->mainScene);
             break;
         }
         case SG_COMMAND_CREATE_XFORM:

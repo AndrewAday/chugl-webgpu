@@ -99,7 +99,7 @@ b2_Polygon.makeBox(50.0, 10.0) @=> b2_Polygon ground_box;
 b2_Shape.createPolygonShape(ground_id, ground_shape_def, ground_box);
 
 PlaneGeometry plane_geo;
-PBRMaterial mat;
+FlatMaterial mat;
 GMesh ground_mesh(plane_geo, mat) --> GG.scene();
 ground_mesh.posY(-10.0);
 ground_mesh.scaX(100.0);

@@ -119,7 +119,7 @@ else()
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 11
+    CXX_STANDARD 14
     CXX_EXTENSIONS OFF
     COMPILE_WARNING_AS_ERROR ON
     VS_DEBUGGER_ENVIRONMENT "DAWN_DEBUG_BREAK_ON_ERROR=1"
@@ -158,6 +158,7 @@ else()
 
         -Wno-deprecated-declarations
         -Wno-compound-token-split-by-macro
+        -Wno-sign-compare
     )
 endif()
 
@@ -249,15 +250,15 @@ set(FT_DISABLE_HARFBUZZ ON  CACHE BOOL "" FORCE)
 set(FT_DISABLE_PNG      ON  CACHE BOOL "" FORCE)
 set(FT_DISABLE_ZLIB     ON  CACHE BOOL "" FORCE)
 set(FT_ENABLE_ERROR_STRINGS ON CACHE BOOL "" FORCE)
-# add_subdirectory("dependencies/freetype")
-# fetch freetype
-FetchContent_Declare (
-    freetype 
-    GIT_REPOSITORY https://github.com/freetype/freetype.git
-    GIT_TAG VER-2-13-2
-)
+add_subdirectory(vendor/freetype)
+# # fetch freetype
+# FetchContent_Declare (
+#     freetype 
+#     GIT_REPOSITORY https://github.com/freetype/freetype.git
+#     GIT_TAG VER-2-13-2
+# )
 # make available
-FetchContent_MakeAvailable (freetype)
+# FetchContent_MakeAvailable (freetype)
 
 # box2d v3.0
 # FetchContent_Declare(

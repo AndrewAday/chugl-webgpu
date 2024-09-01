@@ -14,7 +14,6 @@ SG_ID ulib_pass_createOutputPass();
 SG_Material* chugl_createInternalMaterial(SG_MaterialType material_type,
                                           SG_Shader* shader)
 {
-    CK_DL_API API = g_chuglAPI;
     // internal materials are not connected to chuck objects
     SG_Material* material = SG_CreateMaterial(NULL, material_type, NULL);
     material->pso.exclude_from_render_pass = true;
@@ -56,6 +55,7 @@ CK_DLL_MFUN(screenpass_set_shader);
 CK_DLL_CTOR(outputpass_ctor);
 CK_DLL_MFUN(outputpass_set_input_texture);
 CK_DLL_MFUN(outputpass_set_tonemap);
+CK_DLL_MFUN(outputpass_get_tonemap);
 
 // ComputePass
 CK_DLL_CTOR(computepass_ctor); // don't send creation CQ Command until shader is set
@@ -74,6 +74,8 @@ CK_DLL_MFUN(bloompass_set_internal_blend);
 CK_DLL_MFUN(bloompass_set_final_blend);
 CK_DLL_MFUN(bloompass_get_internal_blend);
 CK_DLL_MFUN(bloompass_get_final_blend);
+CK_DLL_MFUN(bloompass_set_num_levels);
+CK_DLL_MFUN(bloompass_get_num_levels);
 
 // bloom pass params
 // SG_ID bloom_downscale_material_id;
@@ -179,6 +181,8 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
         MFUN(outputpass_set_tonemap, "void", "tonemap");
         ARG("int", "tonemap_type");
 
+        MFUN(outputpass_get_tonemap, "int", "tonemap");
+
         END_CLASS();
     }
 
@@ -244,6 +248,15 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
             MFUN(bloompass_get_final_blend, "float", "blend");
             DOC_FUNC(
               "Get the blend factor between the bloom texture and the original image");
+
+            MFUN(bloompass_set_num_levels, "void", "levels");
+            ARG("int", "num_levels");
+            DOC_FUNC(
+              "Number of blur passes to apply to the bloom texture. "
+              "Clamped between 0 and 16.");
+
+            MFUN(bloompass_get_num_levels, "int", "levels");
+            DOC_FUNC("Get the number of blur passes applied to the bloom texture.");
 
             END_CLASS();
         }
@@ -513,6 +526,13 @@ CK_DLL_MFUN(outputpass_set_tonemap)
     CQ_PushCommand_MaterialSetUniform(material, 4);
 }
 
+CK_DLL_MFUN(outputpass_get_tonemap)
+{
+    SG_Pass* pass         = GET_PASS(SELF);
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+    RETURN->v_int         = material->uniforms[4].as.i;
+}
+
 // ============================================================================
 // ComputePass
 // ============================================================================
@@ -524,7 +544,7 @@ CK_DLL_CTOR(computepass_ctor)
     ASSERT(pass->pass_type == SG_PassType_Compute);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = pass->id;
 
-    SG_Material* mat = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, NULL);
+    chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, NULL);
 
     CQ_PushCommand_PassUpdate(pass);
 }
@@ -643,10 +663,12 @@ CK_DLL_CTOR(bloompass_ctor)
       = SG_GetShader(g_material_builtin_shaders.bloom_upsample_shader_id);
 
     // create output render texture
-    SG_Texture* output_render_texture = ulib_texture_createTexture(
-      { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
-          | WGPUTextureUsage_StorageBinding,
-        WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float });
+    SG_TextureDesc output_render_texture_desc
+      = { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+            | WGPUTextureUsage_StorageBinding,
+          WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float };
+    SG_Texture* output_render_texture
+      = ulib_texture_createTexture(output_render_texture_desc);
 
     SG_Material* bloom_downsample_mat
       = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_downsample_shader);
@@ -732,4 +754,19 @@ CK_DLL_MFUN(bloompass_get_final_blend)
       = SG_GetMaterial(pass->bloom_upsample_material_id);
 
     RETURN->v_float = bloom_upsample_material->uniforms[5].as.f;
+}
+
+CK_DLL_MFUN(bloompass_set_num_levels)
+{
+    SG_Pass* pass               = GET_PASS(SELF);
+    pass->bloom_num_blur_levels = GET_NEXT_INT(ARGS);
+    CLAMP(pass->bloom_num_blur_levels, 0, 16);
+
+    CQ_PushCommand_PassUpdate(pass);
+}
+
+CK_DLL_MFUN(bloompass_get_num_levels)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+    RETURN->v_int = pass->bloom_num_blur_levels;
 }

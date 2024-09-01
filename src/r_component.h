@@ -216,7 +216,7 @@ struct R_Texture : public R_Component {
 };
 
 void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
-                                   R_Font* default_font, SG_ID main_scene_id);
+                                   R_Font* default_font);
 
 // =============================================================================
 // R_Shader

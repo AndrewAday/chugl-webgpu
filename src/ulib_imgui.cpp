@@ -692,6 +692,7 @@ CK_DLL_MFUN(ui_string_set_value);
 // UI_Int
 static t_CKUINT ui_int_ptr_offset = 0;
 CK_DLL_CTOR(ui_int_ctor);
+CK_DLL_CTOR(ui_int_ctor_int);
 CK_DLL_DTOR(ui_int_dtor);
 CK_DLL_MFUN(ui_int_get_value);
 CK_DLL_MFUN(ui_int_set_value);
@@ -993,6 +994,8 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ui_int_ptr_offset = QUERY->add_mvar(QUERY, "int", "@ui_int_ptr", false);
 
     QUERY->add_ctor(QUERY, ui_int_ctor);
+    CTOR(ui_int_ctor_int);
+    ARG("int", "initializer_int");
     QUERY->add_dtor(QUERY, ui_int_dtor);
     QUERY->add_mfun(QUERY, ui_int_get_value, "int", "val");
     QUERY->add_mfun(QUERY, ui_int_set_value, "int", "val");
@@ -6608,6 +6611,12 @@ CK_DLL_MFUN(ui_string_set_value)
 CK_DLL_CTOR(ui_int_ctor)
 {
     int* i                                   = new int(0);
+    OBJ_MEMBER_UINT(SELF, ui_int_ptr_offset) = (t_CKUINT)i;
+}
+
+CK_DLL_CTOR(ui_int_ctor_int)
+{
+    int* i                                   = new int(GET_NEXT_INT(ARGS));
     OBJ_MEMBER_UINT(SELF, ui_int_ptr_offset) = (t_CKUINT)i;
 }
 

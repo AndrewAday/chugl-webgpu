@@ -824,8 +824,8 @@ const char* output_pass_shader_string = R"glsl(
 
     @group(0) @binding(0) var texture: texture_2d<f32>;
     @group(0) @binding(1) var texture_sampler: sampler;
-    @group(0) @binding(2) var<uniform> u_Gamma: f32 = 2.2;
-    @group(0) @binding(3) var<uniform> u_Exposure: f32 = 1.;
+    @group(0) @binding(2) var<uniform> u_Gamma: f32;
+    @group(0) @binding(3) var<uniform> u_Exposure: f32;
     @group(0) @binding(4) var<uniform> u_Tonemap: i32 = TONEMAP_NONE;
 
     // Helpers ==================================================================

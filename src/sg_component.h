@@ -579,6 +579,7 @@ struct SG_Pass : public SG_Component {
     SG_ID bloom_upsample_material_id;
     SG_ID bloom_input_render_texture_id;
     SG_ID bloom_output_render_texture_id;
+    int bloom_num_blur_levels = 7;
 
     struct {
         u32 x, y, z;
