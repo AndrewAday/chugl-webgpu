@@ -763,6 +763,9 @@ struct App {
                     R_Texture* r_tex
                       = Component_GetTexture(pass->sg_pass.resolve_target_id);
 
+                    // no render texture bound, skip this pass
+                    if (!r_tex) break;
+
                     // descriptor for view at mip 0
                     WGPUTextureViewDescriptor view_desc = {};
                     view_desc.label                     = "renderpass target view";
@@ -771,9 +774,6 @@ struct App {
                     view_desc.baseMipLevel              = 0;
                     view_desc.mipLevelCount             = 1;
                     view_desc.arrayLayerCount           = 1;
-
-                    // no render texture bound, skip this pass
-                    if (!r_tex) break;
 
                     // TODO check auto-rebuild property on RenderPass
                     // assuming always auto-rebuild
@@ -902,7 +902,6 @@ struct App {
                     WGPU_RELEASE_RESOURCE(ComputePassEncoder, compute_pass);
                 }; break;
                 case SG_PassType_Bloom: {
-
                     R_Texture* render_texture = Component_GetTexture(
                       pass->sg_pass.bloom_input_render_texture_id);
 
@@ -912,7 +911,6 @@ struct App {
                     if (!render_texture || !output_texture) break;
 
                     // resize output texture
-                    // TODO optimize: create all texture views at once
                     R_Texture::rebuild(&app->gctx, output_texture,
                                        render_texture->gpu_texture.width,
                                        render_texture->gpu_texture.height);
@@ -924,8 +922,9 @@ struct App {
                         // bilinear, clamp to edge
                         SG_SAMPLER_WRAP_CLAMP_TO_EDGE, SG_SAMPLER_WRAP_CLAMP_TO_EDGE,
                         SG_SAMPLER_WRAP_CLAMP_TO_EDGE, SG_SAMPLER_FILTER_LINEAR,
-                        SG_SAMPLER_FILTER_LINEAR,      SG_SAMPLER_FILTER_NEAREST,
+                        SG_SAMPLER_FILTER_LINEAR,      SG_SAMPLER_FILTER_LINEAR,
                     };
+
                     u32 bloom_mip_levels
                       = G_mipLevelsLimit(render_texture->gpu_texture.width,
                                          render_texture->gpu_texture.height, 1);
@@ -936,6 +935,171 @@ struct App {
 
                     if (bloom_mip_levels == 0) break;
 
+                    // create texture views for downsample chain at all mip levels
+                    WGPUTextureView downsample_texture_views[16] = {};
+                    for (int i = 0; i < bloom_mip_levels; i++) {
+                        downsample_texture_views[i] = G_createTextureViewAtMipLevel(
+                          render_texture->gpu_texture.texture, i,
+                          "bloom downsample texture view");
+                    }
+                    defer(WGPU_RELEASE_RESOURCE_ARRAY(
+                      TextureView, downsample_texture_views,
+                      ARRAY_LENGTH(downsample_texture_views)));
+
+                    // create texture views for upscale chain at all mip levels
+                    WGPUTextureView upsample_texture_views[16] = {};
+                    for (int i = 0; i < bloom_mip_levels - 1; i++) {
+                        upsample_texture_views[i] = G_createTextureViewAtMipLevel(
+                          output_texture->gpu_texture.texture, i,
+                          "bloom upscale texture view");
+                    }
+                    defer(WGPU_RELEASE_RESOURCE_ARRAY(
+                      TextureView, upsample_texture_views,
+                      ARRAY_LENGTH(upsample_texture_views)));
+                    { // downscale
+                        R_Material* bloom_downscale_material = Component_GetMaterial(
+                          pass->sg_pass.bloom_downsample_material_id);
+                        R_Shader* bloom_downscale_shader = Component_GetShader(
+                          bloom_downscale_material->pso.sg_shader_id);
+                        ASSERT(bloom_downscale_material->pso.exclude_from_render_pass);
+
+                        WGPURenderPipeline downscale_pipeline = R_GetScreenPassPipeline(
+                          &app->gctx, output_texture->gpu_texture.format,
+                          bloom_downscale_shader->id);
+
+                        // set the material uniforms that only need to be set once, not
+                        // per mip level dispatch
+                        R_Material::setSamplerBinding(
+                          &app->gctx, bloom_downscale_material, 1, bloom_sampler);
+
+                        // downsample, writing from from mip level i --> i + 1
+                        for (u32 i = 0; i < bloom_mip_levels - 1; i++) {
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_downscale_material, 0,
+                              downsample_texture_views[i]);
+
+                            { // update bind group
+                                WGPUBindGroupLayout layout
+                                  = wgpuRenderPipelineGetBindGroupLayout(
+                                    downscale_pipeline, 0);
+
+                                R_Material::rebuildBindGroup(bloom_downscale_material,
+                                                             &app->gctx, layout);
+                            }
+
+                            // set color target to mip level i + 1
+                            WGPURenderPassColorAttachment ca = {};
+                            ca.view       = downsample_texture_views[i + 1];
+                            ca.loadOp     = WGPULoadOp_Clear;
+                            ca.storeOp    = WGPUStoreOp_Store;
+                            ca.clearValue = WGPUColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+
+                            WGPURenderPassDescriptor render_pass_desc = {};
+                            char render_pass_label[64]                = {};
+                            snprintf(render_pass_label, sizeof(render_pass_label),
+                                     "bloom downscale to mip level %d", i + 1);
+                            render_pass_desc.label                = render_pass_label;
+                            render_pass_desc.colorAttachmentCount = 1;
+                            render_pass_desc.colorAttachments     = &ca;
+
+                            WGPURenderPassEncoder render_pass
+                              = wgpuCommandEncoderBeginRenderPass(
+                                app->gctx.commandEncoder, &render_pass_desc);
+
+                            wgpuRenderPassEncoderSetPipeline(render_pass,
+                                                             downscale_pipeline);
+
+                            wgpuRenderPassEncoderSetBindGroup(
+                              render_pass, 0, bloom_downscale_material->bind_group, 0,
+                              NULL);
+
+                            wgpuRenderPassEncoderDraw(render_pass, 3, 1, 0, 0);
+
+                            wgpuRenderPassEncoderEnd(render_pass);
+                            WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass);
+                        } // end for
+                    } // end downscale
+
+                    { // upscale
+                        R_Material* bloom_upscale_material = Component_GetMaterial(
+                          pass->sg_pass.bloom_upsample_material_id);
+                        R_Shader* bloom_upscale_shader = Component_GetShader(
+                          bloom_upscale_material->pso.sg_shader_id);
+                        ASSERT(bloom_upscale_material->pso.exclude_from_render_pass);
+
+                        WGPURenderPipeline upscale_pipeline = R_GetScreenPassPipeline(
+                          &app->gctx, output_texture->gpu_texture.format,
+                          bloom_upscale_shader->id);
+
+                        // set the material uniforms that only need to be set once, not
+                        // per mip level dispatch
+                        R_Material::setSamplerBinding(
+                          &app->gctx, bloom_upscale_material, 1, bloom_sampler);
+
+                        glm::uvec2 full_res_size
+                          = glm::uvec2(render_texture->gpu_texture.width,
+                                       render_texture->gpu_texture.height);
+                        ASSERT(sizeof(full_res_size) == 2 * sizeof(u32));
+                        R_Material::setUniformBinding( // full resolution
+                          &app->gctx, bloom_upscale_material, 3, &full_res_size,
+                          sizeof(full_res_size));
+
+                        bool first_upsample = true;
+                        // rendering from mip level i + 1 --> i
+                        for (int i = bloom_mip_levels - 2; i >= 0; i--) {
+                            ASSERT(i >= 0);
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_upscale_material, 0,
+                              first_upsample ? downsample_texture_views[i + 1] :
+                                               upsample_texture_views[i + 1]);
+
+                            R_Material::setTextureViewBinding(
+                              &app->gctx, bloom_upscale_material, 2,
+                              downsample_texture_views[i]);
+
+                            { // update bind group
+                                WGPUBindGroupLayout layout
+                                  = wgpuRenderPipelineGetBindGroupLayout(
+                                    upscale_pipeline, 0);
+
+                                R_Material::rebuildBindGroup(bloom_upscale_material,
+                                                             &app->gctx, layout);
+                            }
+
+                            // set color target to mip level i + 1
+                            WGPURenderPassColorAttachment ca = {};
+                            ca.view       = upsample_texture_views[i];
+                            ca.loadOp     = WGPULoadOp_Clear;
+                            ca.storeOp    = WGPUStoreOp_Store;
+                            ca.clearValue = WGPUColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+
+                            WGPURenderPassDescriptor render_pass_desc = {};
+                            char render_pass_label[64]                = {};
+                            snprintf(render_pass_label, sizeof(render_pass_label),
+                                     "bloom upsample to mip level %d", i);
+                            render_pass_desc.label                = render_pass_label;
+                            render_pass_desc.colorAttachmentCount = 1;
+                            render_pass_desc.colorAttachments     = &ca;
+
+                            WGPURenderPassEncoder render_pass
+                              = wgpuCommandEncoderBeginRenderPass(
+                                app->gctx.commandEncoder, &render_pass_desc);
+
+                            wgpuRenderPassEncoderSetPipeline(render_pass,
+                                                             upscale_pipeline);
+
+                            wgpuRenderPassEncoderSetBindGroup(
+                              render_pass, 0, bloom_upscale_material->bind_group, 0,
+                              NULL);
+
+                            wgpuRenderPassEncoderDraw(render_pass, 3, 1, 0, 0);
+
+                            wgpuRenderPassEncoderEnd(render_pass);
+                            WGPU_RELEASE_RESOURCE(RenderPassEncoder, render_pass);
+                            first_upsample = false;
+                        } // end for
+                    } // end upsample
+#if 0
                     { // downscale
                         R_Material* bloom_downscale_material = Component_GetMaterial(
                           pass->sg_pass.bloom_downsample_material_id);
@@ -1131,9 +1295,9 @@ struct App {
                             first_upsample = false;
                         }
                     }
+#endif
 
                     // cleanup
-
                 } break;
                 default: ASSERT(false);
             }
@@ -1830,8 +1994,15 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Buffer* buffer     = Component_GetBuffer(cmd->buffer_id);
             R_Material::setExternalStorageBinding(&app->gctx, material, cmd->location,
                                                   &buffer->gpu_buffer);
-
         } break;
+        case SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE: {
+            SG_Command_MaterialSetStorageTexture* cmd
+              = (SG_Command_MaterialSetStorageTexture*)command;
+            R_Material* material = Component_GetMaterial(cmd->sg_id);
+            R_Material::setStorageTextureBinding(&app->gctx, material, cmd->location,
+                                                 cmd->texture_id);
+        } break;
+
         // mesh -------------------------
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;

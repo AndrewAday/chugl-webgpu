@@ -129,6 +129,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     SUFFIX ".chug"
 )
 
+
+if(XCODE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        XCODE_GENERATE_SCHEME ON
+        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal"
+        XCODE_SCHEME_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
+endif()
+
 # =================================================================================
 # interface library for CMake properties
 # =================================================================================

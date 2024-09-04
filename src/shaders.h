@@ -198,7 +198,9 @@ static const char* flat_shader_string  = R"glsl(
 @fragment 
 fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
-    return flat_color;
+    var ret = flat_color;
+    ret.a = clamp(ret.a, 0.0, 1.0);
+    return ret;
 }
 )glsl";
 
@@ -855,9 +857,6 @@ const char* output_pass_shader_string = R"glsl(
     // main =====================================================================
     @fragment 
     fn fs_main(in : VertexOutput) -> @location(0) vec4f {
-        // return textureSample(texture, texture_sampler, in.v_uv);
-        // return vec4f(in.v_uv, 0.0, 1.0);
-
         let hdrColor: vec4<f32> = textureSample(texture, texture_sampler, in.v_uv);
         var color: vec3<f32> = hdrColor.rgb;
         if (u_Tonemap != TONEMAP_NONE) {
@@ -876,8 +875,8 @@ const char* output_pass_shader_string = R"glsl(
             color = pow(color, vec3<f32>(u_Gamma));
         } 
         case 4: { // aces
-            let ACES_INPUT_MAT: mat3x3<f32> = mat3_from_rows(vec3<f32>(0.59719, 0.35458, 0.04823), vec3<f32>(0.076, 0.90834, 0.01566), vec3<f32>(0.0284, 0.13383, 0.83777));
-            let ACES_OUTPUT_MAT: mat3x3<f32> = mat3_from_rows(vec3<f32>(1.60475, -0.53108, -0.07367), vec3<f32>(-0.10208, 1.10813, -0.00605), vec3<f32>(-0.00327, -0.07276, 1.07602));
+            var ACES_INPUT_MAT: mat3x3<f32> = mat3_from_rows(vec3<f32>(0.59719, 0.35458, 0.04823), vec3<f32>(0.076, 0.90834, 0.01566), vec3<f32>(0.0284, 0.13383, 0.83777));
+            var ACES_OUTPUT_MAT: mat3x3<f32> = mat3_from_rows(vec3<f32>(1.60475, -0.53108, -0.07367), vec3<f32>(-0.10208, 1.10813, -0.00605), vec3<f32>(-0.00327, -0.07276, 1.07602));
             color = color / 0.6;
             color = ACES_INPUT_MAT * color;
             color = rrt_odt_fit(color);
@@ -894,14 +893,84 @@ const char* output_pass_shader_string = R"glsl(
         default: {}
         }
 
+        // gamma correction
+        // 9/3/2024: assuming swapchain texture is always in srgb format so we DON'T gamma correct,
+        // let the final canvas/backbuffer gamma correct for us
         color = pow(color, vec3<f32>(1. / u_Gamma));
-        // return vec4<f32>(color, 1.0); // how does alpha work?
-        return vec4<f32>(color, hdrColor.a);
+
+
+        return vec4<f32>(color, 1.0); // how does alpha work?
+        // return vec4<f32>(color, clamp(hdrColor.a, 0.0, 1.0));
+
+        // return textureSample(texture, texture_sampler, in.v_uv); // passthrough
     } 
 
 
 
 )glsl";
+
+
+const char* bloom_downsample_screen_shader = R"glsl(
+
+#include SCREEN_PASS_VERTEX_SHADER
+@group(0) @binding(0) var u_texture: texture_2d<f32>; // texture at previous mip level
+@group(0) @binding(1) var u_sampler: sampler;
+
+@fragment 
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    let input_dim = vec2f(textureDimensions(u_texture).xy);
+    let dx = 1.0 / input_dim.x; // change in uv.x that corresponds to 1 pixel in input texture x direction
+    let dy = 1.0 / input_dim.y; // change in uv.y that corresponds to 1 pixel in input texture y direction
+    let uv = in.v_uv;
+
+    // Take 13 samples around current texel:
+    // a - b - c
+    // - j - k -
+    // d - e - f
+    // - l - m -
+    // g - h - i
+    // === ('e' is the current texel) ===
+    let a = textureSample(u_texture, u_sampler, vec2f(uv.x - 2.0 * dx, uv.y + 2.0 * dy)).rgb;
+    let b = textureSample(u_texture, u_sampler, vec2f(uv.x, uv.y + 2.0 * dy)).rgb;
+    let c = textureSample(u_texture, u_sampler, vec2f(uv.x + 2.0 * dx, uv.y + 2.0 * dy)).rgb;
+
+    let d = textureSample(u_texture, u_sampler, vec2f(uv.x - 2.0 * dx, uv.y)).rgb;
+    let e = textureSample(u_texture, u_sampler, vec2f(uv.x, uv.y)).rgb;
+    let f = textureSample(u_texture, u_sampler, vec2f(uv.x + 2.0 * dx, uv.y)).rgb;
+
+    let g = textureSample(u_texture, u_sampler, vec2f(uv.x - 2.0 * dx, uv.y - 2.0 * dy)).rgb;
+    let h = textureSample(u_texture, u_sampler, vec2f(uv.x, uv.y - 2.0 * dy)).rgb;
+    let i = textureSample(u_texture, u_sampler, vec2f(uv.x + 2.0 * dx, uv.y - 2.0 * dy)).rgb;
+
+    let j = textureSample(u_texture, u_sampler, vec2f(uv.x - dx, uv.y + dy)).rgb;
+    let k = textureSample(u_texture, u_sampler, vec2f(uv.x + dx, uv.y + dy)).rgb;
+    let l = textureSample(u_texture, u_sampler, vec2f(uv.x - dx, uv.y - dy)).rgb;
+    let m = textureSample(u_texture, u_sampler, vec2f(uv.x + dx, uv.y - dy)).rgb;
+
+    // Apply weighted distribution:
+    // 0.5 + 0.125 + 0.125 + 0.125 + 0.125 = 1
+    // a,b,d,e * 0.125
+    // b,c,e,f * 0.125
+    // d,e,g,h * 0.125
+    // e,f,h,i * 0.125
+    // j,k,l,m * 0.5
+    // This shows 5 square areas that are being sampled. But some of them overlap,
+    // so to have an energy preserving downsample we need to make some adjustments.
+    // The weights are the distributed, so that the sum of j,k,l,m (e.g.)
+    // contribute 0.5 to the final color output. The code below is written
+    // to effectively yield this sum. We get:
+    // 0.125*5 + 0.03125*4 + 0.0625*4 = 1
+    var downsample = vec3f(0.0);
+    downsample = e*0.125;
+    downsample += (a+c+g+i)*0.03125;
+    downsample += (b+d+f+h)*0.0625;
+    downsample += (j+k+l+m)*0.125;
+
+    return vec4f(downsample, 1.0);
+}
+)glsl";
+
 
 const char* bloom_downsample_shader_string = R"glsl(
 
@@ -909,53 +978,6 @@ const char* bloom_downsample_shader_string = R"glsl(
 @group(0) @binding(1) var u_input_tex_sampler: sampler;
 @group(0) @binding(2) var u_out_texture: texture_storage_2d<rgba16float, write>; // hdr
 @group(0) @binding(3) var<uniform> u_mip_level: i32; 
-
-fn luma(c : vec3f) -> f32
-{
-    return dot(c, vec3f(0.2126729, 0.7151522, 0.0721750));
-}
-
-// [Karis2013] proposed reducing the dynamic range before averaging
-fn karis_avg(c : vec4f) -> vec4f
-{
-    return c / (1.0 + luma(c.rgb));
-}
-
-// const GROUP_SIZE =         8;
-// const GROUP_THREAD_COUNT = (GROUP_SIZE * GROUP_SIZE);
-// const FILTER_SIZE =        3;
-// const FILTER_RADIUS =      (FILTER_SIZE / 2);
-// const TILE_SIZE =          (GROUP_SIZE + 2 * FILTER_RADIUS);
-// const TILE_PIXEL_COUNT =   (TILE_SIZE * TILE_SIZE);
-const GROUP_SIZE =         8u;
-const GROUP_THREAD_COUNT = 64u;
-const FILTER_SIZE =        3u;
-const FILTER_RADIUS =      1u;
-const TILE_SIZE =          10u;
-const TILE_PIXEL_COUNT =   100u;
-
-var<workgroup> sm_r : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_g : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_b : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_a : array<f32, TILE_PIXEL_COUNT>;
-
-fn max3(v : vec3f) -> f32
-{
-    return max (max (v.x, v.y), v.z);
-}
-
-fn store_lds(idx : u32, c : vec4f)
-{
-    sm_r[idx] = c.r;
-    sm_g[idx] = c.g;
-    sm_b[idx] = c.b;
-    sm_a[idx] = c.a;
-}
-
-fn load_lds(idx : u32) -> vec4f
-{
-    return vec4f(sm_r[idx], sm_g[idx], sm_b[idx], sm_a[idx]);
-}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -967,52 +989,113 @@ fn main(
 {
     // TODO use same texel size logic in upsample shader
     let output_size = textureDimensions(u_out_texture);
-    let texel_size = 1.0 / vec2f(f32(output_size.x), f32(output_size.y));
-    let pixel_coords :vec2i  = vec2<i32>(GlobalInvocationID.xy);
-    let base_index : vec2f   = vec2<f32>(WorkGroupID.xy) * f32(GROUP_SIZE) - f32(FILTER_RADIUS);
+    let input_size = textureDimensions(u_input_texture);
+    let pixel_coords = vec2i(GlobalInvocationID.xy);
+    let x = 1.0 / f32(input_size.x);
+    let y = 1.0 / f32(input_size.y);
 
-    // The first (TILE_PIXEL_COUNT - GROUP_THREAD_COUNT) threads load at most 2 texel values
-    for (var i = LocalInvocationIndex; i < TILE_PIXEL_COUNT; i += GROUP_THREAD_COUNT)
-    {
-        let uv = (vec2f(base_index) + vec2f(0.5, 0.5)) * texel_size;
-        let uv_offset = vec2f(f32(i % TILE_SIZE), f32(i / TILE_SIZE)) * texel_size;
-        
-        let color = textureSampleLevel(u_input_texture, u_input_tex_sampler, uv + uv_offset, f32(u_mip_level));
-        store_lds(i, color);
+    let uv        = (vec2f(GlobalInvocationID.xy) + vec2f(0.5)) / vec2f(output_size.xy);
+
+    // Take 13 samples around current texel:
+    // a - b - c
+    // - j - k -
+    // d - e - f
+    // - l - m -
+    // g - h - i
+    // === ('e' is the current texel) ===
+    let a = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x - 2.0*x, uv.y + 2.0*y), 0.0).rgb;
+    let b = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x,       uv.y + 2.0*y), 0.0).rgb;
+    let c = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x + 2.0*x, uv.y + 2.0*y), 0.0).rgb;
+    let d = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x - 2.0*x, uv.y), 0.0).rgb;
+    let e = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x,       uv.y), 0.0).rgb;
+    let f = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x + 2.0*x, uv.y), 0.0).rgb;
+    let g = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x - 2.0*x, uv.y - 2.0*y), 0.0).rgb;
+    let h = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x,       uv.y - 2.0*y), 0.0).rgb;
+    let i = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x + 2.0*x, uv.y - 2.0*y), 0.0).rgb;
+    let j = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x - x,   uv.y + y), 0.0).rgb;
+    let k = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x + x,   uv.y + y), 0.0).rgb;
+    let l = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x - x,   uv.y - y), 0.0).rgb;
+    let m = textureSampleLevel(u_input_texture, u_input_tex_sampler, vec2f(uv.x + x,   uv.y - y), 0.0).rgb;
+
+    // Apply weighted distribution:
+    // 0.5 + 0.125 + 0.125 + 0.125 + 0.125 = 1
+    // a,b,d,e * 0.125
+    // b,c,e,f * 0.125
+    // d,e,g,h * 0.125
+    // e,f,h,i * 0.125
+    // j,k,l,m * 0.5
+    // This shows 5 square areas that are being sampled. But some of them overlap,
+    // so to have an energy preserving downsample we need to make some adjustments.
+    // The weights are the distributed, so that the sum of j,k,l,m (e.g.)
+    // contribute 0.5 to the final color output. The code below is written
+    // to effectively yield this sum. We get:
+    // 0.125*5 + 0.03125*4 + 0.0625*4 = 1
+    var downsample = vec3f(0.0);
+    downsample = e*0.125;
+    downsample += (a+c+g+i)*0.03125;
+    downsample += (b+d+f+h)*0.0625;
+    downsample += (j+k+l+m)*0.125;
+
+    // apply thresholding
+    if (u_mip_level == 0) {
+    //     // thresholding
+    //     float brightness = max3(e);
+    //     float contribution = max(0, brightness - u_Threshold) / max (brightness, 0.00001);
+    //     downsample *= contribution;
+    //     break;
     }
 
-    workgroupBarrier();
-
-    // Based on [Jimenez14] http://goo.gl/eomGso
-    // center texel
-    let sm_idx = (LocalInvocationID.x + FILTER_RADIUS) + (LocalInvocationID.y + FILTER_RADIUS) * TILE_SIZE;
-
-    let A = load_lds(sm_idx - TILE_SIZE - 1u);
-    let B = load_lds(sm_idx - TILE_SIZE    );
-    let C = load_lds(sm_idx - TILE_SIZE + 1u);
-    let F = load_lds(sm_idx - 1u            );
-    let G = load_lds(sm_idx                );
-    let H = load_lds(sm_idx + 1u            );
-    let K = load_lds(sm_idx + TILE_SIZE - 1u);
-    let L = load_lds(sm_idx + TILE_SIZE    );
-    let M = load_lds(sm_idx + TILE_SIZE + 1u);
-
-    let D = (A + B + G + F) * 0.25; // top left
-    let E = (B + C + H + G) * 0.25; // top right
-    let I = (F + G + L + K) * 0.25; // bottom left
-    let J = (G + H + M + L) * 0.25; // bottom right
-
-    let div = (1.0 / 4.0) * vec2f(0.5, 0.125);
-
-    var c : vec4f =  karis_avg((D + E + I + J) * div.x);
-    c += karis_avg((A + B + G + F) * div.y);
-    c += karis_avg((B + C + H + G) * div.y);
-    c += karis_avg((F + G + L + K) * div.y);
-    c += karis_avg((G + H + M + L) * div.y);
-
-
-	textureStore(u_out_texture, pixel_coords, c);
+    let alpha = textureSampleLevel(u_input_texture, u_input_tex_sampler, uv, 0.0).a;
+	textureStore(u_out_texture, pixel_coords, vec4f(downsample, alpha));
 }
+)glsl";
+
+const char* bloom_upsample_screen_shader = R"glsl(
+
+#include SCREEN_PASS_VERTEX_SHADER
+
+@group(0) @binding(0) var u_prev_upsample_texture: texture_2d<f32>; // upsample texture at mip i+1 (half-resolution of target)
+@group(0) @binding(1) var u_sampler: sampler;
+@group(0) @binding(2) var u_curr_downsample_texture: texture_2d<f32>; // downsample texture at same mip/resolution
+@group(0) @binding(3) var<uniform> u_full_resolution_size: vec2<u32>;  // used to check if this is last mip level
+@group(0) @binding(4) var<uniform> u_internal_blend: f32; // linear blend between mip levels
+@group(0) @binding(5) var<uniform> u_final_blend: f32; // linear blend with original image
+
+@fragment
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    let input_dim = textureDimensions(u_curr_downsample_texture);
+    let dx = 1.0 / f32(input_dim.x); // change in uv.x that corresponds to 1 pixel in input texture x direction
+    let dy = 1.0 / f32(input_dim.y); // change in uv.y that corresponds to 1 pixel in input texture y direction
+    let uv = in.v_uv;
+
+    let weights = array(
+        0.0625, 0.125, 0.0625,
+        0.125,  0.25,  0.125,
+        0.0625, 0.125, 0.0625
+    );
+
+    var upsampled_color = vec3f(0.0);
+    upsampled_color += weights[0] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(-dx, dy)).rgb;
+    upsampled_color += weights[1] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(0.0, dy)).rgb;
+    upsampled_color += weights[2] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(dx, dy)).rgb;
+    upsampled_color += weights[3] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(-dx, 0.0)).rgb;
+    upsampled_color += weights[4] * textureSample(u_prev_upsample_texture, u_sampler, uv).rgb;
+    upsampled_color += weights[5] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(dx, 0.0)).rgb;
+    upsampled_color += weights[6] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(-dx, -dy)).rgb;
+    upsampled_color += weights[7] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(0.0, -dy)).rgb;
+    upsampled_color += weights[8] * textureSample(u_prev_upsample_texture, u_sampler, uv + vec2f(dx, -dy)).rgb;
+
+    let curr_color = textureSample(u_curr_downsample_texture, u_sampler, uv).rgb;
+
+    if (all(input_dim == u_full_resolution_size)) {
+        upsampled_color = mix(curr_color, upsampled_color, u_final_blend);
+    } else {
+        upsampled_color = mix(curr_color, upsampled_color, u_internal_blend);
+    }
+
+    return vec4f(upsampled_color, 1.0);
+}   
 )glsl";
 
 
@@ -1027,38 +1110,6 @@ const char* bloom_upsample_shader_string = R"glsl(
 @group(0) @binding(5) var<uniform> u_final_blend: f32; // linear blend with original image
 @group(0) @binding(6) var u_downsample_texture: texture_2d<f32>; // mip level i-1 of downsample chain
 
-// const GROUP_SIZE =         8;
-// const GROUP_THREAD_COUNT = (GROUP_SIZE * GROUP_SIZE);
-// const FILTER_SIZE =        3;
-// const FILTER_RADIUS =      (FILTER_SIZE / 2);
-// const TILE_SIZE =          (GROUP_SIZE + 2 * FILTER_RADIUS);
-// const TILE_PIXEL_COUNT =   (TILE_SIZE * TILE_SIZE);
-const GROUP_SIZE =         8u;
-const GROUP_THREAD_COUNT = 64u;
-const FILTER_SIZE =        3u;
-const FILTER_RADIUS =      1u;
-const TILE_SIZE =          10u;
-const TILE_PIXEL_COUNT =   100u;
-
-
-var<workgroup> sm_r : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_g : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_b : array<f32, TILE_PIXEL_COUNT>;
-var<workgroup> sm_a : array<f32, TILE_PIXEL_COUNT>;
-
-fn store_lds(idx : u32, c : vec4f)
-{
-    sm_r[idx] = c.r;
-    sm_g[idx] = c.g;
-    sm_b[idx] = c.b;
-    sm_a[idx] = c.a;
-}
-
-fn load_lds(idx : u32) -> vec4f
-{
-    return vec4f(sm_r[idx], sm_g[idx], sm_b[idx], sm_a[idx]);
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
@@ -1068,54 +1119,44 @@ fn main(
 )
 {
     let output_size = textureDimensions(u_output_texture);
-    let texel_size = 1.0 / vec2f(f32(output_size.x), f32(output_size.y));
 	let pixel_coords = vec2<i32>(GlobalInvocationID.xy);
-    let base_index : vec2f   = vec2<f32>(WorkGroupID.xy) * f32(GROUP_SIZE) - f32(FILTER_RADIUS);
 
-    // The first (TILE_PIXEL_COUNT - GROUP_THREAD_COUNT) threads load at most 2 texel values
-    for (var i = LocalInvocationIndex; i < TILE_PIXEL_COUNT; i += GROUP_THREAD_COUNT)
-    {
-        let uv        = (base_index + 0.5) * texel_size;
-        let uv_offset = vec2f(f32(i % TILE_SIZE), f32(i / TILE_SIZE)) * texel_size;
-        
-        // let color = textureSampleLevel(u_input_texture, u_sampler, (uv + uv_offset), f32(u_mip_level));
-        let color = textureSampleLevel(u_input_texture, u_sampler, (uv + uv_offset), 0.0);
-        store_lds(i, color);
-    }
+    let u_FilterRadius = 0.001;
+    let x = u_FilterRadius;
+    let y = u_FilterRadius;
 
-    workgroupBarrier();
+    let uv        = (vec2f(pixel_coords.xy) + vec2f(0.5)) / vec2f(f32(output_size.x), f32(output_size.y));
 
-    // center texel
-    let sm_idx = (LocalInvocationID.x + u32(FILTER_RADIUS)) + (LocalInvocationID.y + u32(FILTER_RADIUS)) * u32(TILE_SIZE);
+    let a = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x - x, uv.y + y), 0.0).rgb;
+    let b = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x,     uv.y + y), 0.0).rgb;
+    let c = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x + x, uv.y + y), 0.0).rgb;
+    let d = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x - x, uv.y), 0.0).rgb;
+    let e = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x,     uv.y), 0.0).rgb;
+    let f = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x + x, uv.y), 0.0).rgb;
+    let g = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x - x, uv.y - y), 0.0).rgb;
+    let h = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x,     uv.y - y), 0.0).rgb;
+    let i = textureSampleLevel(u_input_texture, u_sampler, vec2f(uv.x + x, uv.y - y), 0.0).rgb;
 
-    // Based on [Jimenez14] http://goo.gl/eomGso
-    var s : vec4f;
-    s =  load_lds(sm_idx - TILE_SIZE - 1u);
-    s += load_lds(sm_idx - TILE_SIZE    ) * 2.0;
-    s += load_lds(sm_idx - TILE_SIZE + 1u);
-	
-    s += load_lds(sm_idx - 1u) * 2.0;
-    s += load_lds(sm_idx    ) * 4.0;
-    s += load_lds(sm_idx + 1u) * 2.0;
-	
-    s += load_lds(sm_idx + TILE_SIZE - 1u);
-    s += load_lds(sm_idx + TILE_SIZE    ) * 2.0;
-    s += load_lds(sm_idx + TILE_SIZE + 1u);
+    // Apply weighted distribution, by using a 3x3 tent filter:
+    //  1   | 1 2 1 |
+    // -- * | 2 4 2 |
+    // 16   | 1 2 1 |
+    var bloom = e*4.0;
+    bloom += (b+d+f+h)*2.0;
+    bloom += (a+c+g+i);
+    bloom *= (1.0 / 16.0);
 
-    let bloom : vec4f = s * (1.0 / 16.0);
-
-	// let curr_pixel = textureLoad(u_downsample_texture, pixel_coords, u_mip_level - 1);
 	let curr_pixel = textureLoad(u_downsample_texture, pixel_coords, 0);
-    var out_pixel : vec4f = curr_pixel;
+    var out_pixel = curr_pixel.rgb;
 
     // if this is last mip level
     if (all(output_size == u_full_resolution_size)) {
-        out_pixel = mix(curr_pixel, bloom, u_final_blend);
+        out_pixel = mix(curr_pixel.rgb, bloom, u_final_blend);
     } else {
-        out_pixel = mix(curr_pixel, bloom, u_internal_blend);
+        out_pixel = mix(curr_pixel.rgb, bloom, u_internal_blend);
     }
 
-	textureStore(u_output_texture, pixel_coords, out_pixel);
+	textureStore(u_output_texture, pixel_coords, vec4f(out_pixel, 1.0));
 }
 
 )glsl";

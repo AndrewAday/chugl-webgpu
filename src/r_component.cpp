@@ -721,7 +721,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     }
     mat->fresh_bind_group = true;
 
-    log_debug("rebuilding bind group\n");
+    // log_info("rebuilding bind group\n");
 
     // create bindgroups for all bindings
     WGPUBindGroupEntry new_bind_group_entries[SG_MATERIAL_MAX_UNIFORMS] = {};
@@ -769,6 +769,11 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
                 bind_group_entry->buffer = binding->as.storage_external->buf;
             } break;
             case R_BIND_TEXTURE_VIEW: {
+                ASSERT(binding->as.textureView);
+                bind_group_entry->textureView = binding->as.textureView;
+            } break;
+            case R_BIND_STORAGE_TEXTURE_ID: {
+                ASSERT(binding->as.textureView);
                 bind_group_entry->textureView = binding->as.textureView;
             } break;
             default: ASSERT(false);
@@ -818,6 +823,7 @@ void R_Material::setTextureBinding(GraphicsContext* gctx, R_Material* mat, u32 l
 void R_Material::setTextureViewBinding(GraphicsContext* gctx, R_Material* mat,
                                        u32 location, WGPUTextureView view)
 {
+    ASSERT(view);
     R_Material::setBinding(gctx, mat, location, R_BIND_TEXTURE_VIEW, &view,
                            sizeof(WGPUTextureView));
 }
@@ -828,6 +834,13 @@ void R_Material::setExternalStorageBinding(GraphicsContext* gctx, R_Material* ma
     ASSERT(buffer->usage & WGPUBufferUsage_Storage);
     R_Material::setBinding(gctx, mat, location, R_BIND_STORAGE_EXTERNAL, buffer,
                            buffer->size);
+}
+
+void R_Material::setStorageTextureBinding(GraphicsContext* gctx, R_Material* mat,
+                                          u32 location, SG_ID texture_id)
+{
+    R_Material::setBinding(gctx, mat, location, R_BIND_STORAGE_TEXTURE_ID, &texture_id,
+                           sizeof(texture_id));
 }
 
 void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location,
@@ -856,7 +869,7 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
     }
     // rebuild logic for textures
     // TODO support change in texture type, size, etc
-    else if (type == R_BIND_TEXTURE_ID) {
+    else if (type == R_BIND_TEXTURE_ID || type == R_BIND_STORAGE_TEXTURE_ID) {
         ASSERT(bytes == sizeof(SG_ID));
         // if the texture has changed, need to rebuild bind group
         if (binding->as.textureID != *(SG_ID*)data) {
@@ -880,8 +893,15 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         mat->fresh_bind_group = false;
     }
 
-    binding->type = type;
-    binding->size = bytes;
+    R_BindType prev_bind_type = binding->type;
+    binding->type             = type;
+    binding->size             = bytes;
+
+    // cleanup previous
+    if (prev_bind_type == R_BIND_STORAGE_TEXTURE_ID) {
+        // free previous storage texture view
+        WGPU_RELEASE_RESOURCE(TextureView, binding->as.textureView);
+    }
 
     // create new binding
     switch (type) {
@@ -915,6 +935,13 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         case R_BIND_STORAGE_EXTERNAL: {
             // external storage buffer
             binding->as.storage_external = (GPU_Buffer*)data;
+        } break;
+        case R_BIND_STORAGE_TEXTURE_ID: {
+            // TODO: allow creating storage texture at other mip levels
+            binding->as.textureView = G_createTextureViewAtMipLevel(
+              Component_GetTexture(*(SG_ID*)data)->gpu_texture.texture, 0,
+              "storage texture");
+
         } break;
         default:
             // if the new binding is also STORAGE reuse the memory, don't

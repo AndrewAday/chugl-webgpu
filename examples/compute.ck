@@ -1,8 +1,23 @@
+// Audio graph
+adc => Gain g => OnePole p => blackhole;
+// square the input
+adc => g;
+// multiply
+3 => g.op;
+
+// set filter pole position (between 0 and 1)
+// NOTE: this controls how smooth the output is
+// closer to 1 == smoother but less responsive
+// closer to 0 == more jumpy but also more responsive
+0.999 => p.pole;
+
 // Render Graph
 GG.rootPass() --> ComputePass compute_pass --> GG.renderPass();
 5000 => int NUM_BOIDS;
 (NUM_BOIDS / 64) + 1 => int work_group_count;
 compute_pass.workgroup(work_group_count, 1, 1);
+
+// GWindow.fullscreen();
 
 // camera
 GCamera camera --> GG.scene();
@@ -32,6 +47,8 @@ struct Boid {
 @group(0) @binding(9) var<uniform> alignment_factor : f32;
 @group(0) @binding(10) var<uniform> avoidance_factor : f32; // avoid obstacles
 @group(0) @binding(11) var<uniform> mouse_cursor: vec2f;
+@group(0) @binding(12) var<uniform> volume: f32;
+@group(0) @binding(13) var<uniform> volume_factor: f32;
 
 @compute @workgroup_size(64, 1, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
@@ -80,9 +97,12 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
         alignment /= f32(alignment_count);
     }
 
+    var modified_alignment_factor = alignment_factor - (volume * volume_factor);
+    modified_alignment_factor = max(modified_alignment_factor, 0.0f);
+
     my_vel += (center_of_mass - my_pos) * cohesion_factor + 
                separation * separation_factor + 
-               alignment * alignment_factor;
+               alignment * modified_alignment_factor;
 
     // avoid edges
     let x_bound = 2.0f;
@@ -106,7 +126,11 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
     }
 
     // clamp velocity
-    my_vel = normalize(my_vel) * clamp(length(my_vel), 0.01, 0.1);
+    if (volume > .1) {
+        my_vel = normalize(my_vel) * clamp(length(my_vel), 0.01, 0.1 + volume * volume_factor * 4.0);
+    } else {
+        my_vel = normalize(my_vel) * clamp(length(my_vel), 0.01, 0.1);
+    }
 
     // update position
     my_pos += my_vel * dt;
@@ -127,6 +151,7 @@ struct Boid {
 #include DRAW_UNIFORMS;
 
 @group(1) @binding(0) var<storage> boids : array<Boid>;
+@group(1) @binding(1) var<uniform> volume: f32;
 
 @group(3) @binding(0) var<storage> boids_geometry : array<f32>; // 3 vec2f per boid
 
@@ -157,7 +182,12 @@ fn vs_main(
 @fragment 
 fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
-    return vec4f(1.0f);
+    if (volume > .1) {
+        let delta = max(0., 1.0 - 3.0 * volume);
+        return vec4f(1.0f, delta, delta, 1.0f);
+    } else {
+        return vec4f(1.0f);
+    }
 }
 " @=> string shader_code;
 
@@ -198,6 +228,8 @@ UI_Float alignment_radius(.5);
 UI_Float cohesion_factor(.002);
 UI_Float separation_factor(.005);
 UI_Float alignment_factor(.1);
+UI_Float volume_factor(.0);
+UI_Float volume(p.last());
 
 fun void initBindGroups() {
     compute_pass.storageBuffer(0, boids_buffer_a); // read
@@ -212,8 +244,11 @@ fun void initBindGroups() {
     compute_pass.uniformFloat(9, alignment_factor.val()); // alignment_factor
     compute_pass.uniformFloat(10, .01); // avoidance_factor
     compute_pass.uniformFloat2(11, @(0.0, 0.0)); // mouse cursor
+    compute_pass.uniformFloat(12, p.last());
+    compute_pass.uniformFloat(13, volume_factor.val());
 
     boids_material.storageBuffer(0, boids_buffer_a);
+    boids_material.uniformFloat(1, volume.val());
 }
 initBindGroups();
 
@@ -221,7 +256,7 @@ fun void ui() {
     while (true) {
         GG.nextFrame() => now;
         UI.setNextWindowSize(@(400, 600), UI_Cond.Once);
-        if (UI.begin("GText Example", null, 0)) {
+        if (UI.begin("Compute Shader Example", null, 0)) {
 
             if (UI.slider("Cohesion Radius", cohesion_radius, 0.0, 0.5)) {
                 compute_pass.uniformFloat(4, cohesion_radius.val());
@@ -246,6 +281,12 @@ fun void ui() {
             if (UI.slider("Alignment Factor", alignment_factor, 0.0, 0.5)) {
                 compute_pass.uniformFloat(9, alignment_factor.val());
             }
+
+            UI.slider("Volume", volume, 0.0, 1.0);
+
+            if (UI.slider("Volume Factor", volume_factor, 0.0, 1.0)) {
+                compute_pass.uniformFloat(13, volume_factor.val());
+            }
         }
         UI.end();
     }
@@ -254,18 +295,24 @@ fun void ui() {
 
 PlaneGeometry plane_geo;
 FlatMaterial flat_material;
-flat_material.color(@(1, 0, 0, 1));
+flat_material.color(@(1, 0, 0));
 GMesh cursor(plane_geo, flat_material) --> GG.scene();
 cursor.sca(.05);
-fun void drawCursor()
+fun void drawCursorAndUpdateVolume()
 {
     while (true) {
         GG.nextFrame() => now;
         camera.screenCoordToWorldPos(GWindow.mousePos(), 1.0) => vec3 mouse_cursor;
         mouse_cursor => cursor.pos;
-        <<< "Mouse cursor: ", mouse_cursor >>>;
+
+        compute_pass.uniformFloat2(11, @(mouse_cursor.x, mouse_cursor.y));
+        Math.pow(p.last(), .2) => volume.val;
+        compute_pass.uniformFloat(12, volume.val());
+        boids_material.uniformFloat(1, volume.val() * volume_factor.val());
+        <<< "volume: ", volume.val() >>>;
+        <<< "material volume", volume.val() * volume_factor.val() >>>;
     }
-} spork ~ drawCursor();
+} spork ~ drawCursorAndUpdateVolume();
 
 while (true) {
     GG.nextFrame() => now;
@@ -274,8 +321,6 @@ while (true) {
     compute_pass.storageBuffer(1, boids_buffer_b); // write
     compute_pass.uniformFloat(3, 10 * GG.dt());
 
-    camera.screenCoordToWorldPos(GWindow.mousePos(), 0.0) => vec3 mouse_cursor;
-    compute_pass.uniformFloat2(11, @(mouse_cursor.x, mouse_cursor.y));
     boids_material.storageBuffer(0, boids_buffer_b); 
 
     GG.nextFrame() => now;
@@ -283,9 +328,6 @@ while (true) {
     compute_pass.storageBuffer(0, boids_buffer_b); // read
     compute_pass.storageBuffer(1, boids_buffer_a); // write
     compute_pass.uniformFloat(3, 10 * GG.dt());
-
-    camera.screenCoordToWorldPos(GWindow.mousePos(), 0.0) => mouse_cursor;
-    compute_pass.uniformFloat2(11, @(mouse_cursor.x, mouse_cursor.y));
 
     boids_material.storageBuffer(0, boids_buffer_a); 
 }

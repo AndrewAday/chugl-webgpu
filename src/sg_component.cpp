@@ -1062,6 +1062,19 @@ void SG_Material::setTexture(SG_Material* mat, int location, SG_Texture* tex)
     mat->uniforms[location].as.texture_id = tex->id;
 }
 
+void SG_Material::setStorageTexture(SG_Material* mat, int location, SG_Texture* tex)
+{
+    mat->uniforms[location].type = SG_MATERIAL_STORAGE_TEXTURE;
+
+    // refcount incoming texture
+    SG_AddRef(tex);
+
+    // decrement refcount of previous texture
+    SG_DecrementRef(mat->uniforms[location].as.texture_id);
+
+    mat->uniforms[location].as.texture_id = tex->id;
+}
+
 void SG_Material::shader(SG_Material* mat, SG_Shader* shader)
 {
     // refcount incoming shader

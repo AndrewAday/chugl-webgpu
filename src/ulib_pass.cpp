@@ -56,6 +56,10 @@ CK_DLL_CTOR(outputpass_ctor);
 CK_DLL_MFUN(outputpass_set_input_texture);
 CK_DLL_MFUN(outputpass_set_tonemap);
 CK_DLL_MFUN(outputpass_get_tonemap);
+CK_DLL_MFUN(outputpass_set_gamma);
+CK_DLL_MFUN(outputpass_get_gamma);
+CK_DLL_MFUN(outputpass_set_exposure);
+CK_DLL_MFUN(outputpass_get_exposure);
 
 // ComputePass
 CK_DLL_CTOR(computepass_ctor); // don't send creation CQ Command until shader is set
@@ -182,6 +186,17 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
         ARG("int", "tonemap_type");
 
         MFUN(outputpass_get_tonemap, "int", "tonemap");
+
+        // Note: removing gamma correction, swapchain output view is already srgb
+        // MFUN(outputpass_set_gamma, "void", "gamma");
+        // ARG("float", "gamma");
+
+        // MFUN(outputpass_get_gamma, "float", "gamma");
+
+        MFUN(outputpass_set_exposure, "void", "exposure");
+        ARG("float", "exposure");
+
+        MFUN(outputpass_get_exposure, "float", "exposure");
 
         END_CLASS();
     }
@@ -473,7 +488,9 @@ SG_Pass* ulib_pass_createOutputPass(Chuck_Object* ckobj)
     SG_Material::setSampler(mat, 1, SG_SAMPLER_DEFAULT); // sampler
     CQ_PushCommand_MaterialSetSampler(mat, 1);
 
-    SG_Material::uniformFloat(mat, 2, 2.2); // gamma
+    // locking gamma to 1.0 (no gamma correction)
+    // because we enforce swapchain output view to be srgb, which applies gamma for us.
+    SG_Material::uniformFloat(mat, 2, 1.0); // gamma
     CQ_PushCommand_MaterialSetUniform(mat, 2);
 
     SG_Material::uniformFloat(mat, 3, 1.0); // exposure
@@ -531,6 +548,43 @@ CK_DLL_MFUN(outputpass_get_tonemap)
     SG_Pass* pass         = GET_PASS(SELF);
     SG_Material* material = SG_GetMaterial(pass->screen_material_id);
     RETURN->v_int         = material->uniforms[4].as.i;
+}
+
+CK_DLL_MFUN(outputpass_set_gamma)
+{
+    SG_Pass* pass         = GET_PASS(SELF);
+    t_CKFLOAT gamma       = GET_NEXT_FLOAT(ARGS);
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+
+    // set uniform
+    // TODO can use CODE(...) macro to replace 2 with OUTPUT_PASS_GAMMA_BINDING
+    SG_Material::uniformFloat(material, 2, gamma);
+    CQ_PushCommand_MaterialSetUniform(material, 2);
+}
+
+CK_DLL_MFUN(outputpass_get_gamma)
+{
+    SG_Pass* pass         = GET_PASS(SELF);
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+    RETURN->v_float       = material->uniforms[2].as.f;
+}
+
+CK_DLL_MFUN(outputpass_set_exposure)
+{
+    SG_Pass* pass         = GET_PASS(SELF);
+    t_CKFLOAT exposure    = GET_NEXT_FLOAT(ARGS);
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+
+    // set uniform
+    SG_Material::uniformFloat(material, 3, exposure);
+    CQ_PushCommand_MaterialSetUniform(material, 3);
+}
+
+CK_DLL_MFUN(outputpass_get_exposure)
+{
+    SG_Pass* pass         = GET_PASS(SELF);
+    SG_Material* material = SG_GetMaterial(pass->screen_material_id);
+    RETURN->v_float       = material->uniforms[3].as.f;
 }
 
 // ============================================================================
@@ -657,12 +711,19 @@ CK_DLL_CTOR(bloompass_ctor)
     SG_Pass* pass                              = SG_CreatePass(SELF, SG_PassType_Bloom);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = pass->id;
 
+#if 0
     SG_Shader* bloom_downsample_shader
       = SG_GetShader(g_material_builtin_shaders.bloom_downsample_shader_id);
     SG_Shader* bloom_upsample_shader
       = SG_GetShader(g_material_builtin_shaders.bloom_upsample_shader_id);
+#else
+    SG_Shader* bloom_downsample_shader
+      = SG_GetShader(g_material_builtin_shaders.bloom_downsample_screen_shader_id);
+    SG_Shader* bloom_upsample_shader
+      = SG_GetShader(g_material_builtin_shaders.bloom_upsample_screen_shader_id);
+#endif
 
-    // create output render texture
+    // create default output render texture
     SG_TextureDesc output_render_texture_desc
       = { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
             | WGPUTextureUsage_StorageBinding,
@@ -676,17 +737,15 @@ CK_DLL_CTOR(bloompass_ctor)
       = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_upsample_shader);
 
     // initialize uniforms
-    SG_Material::uniformFloat(bloom_upsample_mat, 4, 0.85);
+    SG_Material::uniformFloat(bloom_upsample_mat, 4, 0.85); // internal blend
     CQ_PushCommand_MaterialSetUniform(bloom_upsample_mat, 4);
-    SG_Material::uniformFloat(bloom_upsample_mat, 5, 0.2);
+    SG_Material::uniformFloat(bloom_upsample_mat, 5, 0.2); // final blend
     CQ_PushCommand_MaterialSetUniform(bloom_upsample_mat, 5);
 
     // update pass
     pass->bloom_downsample_material_id = bloom_downsample_mat->id;
     pass->bloom_upsample_material_id   = bloom_upsample_mat->id;
     SG_Pass::bloomOutputRenderTexture(pass, output_render_texture);
-    // TODO create default render texture? necessary if we can't use a single texture as
-    // both input and storage
 
     CQ_PushCommand_PassUpdate(pass);
 }
@@ -760,7 +819,7 @@ CK_DLL_MFUN(bloompass_set_num_levels)
 {
     SG_Pass* pass               = GET_PASS(SELF);
     pass->bloom_num_blur_levels = GET_NEXT_INT(ARGS);
-    CLAMP(pass->bloom_num_blur_levels, 0, 16);
+    CLAMP(pass->bloom_num_blur_levels, 1, 16);
 
     CQ_PushCommand_PassUpdate(pass);
 }

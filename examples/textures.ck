@@ -22,7 +22,7 @@ camera.posZ(1.0);
 camera => GG.scene().camera;
 
 // audio stuff -----------------------------------------
-GWindow.fullscreen();
+// GWindow.fullscreen();
 256 => int WINDOW_SIZE;
 // accumulate samples from mic
 SndBuf buf(me.dir() + "../assets/music-for-airports.wav");
@@ -196,7 +196,7 @@ fun void simulate()
     true => int flip;
     material.uniformInt(2, 0);
     material.texture(0, conway_tex_a);
-    material.texture(1, conway_tex_b);
+    material.storageTexture(1, conway_tex_b);
 
     2::second => now;
 
@@ -214,10 +214,10 @@ fun void simulate()
         // flip textures
         if (flip) {
             material.texture(0, conway_tex_b);
-            material.texture(1, conway_tex_a);
+            material.storageTexture(1, conway_tex_a);
         } else {
             material.texture(0, conway_tex_a);
-            material.texture(1, conway_tex_b);
+            material.storageTexture(1, conway_tex_b);
         }
         1 - flip => flip;
     }

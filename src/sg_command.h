@@ -90,6 +90,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_SET_SAMPLER,
     SG_COMMAND_MATERIAL_SET_TEXTURE,
     SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL,
+    SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE,
 
     // mesh
     SG_COMMAND_MESH_CREATE,
@@ -373,6 +374,12 @@ struct SG_Command_MaterialSetTexture : public SG_Command {
     SG_ID texture_id;
 };
 
+struct SG_Command_MaterialSetStorageTexture : public SG_Command {
+    SG_ID sg_id;
+    int location;
+    SG_ID texture_id;
+};
+
 struct SG_Command_Mesh_Create : public SG_Command {
     SG_ID mesh_id; // gmesh id
     SG_ID geo_id;
@@ -543,6 +550,7 @@ void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
 
 void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location);
 void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location);
+void CQ_PushCommand_MaterialSetStorageTexture(SG_Material* material, int location);
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);

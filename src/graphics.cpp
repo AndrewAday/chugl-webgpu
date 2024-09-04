@@ -289,14 +289,14 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
 #endif
 
     WGPUDeviceDescriptor deviceDescriptor = {
-        NULL,                     // nextInChain
-        "WebGPU-Renderer Device", // label
-        requiredFeaturesCount,    // requiredFeaturesCount
-        requiredFeatures,         // requiredFeatures
-        &requiredLimits,          // requiredLimits
-        { NULL, "ChuGL queue" },  // defaultQueue
-        NULL,                     // deviceLostCallback,
-        NULL                      // deviceLostUserdata
+        NULL,                    // nextInChain
+        "ChuGL Device",          // label
+        requiredFeaturesCount,   // requiredFeaturesCount
+        requiredFeatures,        // requiredFeatures
+        &requiredLimits,         // requiredLimits
+        { NULL, "ChuGL queue" }, // defaultQueue
+        NULL,                    // deviceLostCallback,
+        NULL                     // deviceLostUserdata
     };
 
     context->device = request_device(context->adapter, &deviceDescriptor);
@@ -323,8 +323,32 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     int windowWidth = 1, windowHeight = 1;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
 
-    context->swapChainFormat
-      = wgpuSurfaceGetPreferredFormat(context->surface, context->adapter);
+    // determine swapchain format
+    // note: we always pick the -srgb version of whatever is preferred
+    {
+        WGPUTextureFormat preferred_format
+          = wgpuSurfaceGetPreferredFormat(context->surface, context->adapter);
+        switch (preferred_format) {
+            case WGPUTextureFormat_BGRA8Unorm: {
+                context->swapChainFormat = WGPUTextureFormat_BGRA8UnormSrgb;
+            } break;
+            case WGPUTextureFormat_RGBA8Unorm: {
+                context->swapChainFormat = WGPUTextureFormat_RGBA8UnormSrgb;
+            } break;
+            // srgb formats do nothing
+            case WGPUTextureFormat_BGRA8UnormSrgb:
+            case WGPUTextureFormat_RGBA8UnormSrgb: {
+                context->swapChainFormat = preferred_format;
+            } break;
+            // fail otherwise
+            default: {
+                log_error("Unsupported swap chain format: %d", preferred_format);
+                ASSERT(false);
+                return false;
+            } break;
+        }
+        log_debug("Preferred swap chain format: %d", context->swapChainFormat);
+    }
 
     // Create the swap chain
     if (!createSwapChain(context, windowWidth, windowHeight)) return false;
@@ -1053,10 +1077,25 @@ u32 G_mipLevelsLimit(u32 w, u32 h, u32 downscale_limit)
 
 G_MipSize G_mipLevelSize(int width, int height, u32 mip_level)
 {
-    return {
-        MAX(1u, (u32) (glm::floor(float(width) / glm::pow(2.0, mip_level)))),
-        MAX(1u, (u32) (glm::floor(float(height) / glm::pow(2.0, mip_level))))
-    };
+    return { MAX(1u, (u32)(glm::floor(float(width) / glm::pow(2.0, mip_level)))),
+             MAX(1u, (u32)(glm::floor(float(height) / glm::pow(2.0, mip_level)))) };
+}
+
+WGPUTextureView G_createTextureViewAtMipLevel(WGPUTexture texture, u32 base_mip_level,
+                                              const char* label = "")
+{
+    char mip_label[256] = {};
+    snprintf(mip_label, 256, "%s mip level %u", label, base_mip_level);
+
+    WGPUTextureViewDescriptor view_desc = {};
+    view_desc.label                     = mip_label;
+    view_desc.format                    = wgpuTextureGetFormat(texture);
+    view_desc.dimension                 = WGPUTextureViewDimension_2D;
+    view_desc.baseMipLevel              = base_mip_level;
+    view_desc.mipLevelCount             = 1;
+    view_desc.arrayLayerCount           = 1;
+
+    return wgpuTextureCreateView(texture, &view_desc);
 }
 
 // TODO make part of GraphicsContext and cleanup

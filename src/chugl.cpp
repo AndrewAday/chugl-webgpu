@@ -3,6 +3,7 @@
 #include "ulib_helper.h"
 
 // ulibs
+#include "ulib_color.cpp"
 #include "ulib_box2d.cpp"
 #include "ulib_component.cpp"
 #include "ulib_camera.cpp"
@@ -344,9 +345,7 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY);
     }
 
-    // auto-generated
-    // ulib_cimgui_query(QUERY);
-    // hand-written
+    ulib_color_query(QUERY);
     ulib_imgui_query(QUERY);
     ulib_box2d_query(QUERY);
 
@@ -435,7 +434,7 @@ CK_DLL_QUERY(ChuGL)
         SG_Texture* render_texture
           = SG_GetTexture(g_builtin_textures.default_render_texture_id);
         SG_Pass::resolveTarget(render_pass, render_texture);
-        log_debug("setting resolve target to %d", render_texture->id);
+        log_trace("setting resolve target to Render Texture ID %d", render_texture->id);
 
         // output pass
         Chuck_Object* output_pass_ckobj = chugin_createCkObj("OutputPass", true);

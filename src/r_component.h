@@ -244,13 +244,15 @@ struct R_Shader : public R_Component {
 // =============================================================================
 
 enum R_BindType : u32 {
+    // ==cleanup== conslidate with SG_BindType
     R_BIND_EMPTY = 0, // empty binding
     R_BIND_UNIFORM,
     R_BIND_SAMPLER,
     R_BIND_TEXTURE_ID,   // for scenegraph textures
     R_BIND_TEXTURE_VIEW, // default textures (e.g. white pixel)
     R_BIND_STORAGE,
-    R_BIND_STORAGE_EXTERNAL // pointer to external storage buffer (ref)
+    R_BIND_STORAGE_EXTERNAL,   // pointer to external storage buffer (ref)
+    R_BIND_STORAGE_TEXTURE_ID, // for scenegraph textures
 };
 
 // TODO can we move R_Binding into .cpp
@@ -317,6 +319,10 @@ struct R_Material : public R_Component {
                                       u32 location, WGPUTextureView view);
     static void setExternalStorageBinding(GraphicsContext* gctx, R_Material* mat,
                                           u32 location, GPU_Buffer* buffer);
+
+    static void setStorageTextureBinding(GraphicsContext* gctx, R_Material* mat,
+                                         u32 location, SG_ID texture_id);
+
     static void removeBinding(R_Material* mat, u32 location)
     {
         ASSERT(false);

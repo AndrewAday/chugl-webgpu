@@ -685,6 +685,16 @@ void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location)
     END_COMMAND();
 }
 
+void CQ_PushCommand_MaterialSetStorageTexture(SG_Material* material, int location)
+{
+    BEGIN_COMMAND(SG_Command_MaterialSetStorageTexture,
+                  SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE);
+    command->sg_id      = material->id;
+    command->location   = location;
+    command->texture_id = material->uniforms[location].as.texture_id;
+    END_COMMAND();
+}
+
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
 {
     spinlock::lock(&cq.write_q_lock);

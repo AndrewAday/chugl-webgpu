@@ -66,6 +66,7 @@ CK_DLL_MFUN(material_set_storage_buffer);
 CK_DLL_MFUN(material_set_storage_buffer_external);
 CK_DLL_MFUN(material_set_sampler);
 CK_DLL_MFUN(material_set_texture);
+CK_DLL_MFUN(material_set_storage_texture);
 
 CK_DLL_CTOR(lines2d_material_ctor);
 CK_DLL_MFUN(lines2d_material_get_thickness);
@@ -279,6 +280,10 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     ARG("Texture", "texture");
 
+    MFUN(material_set_storage_texture, "void", "storageTexture");
+    ARG("int", "location");
+    ARG("Texture", "texture");
+
     // abstract class, no destructor or constructor
     END_CLASS();
 
@@ -308,8 +313,8 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     DOC_FUNC("Get the color of the material.");
 
     MFUN(flat_material_set_color, "void", "color");
-    ARG("vec4", "color");
-    DOC_FUNC("Set the color of the material.");
+    ARG("vec3", "color");
+    DOC_FUNC("Set material color uniform as an rgb. Alpha set to 1.0.");
 
     END_CLASS();
 
@@ -670,6 +675,18 @@ CK_DLL_MFUN(material_set_texture)
     CQ_PushCommand_MaterialSetTexture(material, location);
 }
 
+CK_DLL_MFUN(material_set_storage_texture)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex       = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
+
+    SG_Material::setStorageTexture(material, location, tex);
+
+    CQ_PushCommand_MaterialSetStorageTexture(material, location);
+}
+
 // Lines2DMaterial ===================================================================
 
 CK_DLL_CTOR(lines2d_material_ctor)
@@ -745,10 +762,9 @@ CK_DLL_MFUN(flat_material_get_color)
 CK_DLL_MFUN(flat_material_set_color)
 {
     SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC4 color        = GET_NEXT_VEC4(ARGS);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
 
-    SG_Material::uniformVec4f(material, 0,
-                              glm::vec4(color.x, color.y, color.z, color.w));
+    SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
     CQ_PushCommand_MaterialSetUniform(material, 0);
 }
 
@@ -794,8 +810,8 @@ chugl_createShader(CK_DL_API API, const char* vertex_string,
 static SG_ID chugl_createComputeShader(const char* compute_string,
                                        const char* compute_filepath)
 {
-    return chugl_createShader(g_chuglAPI, NULL, NULL, NULL, NULL, NULL, 0, compute_string,
-                       compute_filepath);
+    return chugl_createShader(g_chuglAPI, NULL, NULL, NULL, NULL, NULL, 0,
+                              compute_string, compute_filepath);
 }
 
 void chugl_initDefaultMaterials()
@@ -831,4 +847,12 @@ void chugl_initDefaultMaterials()
 
     g_material_builtin_shaders.bloom_upsample_shader_id
       = chugl_createComputeShader(bloom_upsample_shader_string, NULL);
+
+    g_material_builtin_shaders.bloom_downsample_screen_shader_id
+      = chugl_createShader(g_chuglAPI, bloom_downsample_screen_shader,
+                           bloom_downsample_screen_shader, NULL, NULL, NULL, 0);
+
+    g_material_builtin_shaders.bloom_upsample_screen_shader_id
+      = chugl_createShader(g_chuglAPI, bloom_upsample_screen_shader,
+                           bloom_upsample_screen_shader, NULL, NULL, NULL, 0);
 }

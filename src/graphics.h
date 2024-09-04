@@ -11,6 +11,17 @@
         Name = NULL;                                                                   \
     }
 
+// does NOT free array memory
+#define WGPU_RELEASE_RESOURCE_ARRAY(Type, Array, Count)                                \
+    if (Array) {                                                                       \
+        for (u32 i = 0; i < Count; ++i) {                                              \
+            if (Array[i]) {                                                            \
+                wgpu##Type##Release(Array[i]);                                         \
+                Array[i] = NULL;                                                       \
+            }                                                                          \
+        }                                                                              \
+    }
+
 #define WGPU_DESTROY_RESOURCE(Type, Name)                                              \
     if (Name) {                                                                        \
         wgpu##Type##Destroy(Name);                                                     \
@@ -426,3 +437,7 @@ struct G_MipSize {
     u32 height;
 };
 G_MipSize G_mipLevelSize(int width, int height, u32 mip_level);
+
+// creates a texture view for a single mip level
+WGPUTextureView G_createTextureViewAtMipLevel(WGPUTexture texture, u32 base_mip_level,
+                                              const char* label);

@@ -85,6 +85,8 @@ struct chugl_MaterialBuiltinShaders {
 
     // screen shaders
     SG_ID output_pass_shader_id;
+    SG_ID bloom_downsample_screen_shader_id;
+    SG_ID bloom_upsample_screen_shader_id;
 
     // compute shaders
     SG_ID bloom_downsample_shader_id;

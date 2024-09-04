@@ -325,6 +325,7 @@ enum SG_MaterialUniformType : u8 {
     SG_MATERIAL_UNIFORM_SAMPLER,
     SG_MATERIAL_UNIFORM_STORAGE_BUFFER,
     SG_MATERIAL_UNIFORM_STORAGE_BUFFER_EXTERNAL,
+    SG_MATERIAL_STORAGE_TEXTURE,
 };
 
 union SG_MaterialUniformData {
@@ -452,6 +453,8 @@ struct SG_Material : SG_Component {
     }
 
     static void setTexture(SG_Material* mat, int location, SG_Texture* tex);
+
+    static void setStorageTexture(SG_Material* mat, int location, SG_Texture* tex);
 
     static void shader(SG_Material* mat, SG_Shader* shader);
 };
