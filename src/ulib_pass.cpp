@@ -80,6 +80,8 @@ CK_DLL_MFUN(bloompass_get_internal_blend);
 CK_DLL_MFUN(bloompass_get_final_blend);
 CK_DLL_MFUN(bloompass_set_num_levels);
 CK_DLL_MFUN(bloompass_get_num_levels);
+CK_DLL_MFUN(bloompass_set_threshold);
+CK_DLL_MFUN(bloompass_get_threshold);
 
 // bloom pass params
 // SG_ID bloom_downscale_material_id;
@@ -246,21 +248,21 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
                  "output");
             DOC_FUNC("Get the render texture that the bloom pass writes to");
 
-            MFUN(bloompass_set_internal_blend, "void", "internalBlend");
+            MFUN(bloompass_set_internal_blend, "void", "radius");
             ARG("float", "blend_factor");
             DOC_FUNC(
               "Set the blend factor between mip levels of the bloom texture during "
               "upsample");
 
-            MFUN(bloompass_set_final_blend, "void", "blend");
+            MFUN(bloompass_set_final_blend, "void", "intensity");
             ARG("float", "blend_factor");
             DOC_FUNC(
               "Set the blend factor between the bloom texture and the original image");
 
-            MFUN(bloompass_get_internal_blend, "float", "internalBlend");
+            MFUN(bloompass_get_internal_blend, "float", "radius");
             DOC_FUNC("Get the blend factor between mip levels of the bloom texture");
 
-            MFUN(bloompass_get_final_blend, "float", "blend");
+            MFUN(bloompass_get_final_blend, "float", "intensity");
             DOC_FUNC(
               "Get the blend factor between the bloom texture and the original image");
 
@@ -272,6 +274,15 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
 
             MFUN(bloompass_get_num_levels, "int", "levels");
             DOC_FUNC("Get the number of blur passes applied to the bloom texture.");
+
+            MFUN(bloompass_set_threshold, "void", "threshold");
+            ARG("float", "threshold");
+            DOC_FUNC(
+              "Set the threshold for the bloom pass (colors with all rgb values below "
+              "threshold are not bloomed)");
+
+            MFUN(bloompass_get_threshold, "float", "threshold");
+            DOC_FUNC("Get the threshold for the bloom pass");
 
             END_CLASS();
         }
@@ -736,7 +747,11 @@ CK_DLL_CTOR(bloompass_ctor)
     SG_Material* bloom_upsample_mat
       = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_upsample_shader);
 
-    // initialize uniforms
+    // initialize uniforms for downsample mat
+    SG_Material::uniformFloat(bloom_downsample_mat, 2, 0.0); // threshold
+    CQ_PushCommand_MaterialSetUniform(bloom_downsample_mat, 2);
+
+    // initialize uniforms for upsample mat
     SG_Material::uniformFloat(bloom_upsample_mat, 4, 0.85); // internal blend
     CQ_PushCommand_MaterialSetUniform(bloom_upsample_mat, 4);
     SG_Material::uniformFloat(bloom_upsample_mat, 5, 0.2); // final blend
@@ -828,4 +843,25 @@ CK_DLL_MFUN(bloompass_get_num_levels)
 {
     SG_Pass* pass = GET_PASS(SELF);
     RETURN->v_int = pass->bloom_num_blur_levels;
+}
+
+CK_DLL_MFUN(bloompass_set_threshold)
+{
+    SG_Pass* pass       = GET_PASS(SELF);
+    t_CKFLOAT threshold = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material* bloom_downsample_material
+      = SG_GetMaterial(pass->bloom_downsample_material_id);
+
+    SG_Material::uniformFloat(bloom_downsample_material, 2, threshold);
+    CQ_PushCommand_MaterialSetUniform(bloom_downsample_material, 2);
+}
+
+CK_DLL_MFUN(bloompass_get_threshold)
+{
+    SG_Pass* pass = GET_PASS(SELF);
+    SG_Material* bloom_downsample_material
+      = SG_GetMaterial(pass->bloom_downsample_material_id);
+
+    RETURN->v_float = bloom_downsample_material->uniforms[2].as.f;
 }

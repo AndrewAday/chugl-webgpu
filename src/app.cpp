@@ -915,6 +915,11 @@ struct App {
                                        render_texture->gpu_texture.width,
                                        render_texture->gpu_texture.height);
 
+                    glm::uvec2 full_res_size
+                      = glm::uvec2(render_texture->gpu_texture.width,
+                                   render_texture->gpu_texture.height);
+                    ASSERT(sizeof(full_res_size) == 2 * sizeof(u32));
+
                     ASSERT(render_texture->gpu_texture.usage
                            & WGPUTextureUsage_RenderAttachment);
 
@@ -971,6 +976,10 @@ struct App {
                         // per mip level dispatch
                         R_Material::setSamplerBinding(
                           &app->gctx, bloom_downscale_material, 1, bloom_sampler);
+
+                        R_Material::setUniformBinding( // full resolution
+                          &app->gctx, bloom_downscale_material, 3, &full_res_size,
+                          sizeof(full_res_size));
 
                         // downsample, writing from from mip level i --> i + 1
                         for (u32 i = 0; i < bloom_mip_levels - 1; i++) {
@@ -1036,10 +1045,6 @@ struct App {
                         R_Material::setSamplerBinding(
                           &app->gctx, bloom_upscale_material, 1, bloom_sampler);
 
-                        glm::uvec2 full_res_size
-                          = glm::uvec2(render_texture->gpu_texture.width,
-                                       render_texture->gpu_texture.height);
-                        ASSERT(sizeof(full_res_size) == 2 * sizeof(u32));
                         R_Material::setUniformBinding( // full resolution
                           &app->gctx, bloom_upscale_material, 3, &full_res_size,
                           sizeof(full_res_size));

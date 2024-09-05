@@ -30,8 +30,8 @@ output_pass.input(bloom_pass.output());
 // GG.renderPass() --> output_pass; // bypass bloom
 
 
-UI_Float blend(bloom_pass.blend());
-UI_Float internal_blend(bloom_pass.internalBlend());
+UI_Float bloom_intensity(bloom_pass.intensity());
+UI_Float radius(bloom_pass.radius());
 
 [ 
     "NONE",
@@ -45,6 +45,7 @@ UI_Int tonemap(output_pass.tonemap());
 UI_Int levels(bloom_pass.levels());
 UI_Float exposure(output_pass.exposure());
 UI_Float color_intensity(intensity);
+UI_Float threshold(bloom_pass.threshold());
 
 while (true) {
     GG.nextFrame() => now;
@@ -58,12 +59,16 @@ while (true) {
             mat3.color( @(0, color_intensity.val(), 0));
         }
 
-        if (UI.slider("Blend", blend, 0.0, 1.0)) {
-            bloom_pass.blend(blend.val());
+        if (UI.slider("Threshold", threshold, 0.0, 4.0)) {
+            bloom_pass.threshold(threshold.val());
         }
 
-        if (UI.slider("Internal Blend", internal_blend, 0.0, 1.0)) {
-            bloom_pass.internalBlend(internal_blend.val());
+        if (UI.slider("intensity", bloom_intensity, 0.0, 1.0)) {
+            bloom_pass.intensity(bloom_intensity.val());
+        }
+
+        if (UI.slider("Radius", radius, 0.0, 1.0)) {
+            bloom_pass.radius(radius.val());
         }
 
         if (UI.slider("Levels", levels, 0, 10)) {

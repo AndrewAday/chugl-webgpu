@@ -872,7 +872,9 @@ const char* output_pass_shader_string = R"glsl(
         case 3: { // cineon
             let x: vec3<f32> = max(vec3<f32>(0.), color - 0.004);
             color = x * (6.2 * x + 0.5) / (x * (6.2 * x + 1.7) + 0.06);
-            color = pow(color, vec3<f32>(u_Gamma));
+            // color = pow(color, vec3<f32>(u_Gamma));
+            color = pow(color, vec3<f32>(2.2));  // invert gamma correction (assumes final output to srgb texture)
+            // Note: will need to change this if we want to output to linear texture and do gamma correction ourselves
         } 
         case 4: { // aces
             var ACES_INPUT_MAT: mat3x3<f32> = mat3_from_rows(vec3<f32>(0.59719, 0.35458, 0.04823), vec3<f32>(0.076, 0.90834, 0.01566), vec3<f32>(0.0284, 0.13383, 0.83777));
@@ -915,13 +917,15 @@ const char* bloom_downsample_screen_shader = R"glsl(
 #include SCREEN_PASS_VERTEX_SHADER
 @group(0) @binding(0) var u_texture: texture_2d<f32>; // texture at previous mip level
 @group(0) @binding(1) var u_sampler: sampler;
+@group(0) @binding(2) var<uniform> u_threshold: f32;
+@group(0) @binding(3) var<uniform> u_full_res: vec2u; // full resolution of input texture
 
 @fragment 
 fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
-    let input_dim = vec2f(textureDimensions(u_texture).xy);
-    let dx = 1.0 / input_dim.x; // change in uv.x that corresponds to 1 pixel in input texture x direction
-    let dy = 1.0 / input_dim.y; // change in uv.y that corresponds to 1 pixel in input texture y direction
+    let input_dim = textureDimensions(u_texture).xy;
+    let dx = 1.0 / f32(input_dim.x); // change in uv.x that corresponds to 1 pixel in input texture x direction
+    let dy = 1.0 / f32(input_dim.y); // change in uv.y that corresponds to 1 pixel in input texture y direction
     let uv = in.v_uv;
 
     // Take 13 samples around current texel:
@@ -966,6 +970,12 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4f
     downsample += (a+c+g+i)*0.03125;
     downsample += (b+d+f+h)*0.0625;
     downsample += (j+k+l+m)*0.125;
+
+    if (all(input_dim == u_full_res)) {
+        let brightness = max(max(downsample.r, downsample.g), downsample.b);
+        let contribution = max(0.0, brightness - u_threshold) / max(brightness, 0.00001);
+        downsample *= contribution;
+    }
 
     return vec4f(downsample, 1.0);
 }
@@ -1089,7 +1099,9 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4f
     let curr_color = textureSample(u_curr_downsample_texture, u_sampler, uv).rgb;
 
     if (all(input_dim == u_full_resolution_size)) {
-        upsampled_color = mix(curr_color, upsampled_color, u_final_blend);
+        // upsampled_color = mix(curr_color, upsampled_color, u_final_blend);
+        // additive blend on final stage
+        upsampled_color = curr_color + upsampled_color * u_final_blend;
     } else {
         upsampled_color = mix(curr_color, upsampled_color, u_internal_blend);
     }
