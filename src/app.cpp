@@ -1501,6 +1501,8 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         if (app->callbacks.onScroll) app->callbacks.onScroll(xoffset, yoffset);
 
         app->camera.onScroll(&app->camera, xoffset, yoffset);
+
+        CHUGL_scroll_delta(xoffset, yoffset);
     }
 
     static void _cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)

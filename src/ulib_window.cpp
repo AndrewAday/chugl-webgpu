@@ -60,6 +60,9 @@ CK_DLL_SFUN(gwindow_opacity);
 CK_DLL_SFUN(gwindow_get_mouse_pos);
 CK_DLL_SFUN(gwindow_get_mouse_delta_pos);
 CK_DLL_SFUN(gwindow_set_mouse_mode); // normal, disabled, hidden
+CK_DLL_SFUN(gwindow_get_mouse_scroll_dx);
+CK_DLL_SFUN(gwindow_get_mouse_scroll_dy);
+CK_DLL_SFUN(gwindow_get_mouse_scroll);
 
 CK_DLL_SFUN(gwindow_get_mouse_left_button);
 CK_DLL_SFUN(gwindow_get_mouse_right_button);
@@ -68,41 +71,41 @@ CK_DLL_SFUN(gwindow_get_mouse_right_button_click);
 CK_DLL_SFUN(gwindow_get_mouse_left_button_release);
 CK_DLL_SFUN(gwindow_get_mouse_right_button_release);
 
-// TODO: custom cursor
+// custom cursor (not working)
 CK_DLL_SFUN(gwindow_set_mouse_cursor);
 CK_DLL_SFUN(gwindow_revert_mouse_cursor);
 
 void ulib_window_query(Chuck_DL_Query* QUERY)
 {
-    BEGIN_CLASS("MonitorInfo", "Object");
-    DOC_CLASS(
-      "Information about the monitor the window is on. Do not instantiate this "
-      "class directly, use Gwindow.monitorInfo() instead. This data is NOT "
-      "updated in real-time, it is only accurate at the time of the call. If "
-      "the user drags the window to another monitor, you will need to call "
-      "GWindow.monitorInfo() again to get the updated information.");
-    monitor_info_width_offset = MVAR("int", "width", false);
-    DOC_VAR("width of the monitor in screen coordinates");
-    monitor_info_height_offset = MVAR("int", "height", false);
-    DOC_VAR("height of the monitor in screen coordinates");
-    monitor_info_refresh_rate_offset = MVAR("int", "refreshRate", false);
-    DOC_VAR("refresh rate of the monitor in Hz");
-    monitor_info_virtual_pos_offset = MVAR("vec2", "virtualPos", false);
-    DOC_VAR("position of the monitor on the virtual desktop, in screen coordinates");
-    monitor_info_physical_size_mm_offset = MVAR("vec2", "physicalSize", false);
-    DOC_VAR("physical size of the monitor in millimeters");
-    monitor_info_content_scale_offset = MVAR("vec2", "contentScale", false);
-    DOC_VAR(
-      "The content scale is the ratio between the current DPI and the "
-      "platform's default DPI.");
-    monitor_info_work_area_offset = MVAR("vec4", "workArea", false);
-    DOC_VAR(
-      " The work area is the area of the monitor not occluded by the taskbar "
-      "or other system UI elements. This data is returned as vec4 with "
-      "following values: @(xpos, ypos, width, height), in screen coordinates ");
-    monitor_info_name_offset = MVAR("string", "name", false);
-    DOC_VAR("human-readable name of the monitor");
-    END_CLASS(); // MonitorInfo
+    // BEGIN_CLASS("MonitorInfo", "Object");
+    // DOC_CLASS(
+    //   "Information about the monitor the window is on. Do not instantiate this "
+    //   "class directly, use Gwindow.monitorInfo() instead. This data is NOT "
+    //   "updated in real-time, it is only accurate at the time of the call. If "
+    //   "the user drags the window to another monitor, you will need to call "
+    //   "GWindow.monitorInfo() again to get the updated information.");
+    // monitor_info_width_offset = MVAR("int", "width", false);
+    // DOC_VAR("width of the monitor in screen coordinates");
+    // monitor_info_height_offset = MVAR("int", "height", false);
+    // DOC_VAR("height of the monitor in screen coordinates");
+    // monitor_info_refresh_rate_offset = MVAR("int", "refreshRate", false);
+    // DOC_VAR("refresh rate of the monitor in Hz");
+    // monitor_info_virtual_pos_offset = MVAR("vec2", "virtualPos", false);
+    // DOC_VAR("position of the monitor on the virtual desktop, in screen coordinates");
+    // monitor_info_physical_size_mm_offset = MVAR("vec2", "physicalSize", false);
+    // DOC_VAR("physical size of the monitor in millimeters");
+    // monitor_info_content_scale_offset = MVAR("vec2", "contentScale", false);
+    // DOC_VAR(
+    //   "The content scale is the ratio between the current DPI and the "
+    //   "platform's default DPI.");
+    // monitor_info_work_area_offset = MVAR("vec4", "workArea", false);
+    // DOC_VAR(
+    //   " The work area is the area of the monitor not occluded by the taskbar "
+    //   "or other system UI elements. This data is returned as vec4 with "
+    //   "following values: @(xpos, ypos, width, height), in screen coordinates ");
+    // monitor_info_name_offset = MVAR("string", "name", false);
+    // DOC_VAR("human-readable name of the monitor");
+    // END_CLASS(); // MonitorInfo
 
     // Events ========================================================
     BEGIN_CLASS(CHUGL_EventTypeNames[WINDOW_RESIZE], "Event");
@@ -299,6 +302,15 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
       "Hidden mode hides the cursor when it is focused and hovering over the "
       "window, but does not lock it to the window.");
 
+    SFUN(gwindow_get_mouse_scroll_dx, "float", "scrollX");
+    DOC_FUNC("Get the horizontal scroll delta of the mouse wheel");
+
+    SFUN(gwindow_get_mouse_scroll_dy, "float", "scrollY");
+    DOC_FUNC("Get the vertical scroll delta of the mouse wheel");
+
+    SFUN(gwindow_get_mouse_scroll, "vec2", "scroll");
+    DOC_FUNC("Get the 2D scroll delta of the mouse wheel");
+
     SFUN(gwindow_get_mouse_left_button, "int", "mouseLB");
     DOC_FUNC("Get the state of the left mouse button. 1 if pressed, 0 if not.");
 
@@ -317,33 +329,33 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     SFUN(gwindow_get_mouse_right_button_release, "int", "mouseRBReleased");
     DOC_FUNC("1 on the frame the right mouse button is released, 0 otherwise");
 
-    // TODO: not working (tried on macOS)
-    SFUN(gwindow_set_mouse_cursor, "void", "customCursor");
-    ARG("int[]", "image_data");
-    ARG("int", "width");
-    ARG("int", "height");
-    ARG("int", "xhot");
-    ARG("int", "yhot");
-    DOC_FUNC(
-      "Create a custom mouse cursor. The image data is in RGBA. The pixels are "
-      "arranged canonically as sequential rows, starting from the top-left "
-      "corner. Each consecutive 4 values represent the red, green, blue, and "
-      "alpha value for a single pixel. Width and height are the dimensions of "
-      "the image in pixels. image_data.size() MUST EQUAL width * height * 4."
-      "each value must be an int in the range 0-255."
-      "xhot and yhot are the coordinates of the cursor's hot spot, the point "
-      "within the cursor image that corresponds to the mouse position. Most"
-      "commonly, this is the top-left corner of the image 0, 0.");
+    // not working (tried on macOS)
+    // SFUN(gwindow_set_mouse_cursor, "void", "customCursor");
+    // ARG("int[]", "image_data");
+    // ARG("int", "width");
+    // ARG("int", "height");
+    // ARG("int", "xhot");
+    // ARG("int", "yhot");
+    // DOC_FUNC(
+    //   "Create a custom mouse cursor. The image data is in RGBA. The pixels are "
+    //   "arranged canonically as sequential rows, starting from the top-left "
+    //   "corner. Each consecutive 4 values represent the red, green, blue, and "
+    //   "alpha value for a single pixel. Width and height are the dimensions of "
+    //   "the image in pixels. image_data.size() MUST EQUAL width * height * 4."
+    //   "each value must be an int in the range 0-255."
+    //   "xhot and yhot are the coordinates of the cursor's hot spot, the point "
+    //   "within the cursor image that corresponds to the mouse position. Most"
+    //   "commonly, this is the top-left corner of the image 0, 0.");
 
-    SFUN(gwindow_revert_mouse_cursor, "void", "normalCursor");
-    DOC_FUNC("Revert to the default mouse cursor");
+    // SFUN(gwindow_revert_mouse_cursor, "void", "normalCursor");
+    // DOC_FUNC("Revert to the default mouse cursor");
 
     END_CLASS(); // GWindow
 }
 
 CK_DLL_SFUN(gwindow_monitor_info)
 {
-    // TODO: how to get app->window from here?
+    // how to get app->window from here?
     // probably best to have windowPos callback listener, detect
     // when window changes monitors, and update the monitor info
     // in the ChuGL_Window struct
@@ -547,6 +559,21 @@ CK_DLL_SFUN(gwindow_get_mouse_delta_pos)
 CK_DLL_SFUN(gwindow_set_mouse_mode)
 {
     CQ_PushCommand_MouseMode(GET_NEXT_INT(ARGS));
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_scroll_dx)
+{
+    RETURN->v_float = CHUGL_scroll_delta().x;
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_scroll_dy)
+{
+    RETURN->v_float = CHUGL_scroll_delta().y;
+}
+
+CK_DLL_SFUN(gwindow_get_mouse_scroll)
+{
+    RETURN->v_vec2 = CHUGL_scroll_delta();
 }
 
 CK_DLL_SFUN(gwindow_get_mouse_left_button)

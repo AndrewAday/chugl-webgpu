@@ -219,6 +219,8 @@ struct CHUGL_Mouse {
     bool left_button_released  = false;
     bool right_button_released = false;
 
+    double scroll_dx = 0.0, scroll_dy = 0.0;
+
     spinlock mouse_lock;
 };
 CHUGL_Mouse chugl_mouse;
@@ -263,6 +265,8 @@ void CHUGL_Zero_MouseDeltasAndClickState()
     chugl_mouse.right_button_click    = false;
     chugl_mouse.left_button_released  = false;
     chugl_mouse.right_button_released = false;
+    chugl_mouse.scroll_dx             = 0.0;
+    chugl_mouse.scroll_dy             = 0.0;
     spinlock::unlock(&chugl_mouse.mouse_lock);
 }
 
@@ -330,6 +334,24 @@ bool CHUGL_Mouse_RightButtonReleased()
     bool right_button_released = chugl_mouse.right_button_released;
     spinlock::unlock(&chugl_mouse.mouse_lock);
     return right_button_released;
+}
+
+void CHUGL_scroll_delta(double xoffset, double yoffset)
+{
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    chugl_mouse.scroll_dx = xoffset;
+    chugl_mouse.scroll_dy = yoffset;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+}
+
+t_CKVEC2 CHUGL_scroll_delta()
+{
+    t_CKVEC2 delta;
+    spinlock::lock(&chugl_mouse.mouse_lock);
+    delta.x = chugl_mouse.scroll_dx;
+    delta.y = chugl_mouse.scroll_dy;
+    spinlock::unlock(&chugl_mouse.mouse_lock);
+    return delta;
 }
 
 // ============================================================================
