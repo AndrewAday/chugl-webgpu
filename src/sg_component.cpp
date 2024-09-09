@@ -115,6 +115,12 @@ void SG_Transform::worldPosition(SG_Transform* t, glm::vec3 pos)
         t->pos = glm::inverse(SG_Transform::worldMatrix(parent)) * glm::vec4(pos, 1.0);
 }
 
+// doesn't set this object's position, only converts a local position to world
+glm::vec3 SG_Transform::localToWorldPosition(SG_Transform* t, glm::vec3 pos)
+{
+    return SG_Transform::worldMatrix(t) * glm::vec4(pos, 1.0);
+}
+
 void SG_Transform::worldScale(SG_Transform* t, glm::vec3 scale)
 {
     SG_Transform* parent = SG_GetTransform(t->parentID);

@@ -175,6 +175,7 @@ struct SG_Transform : public SG_Component {
     static glm::vec3 worldPosition(SG_Transform* t);
     static glm::vec3 worldScale(SG_Transform* t);
     static void worldPosition(SG_Transform* t, glm::vec3 pos);
+    static glm::vec3 localToWorldPosition(SG_Transform* t, glm::vec3 pos);
     static void worldScale(SG_Transform* t, glm::vec3 scale);
     static glm::vec3 right(SG_Transform* t);
     static glm::vec3 forward(SG_Transform* t);
@@ -489,8 +490,8 @@ struct SG_CameraParams {
     float fov_radians = PI / 4.0f; // radians (45deg)
     float size = 6.6f; // orthographic size (scales view volume while preserving ratio
                        // of width to height)
-    float far_plane  = .1f;
-    float near_plane = 100.0f;
+    float far_plane  = 100.0f;
+    float near_plane = .1f;
 };
 
 struct SG_Camera : SG_Transform {

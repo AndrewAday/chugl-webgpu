@@ -24,13 +24,20 @@ T.assert(T.feq(camera.size(), 5.0), "camera size");
 // mouse picking / ray casting
 camera.perspective();
 @(123, 456) => vec2 mouse_pos;  
+@(.5, .4, .3) => vec3 ndc;
 camera.screenCoordToWorldPos(@(123, 456), 20) => vec3 pos;
 camera.worldPosToScreenCoord(pos) => vec2 screen_pos;
+camera.NDCToWorldPos(ndc) => vec3 ndc_to_world_pos;
 T.assert(T.veq(screen_pos, mouse_pos), "persp camera screenCoordToWorldPos and worldPosToScreenCoord");
+T.assert(T.veq(camera.worldPosToNDC(ndc_to_world_pos), ndc), "persp camera NDCToWorldPos");
 
 camera.orthographic();
 camera.screenCoordToWorldPos(@(123, 456), 20) => pos;
 camera.worldPosToScreenCoord(pos) => screen_pos;
+camera.NDCToWorldPos(ndc) => ndc_to_world_pos;
 T.assert(T.veq(screen_pos, mouse_pos), "ortho camera screenCoordToWorldPos and worldPosToScreenCoord");
+T.assert(T.veq(camera.worldPosToNDC(ndc_to_world_pos), ndc), "ortho camera NDCToWorldPos"); 
+
+
 
 

@@ -28,6 +28,8 @@ CK_DLL_MFUN(gcamera_get_ortho_size);
 
 CK_DLL_MFUN(gcamera_screen_coord_to_world_pos);
 CK_DLL_MFUN(gcamera_world_pos_to_screen_coord);
+CK_DLL_MFUN(gcamera_ndc_to_world_pos);
+CK_DLL_MFUN(gcamera_world_pos_to_ndc);
 
 // TODO overridable update(dt) (actualy don't we already get this from GGen?)
 // add mouse click state to GWindow
@@ -101,6 +103,17 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
       "world_pos is a vec3 representing a world position."
       "Returns a vec2 screen coordinate."
       "Remember, screen coordinates have origin at the top-left corner of the window");
+
+    MFUN(gcamera_ndc_to_world_pos, "vec3", "NDCToWorldPos");
+    ARG("vec3", "clip_pos");
+    DOC_FUNC(
+      "Convert a point in clip space to world space. Clip space x and y should be in "
+      "range [-1, 1], and z in the range [0, 1]. For x and y, 0 is the center of the "
+      "screen. For z, 0 is the near clip plane and 1 is the far clip plane.");
+
+    MFUN(gcamera_world_pos_to_ndc, "vec3", "worldPosToNDC");
+    ARG("vec3", "world_pos");
+    DOC_FUNC("Convert a point in world space to this camera's clip space.");
 
     END_CLASS();
 }
@@ -198,7 +211,6 @@ CK_DLL_MFUN(gcamera_screen_coord_to_world_pos)
 
     if (cam->params.camera_type == SG_CameraType_ORTHOGRAPHIC) {
         // calculate camera frustrum size in world space
-
         float frustrum_height = cam->params.size;
         float frustrum_width  = frustrum_height * aspect;
 
@@ -219,22 +231,14 @@ CK_DLL_MFUN(gcamera_screen_coord_to_world_pos)
                           1.0f - (screen_pos.y / screenHeight) * 2.0f };
 
         // first convert to normalized device coordinates in range [-1, 1]
-        glm::vec4 lRayStart_NDC(
-          ndc,
-          -1.0, // The near plane maps to Z=-1 in Normalized Device Coordinates
-          1.0f);
         glm::vec4 lRayEnd_NDC(ndc, 1.0, 1.0f); // The far plane maps to Z=1 in NDC
 
         glm::mat4 M = glm::inverse(SG_Camera::projectionMatrix(cam, aspect)
                                    * SG_Camera::viewMatrix(cam));
 
-        // convert to world space
-        // glm::vec4 lRayStart_world = M * lRayStart_NDC;
-        // lRayStart_world /= lRayStart_world.w;
-
         glm::vec3 lRayStart_world = SG_Transform::worldPosition(cam);
         glm::vec4 lRayEnd_world   = M * lRayEnd_NDC;
-        lRayEnd_world /= lRayEnd_world.w;
+        lRayEnd_world /= lRayEnd_world.w; // perspective divide
 
         glm::vec3 lRayDir_world
           = glm::normalize(glm::vec3(lRayEnd_world) - lRayStart_world);
@@ -243,6 +247,49 @@ CK_DLL_MFUN(gcamera_screen_coord_to_world_pos)
         return;
     }
     ASSERT(false); // unsupported camera type
+}
+
+CK_DLL_MFUN(gcamera_ndc_to_world_pos)
+{
+    SG_Camera* cam      = GET_CAMERA(SELF);
+    t_CKVEC3 ndc_pos    = GET_NEXT_VEC3(ARGS);
+    t_CKVEC2 windowSize = CHUGL_Window_WindowSize();
+    float aspect        = (float)windowSize.x / (float)windowSize.y;
+
+    /*
+    Formula:
+    clip_pos = P * V * world_pos
+    world_pos = inv(P * V) * clip_pos
+    */
+
+    glm::mat4 view = SG_Camera::viewMatrix(cam);
+    glm::mat4 proj = SG_Camera::projectionMatrix(cam, aspect);
+    glm::vec4 world
+      = glm::inverse(proj * view) * glm::vec4(ndc_pos.x, ndc_pos.y, ndc_pos.z, 1.0f);
+    world /= world.w; // perspective divide
+
+    RETURN->v_vec3 = { world.x, world.y, world.z };
+}
+
+CK_DLL_MFUN(gcamera_world_pos_to_ndc)
+{
+    SG_Camera* cam      = GET_CAMERA(SELF);
+    t_CKVEC3 world_pos  = GET_NEXT_VEC3(ARGS);
+    t_CKVEC2 windowSize = CHUGL_Window_WindowSize();
+    float aspect        = (float)windowSize.x / (float)windowSize.y;
+
+    /*
+    Formula:
+    clip_pos = P * V * world_pos
+    */
+
+    glm::mat4 view = SG_Camera::viewMatrix(cam);
+    glm::mat4 proj = SG_Camera::projectionMatrix(cam, aspect);
+    glm::vec4 clip
+      = proj * view * glm::vec4(world_pos.x, world_pos.y, world_pos.z, 1.0f);
+    glm::vec4 ndc = clip / clip.w;
+
+    RETURN->v_vec3 = { ndc.x, ndc.y, ndc.z };
 }
 
 CK_DLL_MFUN(gcamera_world_pos_to_screen_coord)

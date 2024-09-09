@@ -240,7 +240,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get object position in world space");
 
         // vec3 posWorld( float )
-        QUERY->add_mfun(QUERY, ggen_set_pos_world, "vec3", "posWorld");
+        QUERY->add_mfun(QUERY, ggen_set_pos_world, SG_CKNames[SG_COMPONENT_TRANSFORM],
+                        "posWorld");
         QUERY->add_arg(QUERY, "vec3", "pos");
         QUERY->doc_func(QUERY, "Set object position in world space");
 
@@ -276,7 +277,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
                         "Get the rotation of this GGen on the X axis in local space");
 
         // float rotX( float )
-        QUERY->add_mfun(QUERY, ggen_set_rot_x, "float", "rotX");
+        QUERY->add_mfun(QUERY, ggen_set_rot_x, "GGen", "rotX");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(QUERY,
                         "Set the rotation of this GGen on the X axis in local "
@@ -288,7 +289,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
                         "Get the rotation of this GGen on the Y axis in local space");
 
         // float rotY( float )
-        QUERY->add_mfun(QUERY, ggen_set_rot_y, "float", "rotY");
+        QUERY->add_mfun(QUERY, ggen_set_rot_y, "GGen", "rotY");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(QUERY,
                         "Set the rotation of this GGen on the Y axis in local "
@@ -300,7 +301,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
                         "Get the rotation of this GGen on the Z axis in local space");
 
         // float rotZ( float )
-        QUERY->add_mfun(QUERY, ggen_set_rot_z, "float", "rotZ");
+        QUERY->add_mfun(QUERY, ggen_set_rot_z, "GGen", "rotZ");
         QUERY->add_arg(QUERY, "float", "radians");
         QUERY->doc_func(QUERY,
                         "Set the rotation of this GGen on the Z axis in local "
@@ -369,7 +370,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get X scale of this GGen in local space");
 
         // float scaX( float )
-        QUERY->add_mfun(QUERY, ggen_set_scale_x, "float", "scaX");
+        QUERY->add_mfun(QUERY, ggen_set_scale_x, "GGen", "scaX");
         QUERY->add_arg(QUERY, "float", "scale");
         QUERY->doc_func(QUERY, "Set X scale of this GGen in local space");
 
@@ -378,7 +379,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get Y scale of this GGen in local space");
 
         // float scaY( float )
-        QUERY->add_mfun(QUERY, ggen_set_scale_y, "float", "scaY");
+        QUERY->add_mfun(QUERY, ggen_set_scale_y, "GGen", "scaY");
         QUERY->add_arg(QUERY, "float", "scale");
         QUERY->doc_func(QUERY, "Set Y scale of this GGen in local space");
 
@@ -387,7 +388,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get Z scale of this GGen in local space");
 
         // float scaZ( float )
-        QUERY->add_mfun(QUERY, ggen_set_scale_z, "float", "scaZ");
+        QUERY->add_mfun(QUERY, ggen_set_scale_z, "GGen", "scaZ");
         QUERY->add_arg(QUERY, "float", "scale");
         QUERY->doc_func(QUERY, "Set Z scale of this GGen in local space");
 
@@ -396,12 +397,12 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get object scale in local space");
 
         // vec3 sca( vec3 )
-        QUERY->add_mfun(QUERY, ggen_set_scale, "vec3", "sca");
+        QUERY->add_mfun(QUERY, ggen_set_scale, "GGen", "sca");
         QUERY->add_arg(QUERY, "vec3", "scale");
         QUERY->doc_func(QUERY, "Set object scale in local space");
 
         // vec3 sca( float )
-        QUERY->add_mfun(QUERY, ggen_set_scale_uniform, "vec3", "sca");
+        QUERY->add_mfun(QUERY, ggen_set_scale_uniform, "GGen", "sca");
         QUERY->add_arg(QUERY, "float", "scale");
         QUERY->doc_func(QUERY,
                         "Set object scale in local space uniformly across all axes");
@@ -411,7 +412,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get object scale in world space");
 
         // vec3 scaWorld( vec3 )
-        QUERY->add_mfun(QUERY, ggen_set_scale_world, "vec3", "scaWorld");
+        QUERY->add_mfun(QUERY, ggen_set_scale_world, "GGen", "scaWorld");
         QUERY->add_arg(QUERY, "vec3", "scale");
         QUERY->doc_func(QUERY, "Set object scale in world space");
 
@@ -657,7 +658,7 @@ CK_DLL_MFUN(ggen_set_rot_x)
     eulers.x            = rad;
     xform->rot          = glm::quat(eulers);
 
-    RETURN->v_float = rad;
+    RETURN->v_object = SELF;
 
     CQ_PushCommand_SetRotation(xform);
 }
@@ -681,7 +682,7 @@ CK_DLL_MFUN(ggen_set_rot_y)
     eulers.y         = rad;
     xform->rot       = glm::quat(eulers);
 
-    RETURN->v_float = rad; // TODO: RETURN->v_object = SELF
+    RETURN->v_object = SELF;
 
     CQ_PushCommand_SetRotation(xform);
 }
@@ -700,7 +701,7 @@ CK_DLL_MFUN(ggen_set_rot_z)
     eulers.z            = rad;
     xform->rot          = glm::quat(eulers);
 
-    RETURN->v_float = rad;
+    RETURN->v_object = SELF;
 
     CQ_PushCommand_SetRotation(xform);
 }
@@ -806,7 +807,7 @@ CK_DLL_MFUN(ggen_set_scale_x)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT scaleX    = GET_NEXT_FLOAT(ARGS);
     xform->sca.x        = scaleX;
-    RETURN->v_float     = scaleX;
+    RETURN->v_object    = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
@@ -821,7 +822,7 @@ CK_DLL_MFUN(ggen_set_scale_y)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT scaleY    = GET_NEXT_FLOAT(ARGS);
     xform->sca.y        = scaleY;
-    RETURN->v_float     = scaleY;
+    RETURN->v_object    = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
@@ -836,7 +837,7 @@ CK_DLL_MFUN(ggen_set_scale_z)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT scaleZ    = GET_NEXT_FLOAT(ARGS);
     xform->sca.z        = scaleZ;
-    RETURN->v_float     = scaleZ;
+    RETURN->v_object    = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
@@ -851,7 +852,7 @@ CK_DLL_MFUN(ggen_set_scale)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     xform->sca          = glm::vec3(vec.x, vec.y, vec.z);
-    RETURN->v_vec3      = vec;
+    RETURN->v_object    = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
@@ -862,7 +863,7 @@ CK_DLL_MFUN(ggen_set_scale_uniform)
     xform->sca.x        = s;
     xform->sca.y        = s;
     xform->sca.z        = s;
-    RETURN->v_vec3      = { s, s, s };
+    RETURN->v_object    = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
@@ -878,7 +879,7 @@ CK_DLL_MFUN(ggen_set_scale_world)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKVEC3 vec        = GET_NEXT_VEC3(ARGS);
     SG_Transform::worldScale(xform, glm::vec3(vec.x, vec.y, vec.z));
-    RETURN->v_vec3 = vec;
+    RETURN->v_object = SELF;
     CQ_PushCommand_SetScale(xform);
 }
 
