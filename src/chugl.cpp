@@ -16,6 +16,7 @@
 #include "ulib_window.cpp"
 #include "ulib_pass.cpp"
 #include "ulib_buffer.cpp"
+#include "ulib_light.cpp"
 
 // vendor
 #include <sokol/sokol_time.h>
@@ -361,6 +362,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_mesh_query(QUERY);
     ulib_pass_query(QUERY);
     ulib_text_query(QUERY);
+    ulib_light_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
@@ -409,12 +411,9 @@ CK_DLL_QUERY(ChuGL)
 
     { // Default components
         // scene
-        Chuck_DL_Api::Type sceneCKType
-          = g_chuglAPI->type->lookup(g_chuglVM, SG_CKNames[SG_COMPONENT_SCENE]);
-        Chuck_DL_Api::Object sceneObj
-          = g_chuglAPI->object->create_without_shred(g_chuglVM, sceneCKType, true);
-        SG_Scene* scene
-          = CQ_PushCommand_SceneCreate(sceneObj, component_offset_id, g_chuglAPI);
+        Chuck_Object* scene_ckobj
+          = chugin_createCkObj(SG_CKNames[SG_COMPONENT_SCENE], true);
+        SG_Scene* scene     = ulib_scene_create(scene_ckobj);
         gg_config.mainScene = scene->id;
         CQ_PushCommand_GG_Scene(scene);
 

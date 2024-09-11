@@ -251,33 +251,6 @@ struct BindGroup {
 };
 
 // ============================================================================
-// Render Pipeline
-// ============================================================================
-
-struct RenderPipeline {
-    WGPURenderPipeline pipeline;
-    WGPURenderPipelineDescriptor desc;
-
-    // possible optimization: only store material bind group in render pipeline
-    // all pipelines can share global bind groups for per frame
-    // and renderable models need their own per draw bind groups
-    // each pipeline will need the frame/material/draw layouts
-    // each pipeline has a unique per-material layout
-    // the actual bind groups are stored elsewhere
-    // BindGroup bindGroups[1]; // just PER_FRAME_GROUP
-    WGPUBindGroupEntry frameGroupEntry;
-    WGPUBindGroupDescriptor frameGroupDesc;
-    WGPUBindGroup frameGroup;
-    WGPUBuffer frameUniformBuffer;
-    WGPUBufferDescriptor frameUniformBufferDesc;
-
-    static void init(GraphicsContext* ctx, RenderPipeline* pipeline,
-                     const char* vertexShaderCode, const char* fragmentShaderCode);
-
-    static void release(RenderPipeline* pipeline);
-};
-
-// ============================================================================
 // Depth Texture
 // ============================================================================
 

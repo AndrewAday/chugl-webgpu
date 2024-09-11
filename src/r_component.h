@@ -71,10 +71,9 @@ struct R_Transform : public R_Component {
     glm::quat _rot;
     glm::vec3 _sca;
 
-    // world matrix (TODO cache)
+    // world matrix (cached)
     glm::mat4 world;
     glm::mat4 local;
-    glm::mat4 normal; // normal matrix
 
     SG_ID parentID;
     Arena children; // stores list of SG_IDs
@@ -103,6 +102,16 @@ struct R_Transform : public R_Component {
     static void pos(R_Transform* xform, const glm::vec3& pos);
     static void rot(R_Transform* xform, const glm::quat& rot);
     static void sca(R_Transform* xform, const glm::vec3& sca);
+
+    static void decomposeWorldMatrix(const glm::mat4& m, glm::vec3& pos, glm::quat& rot,
+                                     glm::vec3& scale)
+    {
+        pos = m[3];
+        for (int i = 0; i < 3; i++) scale[i] = glm::length(glm::vec3(m[i]));
+        const glm::mat3 rotMtx(glm::vec3(m[0]) / scale[0], glm::vec3(m[1]) / scale[1],
+                               glm::vec3(m[2]) / scale[2]);
+        rot = glm::quat_cast(rotMtx);
+    }
 
     // updates all local/world matrices in the scenegraph
     static void rebuildMatrices(R_Scene* root, Arena* arena);
@@ -229,12 +238,13 @@ struct R_Shader : public R_Component {
     WGPUVertexFormat vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
     WGPUShaderModule compute_shader_module;
+    bool lit;
 
     static void init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_string,
                      const char* vertex_filepath, const char* fragment_string,
                      const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
                      int vertex_layout_count, const char* compute_string,
-                     const char* compute_filepath);
+                     const char* compute_filepath, bool lit);
 
     static void free(R_Shader* shader);
 };
@@ -328,11 +338,6 @@ struct R_Material : public R_Component {
         ASSERT(false);
         // TODO
     }
-
-    // TODO: reimplement
-    static void setTextureAndSamplerBinding(R_Material* mat, u32 location,
-                                            SG_ID textureID,
-                                            WGPUTextureView defaultView);
 };
 
 // =============================================================================
@@ -373,6 +378,14 @@ struct R_Camera : public R_Transform {
         // glm::mat4 invR = glm::toMat4(glm::conjugate(cam->_rot));
         // return invR * invT;
     }
+};
+
+// =============================================================================
+// R_Light
+// =============================================================================
+
+struct R_Light : public R_Transform {
+    SG_LightDesc desc;
 };
 
 // =============================================================================
@@ -442,18 +455,28 @@ struct GeometryToXforms {
 };
 
 struct R_Scene : R_Transform {
-    glm::vec4 bg_color;
+    SG_SceneDesc sg_scene_desc;
 
     hashmap* pipeline_to_material; // R_ID -> Arena of R_Material ids
     hashmap* material_to_geo;      // SG_ID -> Arena of geo ids
     hashmap* geo_to_xform;         // SG_ID -> Arena of xform ids (for each material)
 
-    SG_ID main_camera_id;
+    hashmap* light_id_set;        // set of SG_IDs
+    GPU_Buffer light_info_buffer; // lighting storage buffer
+    bool light_info_dirty;        // true if we need to rebuild light_info_buffer
 
-    static void initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd);
+    static void initFromSG(GraphicsContext* gctx, R_Scene* r_scene, SG_ID scene_id,
+                           SG_SceneDesc* sg_scene_desc);
 
     static void removeSubgraphFromRenderState(R_Scene* scene, R_Transform* xform);
     static void addSubgraphToRenderState(R_Scene* scene, R_Transform* xform);
+
+    static void rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene);
+
+    static i32 numLights(R_Scene* scene)
+    {
+        return (i32)hashmap_count(scene->light_id_set);
+    }
 
     static GeometryToXforms* getPrimitive(R_Scene* scene, SG_ID geo_id, SG_ID mat_id)
     {
@@ -483,8 +506,8 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
     // bindgroup now in App->frame_uniforms_map
     // frame uniform buffer now stored per R_Camera
     // keeping these around to handle case of null camera
-    // TODO remove after removing null default camera in chugl (and implementing camera
-    // controllers)
+    // TODO remove after removing null default camera in chugl (and implementing
+    // camera controllers)
     WGPUBindGroup frame_group;
     static GPU_Buffer frame_uniform_buffer;
 
@@ -627,16 +650,16 @@ struct R_Pass : public R_Component {
         pass->screen_pass_desc.depthStencilAttachment = NULL;
     }
 
-    // if window size has changed, lazily reconstruct depth/stencil and color targets
-    // update DepthStencilAttachment and ColorAttachment params based on ChuGL
-    // RenderPass params
-    // this should be called right before _R_RenderScene() for the given pass.
-    // R_Pass.sg_pass is assumed to be updated (memcopied in the updatePass Command),
-    // but not the gpu-specific parameters of R_Pass
+    // if window size has changed, lazily reconstruct depth/stencil and color
+    // targets update DepthStencilAttachment and ColorAttachment params based on
+    // ChuGL RenderPass params this should be called right before _R_RenderScene()
+    // for the given pass. R_Pass.sg_pass is assumed to be updated (memcopied in the
+    // updatePass Command), but not the gpu-specific parameters of R_Pass
     static void updateRenderPassDesc(GraphicsContext* gctx, R_Pass* pass,
                                      u32 window_width, u32 window_height,
                                      int sample_count, WGPUTextureView resolve_view,
-                                     WGPUTextureFormat view_format)
+                                     WGPUTextureFormat view_format,
+                                     glm::vec4 clear_color)
     {
         ASSERT(pass->sg_pass.pass_type == SG_PassType_Render);
 
@@ -644,8 +667,8 @@ struct R_Pass : public R_Component {
         Framebuffer::rebuild(gctx, &pass->framebuffer, window_width, window_height,
                              sample_count, view_format);
 
-        // for now, we always set renderpass depth/stencil and color descriptors (even
-        // if they haven't changed) to simplify state management
+        // for now, we always set renderpass depth/stencil and color descriptors
+        // (even if they haven't changed) to simplify state management
         { // depth
             pass->depth_stencil_attachment.view = pass->framebuffer.depth_view;
             // defaults for render pass depth/stencil attachment
@@ -677,9 +700,10 @@ struct R_Pass : public R_Component {
             ca->depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif
             // TODO chugl API to set loadOp and clearcolor
-            ca->loadOp     = WGPULoadOp_Clear; // WGPULoadOp_Load does not clear
-            ca->storeOp    = WGPUStoreOp_Store;
-            ca->clearValue = WGPUColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+            ca->loadOp  = WGPULoadOp_Clear; // WGPULoadOp_Load does not clear
+            ca->storeOp = WGPUStoreOp_Store;
+            ca->clearValue
+              = WGPUColor{ clear_color.r, clear_color.g, clear_color.b, clear_color.a };
         }
 
         { // renderpass desc
@@ -746,8 +770,8 @@ struct R_Text : public R_Transform {
 
 struct R_Font {
     std::string font_path;
-    FT_Face face; // TODO multiplex faces across R_Font. multiple R_Font with same font
-                  // but different text can share the same face
+    FT_Face face; // TODO multiplex faces across R_Font. multiple R_Font with same
+                  // font but different text can share the same face
 
     FT_Int32 loadFlags;
     FT_Kerning_Mode kerningMode;
@@ -757,9 +781,9 @@ struct R_Font {
     // floating point to support arbitrary world sizes (whereas the fixed-point
     // numbers used by FreeType do not have enough resolution if the world size
     // is small).
-    // Following the FreeType convention, if hinting (and therefore scaling) is enabled,
-    // this value is in 1/64th of a pixel (compatible with 26.6 fixed point numbers).
-    // If hinting/scaling is not enabled, this value is in font units.
+    // Following the FreeType convention, if hinting (and therefore scaling) is
+    // enabled, this value is in 1/64th of a pixel (compatible with 26.6 fixed point
+    // numbers). If hinting/scaling is not enabled, this value is in font units.
     float emSize;
 
     float worldSize = 1.0f;
@@ -814,7 +838,8 @@ R_Camera* Component_CreateCamera(GraphicsContext* gctx, SG_Command_CameraCreate*
 R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
                              SG_Command_TextRebuild* cmd);
 
-R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd);
+R_Scene* Component_CreateScene(GraphicsContext* gctx, SG_ID scene_id,
+                               SG_SceneDesc* sg_scene_desc);
 
 R_Geometry* Component_CreateGeometry();
 R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd);
@@ -831,6 +856,7 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx,
                                    SG_Command_TextureCreate* cmd);
 R_Pass* Component_CreatePass(SG_ID pass_id);
 R_Buffer* Component_CreateBuffer(SG_ID id);
+R_Light* Component_CreateLight(SG_ID id, SG_LightDesc* desc);
 
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
@@ -845,6 +871,7 @@ R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path);
 R_Pass* Component_GetPass(SG_ID id);
 R_Buffer* Component_GetBuffer(SG_ID id);
+R_Light* Component_GetLight(SG_ID id);
 
 // lazily created on-demand because of many possible shader variations
 R_RenderPipeline* Component_GetPipeline(GraphicsContext* gctx,

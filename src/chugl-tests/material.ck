@@ -5,30 +5,32 @@ T.assert(shader_desc.fragmentString == "", "shader desc fragmentString");
 T.assert(shader_desc.vertexFilepath == "", "shader desc vertexFilepath");
 T.assert(shader_desc.fragmentFilepath == "", "shader desc fragmentFilepath");
 T.assert(shader_desc.vertexLayout == null, "shader desc vertexLayout");
+T.assert(!shader_desc.lit, "shader desc lit");
 
 "vertex_string" => shader_desc.vertexString;
 "fragment_string" => shader_desc.fragmentString;
 "vertex_filepath" => shader_desc.vertexFilepath;
 "fragment_filepath" => shader_desc.fragmentFilepath;
 [1,2,3,4,5,6,7,8] @=> shader_desc.vertexLayout;
+true => shader_desc.lit;
 
 // Shader shader; // default constructor not allowed
 Shader shader(shader_desc);
-T.assert(T.strEquals(shader.fragmentString(), shader_desc.fragmentString), "shader fragmentString");
-T.assert(T.strEquals(shader.vertexString(), shader_desc.vertexString), "shader vertexString");
-T.assert(T.strEquals(shader.fragmentFilepath(), shader_desc.fragmentFilepath), "shader fragmentFilepath");
-T.assert(T.strEquals(shader.vertexFilepath(), shader_desc.vertexFilepath), "shader vertexFilepath");
+T.assert(shader.fragmentString() == shader_desc.fragmentString, "shader fragmentString");
+T.assert(shader.vertexString() == shader_desc.vertexString, "shader vertexString");
+T.assert(shader.fragmentFilepath() == shader_desc.fragmentFilepath, "shader fragmentFilepath");
+T.assert(shader.vertexFilepath() == shader_desc.vertexFilepath, "shader vertexFilepath");
 T.assert(T.arrayEquals(shader.vertexLayout(), shader_desc.vertexLayout), "shader vertexLayout");
+T.assert(shader.lit(), "shader lit");
 
 ShaderDesc shader_desc2;
 Shader shader2(shader_desc2);
-T.assert(T.strEquals(shader2.fragmentString(), shader_desc2.fragmentString), "shader2 fragmentString");
-T.assert(T.strEquals(shader2.vertexString(), shader_desc2.vertexString), "shader2 vertexString");
-T.assert(T.strEquals(shader2.fragmentFilepath(), shader_desc2.fragmentFilepath), "shader2 fragmentFilepath");
-T.assert(T.strEquals(shader2.vertexFilepath(), shader_desc2.vertexFilepath), "shader2 vertexFilepath");
+T.assert(shader2.fragmentString() == shader_desc2.fragmentString, "shader2 fragmentString");
+T.assert(shader2.vertexString() == shader_desc2.vertexString, "shader2 vertexString");
+T.assert(shader2.fragmentFilepath() == shader_desc2.fragmentFilepath, "shader2 fragmentFilepath");
+T.assert(shader2.vertexFilepath() == shader_desc2.vertexFilepath, "shader2 vertexFilepath");
 T.assert(T.arrayEquals(shader2.vertexLayout(), [0,0,0,0,0,0,0,0]), "shader2 vertexLayout");
-
-// PBRMaterial material;
+T.assert(!shader2.lit(), "shader2 lit");
 
 Material material;
 
@@ -83,6 +85,6 @@ lines2d_material.shader().fragmentString() @=> string lines2d_frag;
 // Flat
 FlatMaterial flat_material;
 T.assert(T.veq(flat_material.uniformVec4(0), @(1.0, 1.0, 1.0, 1.0)), "flat_material default");
-T.assert(T.veq(flat_material.color(), @(1.0, 1.0, 1.0, 1.0)), "flat_material color default");
-flat_material.color(@(0.1, 0.2, 0.3, 0.4));
-T.assert(T.veq(flat_material.color(), @(0.1, 0.2, 0.3, 0.4)), "flat_material color");
+T.assert(T.veq(flat_material.color(), @(1.0, 1.0, 1.0)), "flat_material color default");
+flat_material.color(@(0.1, 0.2, 0.3));
+T.assert(T.veq(flat_material.color(), @(0.1, 0.2, 0.3)), "flat_material color");

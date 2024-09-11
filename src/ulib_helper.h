@@ -82,6 +82,7 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID lines2d_shader_id;
     SG_ID flat_shader_id;
     SG_ID gtext_shader_id;
+    SG_ID diffuse_shader_id;
 
     // screen shaders
     SG_ID output_pass_shader_id;
@@ -168,12 +169,13 @@ Chuck_String* chugin_createCkString(const char* str)
 }
 
 // copies up to count elements from ck_arr to arr
-void chugin_copyCkIntArray(Chuck_ArrayInt* ck_arr, int* arr, int count)
+int chugin_copyCkIntArray(Chuck_ArrayInt* ck_arr, int* arr, int count)
 {
     int size = MIN(g_chuglAPI->object->array_int_size(ck_arr), count);
     for (int i = 0; i < size; i++) {
         arr[i] = (int)g_chuglAPI->object->array_int_get_idx(ck_arr, i);
     }
+    return size;
 }
 
 // copies up to count elements from ck_arr to arr

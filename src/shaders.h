@@ -23,21 +23,27 @@ struct ShaderEntry {
 // #define STRINGIFY(s) #s
 // #define INTERPOLATE(var) STRINGIFY(${##var##})
 
-// enum VertexAttributeLocations {
-//     POSITION = 0,
-//     NORMAL   = 1,
-//     UV       = 2,
-//     COLOR    = 3,
-// };
-
 struct FrameUniforms {
-    glm::mat4x4 projectionMat; // at byte offset 0
-    glm::mat4x4 viewMat;       // at byte offset 64
-    glm::mat4x4 projViewMat;   // at byte offset 128
-    glm::vec3 camPos;          // at byte offset 192
-    f32 _pad0;
-    glm::vec3 dirLight; // at byte offset 208
-    f32 time;           // at byte offset 220
+    glm::mat4x4 projection;  // at byte offset 0
+    glm::mat4x4 view;        // at byte offset 64
+    glm::vec3 camera_pos;    // at byte offset 128
+    float time;              // at byte offset 140
+    glm::vec3 ambient_light; // at byte offset 144
+    int32_t num_lights;      // at byte offset 156
+
+    float _pad[256]; // padding to reach webgpu minimum buffer size requirement
+};
+
+struct LightUniforms {
+    glm::vec3 color;    // at byte offset 0
+    int32_t light_type; // at byte offset 12
+    glm::vec3 position; // at byte offset 16
+    float _pad0;
+    glm::vec3 direction;  // at byte offset 32
+    float point_radius;   // at byte offset 44
+    float point_falloff;  // at byte offset 48
+    float spot_cos_angle; // at byte offset 52
+    float _pad1[2];
 };
 
 struct MaterialUniforms {     // PBR
@@ -50,8 +56,14 @@ struct MaterialUniforms {     // PBR
     f32 _pad0;
 };
 
+// struct DrawUniforms {
+//     glm::mat4x4 modelMat; // at byte offset 0
+// };
+
 struct DrawUniforms {
-    glm::mat4x4 modelMat; // at byte offset 0
+    glm::mat4x4 model; // at byte offset 0
+    int32_t id;        // at byte offset 128
+    float _pad0[3];
 };
 
 // clang-format off
@@ -62,25 +74,53 @@ static std::unordered_map<std::string, std::string> shader_table = {
         R"glsl(
 
         struct FrameUniforms {
-            projectionMat: mat4x4f,
-            viewMat: mat4x4f,
-            projViewMat: mat4x4f,
-            camPos: vec3f, // camera
-            dirLight: vec3f, // lighting
+            projection: mat4x4f,
+            view: mat4x4f,
+            camera_pos: vec3f,
             time: f32,
+            ambient_light: vec3f,
+            num_lights: i32,
         };
 
         @group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
 
         )glsl"
     },
+    {
+        "LIGHTING_UNIFORMS",
+        R"glsl(
 
+        // light types
+        const LightType_None = 0;
+        const LightType_Directional = 1;
+        const LightType_Point = 2;
+        const LightType_Spot = 3;
+
+        struct LightUniforms {
+            color : vec3f,
+            light_type: i32,
+            position: vec3f,
+            direction: vec3f, 
+
+            // point light
+            point_radius: f32,
+            point_falloff: f32,
+
+            // spot light
+            spot_cos_angle: f32,
+        };
+
+        @group(0) @binding(1) var<storage, read> u_lights: array<LightUniforms>;
+
+        )glsl"
+    },
     {
         "DRAW_UNIFORMS", 
         R"glsl(
 
         struct DrawUniforms {
-            modelMat: mat4x4f,
+            model: mat4x4f,
+            id: u32
         };
 
         @group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
@@ -128,17 +168,19 @@ static std::unordered_map<std::string, std::string> shader_table = {
             var u_Draw : DrawUniforms = drawInstances[in.instance];
 
             let modelMat3 : mat3x3<f32> = mat3x3(
-                u_Draw.modelMat[0].xyz,
-                u_Draw.modelMat[1].xyz,
-                u_Draw.modelMat[2].xyz
+                u_Draw.model[0].xyz,
+                u_Draw.model[1].xyz,
+                u_Draw.model[2].xyz
             );
 
-            var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+            var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
             out.v_worldPos = worldPos.xyz;
             // TODO handle non-uniform scaling
-            // TODO: restore to normal Mat. need to pass normal mat from cpu side
-            // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
-            out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
+
+            // TODO: after wgsl adds matrix inverse, calculate normal matrix here
+            // out.v_normal = (transpose(inverse(u_Frame.viewMat * u_Draw.model)) * vec4f(in.normal, 0.0)).xyz;
+            out.v_normal = (u_Draw.model * vec4f(in.normal, 0.0)).xyz;
+
             // tangent vectors aren't impacted by non-uniform scaling or translation
             out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
             out.v_uv     = in.uv;
@@ -204,11 +246,68 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4f
 }
 )glsl";
 
+
+static const char* diffuse_shader_string  = R"glsl(
+    #include FRAME_UNIFORMS
+    #include LIGHTING_UNIFORMS
+    #include DRAW_UNIFORMS
+    #include STANDARD_VERTEX_INPUT
+    #include STANDARD_VERTEX_OUTPUT
+    #include STANDARD_VERTEX_SHADER
+
+    // our custom material uniforms
+    @group(1) @binding(0) var<uniform> albedo: vec4f;
+
+    // don't actually need normals/tangents
+    @fragment 
+    fn fs_main(
+        in : VertexOutput,
+        @builtin(front_facing) is_front: bool,
+    ) -> @location(0) vec4f
+    {
+        // calculate normal
+        var normal : vec3f;
+        if (is_front) {
+            normal = in.v_normal;
+        } else {
+            normal = -in.v_normal;
+        }
+        normal = normalize(normal);
+
+        // ambient lighting
+        var ambient = albedo.rgb * u_Frame.ambient_light;
+        var diffuse = vec3(0.0);
+
+        // add diffuse contributions
+        for (var i = 0; i < u_Frame.num_lights; i++) {
+            let light = u_lights[i];
+            switch (light.light_type) {
+            case 1: { // directional
+                diffuse += max(dot(normal, -light.direction), 0.0) * light.color * albedo.rgb;
+            }
+            case 2: { // point
+                let dist = distance(in.v_worldPos, light.position);
+                let intensity = pow(
+                    clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
+                    light.point_falloff
+                );
+                let dir = normalize(light.position - in.v_worldPos);
+                diffuse += max(dot(normal, dir), 0.0) * light.color * albedo.rgb * intensity;
+            }
+            default: {}
+            } // end switch
+        }
+
+        return vec4f(ambient + diffuse, albedo.a);
+    }
+)glsl";
+
 static const char* lines2d_shader_string  = R"glsl(
 
 #include FRAME_UNIFORMS
 
-// our custom material uniforms
+// line material uniforms
+// TODO add color, extrustion, loop
 @group(1) @binding(0) var<uniform> line_width: f32;
 
 #include DRAW_UNIFORMS
@@ -302,14 +401,14 @@ fn vs_main(
     var u_Draw : DrawUniforms = drawInstances[in.instance];
 
     let modelMat3 : mat3x3<f32> = mat3x3(
-        u_Draw.modelMat[0].xyz,
-        u_Draw.modelMat[1].xyz,
-        u_Draw.modelMat[2].xyz
+        u_Draw.model[0].xyz,
+        u_Draw.model[1].xyz,
+        u_Draw.model[2].xyz
     );
 
-    var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(calculate_line_pos(vertex_id), 0.0f, 1.0f);
+    var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(calculate_line_pos(vertex_id), 0.0f, 1.0f);
     out.v_worldPos = worldPos.xyz;
-    out.v_normal = (u_Draw.modelMat * vec4f(0.0, 0.0, 1.0, 0.0)).xyz;
+    out.v_normal = (u_Draw.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz;
     // tangent vectors aren't impacted by non-uniform scaling or translation
     out.v_tangent = vec4f(modelMat3 * vec3f(1.0, 0.0, 0.0), 1.0);
 
@@ -332,16 +431,18 @@ fn vs_main(
 @fragment 
 fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
 {
-    var normal : vec3f;
-    if (is_front) {
-        normal = in.v_normal;
-    } else {
-        normal = -in.v_normal;
-    }
+    // TODO impl
 
-    var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
-    diffuse = diffuse * diffuse;
-    return vec4f(vec3f(diffuse), 1.0);
+    // var normal : vec3f;
+    // if (is_front) {
+    //     normal = in.v_normal;
+    // } else {
+    //     normal = -in.v_normal;
+    // }
+    // var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
+    // diffuse = diffuse * diffuse;
+    // return vec4f(vec3f(diffuse), 1.0);
+    return vec4f(1.0);
 }
 )glsl";
 
@@ -388,17 +489,17 @@ static const char* shaderCode_ = R"glsl(
         var u_Draw : DrawUniforms = drawInstances[in.instance];
 
         let modelMat3 : mat3x3<f32> = mat3x3(
-            u_Draw.modelMat[0].xyz,
-            u_Draw.modelMat[1].xyz,
-            u_Draw.modelMat[2].xyz
+            u_Draw.model[0].xyz,
+            u_Draw.model[1].xyz,
+            u_Draw.model[2].xyz
         );
 
-        var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
+        var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
         out.v_worldPos = worldPos.xyz;
         // TODO handle non-uniform scaling
         // TODO: restore to normal Mat. need to pass normal mat from cpu side
         // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
-        out.v_normal = (u_Draw.modelMat * vec4f(in.normal, 0.0)).xyz;
+        out.v_normal = (u_Draw.model * vec4f(in.normal, 0.0)).xyz;
         // tangent vectors aren't impacted by non-uniform scaling or translation
         out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
         out.v_uv     = in.uv;
@@ -666,7 +767,7 @@ const char* gtext_shader_string = R"glsl(
     {
         var out : VertexOutput;
         var u_Draw : DrawUniforms = drawInstances[in.instance];
-        out.position = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 0.0f, 1.0f);
+        out.position = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 0.0f, 1.0f);
         out.v_uv     = in.uv;
         out.v_buffer_index = in.glyph_index;
 

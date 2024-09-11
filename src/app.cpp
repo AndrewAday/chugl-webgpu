@@ -203,41 +203,84 @@ GLFWmonitor* getCurrentMonitor(GLFWwindow* window)
 
 struct App;
 
+#if 0
 // map entry for map from (pipeline_id, camera_id) --> WGPUBindGroup
 struct FrameUniformsItem {
     SG_ID pipeline_id;
     SG_ID camera_id;
+    SG_ID scene_id;
 
-    // bindgroup never has to be rebuilt, because it points to
-    // R_Camera::frame_uniform_buffer which is fixed size of FrameUniforms
+    // bindgroup needs to be rebuilt if lighting info changes
     WGPUBindGroup frame_bindgroup;
 
-    static WGPUBindGroup set(hashmap* map, GraphicsContext* gctx,
-                             R_RenderPipeline* pipeline, R_Camera* camera)
+    static WGPUBindGroup get(App* app, R_RenderPipeline* pipeline, R_Camera* camera,
+                             R_Scene* scene, bool rebuild)
     {
-        FrameUniformsItem item = {};
-        item.pipeline_id       = pipeline->rid;
-        item.camera_id         = camera->id;
 
-        // create the bindgroup lazily
-        WGPUBindGroupEntry frame_group_entry = {};
-        frame_group_entry.binding            = 0;
-        frame_group_entry.buffer             = camera->frame_uniform_buffer.buf;
-        frame_group_entry.size               = camera->frame_uniform_buffer.size;
+        WGPUBindGroup frame_bind_group;
+        FrameUniformsItem key = { pipeline->rid, camera ? camera->id : 0, scene->id };
+        FrameUniformsItem* item
+          = (FrameUniformsItem*)hashmap_get(app->frame_uniforms_map, &key);
+
+        if (item) {
+            if (rebuild) {
+                WGPU_RELEASE_RESOURCE(BindGroup, item->frame_bindgroup);
+                item->frame_bindgroup = FrameUniformsItem::rebuildFrameBindGroup(
+                  &app->gctx, pipeline, camera, scene);
+            }
+            frame_bind_group = item->frame_bindgroup;
+        } else {
+            // create new one
+            frame_bind_group = FrameUniformsItem::set(app, pipeline, camera, scene);
+        }
+
+        return frame_bind_group;
+    }
+
+    static WGPUBindGroup rebuildFrameBindGroup(GraphicsContext* gctx,
+                                               R_RenderPipeline* pipeline,
+                                               R_Camera* camera, R_Scene* scene)
+    {
+        WGPUBindGroupEntry frame_group_entries[2] = {};
+
+        WGPUBindGroupEntry* frame_group_entry = &frame_group_entries[0];
+        frame_group_entry->binding            = 0;
+        // TODO remove pipeline->frame_uniform_buffer after adding chugl default camera
+        frame_group_entry->buffer = camera ? camera->frame_uniform_buffer.buf :
+                                             pipeline->frame_uniform_buffer.buf;
+        frame_group_entry->size   = camera ? camera->frame_uniform_buffer.size :
+                                             pipeline->frame_uniform_buffer.size;
+
+        WGPUBindGroupEntry* lighting_entry = &frame_group_entries[1];
+        ASSERT(!scene->light_info_dirty);
+        lighting_entry->binding = 1;
+        lighting_entry->buffer  = scene->light_info_buffer.buf;
+        lighting_entry->size    = scene->light_info_buffer.size;
 
         // create bind group
         WGPUBindGroupDescriptor frameGroupDesc;
         frameGroupDesc        = {};
         frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
           pipeline->gpu_pipeline, PER_FRAME_GROUP);
-        frameGroupDesc.entries    = &frame_group_entry;
-        frameGroupDesc.entryCount = 1;
+        frameGroupDesc.entries    = frame_group_entries;
+        frameGroupDesc.entryCount = ARRAY_LENGTH(frame_group_entries);
 
         // layout:auto requires a bind group per pipeline
-        item.frame_bindgroup = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
+        return wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
+    }
+
+    static WGPUBindGroup set(App* app, R_RenderPipeline* pipeline, R_Camera* camera,
+                             R_Scene* scene)
+    {
+        FrameUniformsItem item = {};
+        item.pipeline_id       = pipeline->rid;
+        item.camera_id         = camera ? camera->id : 0;
+        item.scene_id          = scene->id;
+        item.frame_bindgroup   = FrameUniformsItem::rebuildFrameBindGroup(
+          &app->gctx, pipeline, camera, scene);
         ASSERT(item.frame_bindgroup);
 
-        const void* replaced = hashmap_set(map, &item);
+        const void* replaced = hashmap_set(app->frame_uniforms_map, &item);
         ASSERT(!replaced);
 
         return item.frame_bindgroup;
@@ -248,8 +291,8 @@ struct FrameUniformsItem {
         FrameUniformsItem* ga = (FrameUniformsItem*)a;
         FrameUniformsItem* gb = (FrameUniformsItem*)b;
 
-        SG_ID key_a[2] = { ga->pipeline_id, ga->camera_id };
-        SG_ID key_b[2] = { gb->pipeline_id, gb->camera_id };
+        SG_ID key_a[3] = { ga->pipeline_id, ga->camera_id, ga->scene_id };
+        SG_ID key_b[3] = { gb->pipeline_id, gb->camera_id, gb->scene_id };
 
         return memcmp(key_a, key_b, sizeof(key_a));
     }
@@ -257,7 +300,7 @@ struct FrameUniformsItem {
     static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
     {
         FrameUniformsItem* e = (FrameUniformsItem*)item;
-        SG_ID key[2]         = { e->pipeline_id, e->camera_id };
+        SG_ID key[3]         = { e->pipeline_id, e->camera_id, e->scene_id };
         return hashmap_xxhash3(&key, sizeof(key), seed0, seed1);
     }
 
@@ -267,6 +310,7 @@ struct FrameUniformsItem {
         WGPU_RELEASE_RESOURCE(BindGroup, e->frame_bindgroup);
     }
 };
+#endif
 
 static void _R_HandleCommand(App* app, SG_Command* command);
 
@@ -323,7 +367,8 @@ struct App {
 
     // render graph
     SG_ID root_pass_id;
-    hashmap* frame_uniforms_map; // map from <pipeline_id, camera_id> to bindgroup
+    hashmap*
+      frame_uniforms_map; // map from <pipeline_id, camera_id, scene_id> to bindgroup
     int msaa_sample_count = 4;
 
     // ============================================================================
@@ -341,10 +386,10 @@ struct App {
         Camera::init(&app->camera);
         Arena::init(&app->frameArena, MEGABYTE); // 1MB
 
-        int seed                = time(NULL);
-        app->frame_uniforms_map = hashmap_new(
-          sizeof(FrameUniformsItem), 0, seed, seed, FrameUniformsItem::hash,
-          FrameUniformsItem::compare, FrameUniformsItem::free, NULL);
+        // int seed = time(NULL);
+        // app->frame_uniforms_map = hashmap_new(
+        //   sizeof(FrameUniformsItem), 0, seed, seed, FrameUniformsItem::hash,
+        //   FrameUniformsItem::compare, FrameUniformsItem::free, NULL);
     }
 
     static void gameloop(App* app)
@@ -753,9 +798,10 @@ struct App {
                                        Component_GetScene(pass->sg_pass.scene_id) :
                                        Component_GetScene(app->mainScene);
                     // defaults to scene main camera
-                    R_Camera* camera = pass->sg_pass.camera_id != 0 ?
-                                         Component_GetCamera(pass->sg_pass.camera_id) :
-                                         Component_GetCamera(scene->main_camera_id);
+                    R_Camera* camera
+                      = pass->sg_pass.camera_id != 0 ?
+                          Component_GetCamera(pass->sg_pass.camera_id) :
+                          Component_GetCamera(scene->sg_scene_desc.main_camera_id);
                     // defaults to swapchain current view
                     // TODO: maybe don't need WindowTexture, let null texture default to
                     // window tex? but that would only work in renderpass context...
@@ -792,7 +838,7 @@ struct App {
                         R_Pass::updateRenderPassDesc(
                           &app->gctx, pass, app->window_fb_width, app->window_fb_height,
                           app->msaa_sample_count, resolve_target_view,
-                          color_attachment_format);
+                          color_attachment_format, scene->sg_scene_desc.bg_color);
 
                         WGPURenderPassEncoder render_pass
                           = wgpuCommandEncoderBeginRenderPass(app->gctx.commandEncoder,
@@ -1527,6 +1573,20 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     R_Transform::rebuildMatrices(scene, &app->frameArena);
     // R_Transform::print(main_scene, 0);
 
+    // update lights
+    R_Scene::rebuildLightInfoBuffer(&app->gctx, scene);
+
+    static Arena frame_bind_group_arena{};
+    { // clear arena bind groups from previous call to _R_RenderScene
+        int num_bindgroups = ARENA_LENGTH(&frame_bind_group_arena, WGPUBindGroup);
+        for (int i = 0; i < num_bindgroups; i++) {
+            WGPUBindGroup bg
+              = *ARENA_GET_TYPE(&frame_bind_group_arena, WGPUBindGroup, i);
+            WGPU_RELEASE_RESOURCE(BindGroup, bg);
+        }
+        Arena::clear(&frame_bind_group_arena);
+    }
+
     // update camera
     i32 width, height;
     glfwGetWindowSize(app->window, &width, &height);
@@ -1539,24 +1599,25 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
-    frameUniforms.projectionMat = camera ?
-                                    R_Camera::projectionMatrix(camera, aspect) :
-                                    Camera::projectionMatrix(&app->camera, aspect);
-    frameUniforms.viewMat
+    frameUniforms.projection    = camera ? R_Camera::projectionMatrix(camera, aspect) :
+                                           Camera::projectionMatrix(&app->camera, aspect);
+    frameUniforms.view
       = camera ? R_Camera::viewMatrix(camera) : Entity::viewMatrix(&app->camera.entity);
-    frameUniforms.projViewMat = frameUniforms.projectionMat * frameUniforms.viewMat;
-    frameUniforms.camPos      = app->camera.entity.pos;
-    frameUniforms.dirLight    = VEC_FORWARD;
-    frameUniforms.time        = time;
+    frameUniforms.camera_pos    = app->camera.entity.pos;
+    frameUniforms.time          = time;
+    frameUniforms.ambient_light = scene->sg_scene_desc.ambient_light;
+    frameUniforms.num_lights    = R_Scene::numLights(scene);
 
-    // update frame-level uniforms
+    // update frame-level uniforms (storing on camera because same scene can be rendered
+    // from multiple camera angles)
+    // every camera belongs to a single scene, but a scene can have multiple cameras
     if (camera) {
         bool frame_uniforms_recreated = GPU_Buffer::write(
           &app->gctx, &camera->frame_uniform_buffer, WGPUBufferUsage_Uniform,
           &frameUniforms, sizeof(frameUniforms));
         ASSERT(!frame_uniforms_recreated);
     } else {
-        // TODO remove after adding camera controller to chugl, disallowing null camera
+        // TODO remove after adding camera controller to chugl, disallow null camera
         bool frame_uniforms_recreated = GPU_Buffer::write(
           &app->gctx, &R_RenderPipeline::frame_uniform_buffer, WGPUBufferUsage_Uniform,
           &frameUniforms, sizeof(frameUniforms));
@@ -1587,30 +1648,48 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
         WGPUBindGroupLayout vertex_pulling_layout
           = NULL; // set lazily right before draw call
 
+        R_Shader* shader = Component_GetShader(render_pipeline->pso.sg_shader_id);
+
         // set shader
         // ==optimize== only set shader if we actually have anything to render
         wgpuRenderPassEncoderSetPipeline(render_pass, gpu_pipeline);
 
-        if (camera) {
-            WGPUBindGroup frame_bind_group;
-            FrameUniformsItem key = { render_pipeline->rid, camera->id, NULL };
-            FrameUniformsItem* item
-              = (FrameUniformsItem*)hashmap_get(app->frame_uniforms_map, &key);
+        WGPUBindGroup* frame_bind_group
+          = ARENA_PUSH_ZERO_TYPE(&frame_bind_group_arena, WGPUBindGroup);
+        { // set frame uniforms
+            WGPUBindGroupEntry frame_group_entries[2] = {};
 
-            if (!item) {
-                frame_bind_group = FrameUniformsItem::set(
-                  app->frame_uniforms_map, &app->gctx, render_pipeline, camera);
-                ASSERT(frame_bind_group);
-            } else {
-                frame_bind_group = item->frame_bindgroup;
-            }
+            WGPUBindGroupEntry* frame_group_entry = &frame_group_entries[0];
+            frame_group_entry->binding            = 0;
+            // TODO remove pipeline->frame_uniform_buffer after adding chugl default
+            // camera
+            frame_group_entry->buffer = camera ?
+                                          camera->frame_uniform_buffer.buf :
+                                          render_pipeline->frame_uniform_buffer.buf;
+            frame_group_entry->size   = camera ?
+                                          camera->frame_uniform_buffer.size :
+                                          render_pipeline->frame_uniform_buffer.size;
 
+            WGPUBindGroupEntry* lighting_entry = &frame_group_entries[1];
+            ASSERT(!scene->light_info_dirty);
+            lighting_entry->binding = 1;
+            lighting_entry->buffer  = scene->light_info_buffer.buf;
+            lighting_entry->size    = MAX(scene->light_info_buffer.size, 1);
+
+            // create bind group
+            WGPUBindGroupDescriptor frameGroupDesc;
+            frameGroupDesc        = {};
+            frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
+              render_pipeline->gpu_pipeline, PER_FRAME_GROUP);
+            frameGroupDesc.entries    = frame_group_entries;
+            frameGroupDesc.entryCount = shader->lit ? 2 : 1;
+
+            // layout:auto requires a bind group per pipeline
+            *frame_bind_group
+              = wgpuDeviceCreateBindGroup(app->gctx.device, &frameGroupDesc);
+            ASSERT(*frame_bind_group);
             wgpuRenderPassEncoderSetBindGroup(render_pass, PER_FRAME_GROUP,
-                                              frame_bind_group, 0, NULL);
-        } else {
-            // TODO remove after adding chugl camera controller
-            wgpuRenderPassEncoderSetBindGroup(render_pass, PER_FRAME_GROUP,
-                                              render_pipeline->frame_group, 0, NULL);
+                                              *frame_bind_group, 0, NULL);
         }
 
         // per-material render loop
@@ -1933,21 +2012,13 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Transform::sca(Component_GetXform(cmd->sg_id), cmd->sca);
             break;
         }
-        case SG_COMMAND_SCENE_CREATE: {
-            SG_Command_SceneCreate* cmd = (SG_Command_SceneCreate*)command;
-            Component_CreateScene(cmd);
-            break;
-        }
-        case SG_COMMAND_SCENE_BG_COLOR: {
-            SG_Command_SceneBGColor* cmd = (SG_Command_SceneBGColor*)command;
-            R_Scene* scene               = Component_GetScene(cmd->sg_id);
-            scene->bg_color              = cmd->color;
-        } break;
-        case SG_COMMAND_SCENE_SET_MAIN_CAMERA: {
-            SG_Command_SceneSetMainCamera* cmd
-              = (SG_Command_SceneSetMainCamera*)command;
-            R_Scene* scene        = Component_GetScene(cmd->scene_id);
-            scene->main_camera_id = cmd->camera_id;
+        // scene ----------------------
+        case SG_COMMAND_SCENE_UPDATE: {
+            SG_Command_SceneUpdate* cmd = (SG_Command_SceneUpdate*)command;
+            R_Scene* scene              = Component_GetScene(cmd->sg_id);
+            if (!scene)
+                scene = Component_CreateScene(&app->gctx, cmd->sg_id, &cmd->desc);
+            scene->sg_scene_desc = cmd->desc;
         } break;
         // shaders ----------------------
         case SG_COMMAND_SHADER_CREATE: {

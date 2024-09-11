@@ -25,7 +25,7 @@
 
 // chugl will only ever use positive SG_IDs
 // but making signed to allow renderer to use negative IDs for internal impl
-typedef i64 SG_ID;
+typedef i64 SG_ID; // TODO change to i32
 
 // (enum, ckname)
 #define SG_ComponentTable                                                              \
@@ -41,7 +41,8 @@ typedef i64 SG_ID;
     X(SG_COMPONENT_CAMERA, "GCamera")                                                  \
     X(SG_COMPONENT_TEXT, "GText")                                                      \
     X(SG_COMPONENT_PASS, "GPass")                                                      \
-    X(SG_COMPONENT_BUFFER, "GBuffer")
+    X(SG_COMPONENT_BUFFER, "GBuffer")                                                  \
+    X(SG_COMPONENT_LIGHT, "GLight") // TODO resolve GBuffer with StorageBuffer
 
 enum SG_ComponentType {
 #define X(name, str) name,
@@ -196,9 +197,16 @@ struct SG_Transform : public SG_Component {
 // SG_Scene
 // ============================================================================
 
+// TODO add ambient to FrameUniforms
+
+struct SG_SceneDesc {
+    glm::vec4 bg_color      = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    SG_ID main_camera_id    = 0;
+    glm::vec3 ambient_light = glm::vec3(0.0f);
+};
+
 struct SG_Scene : public SG_Transform {
-    glm::vec4 bg_color;
-    SG_ID main_camera_id;
+    SG_SceneDesc desc;
 };
 
 // ============================================================================
@@ -269,11 +277,14 @@ struct SG_Shader : SG_Component {
     const char* fragment_string_owned;
     const char* vertex_filepath_owned;
     const char* fragment_filepath_owned;
-    int vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+    WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
     // compute shader specific
     const char* compute_string_owned;
     const char* compute_filepath_owned;
+
+    // material properties
+    bool lit; // if true, renderer will pass lighting storage buffer
 };
 
 // ============================================================================
@@ -285,6 +296,7 @@ enum SG_MaterialType : u8 {
     SG_MATERIAL_CUSTOM,
     SG_MATERIAL_LINES2D,
     SG_MATERIAL_FLAT,
+    SG_MATERIAL_DIFFUSE,
     SG_MATERIAL_PBR,
     SG_MATERIAL_TEXT3D,
     SG_MATERIAL_COMPUTE, // holds compute shader
@@ -622,6 +634,32 @@ struct SG_Pass : public SG_Component {
 };
 
 // ============================================================================
+// SG_Light
+// ============================================================================
+
+enum SG_LightType : u8 {
+    SG_LightType_None = 0,
+    SG_LightType_Directional,
+    SG_LightType_Point,
+    SG_LightType_Spot,
+};
+
+struct SG_LightDesc {
+    SG_LightType type;
+
+    glm::vec3 color = glm::vec3(1.0f);
+
+    // point
+    // formula: intensity = (1 - distance / radius)^falloff
+    float point_radius  = 1.0f;
+    float point_falloff = 2.0f; // 1.0 = linear, 2.0 = quadratic
+};
+
+struct SG_Light : public SG_Transform {
+    SG_LightDesc desc;
+};
+
+// ============================================================================
 // SG Component Manager
 // ============================================================================
 
@@ -637,21 +675,17 @@ SG_Text* SG_CreateText(Chuck_Object* ckobj);
 SG_Pass* SG_CreatePass(Chuck_Object* ckobj, SG_PassType pass_type);
 SG_Buffer* SG_CreateBuffer(Chuck_Object* ckobj);
 
-SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
-                           Chuck_String* fragment_string, Chuck_String* vertex_filepath,
-                           Chuck_String* fragment_filepath,
-                           Chuck_ArrayInt* ck_vertex_layout,
-                           Chuck_String* compute_string,
-                           Chuck_String* compute_filepath);
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
                            const char* fragment_filepath,
                            WGPUVertexFormat* vertex_layout, int vertex_layout_len,
-                           const char* compute_string, const char* compute_filepath);
+                           const char* compute_string, const char* compute_filepath,
+                           bool lit = false);
 
 SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
                                void* params);
 SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg_mat);
+SG_Light* SG_CreateLight(Chuck_Object* ckobj);
 
 SG_Component* SG_GetComponent(SG_ID id);
 SG_Transform* SG_GetTransform(SG_ID id);
@@ -665,6 +699,7 @@ SG_Camera* SG_GetCamera(SG_ID id);
 SG_Text* SG_GetText(SG_ID id);
 SG_Pass* SG_GetPass(SG_ID id);
 SG_Buffer* SG_GetBuffer(SG_ID id);
+SG_Light* SG_GetLight(SG_ID id);
 
 // ============================================================================
 // SG Garbage Collection

@@ -19,29 +19,31 @@ public class T {
         if (!bool) err("Assertion failed: " + s);
     }
 
-    fun static int strEquals(string a, string b) {
-        // chuck can't compare a null string to a non-null string 
-        if (a == null && b == null) {
-            return 1;
-        }
+    // causes segfault. chuck bug
+    // fun static int strEquals(string a, string b) {
+    //     // chuck can't compare a null string to a non-null string 
+    //     if (a == null && b == null) {
+    //         return 1;
+    //     }
 
-        false => int equals;
-        if (a == null || b == null) {
-            false => equals;
-        } else {
-            (a == b) => equals;
-        }
 
-        if (!equals) {
-            // because chuck can't concatenate null strings
-            err("Strings not equal:");
-            <<< a >>>;
-            err("!=");
-            <<< b >>>;
-        }
+    //     false => int equals;
+    //     if (a == null || b == null) {
+    //         false => equals;
+    //     } else {
+    //         (a == b) => equals;
+    //     }
 
-        return equals;
-    }
+    //     if (!equals) {
+    //         // because chuck can't concatenate null strings
+    //         err("Strings not equal:");
+    //         <<< a >>>;
+    //         err("!=");
+    //         <<< b >>>;
+    //     }
+
+    //     return equals;
+    // }
 
     fun static int arrayEquals(int a[], int b[]) {
         if (a == null && b == null) {

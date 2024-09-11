@@ -11,6 +11,16 @@
 
 #include <stb/stb_image.h>
 
+static int compareSGIDs(const void* a, const void* b, void* udata)
+{
+    return *(SG_ID*)a - *(SG_ID*)b;
+}
+
+static uint64_t hashSGID(const void* item, uint64_t seed0, uint64_t seed1)
+{
+    return hashmap_xxhash3(item, sizeof(SG_ID), seed0, seed1);
+}
+
 /*
 XForm system:
 - each XForm component is marked with a stale flag NONE/DESCENDENTS/WORLD/LOCAL
@@ -98,7 +108,6 @@ static void R_Transform_init(R_Transform* xform, SG_ID id, SG_ComponentType comp
 
     xform->world  = MAT_IDENTITY;
     xform->local  = MAT_IDENTITY;
-    xform->normal = MAT_IDENTITY;
     xform->_stale = R_Transform_STALE_LOCAL;
 
     xform->parentID = 0;
@@ -121,7 +130,6 @@ void R_Transform::init(R_Transform* transform)
 
     transform->world  = MAT_IDENTITY;
     transform->local  = MAT_IDENTITY;
-    transform->normal = MAT_IDENTITY;
     transform->_stale = R_Transform_STALE_NONE;
 
     transform->parentID = 0;
@@ -318,9 +326,6 @@ static void _Transform_RebuildDescendants(R_Scene* scene, R_Transform* xform,
 
     // always rebuild world mat
     xform->world = (*parentWorld) * xform->local;
-
-    // rebuild normal matrix
-    xform->normal = glm::transpose(glm::inverse(xform->world));
 
     // set fresh
     xform->_stale = R_Transform_STALE_NONE;
@@ -952,34 +957,6 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
     }
 }
 
-// assumes sampler is at location+1
-void R_Material::setTextureAndSamplerBinding(R_Material* mat, u32 location,
-                                             SG_ID textureID,
-                                             WGPUTextureView defaultView)
-{
-    ASSERT(false);
-#if 0
-    SamplerConfig defaultSampler = {};
-
-    R_Texture* rTexture = Component_GetTexture(textureID);
-
-    if (rTexture) {
-        R_Material::setBinding(mat, location, R_BIND_TEXTURE_ID, &textureID,
-                               sizeof(SG_ID));
-        // set diffuse texture sampler
-        R_Material::setBinding(mat, location + 1, R_BIND_SAMPLER,
-                               &rTexture->samplerConfig, sizeof(SamplerConfig));
-    } else {
-        // use default white pixel texture
-        R_Material::setBinding(mat, location, R_BIND_TEXTURE_VIEW, &defaultView,
-                               sizeof(WGPUTextureView));
-        // set default sampler
-        R_Material::setBinding(mat, location + 1, R_BIND_SAMPLER, &defaultSampler,
-                               sizeof(SamplerConfig));
-    }
-#endif
-}
-
 // ============================================================================
 // R_Scene
 // ============================================================================
@@ -1009,6 +986,7 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
         bool xform_changed_mesh
           = (xform->_geoID != g2x->key.geo_id || xform->_matID != g2x->key.mat_id);
         bool xform_detached_from_scene = (xform->scene_id != scene->id);
+        // TODO use arena macro instead
         if (xform_destroyed || xform_changed_mesh || xform_detached_from_scene) {
             // swap with last element
             xformIDs[i] = xformIDs[numInstances - 1];
@@ -1026,9 +1004,10 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
         ++matrixCount; // TODO remove matrixCount variable if this all works
         // world matrix should already have been computed by now
         ASSERT(xform->_stale == R_Transform_STALE_NONE);
-        *ARENA_PUSH_TYPE(frame_arena, glm::mat4) = xform->world;
 
-        // TODO add normal matrix
+        DrawUniforms* draw_uniforms = ARENA_PUSH_TYPE(frame_arena, DrawUniforms);
+        draw_uniforms->model        = xform->world;
+        draw_uniforms->id           = xform->id;
     }
     // sanity check that we have the correct number of matrices
     ASSERT(matrixCount == numInstances);
@@ -1087,7 +1066,12 @@ void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
         ASSERT(xform->scene_id == scene->id);
         xform->scene_id = 0;
 
-        if (xform->type == SG_COMPONENT_MESH) {
+        if (xform->type == SG_COMPONENT_LIGHT) {
+            // remove from light set
+            const void* prev_item = hashmap_delete(scene->light_id_set, &xform->id);
+            ASSERT(prev_item);
+            scene->light_info_dirty = true;
+        } else if (xform->type == SG_COMPONENT_MESH) {
             // get xforms from geometry
             GeometryToXforms* g2x
               = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
@@ -1136,7 +1120,16 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
         ASSERT(xform->scene_id != scene->id);
         xform->scene_id = scene->id;
 
-        if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
+        // lighting logic
+        if (xform->type == SG_COMPONENT_LIGHT) {
+            // add light to scene
+            const void* replaced = hashmap_set(scene->light_id_set, &xform->id);
+            // light should not already be in scene
+            ASSERT(!replaced);
+            // need to rebuild light info
+            scene->light_info_dirty = true;
+        } else if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
+            ASSERT(xform->type == SG_COMPONENT_MESH);
             bool add_m2g_and_p2m_entries = false;
 
             // try adding to bottom level GeometryToXform
@@ -1204,14 +1197,72 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
     }
 }
 
-void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
+void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene)
+{
+    if (!scene->light_info_dirty) return;
+    scene->light_info_dirty = false;
+
+    static Arena light_info_arena{};
+    ASSERT(light_info_arena.base && light_info_arena.curr == 0);
+    defer(Arena::clear(&light_info_arena));
+
+    // allocate cpu memory for light uniform data
+    LightUniforms* light_uniforms
+      = ARENA_PUSH_COUNT(&light_info_arena, LightUniforms, R_Scene::numLights(scene));
+
+    size_t light_idx = 0;
+    SG_ID* light_id  = NULL;
+
+    while (hashmap_iter(scene->light_id_set, &light_idx, (void**)&light_id)) {
+        LightUniforms* light_uniform = &light_uniforms[light_idx];
+        *light_uniform               = {};
+
+        R_Light* light = Component_GetLight(*light_id);
+        ASSERT(light);
+        ASSERT(light->_stale == R_Transform_STALE_NONE);
+        // get light transform data
+        glm::vec3 pos, sca;
+        glm::quat rot;
+        R_Transform::decomposeWorldMatrix(light->world, pos, rot, sca);
+        glm::vec3 forward
+          = glm::normalize(glm::rotate(rot, glm::vec3(0.0f, 0.0f, -1.0f)));
+
+        { // initialize uniform struct
+            light_uniform->color      = light->desc.color;
+            light_uniform->light_type = (i32)light->desc.type;
+            light_uniform->position   = pos;
+            light_uniform->direction  = forward;
+
+            switch (light->desc.type) {
+                case SG_LightType_None: break;
+                case SG_LightType_Directional: {
+                } break;
+                case SG_LightType_Point: {
+                    light_uniform->point_radius  = light->desc.point_radius;
+                    light_uniform->point_falloff = light->desc.point_falloff;
+                } break;
+                default: {
+                    // not impl
+                    ASSERT(false);
+                } break;
+            }
+        }
+    }
+
+    // upload to gpu
+    GPU_Buffer::write(gctx, &scene->light_info_buffer, WGPUBufferUsage_Uniform,
+                      light_info_arena.base, light_info_arena.curr);
+}
+
+void R_Scene::initFromSG(GraphicsContext* gctx, R_Scene* r_scene, SG_ID scene_id,
+                         SG_SceneDesc* sg_scene_desc)
 {
     ASSERT(r_scene->id == 0); // ensure not initialized twice
     *r_scene = {};
 
     // copy base component data
     // TODO have a separate R_ComponentType enum?
-    r_scene->id   = cmd->sg_id;
+    r_scene->id   = scene_id;
     r_scene->type = SG_COMPONENT_SCENE;
 
     // copy xform
@@ -1222,6 +1273,9 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
     // set stale to force rebuild of matrices
     r_scene->_stale = R_Transform_STALE_LOCAL;
 
+    // copy scene desc
+    r_scene->sg_scene_desc = *sg_scene_desc;
+
     // initialize arenas
     int seed = time(NULL);
     r_scene->material_to_geo
@@ -1230,6 +1284,11 @@ void R_Scene::initFromSG(R_Scene* r_scene, SG_Command_SceneCreate* cmd)
     r_scene->geo_to_xform
       = hashmap_new(sizeof(GeometryToXforms), 0, seed, seed, GeometryToXforms::hash,
                     GeometryToXforms::compare, GeometryToXforms::free, NULL);
+    r_scene->light_id_set
+      = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID, compareSGIDs, NULL, NULL);
+
+    GPU_Buffer::init(gctx, &r_scene->light_info_buffer, WGPUBufferUsage_Uniform,
+                     sizeof(LightUniforms) * 16);
 
     // initialize children array for 8 children
     Arena::init(&r_scene->children, sizeof(SG_ID) * 8);
@@ -1452,6 +1511,7 @@ static Arena bufferArena;
 static Arena _RenderPipelineArena;
 static Arena cameraArena;
 static Arena textArena;
+static Arena lightArena;
 
 // default textures
 static Texture opaqueWhitePixel      = {};
@@ -1526,16 +1586,6 @@ static u64 R_HashLocation(const void* item, uint64_t seed0, uint64_t seed1)
     // return hashmap_murmur(item, sizeof(int), seed0, seed1);
 }
 
-static int compareSGIDs(const void* a, const void* b, void* udata)
-{
-    return *(SG_ID*)a - *(SG_ID*)b;
-}
-
-static uint64_t hashSGID(const void* item, uint64_t seed0, uint64_t seed1)
-{
-    return hashmap_xxhash3(item, sizeof(SG_ID), seed0, seed1);
-}
-
 void Component_Init(GraphicsContext* gctx)
 {
     // initialize arena memory
@@ -1550,6 +1600,7 @@ void Component_Init(GraphicsContext* gctx)
     Arena::init(&textArena, sizeof(R_Text) * 64);
     Arena::init(&passArena, sizeof(R_Pass) * 16);
     Arena::init(&bufferArena, sizeof(R_Buffer) * 64);
+    Arena::init(&lightArena, sizeof(R_Light) * 16);
 
     // initialize default textures
     static u8 white[4]  = { 255, 255, 255, 255 };
@@ -1660,7 +1711,6 @@ R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
 
 R_Camera* Component_CreateCamera(GraphicsContext* gctx, SG_Command_CameraCreate* cmd)
 {
-    // TODO: does camera also need to live in xform arena?
     R_Camera* cam = ARENA_PUSH_ZERO_TYPE(&cameraArena, R_Camera);
 
     R_Transform_init(cam, cmd->camera.id, SG_COMPONENT_CAMERA);
@@ -1761,11 +1811,12 @@ R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
     return text;
 }
 
-R_Scene* Component_CreateScene(SG_Command_SceneCreate* cmd)
+R_Scene* Component_CreateScene(GraphicsContext* gctx, SG_ID scene_id,
+                               SG_SceneDesc* sg_scene_desc)
 {
     Arena* arena     = &sceneArena;
     R_Scene* r_scene = ARENA_PUSH_ZERO_TYPE(arena, R_Scene);
-    R_Scene::initFromSG(r_scene, cmd);
+    R_Scene::initFromSG(gctx, r_scene, scene_id, sg_scene_desc);
 
     ASSERT(r_scene->id != 0);                    // ensure id is set
     ASSERT(r_scene->type == SG_COMPONENT_SCENE); // ensure type is set
@@ -1837,7 +1888,8 @@ R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate*
     ASSERT(sizeof(cmd->vertex_layout) == sizeof(shader->vertex_layout));
     R_Shader::init(gctx, shader, vertex_string, vertex_filepath, fragment_string,
                    fragment_filepath, cmd->vertex_layout,
-                   ARRAY_LENGTH(cmd->vertex_layout), compute_string, compute_filepath);
+                   ARRAY_LENGTH(cmd->vertex_layout), compute_string, compute_filepath,
+                   cmd->lit);
 
     // store offset
     R_Location loc
@@ -2027,6 +2079,23 @@ R_Buffer* Component_CreateBuffer(SG_ID id)
     return buffer;
 }
 
+R_Light* Component_CreateLight(SG_ID id, SG_LightDesc* desc)
+{
+    R_Light* light = ARENA_PUSH_ZERO_TYPE(&lightArena, R_Light);
+
+    R_Transform_init(light, id, SG_COMPONENT_LIGHT);
+
+    // light init
+    light->desc = *desc;
+
+    // store offset
+    R_Location loc = { light->id, Arena::offsetOf(&lightArena, light), &lightArena };
+    const void* result = hashmap_set(r_locator, &loc);
+    ASSERT(result == NULL); // ensure id is unique
+
+    return light;
+}
+
 // linear search by font path, lazily creates if not found
 R_Font* Component_GetFont(GraphicsContext* gctx, FT_Library library,
                           const char* font_path)
@@ -2062,7 +2131,7 @@ R_Transform* Component_GetXform(SG_ID id)
     if (comp) {
         ASSERT(comp->type == SG_COMPONENT_TRANSFORM || comp->type == SG_COMPONENT_SCENE
                || comp->type == SG_COMPONENT_MESH || comp->type == SG_COMPONENT_CAMERA
-               || comp->type == SG_COMPONENT_TEXT);
+               || comp->type == SG_COMPONENT_TEXT || comp->type == SG_COMPONENT_LIGHT);
     }
     return (R_Transform*)comp;
 }
@@ -2128,6 +2197,13 @@ R_Buffer* Component_GetBuffer(SG_ID id)
     R_Component* comp = Component_GetComponent(id);
     ASSERT(comp == NULL || comp->type == SG_COMPONENT_BUFFER);
     return (R_Buffer*)comp;
+}
+
+R_Light* Component_GetLight(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_LIGHT);
+    return (R_Light*)comp;
 }
 
 bool Component_MaterialIter(size_t* i, R_Material** material)
@@ -2199,8 +2275,10 @@ void R_Shader::init(GraphicsContext* gctx, R_Shader* shader, const char* vertex_
                     const char* vertex_filepath, const char* fragment_string,
                     const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
                     int vertex_layout_count, const char* compute_string,
-                    const char* compute_filepath)
+                    const char* compute_filepath, bool lit)
 {
+    shader->lit = lit;
+
     char vertex_shader_label[32] = {};
     snprintf(vertex_shader_label, sizeof(vertex_shader_label), "vertex shader %d",
              (int)shader->id);

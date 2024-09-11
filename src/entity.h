@@ -49,8 +49,7 @@ struct Entity {
     static void init(Entity* entity, GraphicsContext* ctx,
                      WGPUBindGroupLayout bindGroupLayout);
 
-    static void setVertices(Entity* entity, Vertices* vertices,
-                            GraphicsContext* ctx);
+    static void setVertices(Entity* entity, Vertices* vertices, GraphicsContext* ctx);
 
     static glm::mat4 modelMatrix(Entity* entity); // TODO cache
     static glm::mat4 viewMatrix(Entity* entity);

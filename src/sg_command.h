@@ -75,9 +75,9 @@ enum SG_CommandType : u32 {
     SG_COMMAND_SET_POSITION,
     SG_COMMAND_SET_ROTATATION,
     SG_COMMAND_SET_SCALE,
-    SG_COMMAND_SCENE_CREATE,
-    SG_COMMAND_SCENE_BG_COLOR,
-    SG_COMMAND_SCENE_SET_MAIN_CAMERA,
+
+    // scene
+    SG_COMMAND_SCENE_UPDATE,
 
     // shader
     SG_COMMAND_SHADER_CREATE,
@@ -125,6 +125,9 @@ enum SG_CommandType : u32 {
     // buffer
     SG_COMMAND_BUFFER_UPDATE,
     SG_COMMAND_BUFFER_WRITE,
+
+    // light
+    SG_COMMAND_LIGHT_UPDATE,
 
     SG_COMMAND_COUNT
 };
@@ -256,18 +259,9 @@ struct SG_Command_SetScale : public SG_Command {
     glm::vec3 sca;
 };
 
-struct SG_Command_SceneCreate : public SG_Command {
+struct SG_Command_SceneUpdate : public SG_Command {
     SG_ID sg_id;
-};
-
-struct SG_Command_SceneBGColor : public SG_Command {
-    SG_ID sg_id;
-    glm::vec4 color;
-};
-
-struct SG_Command_SceneSetMainCamera : public SG_Command {
-    SG_ID scene_id;
-    SG_ID camera_id;
+    SG_SceneDesc desc;
 };
 
 struct SG_Command_GeoCreate : public SG_Command {
@@ -329,6 +323,7 @@ struct SG_Command_ShaderCreate : public SG_Command {
     ptrdiff_t compute_string_offset;
     ptrdiff_t compute_filepath_offset;
     WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
+    bool lit;
 };
 
 struct SG_Command_MaterialCreate : public SG_Command {
@@ -453,6 +448,13 @@ struct SG_Command_BufferWrite : public SG_Command {
     ptrdiff_t data_offset;
 };
 
+// light commands -----------------------------------------------------
+
+struct SG_Command_LightUpdate : public SG_Command {
+    SG_ID light_id;
+    SG_LightDesc desc;
+};
+
 // ============================================================================
 // Command Queue API
 // ============================================================================
@@ -512,11 +514,8 @@ void CQ_PushCommand_SetPosition(SG_Transform* xform);
 void CQ_PushCommand_SetRotation(SG_Transform* xform);
 void CQ_PushCommand_SetScale(SG_Transform* xform);
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT component_offset_id,
-                                     CK_DL_API API);
-
-void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color);
-void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera);
+// scene
+void CQ_PushCommand_SceneUpdate(SG_Scene* scene);
 
 // geometry
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
@@ -577,3 +576,6 @@ void CQ_PushCommand_b2SubstepCount(u32 substep_count);
 void CQ_PushCommand_BufferUpdate(SG_Buffer* buffer);
 void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
                                 u64 offset_bytes);
+
+// light
+void CQ_PushCommand_LightUpdate(SG_Light* light);

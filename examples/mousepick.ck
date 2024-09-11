@@ -55,4 +55,7 @@ while (true) {
         sphere.pos(camera.screenCoordToWorldPos(GWindow.mousePos(), 10));
         <<< "clicked" >>>;
     }
+    if (GWindow.scrollX() > 0 || GWindow.scrollY() > 0) {
+        <<< GWindow.scroll() >>>;
+    }
 }

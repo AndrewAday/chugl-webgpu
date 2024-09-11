@@ -12,7 +12,6 @@
 
 void SG_Transform::_init(SG_Transform* t, Chuck_Object* ckobj)
 {
-    ASSERT(t->id == 0); // ensure not initialized twice
     ASSERT(ckobj);
 
     t->ckobj    = ckobj;
@@ -504,6 +503,7 @@ static Arena SG_CameraArena;
 static Arena SG_TextArena;
 static Arena SG_PassArena;
 static Arena SG_BufferArena;
+static Arena SG_LightArena;
 
 // locators (TODO switch to table)
 static hashmap* locator = NULL;
@@ -558,6 +558,7 @@ void SG_Init(const Chuck_DL_Api* api)
     Arena::init(&SG_TextArena, sizeof(SG_Text) * 32);
     Arena::init(&SG_PassArena, sizeof(SG_Pass) * 32);
     Arena::init(&SG_BufferArena, sizeof(SG_Pass) * 64);
+    Arena::init(&SG_LightArena, sizeof(SG_Light) * 32);
 
     // init gc state
     Arena::init(&_gc_queue_a, sizeof(SG_ID) * 64);
@@ -740,45 +741,12 @@ SG_Buffer* SG_CreateBuffer(Chuck_Object* ckobj)
     return buffer;
 }
 
-SG_Shader* SG_CreateShader(Chuck_Object* ckobj, Chuck_String* vertex_string,
-                           Chuck_String* fragment_string, Chuck_String* vertex_filepath,
-                           Chuck_String* fragment_filepath,
-                           Chuck_ArrayInt* ck_vertex_layout,
-                           Chuck_String* compute_string, Chuck_String* compute_filepath)
-{
-    Arena* arena      = &SG_ShaderArena;
-    size_t offset     = arena->curr;
-    SG_Shader* shader = ARENA_PUSH_TYPE(arena, SG_Shader);
-    *shader           = {};
-
-    // set base component values
-    shader->id    = SG_GetNewComponentID();
-    shader->type  = SG_COMPONENT_SHADER;
-    shader->ckobj = ckobj;
-
-    // set shader values
-    shader->vertex_string_owned     = chugin_copyCkString(vertex_string);
-    shader->fragment_string_owned   = chugin_copyCkString(fragment_string);
-    shader->vertex_filepath_owned   = chugin_copyCkString(vertex_filepath);
-    shader->fragment_filepath_owned = chugin_copyCkString(fragment_filepath);
-    chugin_copyCkIntArray(ck_vertex_layout, shader->vertex_layout,
-                          ARRAY_LENGTH(shader->vertex_layout));
-
-    shader->compute_string_owned   = chugin_copyCkString(compute_string);
-    shader->compute_filepath_owned = chugin_copyCkString(compute_filepath);
-
-    // store in map
-    SG_Location loc = { shader->id, offset, arena };
-    hashmap_set(locator, &loc);
-
-    return shader;
-}
-
 SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* fragment_string, const char* vertex_filepath,
                            const char* fragment_filepath,
                            WGPUVertexFormat* vertex_layout, int vertex_layout_len,
-                           const char* compute_string, const char* compute_filepath)
+                           const char* compute_string, const char* compute_filepath,
+                           bool lit)
 {
 #define NULL_TO_EMPTY(s) (s ? s : "")
     vertex_string     = NULL_TO_EMPTY(vertex_string);
@@ -803,11 +771,15 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
     shader->fragment_string_owned   = strdup(fragment_string);
     shader->vertex_filepath_owned   = strdup(vertex_filepath);
     shader->fragment_filepath_owned = strdup(fragment_filepath);
-    for (int i = 0; i < vertex_layout_len; i++)
-        shader->vertex_layout[i] = vertex_layout[i];
+
+    vertex_layout_len = MIN(vertex_layout_len, ARRAY_LENGTH(shader->vertex_layout));
+    memcpy(shader->vertex_layout, vertex_layout,
+           sizeof(shader->vertex_layout[0]) * vertex_layout_len);
 
     shader->compute_string_owned   = strdup(compute_string);
     shader->compute_filepath_owned = strdup(compute_filepath);
+
+    shader->lit = lit;
 
     // store in map
     SG_Location loc = { shader->id, offset, arena };
@@ -871,6 +843,28 @@ SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg
     hashmap_set(locator, &loc);
 
     return mesh;
+}
+
+SG_Light* SG_CreateLight(Chuck_Object* ckobj)
+{
+    Arena* arena    = &SG_LightArena;
+    size_t offset   = arena->curr;
+    SG_Light* light = ARENA_PUSH_TYPE(arena, SG_Light);
+    *light          = {};
+
+    // init base component
+    light->ckobj = ckobj;
+    light->id    = SG_GetNewComponentID();
+    light->type  = SG_COMPONENT_LIGHT;
+
+    // init transform data
+    SG_Transform::_init(light, ckobj);
+
+    // store in map
+    SG_Location loc = { light->id, offset, arena };
+    hashmap_set(locator, &loc);
+
+    return light;
 }
 
 SG_Component* SG_GetComponent(SG_ID id)
@@ -962,6 +956,13 @@ SG_Buffer* SG_GetBuffer(SG_ID id)
     SG_Component* component = SG_GetComponent(id);
     ASSERT(component == NULL || component->type == SG_COMPONENT_BUFFER);
     return (SG_Buffer*)component;
+}
+
+SG_Light* SG_GetLight(SG_ID id)
+{
+    SG_Component* component = SG_GetComponent(id);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_LIGHT);
+    return (SG_Light*)component;
 }
 
 // ============================================================================

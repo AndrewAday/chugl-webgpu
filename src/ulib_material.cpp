@@ -18,6 +18,7 @@ static t_CKUINT shader_desc_fragment_filepath_offset = 0;
 static t_CKUINT shader_desc_vertex_layout_offset     = 0;
 static t_CKUINT shader_desc_compute_string_offset    = 0;
 static t_CKUINT shader_desc_compute_filepath_offset  = 0;
+static t_CKUINT shader_desc_is_lit                   = 0;
 
 CK_DLL_CTOR(shader_ctor_default);
 CK_DLL_CTOR(shader_ctor);
@@ -26,6 +27,7 @@ CK_DLL_MFUN(shader_get_fragment_string);
 CK_DLL_MFUN(shader_get_vertex_filepath);
 CK_DLL_MFUN(shader_get_fragment_filepath);
 CK_DLL_MFUN(shader_get_vertex_layout);
+CK_DLL_MFUN(shader_get_lit);
 
 CK_DLL_CTOR(material_ctor);
 
@@ -76,7 +78,14 @@ CK_DLL_CTOR(flat_material_ctor);
 CK_DLL_MFUN(flat_material_get_color);
 CK_DLL_MFUN(flat_material_set_color);
 
+CK_DLL_CTOR(diffuse_material_ctor);
+CK_DLL_MFUN(diffuse_material_get_color);
+CK_DLL_MFUN(diffuse_material_set_color);
+
 CK_DLL_CTOR(pbr_material_ctor);
+
+static_assert(sizeof(WGPUVertexFormat) == sizeof(int),
+              "WGPUVertexFormat size mismatch");
 
 void ulib_material_query(Chuck_DL_Query* QUERY)
 {
@@ -111,9 +120,7 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
       "Shader description object. Used to create a Shader component."
       "Set either vertexString or vertexFilepath, and either fragmentString or "
       "fragmentFilepath. `vertexLayout` field describes the vertex data layout "
-      "of buffers going into the vertex shader--use the VertexFormat enum."
-      "E.g. if your vertex shader takes a vec3 position and a vec2 uv, set "
-      "`vertexLayout` to [VertexFormat.FLOAT3, VertexFormat.FLOAT2].");
+      "of buffers going into the vertex shader--use the VertexFormat enum.");
 
     CTOR(shader_desc_ctor);
 
@@ -122,8 +129,16 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     shader_desc_vertex_filepath_offset   = MVAR("string", "vertexFilepath", false);
     shader_desc_fragment_filepath_offset = MVAR("string", "fragmentFilepath", false);
     shader_desc_vertex_layout_offset     = MVAR("int[]", "vertexLayout", false);
-    shader_desc_compute_string_offset    = MVAR("string", "computeString", false);
-    shader_desc_compute_filepath_offset  = MVAR("string", "computeFilepath", false);
+    DOC_VAR(
+      "Array of VertexFormat enums describing the vertex data layout."
+      "E.g. if your vertex shader takes a vec3 position and a vec2 uv, set "
+      "`vertexLayout` to [VertexFormat.FLOAT3, VertexFormat.FLOAT2].");
+    shader_desc_compute_string_offset   = MVAR("string", "computeString", false);
+    shader_desc_compute_filepath_offset = MVAR("string", "computeFilepath", false);
+    shader_desc_is_lit                  = MVAR("int", "lit", false);
+    DOC_VAR(
+      "set to true if the shader is lit (uses lighting calculations). If set, the "
+      "renderer will pass in lighting information as part of the per-frame uniforms");
 
     END_CLASS();
 
@@ -150,6 +165,9 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
     MFUN(shader_get_vertex_layout, "int[]", "vertexLayout");
     DOC_FUNC("Get the vertex layout passed in the ShaderDesc at creation.");
+
+    MFUN(shader_get_lit, "int", "lit");
+    DOC_FUNC("Get whether the shader is lit (uses lighting calculations).");
 
     END_CLASS();
 
@@ -309,12 +327,26 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     CTOR(flat_material_ctor);
 
     // color uniform
-    MFUN(flat_material_get_color, "vec4", "color");
+    MFUN(flat_material_get_color, "vec3", "color");
     DOC_FUNC("Get the color of the material.");
 
     MFUN(flat_material_set_color, "void", "color");
     ARG("vec3", "color");
     DOC_FUNC("Set material color uniform as an rgb. Alpha set to 1.0.");
+
+    END_CLASS();
+
+    // Diffuse Material -----------------------------------------------------
+
+    BEGIN_CLASS("DiffuseMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+
+    CTOR(diffuse_material_ctor);
+
+    MFUN(diffuse_material_get_color, "vec3", "color");
+    DOC_FUNC("Get the color of the material.");
+
+    MFUN(diffuse_material_set_color, "void", "color");
+    ARG("vec3", "color");
 
     END_CLASS();
 
@@ -361,15 +393,28 @@ CK_DLL_CTOR(shader_ctor)
 {
     Chuck_Object* shader_desc = GET_NEXT_OBJECT(ARGS);
 
+    WGPUVertexFormat vertex_layout[SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES] = {};
+    int vertex_layout_len = chugin_copyCkIntArray(
+      OBJ_MEMBER_INT_ARRAY(shader_desc, shader_desc_vertex_layout_offset),
+      (int*)vertex_layout, ARRAY_LENGTH(vertex_layout));
+
     // create shader on audio side
     SG_Shader* shader = SG_CreateShader(
-      SELF, OBJ_MEMBER_STRING(shader_desc, shader_desc_vertex_string_offset),
-      OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_string_offset),
-      OBJ_MEMBER_STRING(shader_desc, shader_desc_vertex_filepath_offset),
-      OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_filepath_offset),
-      OBJ_MEMBER_INT_ARRAY(shader_desc, shader_desc_vertex_layout_offset),
-      OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_string_offset),
-      OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_filepath_offset));
+      SELF,
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_vertex_string_offset)),
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_string_offset)),
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_vertex_filepath_offset)),
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_fragment_filepath_offset)),
+      vertex_layout, vertex_layout_len,
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_string_offset)),
+      API->object->str(
+        OBJ_MEMBER_STRING(shader_desc, shader_desc_compute_filepath_offset)),
+      (bool)OBJ_MEMBER_INT(shader_desc, shader_desc_is_lit));
 
     // save component id
     OBJ_MEMBER_UINT(SELF, component_offset_id) = shader->id;
@@ -406,7 +451,13 @@ CK_DLL_MFUN(shader_get_vertex_layout)
 {
     SG_Shader* shader = GET_SHADER(SELF);
     RETURN->v_object  = (Chuck_Object*)chugin_createCkIntArray(
-      shader->vertex_layout, ARRAY_LENGTH(shader->vertex_layout));
+      (int*)shader->vertex_layout, ARRAY_LENGTH(shader->vertex_layout));
+}
+
+CK_DLL_MFUN(shader_get_lit)
+{
+    SG_Shader* shader = GET_SHADER(SELF);
+    RETURN->v_int     = (t_CKINT)shader->lit;
 }
 
 // Material ===================================================================
@@ -756,10 +807,46 @@ CK_DLL_CTOR(flat_material_ctor)
 CK_DLL_MFUN(flat_material_get_color)
 {
     glm::vec4 color = GET_MATERIAL(SELF)->uniforms[0].as.vec4f;
-    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
+    RETURN->v_vec3  = { color.r, color.g, color.b };
 }
 
 CK_DLL_MFUN(flat_material_set_color)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+
+    SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+// DiffuseMaterial ===================================================================
+
+CK_DLL_CTOR(diffuse_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_DIFFUSE;
+
+    // init shader
+    SG_Shader* diffuse_shader
+      = SG_GetShader(g_material_builtin_shaders.diffuse_shader_id);
+    ASSERT(diffuse_shader);
+
+    chugl_materialSetShader(material, diffuse_shader);
+
+    // init uniforms
+    {
+        SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // albedo
+        CQ_PushCommand_MaterialSetUniform(material, 0);
+    }
+}
+
+CK_DLL_MFUN(diffuse_material_get_color)
+{
+    glm::vec4 color = GET_MATERIAL(SELF)->uniforms[0].as.vec4f;
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(diffuse_material_set_color)
 {
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
@@ -788,7 +875,7 @@ chugl_createShader(CK_DL_API API, const char* vertex_string,
                    const char* fragment_string, const char* vertex_filepath,
                    const char* fragment_filepath, WGPUVertexFormat* vertex_layout,
                    int vertex_layout_count, const char* compute_string = "",
-                   const char* compute_filepath = "")
+                   const char* compute_filepath = "", bool lit = false)
 {
     Chuck_Object* shader_ckobj
       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_SHADER], true);
@@ -796,7 +883,7 @@ chugl_createShader(CK_DL_API API, const char* vertex_string,
     // create shader on audio side
     SG_Shader* shader = SG_CreateShader(
       shader_ckobj, vertex_string, fragment_string, vertex_filepath, fragment_filepath,
-      vertex_layout, vertex_layout_count, compute_string, compute_filepath);
+      vertex_layout, vertex_layout_count, compute_string, compute_filepath, lit);
 
     // save component id
     OBJ_MEMBER_UINT(shader_ckobj, component_offset_id) = shader->id;
@@ -855,4 +942,9 @@ void chugl_initDefaultMaterials()
     g_material_builtin_shaders.bloom_upsample_screen_shader_id
       = chugl_createShader(g_chuglAPI, bloom_upsample_screen_shader,
                            bloom_upsample_screen_shader, NULL, NULL, NULL, 0);
+
+    // diffuse material
+    g_material_builtin_shaders.diffuse_shader_id = chugl_createShader(
+      g_chuglAPI, diffuse_shader_string, diffuse_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
 }

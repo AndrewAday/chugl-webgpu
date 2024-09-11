@@ -4,6 +4,8 @@
 #include "graphics.h"
 #include "shaders.h"
 
+// TODO remove class
+
 void Entity::init(Entity* entity, GraphicsContext* ctx,
                   WGPUBindGroupLayout bindGroupLayout)
 {
@@ -16,15 +18,13 @@ void Entity::init(Entity* entity, GraphicsContext* ctx,
 
     // init bindgroup for per-entity uniform buffer
     if (bindGroupLayout != NULL) {
-        BindGroup::init(ctx, &entity->bindGroup, bindGroupLayout,
-                        sizeof(DrawUniforms));
+        BindGroup::init(ctx, &entity->bindGroup, bindGroupLayout, sizeof(DrawUniforms));
     }
 }
 
 // assigns vertices to entity and builds gpu buffers
 // immutable: once assigned, vertices cannot be changed
-void Entity::setVertices(Entity* entity, Vertices* vertices,
-                         GraphicsContext* ctx)
+void Entity::setVertices(Entity* entity, Vertices* vertices, GraphicsContext* ctx)
 {
     ASSERT(entity->vertices.vertexData == NULL);
     entity->vertices = *vertices; // points to same memory
@@ -68,6 +68,5 @@ void Entity::rotateOnWorldAxis(Entity* entity, glm::vec3 axis, f32 deg)
 void Entity::lookAt(Entity* entity, glm::vec3 target)
 {
     // TODO: support scenegraph transform hierarchy for position and rotation
-    entity->rot
-      = glm::conjugate(glm::toQuat(glm::lookAt(entity->pos, target, VEC_UP)));
+    entity->rot = glm::conjugate(glm::toQuat(glm::lookAt(entity->pos, target, VEC_UP)));
 }

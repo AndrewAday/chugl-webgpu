@@ -374,54 +374,11 @@ void CQ_PushCommand_SetScale(SG_Transform* xform)
     spinlock::unlock(&cq.write_q_lock);
 }
 
-SG_Scene* CQ_PushCommand_SceneCreate(Chuck_Object* ckobj, t_CKUINT offset_id,
-                                     CK_DL_API API)
+void CQ_PushCommand_SceneUpdate(SG_Scene* scene)
 {
-    // execute change on audio thread side
-    SG_Scene* scene = SG_CreateScene(ckobj);
-    // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, offset_id) = scene->id;
-
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_SceneCreate* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SceneCreate);
-
-        // initialize memory
-        command->type              = SG_COMMAND_SCENE_CREATE;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->sg_id             = scene->id;
-    }
-    spinlock::unlock(&cq.write_q_lock);
-
-    return scene;
-}
-
-void CQ_PushCommand_SceneBGColor(SG_Scene* scene, t_CKVEC4 color)
-{
-    scene->bg_color = glm::vec4(color.x, color.y, color.z, color.w);
-
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_SceneBGColor* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_SceneBGColor);
-
-        // initialize memory
-        command->type              = SG_COMMAND_SCENE_BG_COLOR;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->sg_id             = scene->id;
-        command->color             = scene->bg_color;
-    }
-    spinlock::unlock(&cq.write_q_lock);
-}
-
-void CQ_PushCommand_SceneSetMainCamera(SG_Scene* scene, SG_Camera* camera)
-{
-    BEGIN_COMMAND(SG_Command_SceneSetMainCamera, SG_COMMAND_SCENE_SET_MAIN_CAMERA);
-    command->scene_id  = scene->id;
-    command->camera_id = camera ? camera->id : 0;
+    BEGIN_COMMAND(SG_Command_SceneUpdate, SG_COMMAND_SCENE_UPDATE);
+    command->sg_id = scene->id;
+    command->desc  = scene->desc;
     END_COMMAND();
 }
 
@@ -606,9 +563,11 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader)
     command->compute_string_offset    = Arena::offsetOf(cq.write_q, compute_string);
     command->compute_filepath_offset  = Arena::offsetOf(cq.write_q, compute_filepath);
 
-    for (int i = 0; i < ARRAY_LENGTH(shader->vertex_layout); i++) {
-        command->vertex_layout[i] = (WGPUVertexFormat)shader->vertex_layout[i];
-    }
+    ASSERT(sizeof(shader->vertex_layout) == sizeof(command->vertex_layout));
+    memcpy(command->vertex_layout, shader->vertex_layout,
+           sizeof(shader->vertex_layout));
+
+    command->lit = shader->lit;
 
     END_COMMAND();
 }
@@ -837,5 +796,13 @@ void CQ_PushCommand_BufferWrite(SG_Buffer* buffer, Chuck_ArrayFloat* data,
     f32* data_ptr            = (f32*)memory;
     chugin_copyCkFloatArray(data, data_ptr, data_count);
     command->data_offset = Arena::offsetOf(cq.write_q, data_ptr);
+    END_COMMAND();
+}
+
+void CQ_PushCommand_LightUpdate(SG_Light* light)
+{
+    BEGIN_COMMAND(SG_Command_LightUpdate, SG_COMMAND_LIGHT_UPDATE);
+    command->light_id = light->id;
+    command->desc     = light->desc;
     END_COMMAND();
 }
