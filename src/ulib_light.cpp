@@ -6,9 +6,13 @@
 // TODO add ambient to scene
 
 CK_DLL_CTOR(ulib_light_ctor);
+CK_DLL_CTOR(ulib_light_ctor_with_type);
 
 CK_DLL_MFUN(ulib_light_set_type);
 CK_DLL_MFUN(ulib_light_get_type);
+
+CK_DLL_CTOR(ulib_point_light_ctor);
+CK_DLL_CTOR(ulib_dir_light_ctor);
 
 #define GET_LIGHT(ckobj) SG_GetLight(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 
@@ -39,6 +43,9 @@ static void ulib_light_query(Chuck_DL_Query* QUERY)
 
     CTOR(ulib_light_ctor);
 
+    CTOR(ulib_light_ctor_with_type);
+    ARG("int", "type");
+
     MFUN(ulib_light_set_type, "void", "mode");
     ARG("int", "mode");
     DOC_FUNC("Set the light type. Use GLight.Directional or GLight.Point");
@@ -47,11 +54,31 @@ static void ulib_light_query(Chuck_DL_Query* QUERY)
     DOC_FUNC("Get the light type. Returns either GLight.Directional or GLight.Point.");
 
     END_CLASS();
+
+    // TODO document
+
+    // point light ------------------------------------------------------------
+
+    BEGIN_CLASS("GPointLight", SG_CKNames[SG_COMPONENT_LIGHT]);
+    CTOR(ulib_point_light_ctor);
+    END_CLASS();
+
+    // directional light ------------------------------------------------------
+
+    BEGIN_CLASS("GDirLight", SG_CKNames[SG_COMPONENT_LIGHT]);
+    CTOR(ulib_dir_light_ctor);
+    END_CLASS();
 }
 
 CK_DLL_CTOR(ulib_light_ctor)
 {
     ulib_light_create(SELF, SG_LightType_Directional);
+}
+
+CK_DLL_CTOR(ulib_light_ctor_with_type)
+{
+    t_CKINT type = GET_NEXT_INT(ARGS);
+    ulib_light_create(SELF, (SG_LightType)type);
 }
 
 CK_DLL_MFUN(ulib_light_set_type)
@@ -67,4 +94,14 @@ CK_DLL_MFUN(ulib_light_get_type)
 {
     SG_Light* light = GET_LIGHT(SELF);
     RETURN->v_int   = (t_CKINT)light->desc.type;
+}
+
+CK_DLL_CTOR(ulib_point_light_ctor)
+{
+    ulib_light_create(SELF, SG_LightType_Point);
+}
+
+CK_DLL_CTOR(ulib_dir_light_ctor)
+{
+    ulib_light_create(SELF, SG_LightType_Directional);
 }

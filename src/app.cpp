@@ -1574,7 +1574,7 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     // R_Transform::print(main_scene, 0);
 
     // update lights
-    R_Scene::rebuildLightInfoBuffer(&app->gctx, scene);
+    R_Scene::rebuildLightInfoBuffer(&app->gctx, scene, app->fc);
 
     static Arena frame_bind_group_arena{};
     { // clear arena bind groups from previous call to _R_RenderScene
@@ -1671,10 +1671,9 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                                           render_pipeline->frame_uniform_buffer.size;
 
             WGPUBindGroupEntry* lighting_entry = &frame_group_entries[1];
-            ASSERT(!scene->light_info_dirty);
-            lighting_entry->binding = 1;
-            lighting_entry->buffer  = scene->light_info_buffer.buf;
-            lighting_entry->size    = MAX(scene->light_info_buffer.size, 1);
+            lighting_entry->binding            = 1;
+            lighting_entry->buffer             = scene->light_info_buffer.buf;
+            lighting_entry->size               = MAX(scene->light_info_buffer.size, 1);
 
             // create bind group
             WGPUBindGroupDescriptor frameGroupDesc;
@@ -1997,6 +1996,10 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Transform::removeChild(Component_GetXform(cmd->parent),
                                      Component_GetXform(cmd->child));
         } break;
+        case SG_COMMAND_REMOVE_ALL_CHILDREN: {
+            SG_Command_RemoveAllChildren* cmd = (SG_Command_RemoveAllChildren*)command;
+            R_Transform::removeAllChildren(Component_GetXform(cmd->parent));
+        } break;
         case SG_COMMAND_SET_POSITION: {
             SG_Command_SetPosition* cmd = (SG_Command_SetPosition*)command;
             R_Transform::pos(Component_GetXform(cmd->sg_id), cmd->pos);
@@ -2212,6 +2215,15 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                               cmd->offset_bytes, data, cmd->data_size_bytes);
 
         } break;
-        default: ASSERT(false);
+        case SG_COMMAND_LIGHT_UPDATE: {
+            SG_Command_LightUpdate* cmd = (SG_Command_LightUpdate*)command;
+            R_Light* light              = Component_GetLight(cmd->light_id);
+            if (!light) light = Component_CreateLight(cmd->light_id, &cmd->desc);
+            light->desc = cmd->desc; // copy light properties
+        } break;
+        default: {
+            log_error("unhandled command type: %d", command->type);
+            ASSERT(false);
+        }
     }
 }

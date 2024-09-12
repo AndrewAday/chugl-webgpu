@@ -104,14 +104,7 @@ struct R_Transform : public R_Component {
     static void sca(R_Transform* xform, const glm::vec3& sca);
 
     static void decomposeWorldMatrix(const glm::mat4& m, glm::vec3& pos, glm::quat& rot,
-                                     glm::vec3& scale)
-    {
-        pos = m[3];
-        for (int i = 0; i < 3; i++) scale[i] = glm::length(glm::vec3(m[i]));
-        const glm::mat3 rotMtx(glm::vec3(m[0]) / scale[0], glm::vec3(m[1]) / scale[1],
-                               glm::vec3(m[2]) / scale[2]);
-        rot = glm::quat_cast(rotMtx);
-    }
+                                     glm::vec3& scale);
 
     // updates all local/world matrices in the scenegraph
     static void rebuildMatrices(R_Scene* root, Arena* arena);
@@ -122,6 +115,7 @@ struct R_Transform : public R_Component {
     static bool isAncestor(R_Transform* ancestor, R_Transform* descendent);
     static R_Scene* getScene(R_Transform* xform);
     static void removeChild(R_Transform* parent, R_Transform* child);
+    static void removeAllChildren(R_Transform* parent);
     static void addChild(R_Transform* parent, R_Transform* child);
     static u32 numChildren(R_Transform* xform);
     static R_Transform* getChild(R_Transform* xform, u32 index);
@@ -463,7 +457,6 @@ struct R_Scene : R_Transform {
 
     hashmap* light_id_set;        // set of SG_IDs
     GPU_Buffer light_info_buffer; // lighting storage buffer
-    bool light_info_dirty;        // true if we need to rebuild light_info_buffer
 
     static void initFromSG(GraphicsContext* gctx, R_Scene* r_scene, SG_ID scene_id,
                            SG_SceneDesc* sg_scene_desc);
@@ -471,7 +464,7 @@ struct R_Scene : R_Transform {
     static void removeSubgraphFromRenderState(R_Scene* scene, R_Transform* xform);
     static void addSubgraphToRenderState(R_Scene* scene, R_Transform* xform);
 
-    static void rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene);
+    static void rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene, u64 fc);
 
     static i32 numLights(R_Scene* scene)
     {

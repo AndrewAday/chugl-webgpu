@@ -347,13 +347,13 @@ CK_DLL_QUERY(ChuGL)
     }
 
     ulib_color_query(QUERY);
-    ulib_imgui_query(QUERY);
     ulib_box2d_query(QUERY);
 
     ulib_window_query(QUERY);
     ulib_component_query(QUERY);
     ulib_texture_query(QUERY);
     ulib_ggen_query(QUERY);
+    ulib_imgui_query(QUERY);
     ulib_camera_query(QUERY);
     ulib_gscene_query(QUERY);
     ulib_buffer_query(QUERY);

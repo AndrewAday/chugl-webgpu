@@ -72,6 +72,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_CREATE_XFORM,
     SG_COMMAND_ADD_CHILD,
     SG_COMMAND_REMOVE_CHILD,
+    SG_COMMAND_REMOVE_ALL_CHILDREN,
     SG_COMMAND_SET_POSITION,
     SG_COMMAND_SET_ROTATATION,
     SG_COMMAND_SET_SCALE,
@@ -242,6 +243,10 @@ struct SG_Command_AddChild : public SG_Command {
 struct SG_Command_RemoveChild : public SG_Command {
     SG_ID parent;
     SG_ID child;
+};
+
+struct SG_Command_RemoveAllChildren : public SG_Command {
+    SG_ID parent;
 };
 
 struct SG_Command_SetPosition : public SG_Command {
@@ -510,6 +515,7 @@ void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offs
                                     CK_DL_API API);
 void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child);
 void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child);
+void CQ_PushCommand_RemoveAllChildren(SG_Transform* parent);
 void CQ_PushCommand_SetPosition(SG_Transform* xform);
 void CQ_PushCommand_SetRotation(SG_Transform* xform);
 void CQ_PushCommand_SetScale(SG_Transform* xform);

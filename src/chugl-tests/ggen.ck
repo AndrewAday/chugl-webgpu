@@ -77,3 +77,26 @@ T.assert(
     && GG.scene().child() == A,
     "grucking to scene"
 );
+
+GGen C;
+
+C --> A;
+B --> A;
+A --> GG.scene();
+
+// TODO add refcounting tests after impl gc
+
+A.detachParent();
+T.assert( A.parent() == null && A.numChildren() == 2, "detaching parent");
+// T.assert( Machine.refcount(A) == refcount - 1, "detach parent refcount");
+
+A-->GG.scene();
+A.detachChildren();
+T.assert( A.parent() == GG.scene() && A.numChildren() == 0, "detaching children");
+// T.assert( Machine.refcount(A) == refcount - 2, "detach children refcount");
+
+C --> A;
+B --> A;
+A.detach();
+T.assert( A.parent() == null && A.numChildren() == 0, "detaching all");
+// T.assert( Machine.refcount(A) == refcount - 3, "detach all refcount");

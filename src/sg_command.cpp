@@ -306,6 +306,8 @@ void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child)
 
 void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child)
 {
+    if (parent == NULL || child == NULL) return;
+
     // execute change on audio thread side
     SG_Transform::removeChild(parent, child);
 
@@ -322,6 +324,13 @@ void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child)
         command->child             = child->id;
     }
     spinlock::unlock(&cq.write_q_lock);
+}
+
+void CQ_PushCommand_RemoveAllChildren(SG_Transform* parent)
+{
+    BEGIN_COMMAND(SG_Command_RemoveAllChildren, SG_COMMAND_REMOVE_ALL_CHILDREN);
+    command->parent = parent->id;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_SetPosition(SG_Transform* xform)

@@ -252,6 +252,7 @@ void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
 
     child->parentID = 0;
 
+    // ==optimize== flat_map instead of linear search
     for (size_t i = 0; i < numChildren; ++i) {
         if (children[i] == child->id) {
             // swap with last element
@@ -270,6 +271,24 @@ void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
         }
     }
 }
+
+void SG_Transform::removeAllChildren(SG_Transform* parent)
+{
+    size_t numChildren = ARENA_LENGTH(&parent->childrenIDs, SG_ID);
+    SG_ID* children    = (SG_ID*)parent->childrenIDs.base;
+
+    for (size_t i = 0; i < numChildren; ++i) {
+        // release ref count on child's chuck object; one less reference to
+        // it from us (parent)
+        SG_DecrementRef(children[i]);
+
+        // release ref count on our (parent's) chuck object; one less
+        // reference to it from child
+        SG_DecrementRef(parent->id);
+    }
+    Arena::clear(&parent->childrenIDs);
+}
+
 bool SG_Transform::isAncestor(SG_Transform* ancestor, SG_Transform* descendent)
 {
     while (descendent != NULL) {
@@ -880,11 +899,11 @@ SG_Component* SG_GetComponent(SG_ID id)
 SG_Transform* SG_GetTransform(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component == NULL || component->type == SG_COMPONENT_TRANSFORM
-           || component->type == SG_COMPONENT_SCENE
-           || component->type == SG_COMPONENT_MESH
-           || component->type == SG_COMPONENT_CAMERA
-           || component->type == SG_COMPONENT_TEXT);
+    ASSERT(
+      component == NULL || component->type == SG_COMPONENT_TRANSFORM
+      || component->type == SG_COMPONENT_SCENE || component->type == SG_COMPONENT_MESH
+      || component->type == SG_COMPONENT_CAMERA || component->type == SG_COMPONENT_TEXT
+      || component->type == SG_COMPONENT_LIGHT);
     return (SG_Transform*)component;
 }
 
@@ -979,8 +998,7 @@ static void _SG_SwapGCQueues()
 void SG_DecrementRef(SG_ID id)
 {
     if (id == 0) return; // NULL component
-    SG_ID* idPtr = ARENA_PUSH_TYPE(_gc_queue_write, SG_ID);
-    *idPtr       = id;
+    *ARENA_PUSH_TYPE(_gc_queue_write, SG_ID) = id;
 }
 
 void SG_AddRef(SG_Component* comp)

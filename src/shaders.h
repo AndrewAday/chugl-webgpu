@@ -149,7 +149,7 @@ static std::unordered_map<std::string, std::string> shader_table = {
 
         struct VertexOutput {
             @builtin(position) position : vec4f,
-            @location(0) v_worldPos : vec3f,
+            @location(0) v_worldpos : vec3f,
             @location(1) v_normal : vec3f,
             @location(2) v_uv : vec2f,
             @location(3) v_tangent : vec4f,
@@ -173,9 +173,9 @@ static std::unordered_map<std::string, std::string> shader_table = {
                 u_Draw.model[2].xyz
             );
 
-            var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
-            out.v_worldPos = worldPos.xyz;
-            // TODO handle non-uniform scaling
+            let worldpos = u_Draw.model * vec4f(in.position, 1.0f);
+            out.position = (u_Frame.projection * u_Frame.view) * worldpos;
+            out.v_worldpos = worldpos.xyz;
 
             // TODO: after wgsl adds matrix inverse, calculate normal matrix here
             // out.v_normal = (transpose(inverse(u_Frame.viewMat * u_Draw.model)) * vec4f(in.normal, 0.0)).xyz;
@@ -184,7 +184,6 @@ static std::unordered_map<std::string, std::string> shader_table = {
             // tangent vectors aren't impacted by non-uniform scaling or translation
             out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
             out.v_uv     = in.uv;
-            out.position = worldPos;
 
             return out;
         }
@@ -286,12 +285,12 @@ static const char* diffuse_shader_string  = R"glsl(
                 diffuse += max(dot(normal, -light.direction), 0.0) * light.color * albedo.rgb;
             }
             case 2: { // point
-                let dist = distance(in.v_worldPos, light.position);
+                let dist = distance(in.v_worldpos, light.position);
                 let intensity = pow(
                     clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
                     light.point_falloff
                 );
-                let dir = normalize(light.position - in.v_worldPos);
+                let dir = normalize(light.position - in.v_worldpos);
                 diffuse += max(dot(normal, dir), 0.0) * light.color * albedo.rgb * intensity;
             }
             default: {}
@@ -406,8 +405,10 @@ fn vs_main(
         u_Draw.model[2].xyz
     );
 
-    var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(calculate_line_pos(vertex_id), 0.0f, 1.0f);
-    out.v_worldPos = worldPos.xyz;
+    let worldpos = u_Draw.model * vec4f(calculate_line_pos(vertex_id), 0.0, 1.0);
+    out.position = (u_Frame.projection * u_Frame.view) * worldpos;
+    out.v_worldpos = worldpos.xyz;
+
     out.v_normal = (u_Draw.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz;
     // tangent vectors aren't impacted by non-uniform scaling or translation
     out.v_tangent = vec4f(modelMat3 * vec3f(1.0, 0.0, 0.0), 1.0);
@@ -422,8 +423,6 @@ fn vs_main(
     } else {
         out.v_uv.y = 0.0;
     }
-
-    out.position = worldPos;
 
     return out;
 }
@@ -494,8 +493,11 @@ static const char* shaderCode_ = R"glsl(
             u_Draw.model[2].xyz
         );
 
-        var worldPos : vec4f = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
-        out.v_worldPos = worldPos.xyz;
+
+        let worldpos = u_Draw.model * vec4f(in.position, 1.0f);
+        out.position = (u_Frame.projection * u_Frame.view) * worldpos;
+        out.v_worldpos = worldpos.xyz;
+
         // TODO handle non-uniform scaling
         // TODO: restore to normal Mat. need to pass normal mat from cpu side
         // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
@@ -503,7 +505,6 @@ static const char* shaderCode_ = R"glsl(
         // tangent vectors aren't impacted by non-uniform scaling or translation
         out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
         out.v_uv     = in.uv;
-        out.position = worldPos;
 
         return out;
     }
@@ -549,6 +550,12 @@ static const char* shaderCode_ = R"glsl(
         return (alpha2)/(PI * denom*denom);
     }
 
+//    float D_GGX(float NoH, float roughness) {
+//         float a = NoH * roughness;
+//         float k = roughness / (1.0 - NoH * NoH + a * a);
+//         return k * k * (1.0 / PI);
+//     } 
+
     // Geometric Shadowing function ----------------------------------------------
     fn G_SchlickSmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
         let r : f32 = (roughness + 1.0);
@@ -560,11 +567,24 @@ static const char* shaderCode_ = R"glsl(
 
     }
 
+    // float V_SmithGGXCorrelatedFast(float NoV, float NoL, float roughness) {
+    //     float a = roughness;
+    //     float GGXV = NoL * (NoV * (1.0 - a) + a);
+    //     float GGXL = NoV * (NoL * (1.0 - a) + a);
+    //     return 0.5 / (GGXV + GGXL);
+    // }
+
     // Fresnel function ----------------------------------------------------------
     // cosTheta assumed to be in range [0, 1]
     fn F_Schlick(cosTheta : f32, F0 : vec3<f32>) -> vec3f {
         return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
     }
+
+    // vec3 F_Schlick(float u, vec3 f0) {
+    //     float f = pow(1.0 - u, 5.0);
+    //     return f + f0 * (1.0 - f);
+    // }
+
 
     // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
     fn Uncharted2Tonemap(color : vec3<f32>) -> vec3f {
@@ -592,7 +612,7 @@ static const char* shaderCode_ = R"glsl(
         }
 
         let N : vec3f = calculateNormal( normal, in.v_uv, in.v_tangent, u_Material.normalFactor);
-        let V : vec3f = normalize(u_Frame.camPos - in.v_worldPos);
+        let V : vec3f = normalize(u_Frame.camPos - in.v_worldpos);
 
         // linear-space albedo (normally authored in sRGB space so we have to convert to linear space)
         // transparency not supported

@@ -7,11 +7,81 @@ namespace cimgui
 #include <cimgui/cimgui.h>
 }
 
+#include "sg_component.h"
 #include "ulib_helper.h"
 
 // ============================================================================
 // Declarations
 // ============================================================================
+
+static void ui_scenegraph_draw_impl(SG_Transform* node)
+{
+    if (!node) return;
+
+    static char buffer[128] = {};
+    snprintf(buffer, ARRAY_LENGTH(buffer), "[%s %llu] %s", SG_CKNames[node->type],
+             node->id, node->name);
+
+    // note: TreeNode(...) needs a unique string label for each node to disambiguate
+    // clicks
+    if (cimgui::ImGui_TreeNode(buffer)) {
+        cimgui::ImGui_SeparatorText("Transform");
+
+        cimgui::ImGui_DragFloat3("Position", &node->pos[0]);
+
+        glm::vec3 rot = SG_Transform::eulerRotationRadians(node);
+        cimgui::ImGui_DragFloat3("Rotation", &rot[0]);
+
+        cimgui::ImGui_DragFloat3("Scale", &node->sca[0]);
+
+        if (node->type == SG_COMPONENT_MESH) {
+            SG_Mesh* mesh = SG_GetMesh(node->id);
+            cimgui::ImGui_SeparatorText("Mesh");
+
+            // material info
+            SG_Material* material = SG_GetMaterial(mesh->_mat_id);
+            if (material) {
+                snprintf(buffer, ARRAY_LENGTH(buffer), "Material: [%s %llu] %s",
+                         SG_CKNames[material->type], material->id, material->name);
+                cimgui::ImGui_Text("%s", buffer);
+            }
+
+            // geometry info
+            SG_Geometry* geometry = SG_GetGeometry(mesh->_geo_id);
+            if (geometry) {
+                snprintf(buffer, ARRAY_LENGTH(buffer), "Geometry: [%s %llu] %s",
+                         SG_CKNames[geometry->type], geometry->id, geometry->name);
+                cimgui::ImGui_Text("%s", buffer);
+            }
+        }
+
+        // children
+        int numChildren = ARENA_LENGTH(&node->childrenIDs, SG_ID);
+        cimgui::ImGui_SeparatorText("Children: ");
+        for (int i = 0; i < numChildren; i++) {
+            SG_Transform* child
+              = SG_GetTransform(*ARENA_GET_TYPE(&node->childrenIDs, SG_ID, i));
+            ui_scenegraph_draw_impl(child);
+        }
+
+        // pop tree
+        cimgui::ImGui_TreePop();
+    }
+}
+
+// ChuGL Custom Widgets
+CK_DLL_SFUN(ui_scenegraph)
+{
+    // get the root node
+    Chuck_Object* root_ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Transform* node
+      = SG_GetTransform(OBJ_MEMBER_UINT(root_ckobj, component_offset_id));
+    if (!node) return;
+
+    if (!cimgui::ImGui_CollapsingHeader("Scenegraph", 0)) return;
+
+    ui_scenegraph_draw_impl(node);
+}
 
 // Config
 CK_DLL_SFUN(ui_set_disabled)
@@ -735,6 +805,7 @@ CK_DLL_MFUN(ui_float_set_value);
 // UI_Float2
 static t_CKUINT ui_float2_ptr_offset = 0;
 CK_DLL_CTOR(ui_float2_ctor);
+CK_DLL_CTOR(ui_float2_ctor_with_value);
 CK_DLL_DTOR(ui_float2_dtor);
 CK_DLL_MFUN(ui_float2_get_value);
 CK_DLL_MFUN(ui_float2_set_value);
@@ -742,6 +813,7 @@ CK_DLL_MFUN(ui_float2_set_value);
 // UI_Float3
 static t_CKUINT ui_float3_ptr_offset = 0;
 CK_DLL_CTOR(ui_float3_ctor);
+CK_DLL_CTOR(ui_float3_ctor_with_value);
 CK_DLL_DTOR(ui_float3_dtor);
 CK_DLL_MFUN(ui_float3_get_value);
 CK_DLL_MFUN(ui_float3_set_value);
@@ -749,6 +821,7 @@ CK_DLL_MFUN(ui_float3_set_value);
 // UI_Float4
 static t_CKUINT ui_float4_ptr_offset = 0;
 CK_DLL_CTOR(ui_float4_ctor);
+CK_DLL_CTOR(ui_float4_ctor_with_value);
 CK_DLL_DTOR(ui_float4_dtor);
 CK_DLL_MFUN(ui_float4_get_value);
 CK_DLL_MFUN(ui_float4_set_value);
@@ -1060,6 +1133,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS("UI_Float2", "Object");
     ui_float2_ptr_offset = MVAR("int", "@ui_float2_ptr", false);
     CTOR(ui_float2_ctor);
+
+    CTOR(ui_float2_ctor_with_value);
+    ARG("vec2", "val");
+
     DTOR(ui_float2_dtor);
     MFUN(ui_float2_get_value, "vec2", "val");
     MFUN(ui_float2_set_value, "vec2", "val");
@@ -1070,6 +1147,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS("UI_Float3", "Object");
     ui_float3_ptr_offset = MVAR("int", "@ui_float3_ptr", false);
     CTOR(ui_float3_ctor);
+
+    CTOR(ui_float3_ctor_with_value);
+    ARG("vec3", "val");
+
     DTOR(ui_float3_dtor);
     MFUN(ui_float3_get_value, "vec3", "val");
     MFUN(ui_float3_set_value, "vec3", "val");
@@ -1080,6 +1161,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS("UI_Float4", "Object");
     ui_float4_ptr_offset = MVAR("int", "@ui_float4_ptr", false);
     CTOR(ui_float4_ctor);
+
+    CTOR(ui_float4_ctor_with_value);
+    ARG("vec4", "val");
+
     DTOR(ui_float4_dtor);
     MFUN(ui_float4_get_value, "vec4", "val");
     MFUN(ui_float4_set_value, "vec4", "val");
@@ -4343,6 +4428,14 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // UI ---------------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI", "Object");
 
+    // ChuGL widgets
+    SFUN(ui_scenegraph, "void", "scenegraph");
+    ARG(SG_CKNames[SG_COMPONENT_TRANSFORM], "root");
+    QUERY->doc_func(QUERY,
+                    "Scene tree widget. "
+                    "View data about a given GGen and all its children. "
+                    "A simple version of a typical Editor Scenegraph");
+
     // config
     SFUN(ui_set_disabled, "void", "disabled");
     ARG("int", "disabled");
@@ -6804,6 +6897,13 @@ CK_DLL_CTOR(ui_float2_ctor)
     OBJ_MEMBER_UINT(SELF, ui_float2_ptr_offset) = (t_CKUINT)f;
 }
 
+CK_DLL_CTOR(ui_float2_ctor_with_value)
+{
+    t_CKVEC2 v = GET_NEXT_VEC2(ARGS);
+    float* f   = new float[2]{ (float)v.x, (float)v.y };
+    OBJ_MEMBER_UINT(SELF, ui_float2_ptr_offset) = (t_CKUINT)f;
+}
+
 CK_DLL_DTOR(ui_float2_dtor)
 {
     float* f = (float*)OBJ_MEMBER_UINT(SELF, ui_float2_ptr_offset);
@@ -6831,6 +6931,13 @@ CK_DLL_MFUN(ui_float2_set_value)
 CK_DLL_CTOR(ui_float3_ctor)
 {
     float* f                                    = new float[3]{ 0.0f, 0.0f, 0.0f };
+    OBJ_MEMBER_UINT(SELF, ui_float3_ptr_offset) = (t_CKUINT)f;
+}
+
+CK_DLL_CTOR(ui_float3_ctor_with_value)
+{
+    t_CKVEC3 v = GET_NEXT_VEC3(ARGS);
+    float* f   = new float[3]{ (float)v.x, (float)v.y, (float)v.z };
     OBJ_MEMBER_UINT(SELF, ui_float3_ptr_offset) = (t_CKUINT)f;
 }
 
@@ -6862,6 +6969,13 @@ CK_DLL_MFUN(ui_float3_set_value)
 CK_DLL_CTOR(ui_float4_ctor)
 {
     float* f = new float[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+    OBJ_MEMBER_UINT(SELF, ui_float4_ptr_offset) = (t_CKUINT)f;
+}
+
+CK_DLL_CTOR(ui_float4_ctor_with_value)
+{
+    t_CKVEC4 v = GET_NEXT_VEC4(ARGS);
+    float* f   = new float[4]{ (float)v.x, (float)v.y, (float)v.z, (float)v.w };
     OBJ_MEMBER_UINT(SELF, ui_float4_ptr_offset) = (t_CKUINT)f;
 }
 

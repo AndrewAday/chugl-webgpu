@@ -170,6 +170,9 @@ CK_DLL_MFUN(ggen_get_child);
 CK_DLL_MFUN(ggen_get_num_children);
 CK_DLL_GFUN(ggen_op_gruck);   // add child
 CK_DLL_GFUN(ggen_op_ungruck); // remove child
+CK_DLL_MFUN(ggen_detach_parent);
+CK_DLL_MFUN(ggen_detach_children);
+CK_DLL_MFUN(ggen_detach_all);
 
 static void ulib_ggen_query(Chuck_DL_Query* QUERY)
 {
@@ -444,6 +447,20 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         // overload GGen --< GGen
         QUERY->add_op_overload_binary(QUERY, ggen_op_ungruck, "GGen", "--<", "GGen",
                                       "lhs", "GGen", "rhs");
+
+        MFUN(ggen_detach_parent, "void", "detachParent");
+        DOC_FUNC(
+          "Detach this GGen from its parent. Equivalent to ggen --< ggen.parent()");
+
+        MFUN(ggen_detach_children, "void", "detachChildren");
+        DOC_FUNC(
+          "Detach all children from this GGen. Equivalent to ggen --< ggen.child(i) "
+          "for all children. children are NOT reparented");
+
+        MFUN(ggen_detach_all, "void", "detach");
+        DOC_FUNC(
+          "Detach this GGen from its parent and all children. children are NOT "
+          "reparented");
 
         QUERY->end_class(QUERY); // GGen
     }
@@ -942,6 +959,32 @@ CK_DLL_GFUN(ggen_op_ungruck)
 
     // return RHS
     RETURN->v_object = rhs;
+}
+
+CK_DLL_MFUN(ggen_detach_parent)
+{
+    SG_Transform* child  = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* parent = SG_GetTransform(child->parentID);
+    if (!parent) return;
+
+    CQ_PushCommand_RemoveChild(parent, child);
+}
+
+CK_DLL_MFUN(ggen_detach_children)
+{
+    SG_Transform* parent = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform::removeAllChildren(parent);
+
+    CQ_PushCommand_RemoveAllChildren(parent);
+}
+
+CK_DLL_MFUN(ggen_detach_all)
+{
+    SG_Transform* child  = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Transform* parent = SG_GetTransform(child->parentID);
+
+    CQ_PushCommand_RemoveChild(parent, child);
+    CQ_PushCommand_RemoveAllChildren(child);
 }
 
 CK_DLL_MFUN(ggen_get_parent)

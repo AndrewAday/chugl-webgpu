@@ -62,6 +62,7 @@ struct SG_Component {
     SG_ComponentType type;
     char name[64] = {};
     Chuck_Object* ckobj;
+    // Chuck_Type* cktype;
     // TODO cache hash
     // u64 hash;
 };
@@ -185,6 +186,7 @@ struct SG_Transform : public SG_Component {
     // SceneGraph relationships ========================================
     static void addChild(SG_Transform* parent, SG_Transform* child);
     static void removeChild(SG_Transform* parent, SG_Transform* child);
+    static void removeAllChildren(SG_Transform* parent);
     static bool isAncestor(SG_Transform* ancestor, SG_Transform* descendent);
     static size_t numChildren(SG_Transform* t);
     static SG_Transform* child(SG_Transform* t, size_t index);
@@ -647,11 +649,11 @@ enum SG_LightType : u8 {
 struct SG_LightDesc {
     SG_LightType type;
 
-    glm::vec3 color = glm::vec3(1.0f);
+    glm::vec3 color = glm::vec3(.1f);
 
     // point
     // formula: intensity = (1 - distance / radius)^falloff
-    float point_radius  = 1.0f;
+    float point_radius  = 10.0f;
     float point_falloff = 2.0f; // 1.0 = linear, 2.0 = quadratic
 };
 

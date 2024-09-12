@@ -11,6 +11,8 @@
 
 #include <stb/stb_image.h>
 
+#include <glm/gtx/matrix_decompose.hpp>
+
 static int compareSGIDs(const void* a, const void* b, void* udata)
 {
     return *(SG_ID*)a - *(SG_ID*)b;
@@ -224,6 +226,20 @@ void R_Transform::removeChild(R_Transform* parent, R_Transform* child)
     R_Scene::removeSubgraphFromRenderState(scene, child);
 }
 
+void R_Transform::removeAllChildren(R_Transform* parent)
+{
+    if (!parent) return;
+
+    R_Scene* scene     = R_Transform::getScene(parent);
+    size_t numChildren = ARENA_LENGTH(&parent->children, SG_ID);
+    SG_ID* children    = (SG_ID*)parent->children.base;
+
+    for (size_t i = 0; i < numChildren; ++i)
+        R_Scene::removeSubgraphFromRenderState(scene, Component_GetXform(children[i]));
+
+    Arena::clear(&parent->children);
+}
+
 void R_Transform::addChild(R_Transform* parent, R_Transform* child)
 {
     if (R_Transform::isAncestor(child, parent)) {
@@ -311,14 +327,31 @@ void R_Transform::sca(R_Transform* xform, const glm::vec3& sca)
     R_Transform::setStale(xform, R_Transform_STALE_LOCAL);
 }
 
+void R_Transform::decomposeWorldMatrix(const glm::mat4& m, glm::vec3& pos,
+                                       glm::quat& rot, glm::vec3& scale)
+{
+    // pos = m[3];
+    // for (int i = 0; i < 3; i++) scale[i] = glm::length(glm::vec3(m[i]));
+    // const glm::mat3 rotMtx(glm::vec3(m[0]) / scale[0], glm::vec3(m[1]) / scale[1],
+    //                        glm::vec3(m[2]) / scale[2]);
+    // rot = glm::quat_cast(rotMtx);
+    glm::vec3 skew;
+    glm::vec4 perspective;
+    glm::decompose(m, scale, rot, pos, skew, perspective);
+}
+
 /// @brief recursive helper to regen matrices for xform and all descendents
 static void _Transform_RebuildDescendants(R_Scene* scene, R_Transform* xform,
                                           const glm::mat4* parentWorld)
 {
     // mark primitive as stale since world matrix will change
     if (xform->_geoID && xform->_matID) {
+        ASSERT(xform->type == SG_COMPONENT_MESH);
         R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID)->stale = true;
     }
+
+    // TODO ==optimize==: this is where we would mark lights as stale
+    // For now we rebuild the light storage buffer every frame, no memoization
 
     // rebuild local mat
     if (xform->_stale == R_Transform_STALE_LOCAL)
@@ -1041,9 +1074,9 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
 
 void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
 {
-    ASSERT(scene->id == root->scene_id);
+    if (!scene || !root) return;
 
-    if (!scene) return;
+    ASSERT(scene->id == root->scene_id);
 
     // find all meshes in child subgraph
     static Arena arena{};
@@ -1070,7 +1103,6 @@ void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
             // remove from light set
             const void* prev_item = hashmap_delete(scene->light_id_set, &xform->id);
             ASSERT(prev_item);
-            scene->light_info_dirty = true;
         } else if (xform->type == SG_COMPONENT_MESH) {
             // get xforms from geometry
             GeometryToXforms* g2x
@@ -1126,8 +1158,6 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
             const void* replaced = hashmap_set(scene->light_id_set, &xform->id);
             // light should not already be in scene
             ASSERT(!replaced);
-            // need to rebuild light info
-            scene->light_info_dirty = true;
         } else if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
             ASSERT(xform->type == SG_COMPONENT_MESH);
             bool add_m2g_and_p2m_entries = false;
@@ -1197,24 +1227,29 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
     }
 }
 
-void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene)
+void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene, u64 fc)
 {
-    if (!scene->light_info_dirty) return;
-    scene->light_info_dirty = false;
+    static u64 last_fc_updated{ 0 };
+    if (last_fc_updated == fc) return;
+    last_fc_updated = fc;
 
     static Arena light_info_arena{};
-    ASSERT(light_info_arena.base && light_info_arena.curr == 0);
+    ASSERT(light_info_arena.curr == 0);
     defer(Arena::clear(&light_info_arena));
 
     // allocate cpu memory for light uniform data
+    int num_lights = R_Scene::numLights(scene);
+    UNUSED_VAR(num_lights);
     LightUniforms* light_uniforms
       = ARENA_PUSH_COUNT(&light_info_arena, LightUniforms, R_Scene::numLights(scene));
 
-    size_t light_idx = 0;
-    SG_ID* light_id  = NULL;
+    size_t hashmap_idx_DONT_USE = 0;
+    SG_ID* light_id             = NULL;
+    int light_idx               = 0;
 
-    while (hashmap_iter(scene->light_id_set, &light_idx, (void**)&light_id)) {
-        LightUniforms* light_uniform = &light_uniforms[light_idx];
+    while (
+      hashmap_iter(scene->light_id_set, &hashmap_idx_DONT_USE, (void**)&light_id)) {
+        LightUniforms* light_uniform = &light_uniforms[light_idx++];
         *light_uniform               = {};
 
         R_Light* light = Component_GetLight(*light_id);
@@ -1250,7 +1285,7 @@ void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene)
     }
 
     // upload to gpu
-    GPU_Buffer::write(gctx, &scene->light_info_buffer, WGPUBufferUsage_Uniform,
+    GPU_Buffer::write(gctx, &scene->light_info_buffer, WGPUBufferUsage_Storage,
                       light_info_arena.base, light_info_arena.curr);
 }
 
@@ -1376,6 +1411,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
       = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
     ASSERT(pipeline->gpu_pipeline);
 
+#if 0
     { // create per-frame bindgroup
       // implicit layouts cannot share bindgroups, so need to create one
       // per render pipeline
@@ -1403,6 +1439,7 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
           = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
         ASSERT(pipeline->frame_group);
     }
+#endif
 
     Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
 }
@@ -1969,9 +2006,10 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
     // TODO:
     // handle xforms changing geo/mat by marking g2m as stale in add subgraph to scene
     // fn
-    size_t index = 0;
+    size_t hashmap_index_DONT_USE = 0;
     SG_ID* sg_id;
-    while (hashmap_iter(materials_with_new_pso, &index, (void**)&sg_id)) {
+    while (
+      hashmap_iter(materials_with_new_pso, &hashmap_index_DONT_USE, (void**)&sg_id)) {
         R_Component* comp = Component_GetComponent(*sg_id);
         switch (comp->type) {
             case SG_COMPONENT_MATERIAL: {
