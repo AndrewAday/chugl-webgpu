@@ -88,10 +88,6 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_UPDATE_PSO,
     SG_COMMAND_MATERIAL_SET_UNIFORM,
     SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
-    SG_COMMAND_MATERIAL_SET_SAMPLER,
-    SG_COMMAND_MATERIAL_SET_TEXTURE,
-    SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL,
-    SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE,
 
     // mesh
     SG_COMMAND_MESH_CREATE,
@@ -356,30 +352,6 @@ struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
     int data_size_bytes;
 };
 
-struct SG_Command_MaterialSetStorageBufferExternal : public SG_Command {
-    SG_ID material_id;
-    int location;
-    SG_ID buffer_id;
-};
-
-struct SG_Command_MaterialSetSampler : public SG_Command {
-    SG_ID sg_id;
-    int location;
-    SG_Sampler sampler;
-};
-
-struct SG_Command_MaterialSetTexture : public SG_Command {
-    SG_ID sg_id;
-    int location;
-    SG_ID texture_id;
-};
-
-struct SG_Command_MaterialSetStorageTexture : public SG_Command {
-    SG_ID sg_id;
-    int location;
-    SG_ID texture_id;
-};
-
 struct SG_Command_Mesh_Create : public SG_Command {
     SG_ID mesh_id; // gmesh id
     SG_ID geo_id;
@@ -547,15 +519,8 @@ void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
 void CQ_PushCommand_MaterialCreate(SG_Material* material);
 void CQ_PushCommand_MaterialUpdatePSO(SG_Material* material);
 void CQ_PushCommand_MaterialSetUniform(SG_Material* material, int location);
-
 void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location,
                                              Chuck_ArrayFloat* ck_arr);
-void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
-                                                     int location, SG_Buffer* buffer);
-
-void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location);
-void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location);
-void CQ_PushCommand_MaterialSetStorageTexture(SG_Material* material, int location);
 
 // mesh
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);

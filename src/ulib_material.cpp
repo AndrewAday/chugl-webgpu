@@ -82,7 +82,26 @@ CK_DLL_CTOR(diffuse_material_ctor);
 CK_DLL_MFUN(diffuse_material_get_color);
 CK_DLL_MFUN(diffuse_material_set_color);
 
+// pbr ---------------------------------------------------------------------
 CK_DLL_CTOR(pbr_material_ctor);
+
+CK_DLL_MFUN(pbr_material_get_albedo);
+CK_DLL_MFUN(pbr_material_set_albedo);
+
+CK_DLL_MFUN(pbr_material_get_emissive);
+CK_DLL_MFUN(pbr_material_set_emissive);
+
+CK_DLL_MFUN(pbr_material_get_metallic);
+CK_DLL_MFUN(pbr_material_set_metallic);
+
+CK_DLL_MFUN(pbr_material_get_roughness);
+CK_DLL_MFUN(pbr_material_set_roughness);
+
+CK_DLL_MFUN(pbr_material_get_normal_factor);
+CK_DLL_MFUN(pbr_material_set_normal_factor);
+
+CK_DLL_MFUN(pbr_material_get_ao_factor);
+CK_DLL_MFUN(pbr_material_set_ao_factor);
 
 static_assert(sizeof(WGPUVertexFormat) == sizeof(int),
               "WGPUVertexFormat size mismatch");
@@ -354,6 +373,51 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS("PBRMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
 
     CTOR(pbr_material_ctor);
+
+    MFUN(pbr_material_get_albedo, "vec3", "albedo");
+    DOC_FUNC("Get the albedo color of the material.");
+
+    MFUN(pbr_material_set_albedo, "void", "albedo");
+    ARG("vec3", "albedo");
+    DOC_FUNC("Set the albedo color of the material.");
+
+    MFUN(pbr_material_get_emissive, "vec3", "emissive");
+    DOC_FUNC("Get the emissive color of the material.");
+
+    MFUN(pbr_material_set_emissive, "void", "emissive");
+    ARG("vec3", "emissive");
+    DOC_FUNC("Set the emissive color of the material.");
+
+    MFUN(pbr_material_get_metallic, "float", "metallic");
+    DOC_FUNC("Get the metallic factor of the material.");
+
+    MFUN(pbr_material_set_metallic, "void", "metallic");
+    ARG("float", "metallic");
+
+    MFUN(pbr_material_get_roughness, "float", "roughness");
+    DOC_FUNC("Get the roughness factor of the material.");
+
+    MFUN(pbr_material_set_roughness, "void", "roughness");
+    ARG("float", "roughness");
+    DOC_FUNC("Set the roughness factor of the material.");
+
+    MFUN(pbr_material_get_normal_factor, "float", "normalFactor");
+    DOC_FUNC(
+      "Get the normal factor of the material. Scales effect of normal map. Default "
+      "1.0");
+
+    MFUN(pbr_material_set_normal_factor, "void", "normalFactor");
+    ARG("float", "normalFactor");
+    DOC_FUNC(
+      "Set the normal factor of the material. Scales effect of normal map. Default "
+      "1.0");
+
+    MFUN(pbr_material_get_ao_factor, "float", "aoFactor");
+    DOC_FUNC("Get the ambient occlusion factor of the material. Default 1.0");
+
+    MFUN(pbr_material_set_ao_factor, "void", "aoFactor");
+    ARG("float", "aoFactor");
+    DOC_FUNC("Set the ambient occlusion factor of the material. Default 1.0");
 
     // abstract class, no destructor or constructor
     END_CLASS();
@@ -700,7 +764,7 @@ CK_DLL_MFUN(material_set_storage_buffer_external)
 
     SG_Material::storageBuffer(material, location, buffer);
 
-    CQ_PushCommand_MaterialSetStorageBufferExternal(material, location, buffer);
+    CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
 CK_DLL_MFUN(material_set_sampler)
@@ -711,7 +775,7 @@ CK_DLL_MFUN(material_set_sampler)
 
     SG_Material::setSampler(material, location, sampler);
 
-    CQ_PushCommand_MaterialSetSampler(material, location);
+    CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
 CK_DLL_MFUN(material_set_texture)
@@ -723,7 +787,7 @@ CK_DLL_MFUN(material_set_texture)
 
     SG_Material::setTexture(material, location, tex);
 
-    CQ_PushCommand_MaterialSetTexture(material, location);
+    CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
 CK_DLL_MFUN(material_set_storage_texture)
@@ -735,7 +799,7 @@ CK_DLL_MFUN(material_set_storage_texture)
 
     SG_Material::setStorageTexture(material, location, tex);
 
-    CQ_PushCommand_MaterialSetStorageTexture(material, location);
+    CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
 // Lines2DMaterial ===================================================================
@@ -859,13 +923,152 @@ CK_DLL_MFUN(diffuse_material_set_color)
 
 CK_DLL_CTOR(pbr_material_ctor)
 {
-    // SG_Material* material = GET_MATERIAL(SELF);
-    // ASSERT(material->type == SG_COMPONENT_MATERIAL);
-    // ASSERT(material->material_type == SG_MATERIAL_PBR);
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_PBR;
 
-    // OBJ_MEMBER_UINT(SELF, component_offset_id) = material->id;
+    // init shader
+    SG_Shader* shader = SG_GetShader(g_material_builtin_shaders.pbr_shader_id);
+    ASSERT(shader);
 
-    // CQ_PushCommand_MaterialCreate(material);
+    chugl_materialSetShader(material, shader);
+
+    // init uniforms
+    {
+        SG_Material::setSampler(material, 0, SG_SAMPLER_DEFAULT); // texture sampler
+        CQ_PushCommand_MaterialSetUniform(material, 0);
+
+        SG_Material::setTexture(
+          material, 1, SG_GetTexture(g_builtin_textures.white_pixel_id)); // albedo
+        CQ_PushCommand_MaterialSetUniform(material, 1);
+
+        SG_Material::setTexture(
+          material, 2, SG_GetTexture(g_builtin_textures.normal_pixel_id)); // normal
+        CQ_PushCommand_MaterialSetUniform(material, 2);
+
+        SG_Material::setTexture(material, 3,
+                                SG_GetTexture(g_builtin_textures.white_pixel_id)); // ao
+        CQ_PushCommand_MaterialSetUniform(material, 3);
+
+        SG_Material::setTexture(material, 4,
+                                SG_GetTexture(g_builtin_textures.white_pixel_id)); // mr
+        CQ_PushCommand_MaterialSetUniform(material, 4);
+
+        SG_Material::setTexture(
+          material, 5, SG_GetTexture(g_builtin_textures.black_pixel_id)); // emissive
+        CQ_PushCommand_MaterialSetUniform(material, 5);
+
+        SG_Material::uniformVec4f(material, 6, glm::vec4(1.0f)); // albedo
+        CQ_PushCommand_MaterialSetUniform(material, 6);
+
+        SG_Material::uniformVec3f(material, 7, glm::vec3(0.0f)); // emissive
+        CQ_PushCommand_MaterialSetUniform(material, 7);
+
+        SG_Material::uniformFloat(material, 8, 0.0f); // metallic
+        CQ_PushCommand_MaterialSetUniform(material, 8);
+
+        SG_Material::uniformFloat(material, 9, 0.5f); // roughness
+        CQ_PushCommand_MaterialSetUniform(material, 9);
+
+        SG_Material::uniformFloat(material, 10, 1.0f); // normal factor
+        CQ_PushCommand_MaterialSetUniform(material, 10);
+
+        SG_Material::uniformFloat(material, 11, 1.0f); // ao factor
+        CQ_PushCommand_MaterialSetUniform(material, 11);
+    }
+}
+
+CK_DLL_MFUN(pbr_material_get_albedo)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    glm::vec4 color       = material->uniforms[6].as.vec4f;
+
+    RETURN->v_vec3 = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(pbr_material_set_albedo)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+
+    SG_Material::uniformVec4f(material, 6, glm::vec4(color.x, color.y, color.z, 1));
+    CQ_PushCommand_MaterialSetUniform(material, 6);
+}
+
+CK_DLL_MFUN(pbr_material_get_emissive)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    glm::vec3 color       = material->uniforms[7].as.vec3f;
+
+    RETURN->v_vec3 = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(pbr_material_set_emissive)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+
+    SG_Material::uniformVec3f(material, 7, glm::vec3(color.x, color.y, color.z));
+    CQ_PushCommand_MaterialSetUniform(material, 7);
+}
+
+CK_DLL_MFUN(pbr_material_get_metallic)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    RETURN->v_float       = material->uniforms[8].as.f;
+}
+
+CK_DLL_MFUN(pbr_material_set_metallic)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT metallic    = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 8, (f32)metallic);
+    CQ_PushCommand_MaterialSetUniform(material, 8);
+}
+
+CK_DLL_MFUN(pbr_material_get_roughness)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    RETURN->v_float       = material->uniforms[9].as.f;
+}
+
+CK_DLL_MFUN(pbr_material_set_roughness)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT roughness   = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 9, (f32)roughness);
+    CQ_PushCommand_MaterialSetUniform(material, 9);
+}
+
+CK_DLL_MFUN(pbr_material_get_normal_factor)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    RETURN->v_float       = material->uniforms[10].as.f;
+}
+
+CK_DLL_MFUN(pbr_material_set_normal_factor)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT normal      = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 10, (f32)normal);
+    CQ_PushCommand_MaterialSetUniform(material, 10);
+}
+
+CK_DLL_MFUN(pbr_material_get_ao_factor)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    RETURN->v_float       = material->uniforms[11].as.f;
+}
+
+CK_DLL_MFUN(pbr_material_set_ao_factor)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT ao          = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 11, (f32)ao);
+    CQ_PushCommand_MaterialSetUniform(material, 11);
 }
 
 // init default materials ========================================================
@@ -946,5 +1149,10 @@ void chugl_initDefaultMaterials()
     // diffuse material
     g_material_builtin_shaders.diffuse_shader_id = chugl_createShader(
       g_chuglAPI, diffuse_shader_string, diffuse_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
+
+    // pbr material
+    g_material_builtin_shaders.pbr_shader_id = chugl_createShader(
+      g_chuglAPI, pbr_shader_string, pbr_shader_string, NULL, NULL,
       standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
 }

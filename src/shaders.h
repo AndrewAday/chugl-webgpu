@@ -447,88 +447,55 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
 
 // ----------------------------------------------------------------------------
 
-static const char* shaderCode_ = R"glsl(
-
+static const char* pbr_shader_string = R"glsl(
+    // includes
     #include FRAME_UNIFORMS
-
-    struct MaterialUniforms {
-        baseColor: vec4f,
-        emissiveFactor: vec3f,
-        metallic: f32,
-        roughness: f32,
-        normalFactor: f32,
-        aoFactor: f32,
-    };
-
-    @group(1) @binding(0) var<uniform> u_Material: MaterialUniforms;
-
-    // object textures
-    // Idea: store binding# in the cpp material struct, dynamically create shader from material data?
-    @group(1) @binding(1) var albedoMap: texture_2d<f32>;
-    @group(1) @binding(2) var albedoSampler: sampler;
-    @group(1) @binding(3) var normalMap: texture_2d<f32>;
-    @group(1) @binding(4) var normalSampler: sampler;
-    @group(1) @binding(5) var aoMap: texture_2d<f32>;
-    @group(1) @binding(6) var aoSampler: sampler;
-    @group(1) @binding(7) var mrMap: texture_2d<f32>;
-    @group(1) @binding(8) var mrSampler: sampler;
-    @group(1) @binding(9) var emissiveMap: texture_2d<f32>;
-    @group(1) @binding(10) var emissiveSampler: sampler;
-
     #include DRAW_UNIFORMS
-
+    #include LIGHTING_UNIFORMS
     #include STANDARD_VERTEX_INPUT
-
     #include STANDARD_VERTEX_OUTPUT
+    #include STANDARD_VERTEX_SHADER
 
-    @vertex 
-    fn vs_main(in : VertexInput) -> VertexOutput
-    {
-        var out : VertexOutput;
-        var u_Draw : DrawUniforms = drawInstances[in.instance];
+    // textures
+    @group(1) @binding(0) var texture_sampler: sampler;
+    @group(1) @binding(1) var albedoMap: texture_2d<f32>;
+    @group(1) @binding(2) var normalMap: texture_2d<f32>;
+    @group(1) @binding(3) var aoMap: texture_2d<f32>;
+    @group(1) @binding(4) var mrMap: texture_2d<f32>;
+    @group(1) @binding(5) var emissiveMap: texture_2d<f32>;
 
-        let modelMat3 : mat3x3<f32> = mat3x3(
-            u_Draw.model[0].xyz,
-            u_Draw.model[1].xyz,
-            u_Draw.model[2].xyz
-        );
-
-
-        let worldpos = u_Draw.model * vec4f(in.position, 1.0f);
-        out.position = (u_Frame.projection * u_Frame.view) * worldpos;
-        out.v_worldpos = worldpos.xyz;
-
-        // TODO handle non-uniform scaling
-        // TODO: restore to normal Mat. need to pass normal mat from cpu side
-        // out.v_normal = (u_Frame.viewMat * u_Draw.normalMat * vec4f(in.normal, 0.0)).xyz;
-        out.v_normal = (u_Draw.model * vec4f(in.normal, 0.0)).xyz;
-        // tangent vectors aren't impacted by non-uniform scaling or translation
-        out.v_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
-        out.v_uv     = in.uv;
-
-        return out;
-    }
+    // uniforms
+    @group(1) @binding(6) var<uniform> u_baseColor: vec4f;
+    @group(1) @binding(7) var<uniform> u_emissiveFactor: vec3f;
+    @group(1) @binding(8) var<uniform> u_metallic: f32;
+    @group(1) @binding(9) var<uniform> u_roughness: f32;
+    @group(1) @binding(10) var<uniform> u_normalFactor: f32;
+    @group(1) @binding(11) var<uniform> u_aoFactor: f32;
 
     fn srgbToLinear(srgb_in : vec3f) -> vec3f {
         return pow(srgb_in.rgb,vec3f(2.2));
     }
 
-    fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32) -> vec3f {
-        var tangentNormal : vec3f = textureSample(normalMap, normalSampler, inUV).rgb * 2.0 - 1.0;
+    fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
+        var normal = inNormal;
+        if (!is_front) {
+            normal = -inNormal;
+        }
+
+        var tangentNormal : vec3f = textureSample(normalMap, texture_sampler, inUV).rgb * 2.0 - 1.0;
         // scale normal
         // ref: https://github.com/mrdoob/three.js/blob/dev/src/renderers/shaders/ShaderChunk/normal_fragment_maps.glsl.js
         tangentNormal.x *= scale;
         tangentNormal.y *= scale;
 
-        // TODO: account for side of face (can we calculate facenormal in frag shader?)
         // TODO: do we need to adjust tangent normal based on face direction (backface or frontface)?
         // e.g. tangentNormal *= (sign(dot(normal, faceNormal)))
+        // don't think so since normal map is in tangent space
 
         // from mikkt:
         // For normal maps it is sufficient to use the following simplified version
         // of the bitangent which is generated at pixel/vertex level. 
         // bitangent = fSign * cross(vN, tangent);
-
         let N : vec3f = normalize(inNormal);
         let T : vec3f = normalize(inTangent.xyz);
         let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
@@ -537,7 +504,6 @@ static const char* shaderCode_ = R"glsl(
         // return inTangent.xyz;
         return normalize(TBN * tangentNormal);
     }
-
 
     const PI = 3.1415926535897932384626433832795;
     const reflectivity = 0.04;  // heuristic, assume F0 of 0.04 for all dielectrics
@@ -550,12 +516,6 @@ static const char* shaderCode_ = R"glsl(
         return (alpha2)/(PI * denom*denom);
     }
 
-//    float D_GGX(float NoH, float roughness) {
-//         float a = NoH * roughness;
-//         float k = roughness / (1.0 - NoH * NoH + a * a);
-//         return k * k * (1.0 / PI);
-//     } 
-
     // Geometric Shadowing function ----------------------------------------------
     fn G_SchlickSmithGGX(dotNL : f32, dotNV : f32, roughness : f32) -> f32 {
         let r : f32 = (roughness + 1.0);
@@ -567,35 +527,10 @@ static const char* shaderCode_ = R"glsl(
 
     }
 
-    // float V_SmithGGXCorrelatedFast(float NoV, float NoL, float roughness) {
-    //     float a = roughness;
-    //     float GGXV = NoL * (NoV * (1.0 - a) + a);
-    //     float GGXL = NoV * (NoL * (1.0 - a) + a);
-    //     return 0.5 / (GGXV + GGXL);
-    // }
-
     // Fresnel function ----------------------------------------------------------
     // cosTheta assumed to be in range [0, 1]
     fn F_Schlick(cosTheta : f32, F0 : vec3<f32>) -> vec3f {
         return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-    }
-
-    // vec3 F_Schlick(float u, vec3 f0) {
-    //     float f = pow(1.0 - u, 5.0);
-    //     return f + f0 * (1.0 - f);
-    // }
-
-
-    // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
-    fn Uncharted2Tonemap(color : vec3<f32>) -> vec3f {
-        let A : f32 = 0.15;
-        let B : f32 = 0.50;
-        let C : f32 = 0.10;
-        let D : f32 = 0.20;
-        let E : f32 = 0.02;
-        let F : f32 = 0.30;
-        let W : f32 = 11.2;
-        return ((color*(A*color+C*B)+D*E)/(color*(A*color+B)+D*F))-E/F;
     }
 
     @fragment 
@@ -604,48 +539,52 @@ static const char* shaderCode_ = R"glsl(
         @builtin(front_facing) is_front: bool
     ) -> @location(0) vec4f
     {
-        var normal : vec3f;
-        if (is_front) {
-            normal = in.v_normal;
-        } else {
-            normal = -in.v_normal;
-        }
-
-        let N : vec3f = calculateNormal( normal, in.v_uv, in.v_tangent, u_Material.normalFactor);
-        let V : vec3f = normalize(u_Frame.camPos - in.v_worldpos);
+        let N : vec3f = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_normalFactor, is_front);
+        let V : vec3f = normalize(u_Frame.camera_pos - in.v_worldpos);
 
         // linear-space albedo (normally authored in sRGB space so we have to convert to linear space)
         // transparency not supported
-        let albedo: vec3f = u_Material.baseColor.rgb * srgbToLinear(textureSample(albedoMap, albedoSampler, in.v_uv).rgb);
-
-        let metallic : f32 = textureSample(mrMap, mrSampler, in.v_uv).b * u_Material.metallic;
-        let roughness : f32 = textureSample(mrMap, mrSampler, in.v_uv).g * u_Material.roughness;
+        let albedo: vec3f = u_baseColor.rgb * srgbToLinear(textureSample(albedoMap, texture_sampler, in.v_uv).rgb);
+        
+        // The metallicRoughnessTexture contains the metalness value in the "blue" color channel, 
+        // and the roughness value in the "green" color channel.
+        let metallic_roughness = textureSample(mrMap, texture_sampler, in.v_uv);
+        let metallic : f32 = metallic_roughness.b * u_metallic;
+        let roughness : f32 = metallic_roughness.g * u_roughness;
 
         var F0 : vec3f = vec3f(reflectivity);
         F0 = mix(F0, albedo.rgb, metallic); // reflectivity for metals
-        
 
         var Lo : vec3f = vec3(0.0);
-        // TODO: loop over all lights
-        // for (var i : u32 = 0; i < LIGHTS_ARRAY_LENGTH; i++) {
-            // calculate direction to light L
-            let L : vec3f = normalize(-u_Frame.dirLight);
+        // loop over all lights
+        for (var i = 0; i < u_Frame.num_lights; i++) {
+            let light = u_lights[i];
+            var L : vec3f = vec3(0.0);
+            var radiance : vec3f = vec3(0.0);
+            switch (light.light_type) {
+                case 1: { // directional
+                    L = normalize(-light.direction);
+                    radiance = light.color;
+                }
+                case 2: { // point
+                    L = normalize(light.position - in.v_worldpos);
+                    let dist = distance(in.v_worldpos, light.position);
+                    let attenuation = pow(
+                        clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
+                        light.point_falloff
+                    );
+                    radiance = light.color * attenuation;
+                }
+                default: { } // no light
+            } // end switch light type
+
             // half vector
             let H : vec3f = normalize(V + L);
             let dotNH : f32 = clamp(dot(N, H), 0.0, 1.0);
             let dotNV : f32 = clamp(dot(N, V), 0.0, 1.0);
             let dotNL : f32 = clamp(dot(N, L), 0.0, 1.0);
 
-            // color contrib of this light
-            var colorContrib : vec3f = vec3f(0.0);
-
             if (dotNL > 0.0) {
-                // TODO calculate light color/attenutation
-                // float distance    = length(lightPositions[i] - WorldPos);
-                // float attenuation = 1.0 / (distance * distance);
-                // let radiance : vec3     = lightColors[i] * attenuation;    
-                let radiance : vec3f = vec3f(1.0);  // hardcoded for now
-
                 // D = Normal distribution (Distribution of the microfacets)
                 let D : f32 = D_GGX(dotNH, roughness);
                 // G = Geometric shadowing term (Microfacets shadowing)
@@ -657,37 +596,18 @@ static const char* shaderCode_ = R"glsl(
                 let spec : vec3f = D * F * G / (4.0 * dotNL * dotNV + 0.0001);
                 // diffuse contribution
                 let kD : vec3f = (vec3f(1.0) - F) * (1.0 - metallic);
-                colorContrib += (kD * albedo / PI + spec) * dotNL * radiance;
+                // final color contribution
+                Lo += (kD * albedo / PI + spec) * dotNL * radiance;
             }
-            Lo += colorContrib;
-        // }  // end light loop
+        }  // end light loop
 
         // // ambient occlusion (hardcoded for now) (ambient should only be applied to direct lighting, not indirect lighting)
-        // const float u_OcclusionStrength = 1.0f;
-        // // Apply optional PBR terms for additional (optional) shading
-        // if (material.occlusionTextureSet > -1) {
-        //     float ao = texture(aoMap, (material.occlusionTextureSet == 0 ? inUV0 : inUV1)).r;
-        //     color = mix(color, color * ao, u_OcclusionStrength);
-        // }
-        // let ao: f32 = textureSample(aoMap, aoSampler, in.v_uv).r;
-        // var finalColor : vec3f = mix(Lo, Lo * ao, u_Material.aoFactor);
-
-        let ambient : vec3f = vec3f(0.03) * albedo * textureSample(aoMap, aoSampler, in.v_uv).r * u_Material.aoFactor;
-        var finalColor : vec3f = Lo + ambient;  // TODO: can factor albedo out and multiply here instead
+        let ambient : vec3f = vec3f(0.03) * albedo * textureSample(aoMap, texture_sampler, in.v_uv).r * u_aoFactor;
+        var finalColor : vec3f = Lo + ambient;  // TODO: update ao calculation after adding IBL
 
         // add emission
-        let emissiveColor : vec3f = srgbToLinear(textureSample(emissiveMap, emissiveSampler, in.v_uv).rgb);
-        finalColor += emissiveColor * u_Material.emissiveFactor;
-        // finalColor += emissiveColor;
-
-        // tone mapping
-        let exposure : f32 = 1.0;
-        let whiteScale : vec3f = 1.0 / Uncharted2Tonemap(vec3f(11.2f));
-        finalColor = Uncharted2Tonemap(finalColor * exposure) * whiteScale;
-        // finalColor = finalColor / (finalColor + vec3f(1.0));  // reinhard tone mapping
-
-        // gamma correction
-        finalColor = pow(finalColor, vec3f(1.0 / 2.2)); // convert back to sRGB
+        let emissiveColor : vec3f = srgbToLinear(textureSample(emissiveMap, texture_sampler, in.v_uv).rgb);
+        finalColor += emissiveColor * u_emissiveFactor;
 
         // lambertian diffuse
         // let normal = normalize(in.v_normal);
@@ -696,13 +616,13 @@ static const char* shaderCode_ = R"glsl(
         // add global ambient
         // lightContrib = clamp(lightContrib, 0.2, 1.0);
 
-        return vec4f(finalColor, u_Material.baseColor.a);
-        // return vec4f(Lo, u_Material.baseColor.a);
-        // return vec4f(kD, u_Material.baseColor.a);
-        // return vec4f(vec3f(ao), u_Material.baseColor.a);
-        // return vec4f(kD, u_Material.baseColor.a);
+        return vec4f(finalColor, u_baseColor.a);
+        // return vec4f(Lo, u_baseColor.a);
+        // return vec4f(kD, u_baseColor.a);
+        // return vec4f(vec3f(ao), u_baseColor.a);
+        // return vec4f(kD, u_baseColor.a);
         // return vec4f(
-        //     ambient, u_Material.baseColor.a);
+        //     ambient, u_baseColor.a);
         // return vec4f(in.v_normal, 1.0);
         // return vec4f(in.v_uv, 0.0, 1.0);
     }

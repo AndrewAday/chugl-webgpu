@@ -494,10 +494,10 @@ SG_Pass* ulib_pass_createOutputPass(Chuck_Object* ckobj)
 
     // set output_pass uniforms
     SG_Material::setTexture(mat, 0, SG_GetTexture(g_builtin_textures.white_pixel_id));
-    CQ_PushCommand_MaterialSetTexture(mat, 0);
+    CQ_PushCommand_MaterialSetUniform(mat, 0);
 
     SG_Material::setSampler(mat, 1, SG_SAMPLER_DEFAULT); // sampler
-    CQ_PushCommand_MaterialSetSampler(mat, 1);
+    CQ_PushCommand_MaterialSetUniform(mat, 1);
 
     // locking gamma to 1.0 (no gamma correction)
     // because we enforce swapchain output view to be srgb, which applies gamma for us.
@@ -507,7 +507,8 @@ SG_Pass* ulib_pass_createOutputPass(Chuck_Object* ckobj)
     SG_Material::uniformFloat(mat, 3, 1.0); // exposure
     CQ_PushCommand_MaterialSetUniform(mat, 3);
 
-    SG_Material::uniformInt(mat, 4, 4); // TONEMAP_ACES
+    // SG_Material::uniformInt(mat, 4, 4); // TONEMAP_ACES
+    SG_Material::uniformInt(mat, 4, 5); // TONEMAP_UNCHARTED
     CQ_PushCommand_MaterialSetUniform(mat, 4);
 
     // push pass through CQ
@@ -536,7 +537,7 @@ CK_DLL_MFUN(outputpass_set_input_texture)
 
     // set uniform
     SG_Material::setTexture(material, 0, input_texture);
-    CQ_PushCommand_MaterialSetTexture(material, 0);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
 }
 
 CK_DLL_MFUN(outputpass_set_tonemap)
@@ -679,7 +680,7 @@ CK_DLL_MFUN(computepass_set_storage_buffer)
 
     // set storage buffer
     SG_Material::storageBuffer(material, location, sg_buffer);
-    CQ_PushCommand_MaterialSetStorageBufferExternal(material, location, sg_buffer);
+    CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
 CK_DLL_MFUN(computepass_set_workgroup)

@@ -242,7 +242,66 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
 
     // add ref to kid
     SG_AddRef(child);
+
+    // loop over child subgraph, add any lights to scene
+    static Arena sg_id_arena{};
+    ASSERT(sg_id_arena.curr == 0);
+    defer(Arena::clear(&sg_id_arena));
+    if (parent->scene_id != 0) {
+        SG_Scene* scene                       = SG_GetScene(parent->scene_id);
+        *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID) = child->id;
+        while (ARENA_LENGTH(&sg_id_arena, SG_ID) > 0) {
+            SG_ID* sg_id = ARENA_GET_LAST_TYPE(&sg_id_arena, SG_ID);
+            ARENA_POP_TYPE(&sg_id_arena, SG_ID);
+            SG_Transform* sg = SG_GetTransform(*sg_id);
+
+            sg->scene_id = parent->scene_id;
+            if (sg->type == SG_COMPONENT_LIGHT) {
+                SG_Scene::addLight(scene, sg->id);
+            }
+
+            // add children to queue
+            int num_children = SG_Transform::numChildren(sg);
+            for (size_t i = 0; i < num_children; ++i) {
+                *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID)
+                  = *ARENA_GET_TYPE(&sg->childrenIDs, SG_ID, i);
+            }
+        }
+    }
 }
+
+static void SG_Transform_removeChildSubgraph(SG_Transform* parent, SG_Transform* child)
+{
+    static Arena sg_id_arena{};
+    ASSERT(sg_id_arena.curr == 0);
+    defer(Arena::clear(&sg_id_arena));
+    if (parent->scene_id != 0) {
+        SG_Scene* scene                       = SG_GetScene(parent->scene_id);
+        *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID) = child->id;
+        while (sg_id_arena.curr > 0) {
+            SG_ID* sg_id = ARENA_GET_LAST_TYPE(&sg_id_arena, SG_ID);
+            ARENA_POP_TYPE(&sg_id_arena, SG_ID);
+            SG_Transform* sg = SG_GetTransform(*sg_id);
+
+            // unset scene id
+            ASSERT(sg->scene_id == parent->scene_id);
+            sg->scene_id = 0;
+
+            // remove from light list
+            if (sg->type == SG_COMPONENT_LIGHT) {
+                SG_Scene::removeLight(scene, sg->id);
+            }
+
+            // add children to queue
+            int num_children = SG_Transform::numChildren(sg);
+            for (size_t i = 0; i < num_children; ++i) {
+                *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID)
+                  = *ARENA_GET_TYPE(&sg->childrenIDs, SG_ID, i);
+            }
+        }
+    }
+}
+
 void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
 {
     if (child->parentID != parent->id) return;
@@ -270,6 +329,8 @@ void SG_Transform::removeChild(SG_Transform* parent, SG_Transform* child)
             break;
         }
     }
+
+    SG_Transform_removeChildSubgraph(parent, child);
 }
 
 void SG_Transform::removeAllChildren(SG_Transform* parent)
@@ -285,6 +346,10 @@ void SG_Transform::removeAllChildren(SG_Transform* parent)
         // release ref count on our (parent's) chuck object; one less
         // reference to it from child
         SG_DecrementRef(parent->id);
+
+        // remove child from parent
+        SG_Transform* child = SG_GetTransform(children[i]);
+        SG_Transform_removeChildSubgraph(parent, child);
     }
     Arena::clear(&parent->childrenIDs);
 }
@@ -630,10 +695,16 @@ SG_Scene* SG_CreateScene(Chuck_Object* ckobj)
     SG_Scene* scene = ARENA_PUSH_TYPE(arena, SG_Scene);
     *scene          = {};
 
-    SG_Scene::_init(scene, ckobj);
+    // transform init
+    SG_Transform::_init(scene, ckobj);
 
-    scene->id   = SG_GetNewComponentID();
-    scene->type = SG_COMPONENT_SCENE;
+    // sg_component init
+    scene->id       = SG_GetNewComponentID();
+    scene->type     = SG_COMPONENT_SCENE;
+    scene->scene_id = scene->id; // a scene always belongs to itself
+
+    // scene init
+    Arena::init(&scene->light_ids, sizeof(SG_ID) * 8);
 
     // store in map
     SG_Location loc = { scene->id, offset, arena };
@@ -910,7 +981,7 @@ SG_Transform* SG_GetTransform(SG_ID id)
 SG_Scene* SG_GetScene(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_SCENE);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_SCENE);
     return (SG_Scene*)component;
 }
 
@@ -1203,4 +1274,31 @@ void SG_Pass::bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex)
     SG_AddRef(tex);
     SG_DecrementRef(pass->bloom_input_render_texture_id);
     pass->bloom_input_render_texture_id = tex ? tex->id : 0;
+}
+
+void SG_Scene::addLight(SG_Scene* scene, SG_ID light_id)
+{
+    ASSERT(!ARENA_CONTAINS(&scene->light_ids, light_id));
+    *ARENA_PUSH_TYPE(&scene->light_ids, SG_ID) = light_id;
+}
+
+void SG_Scene::removeLight(SG_Scene* scene, SG_ID light_id)
+{
+    size_t numLights = ARENA_LENGTH(&scene->light_ids, SG_ID);
+    SG_ID* lights    = (SG_ID*)scene->light_ids.base;
+
+    for (size_t i = 0; i < numLights; ++i) {
+        if (lights[i] == light_id) {
+            ARENA_SWAP_DELETE(&scene->light_ids, SG_ID, i);
+            return;
+        }
+    }
+    ASSERT(false); // light not found
+}
+
+SG_Light* SG_Scene::getLight(SG_Scene* scene, u32 idx)
+{
+    size_t numLights = ARENA_LENGTH(&scene->light_ids, SG_ID);
+    if (idx >= numLights) return 0;
+    return SG_GetLight(*ARENA_GET_TYPE(&scene->light_ids, SG_ID, idx));
 }

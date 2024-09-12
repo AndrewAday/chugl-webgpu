@@ -225,22 +225,32 @@ void ulib_texture_createDefaults(CK_DL_API API)
         // set global
         g_builtin_textures.default_render_texture_id = tex->id;
     }
-    // {
-    //     Chuck_Object* black_pixel_ckobj
-    //       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
 
-    //     SG_Texture* tex = SG_CreateTexture(black_pixel_ckobj);
-    //     OBJ_MEMBER_UINT(black_pixel_ckobj, component_offset_id) = tex->id;
-    //     CQ_PushCommand_TextureCreate(tex);
+    { // black pixel
+        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
+                                                       WGPUTextureDimension_2D,
+                                                       WGPUTextureFormat_RGBA8Unorm });
+        // upload pixel data
+        u8 black_pixel[] = { 255, 255, 255, 255 };
+        SG_Texture::write(tex, black_pixel, 1, 1);
+        CQ_PushCommand_TextureData(tex);
 
-    //     // upload pixel data
-    //     u8 black_pixel[] = { 0, 0, 0, 0 };
-    //     SG_Texture::write(tex, black_pixel, 1, 1);
-    //     CQ_PushCommand_TextureData(tex);
+        // set global
+        g_builtin_textures.black_pixel_id = tex->id;
+    }
 
-    //     // set global
-    //     g_builtin_textures.black_pixel_id = tex->id;
-    // }
+    { // default normal map
+        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
+                                                       WGPUTextureDimension_2D,
+                                                       WGPUTextureFormat_RGBA8Unorm });
+        // upload pixel data
+        u8 normal_pixel[] = { 128, 128, 255, 255 };
+        SG_Texture::write(tex, normal_pixel, 1, 1);
+        CQ_PushCommand_TextureData(tex);
+
+        // set global
+        g_builtin_textures.normal_pixel_id = tex->id;
+    }
 }
 
 CK_DLL_CTOR(sampler_ctor)

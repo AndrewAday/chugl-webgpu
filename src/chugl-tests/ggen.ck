@@ -70,11 +70,16 @@ T.assert(
     "no cycles allowed"
 );
 
+GG.scene().numChildren() => int num_children;
+
+T.assert(A.scene() == null, "scene not set");
 A --> GG.scene();
+T.assert(A.scene() == GG.scene(), "scene set");
 
 T.assert(
     A.parent() == GG.scene() 
-    && GG.scene().child() == A,
+    && GG.scene().numChildren() == (num_children + 1)
+    && GG.scene().child(num_children) == A,
     "grucking to scene"
 );
 

@@ -11,6 +11,12 @@ CK_DLL_CTOR(ulib_light_ctor_with_type);
 CK_DLL_MFUN(ulib_light_set_type);
 CK_DLL_MFUN(ulib_light_get_type);
 
+CK_DLL_MFUN(ulib_light_set_color);
+CK_DLL_MFUN(ulib_light_get_color);
+
+CK_DLL_MFUN(ulib_light_set_intensity);
+CK_DLL_MFUN(ulib_light_get_intensity);
+
 CK_DLL_CTOR(ulib_point_light_ctor);
 CK_DLL_CTOR(ulib_dir_light_ctor);
 
@@ -53,6 +59,22 @@ static void ulib_light_query(Chuck_DL_Query* QUERY)
     MFUN(ulib_light_get_type, "int", "mode");
     DOC_FUNC("Get the light type. Returns either GLight.Directional or GLight.Point.");
 
+    MFUN(ulib_light_set_color, "void", "color");
+    ARG("vec3", "color");
+    DOC_FUNC("Set the light color.");
+
+    MFUN(ulib_light_get_color, "vec3", "color");
+    DOC_FUNC("Get the light color.");
+
+    MFUN(ulib_light_set_intensity, "void", "intensity");
+    ARG("float", "intensity");
+    DOC_FUNC(
+      "Set the light intensity. Default 1.0. Use 0 to turn off the light. The "
+      "intensity is multiplied by the color in final lighting calculations.");
+
+    MFUN(ulib_light_get_intensity, "float", "intensity");
+    DOC_FUNC("Get the light intensity.");
+
     END_CLASS();
 
     // TODO document
@@ -94,6 +116,38 @@ CK_DLL_MFUN(ulib_light_get_type)
 {
     SG_Light* light = GET_LIGHT(SELF);
     RETURN->v_int   = (t_CKINT)light->desc.type;
+}
+
+CK_DLL_MFUN(ulib_light_set_color)
+{
+    SG_Light* light = GET_LIGHT(SELF);
+    t_CKVEC3 color  = GET_NEXT_VEC3(ARGS);
+
+    light->desc.color = { color.x, color.y, color.z };
+
+    CQ_PushCommand_LightUpdate(light);
+}
+
+CK_DLL_MFUN(ulib_light_get_color)
+{
+    SG_Light* light = GET_LIGHT(SELF);
+    RETURN->v_vec3  = { light->desc.color.r, light->desc.color.g, light->desc.color.b };
+}
+
+CK_DLL_MFUN(ulib_light_set_intensity)
+{
+    SG_Light* light     = GET_LIGHT(SELF);
+    t_CKFLOAT intensity = GET_NEXT_FLOAT(ARGS);
+
+    light->desc.intensity = intensity;
+
+    CQ_PushCommand_LightUpdate(light);
+}
+
+CK_DLL_MFUN(ulib_light_get_intensity)
+{
+    SG_Light* light = GET_LIGHT(SELF);
+    RETURN->v_float = light->desc.intensity;
 }
 
 CK_DLL_CTOR(ulib_point_light_ctor)

@@ -83,6 +83,7 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID flat_shader_id;
     SG_ID gtext_shader_id;
     SG_ID diffuse_shader_id;
+    SG_ID pbr_shader_id;
 
     // screen shaders
     SG_ID output_pass_shader_id;
@@ -98,6 +99,7 @@ static chugl_MaterialBuiltinShaders g_material_builtin_shaders;
 struct chugl_builtin_textures {
     SG_ID white_pixel_id;
     SG_ID black_pixel_id;
+    SG_ID normal_pixel_id;
     SG_ID default_render_texture_id;
 };
 static chugl_builtin_textures g_builtin_textures;

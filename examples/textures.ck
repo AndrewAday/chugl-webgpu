@@ -49,54 +49,19 @@ spork ~ readMicInput();
 
 // graphics stuff --------------------------------------
 
-"struct FrameUniforms {
-    projectionMat: mat4x4f,
-    viewMat: mat4x4f,
-    projViewMat: mat4x4f,
-    camPos: vec3f, // camera
-    dirLight: vec3f, // lighting
-    time: f32,
-};
+"
 
-@group(0) @binding(0) var<uniform> u_Frame: FrameUniforms;
+#include FRAME_UNIFORMS
+#include DRAW_UNIFORMS
+#include STANDARD_VERTEX_INPUT
+#include STANDARD_VERTEX_OUTPUT
+#include STANDARD_VERTEX_SHADER
 
 // our custom material uniforms
 @group(1) @binding(0) var src: texture_2d<f32>;
 @group(1) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(2) var<uniform> simulate_step: i32;
 @group(1) @binding(3) var<storage> mic_samples: array<f32>;
-
-struct DrawUniforms {
-    modelMat: mat4x4f,
-};
-
-@group(2) @binding(0) var<storage> drawInstances: array<DrawUniforms>;
-
-struct VertexOutput {
-    @builtin(position) position : vec4f,
-    @location(0) v_uv : vec2f,
-};
-
-struct VertexInput {
-    @location(0) position : vec3f,
-    @location(1) normal : vec3f,
-    @location(2) uv : vec2f,
-    @location(3) tangent : vec4f,
-    @builtin(instance_index) instance : u32,
-};
-
-@vertex 
-fn vs_main(in : VertexInput) -> VertexOutput
-{
-    var out : VertexOutput;
-    var u_Draw : DrawUniforms = drawInstances[in.instance];
-
-    var worldPos : vec4f = u_Frame.projViewMat * u_Draw.modelMat * vec4f(in.position, 1.0f);
-    out.v_uv     = in.uv;
-    out.position = worldPos;
-
-    return out;
-}
 
 fn onWaveform(coords: vec2i, dim: vec2u) -> bool {
     return i32((0.5 + mic_samples[coords.x] * 0.5) * f32(dim.y)) == coords.y;

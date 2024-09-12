@@ -7,6 +7,7 @@ namespace cimgui
 #include <cimgui/cimgui.h>
 }
 
+#include "sg_command.h"
 #include "sg_component.h"
 #include "ulib_helper.h"
 
@@ -27,12 +28,20 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
     if (cimgui::ImGui_TreeNode(buffer)) {
         cimgui::ImGui_SeparatorText("Transform");
 
-        cimgui::ImGui_DragFloat3("Position", &node->pos[0]);
+        if (ImGui::DragFloat3("Position", &node->pos[0], .1f)) {
+            CQ_PushCommand_SetPosition(node);
+        };
 
         glm::vec3 rot = SG_Transform::eulerRotationRadians(node);
-        cimgui::ImGui_DragFloat3("Rotation", &rot[0]);
+        // if (cimgui::ImGui_DragFloat3("Rotation", &rot[0])) {
+        if (ImGui::DragFloat3("Rotation", &rot[0], .1f)) {
+            node->rot = glm::quat(rot);
+            CQ_PushCommand_SetRotation(node);
+        }
 
-        cimgui::ImGui_DragFloat3("Scale", &node->sca[0]);
+        if (ImGui::DragFloat3("Scale", &node->sca[0], .1f)) {
+            CQ_PushCommand_SetScale(node);
+        }
 
         if (node->type == SG_COMPONENT_MESH) {
             SG_Mesh* mesh = SG_GetMesh(node->id);
@@ -41,6 +50,12 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
             // material info
             SG_Material* material = SG_GetMaterial(mesh->_mat_id);
             if (material) {
+                // TODO add modifiable material properties
+                // after figuring out material system, (possibly linking uniform name
+                // with shader) can display material properties (we know the type
+                // already) and give control come back to this after finalizing PBR
+                // Material
+
                 snprintf(buffer, ARRAY_LENGTH(buffer), "Material: [%s %llu] %s",
                          SG_CKNames[material->type], material->id, material->name);
                 cimgui::ImGui_Text("%s", buffer);

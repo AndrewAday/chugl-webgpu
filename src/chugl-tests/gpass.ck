@@ -1,6 +1,6 @@
 T.assert(GG.rootPass() != null, "root pass is not null");
 
-GPass pass0, pass1;
+ScreenPass pass0, pass1;
 
 T.assert(pass0.next() == null, "default next is NULL");
 pass0 --> pass1;
@@ -17,3 +17,5 @@ rpass.target(target);
 T.assert(rpass.target() == target, "target is target");
 rpass.target(null);
 T.assert(rpass.target() == null, "target is null again");
+
+T.assert(GG.renderPass().next() == GG.outputPass(), "default render pass next is output pass");

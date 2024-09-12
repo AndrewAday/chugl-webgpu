@@ -168,6 +168,7 @@ CK_DLL_MFUN(ggen_get_parent);
 CK_DLL_MFUN(ggen_get_child_default);
 CK_DLL_MFUN(ggen_get_child);
 CK_DLL_MFUN(ggen_get_num_children);
+CK_DLL_MFUN(ggen_get_scene);
 CK_DLL_GFUN(ggen_op_gruck);   // add child
 CK_DLL_GFUN(ggen_op_ungruck); // remove child
 CK_DLL_MFUN(ggen_detach_parent);
@@ -433,6 +434,10 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->add_mfun(QUERY, ggen_get_child, "GGen", "child");
         QUERY->add_arg(QUERY, "int", "n");
         QUERY->doc_func(QUERY, "Get the n'th child of this GGen");
+
+        MFUN(ggen_get_scene, "GGen", "scene");
+        DOC_FUNC(
+          "Get the scene this GGen is attached to. Returns null if not attached");
 
         QUERY->add_mfun(QUERY, ggen_get_child_default, "GGen", "child");
         QUERY->doc_func(QUERY, "Get the 0th child of this GGen");
@@ -1008,7 +1013,7 @@ CK_DLL_MFUN(ggen_get_child)
 
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     SG_Transform* child = SG_Transform::child(xform, GET_NEXT_INT(ARGS));
-    RETURN->v_object    = child ? NULL : child->ckobj;
+    RETURN->v_object    = child ? child->ckobj : NULL;
 
     // index warning
     // API->vm->em_log(1, "Warning: GGen::child() index out of bounds!\n");
@@ -1018,6 +1023,13 @@ CK_DLL_MFUN(ggen_get_num_children)
 {
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     RETURN->v_int       = SG_Transform::numChildren(xform);
+}
+
+CK_DLL_MFUN(ggen_get_scene)
+{
+    SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Scene* scene     = SG_GetScene(xform->scene_id);
+    RETURN->v_object    = scene ? scene->ckobj : NULL;
 }
 
 // ===============================================================

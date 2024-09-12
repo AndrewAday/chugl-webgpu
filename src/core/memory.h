@@ -50,6 +50,7 @@ struct Arena {
     static void free(Arena* a);
     static bool containsItem(Arena* a, void* ptr, size_t size);
     static u64 offsetOf(Arena* a, void* ptr);
+    static void* findItem(Arena* a, void* ptr, size_t size);
 };
 
 #define ARENA_PUSH_TYPE(a, type) (type*)Arena::push(a, sizeof(type))
@@ -81,3 +82,4 @@ struct Arena {
     }
 
 #define ARENA_CONTAINS(a, item) Arena::containsItem(a, &item, sizeof(item))
+#define ARENA_FIND(a, item) Arena::findItem(a, &item, sizeof(item))

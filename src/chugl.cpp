@@ -305,6 +305,11 @@ CK_DLL_SFUN(chugl_get_default_render_pass)
     RETURN->v_object = SG_GetPass(gg_config.default_render_pass_id)->ckobj;
 }
 
+CK_DLL_SFUN(chugl_get_default_output_pass)
+{
+    RETURN->v_object = SG_GetPass(gg_config.default_output_pass_id)->ckobj;
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -353,6 +358,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_component_query(QUERY);
     ulib_texture_query(QUERY);
     ulib_ggen_query(QUERY);
+    ulib_light_query(QUERY);
     ulib_imgui_query(QUERY);
     ulib_camera_query(QUERY);
     ulib_gscene_query(QUERY);
@@ -362,7 +368,6 @@ CK_DLL_QUERY(ChuGL)
     ulib_mesh_query(QUERY);
     ulib_pass_query(QUERY);
     ulib_text_query(QUERY);
-    ulib_light_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions
@@ -406,6 +411,11 @@ CK_DLL_QUERY(ChuGL)
         SFUN(chugl_get_default_render_pass, "RenderPass", "renderPass");
         DOC_FUNC("Get the default render pass (renders the main scene");
 
+        SFUN(chugl_get_default_output_pass, "OutputPass", "outputPass");
+        DOC_FUNC(
+          "Get the default output pass (renders the main scene to the screen, "
+          "with default tonemapping and exposure settings");
+
         QUERY->end_class(QUERY); // GG
     }
 
@@ -416,6 +426,13 @@ CK_DLL_QUERY(ChuGL)
         SG_Scene* scene     = ulib_scene_create(scene_ckobj);
         gg_config.mainScene = scene->id;
         CQ_PushCommand_GG_Scene(scene);
+
+        // default directional light
+        Chuck_Object* dir_light_ckobj
+          = chugin_createCkObj(SG_CKNames[SG_COMPONENT_LIGHT], true);
+        SG_Light* dir_light
+          = ulib_light_create(dir_light_ckobj, SG_LightType_Directional);
+        CQ_PushCommand_AddChild(scene, dir_light);
 
         // passRoot()
         gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);
@@ -446,7 +463,7 @@ CK_DLL_QUERY(ChuGL)
         // set render texture as input to output pass
         SG_Material* material = SG_GetMaterial(output_pass->screen_material_id);
         SG_Material::setTexture(material, 0, render_texture);
-        CQ_PushCommand_MaterialSetTexture(material, 0);
+        CQ_PushCommand_MaterialSetUniform(material, 0);
 
         // update all passes over cq
         CQ_PushCommand_PassUpdate(root_pass);

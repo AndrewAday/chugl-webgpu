@@ -1263,7 +1263,7 @@ void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene, u64 
           = glm::normalize(glm::rotate(rot, glm::vec3(0.0f, 0.0f, -1.0f)));
 
         { // initialize uniform struct
-            light_uniform->color      = light->desc.color;
+            light_uniform->color      = light->desc.intensity * light->desc.color;
             light_uniform->light_type = (i32)light->desc.type;
             light_uniform->position   = pos;
             light_uniform->direction  = forward;

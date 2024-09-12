@@ -17,6 +17,9 @@ CK_DLL_MFUN(gscene_get_main_camera);
 CK_DLL_MFUN(gscene_set_ambient_light);
 CK_DLL_MFUN(gscene_get_ambient_light);
 
+CK_DLL_MFUN(gscene_get_default_light);
+CK_DLL_MFUN(gscene_get_lights);
+
 SG_Scene* ulib_scene_create(Chuck_Object* ckobj)
 {
     CK_DL_API API = g_chuglAPI;
@@ -63,6 +66,14 @@ static void ulib_gscene_query(Chuck_DL_Query* QUERY)
 
     MFUN(gscene_get_ambient_light, "vec3", "ambient");
     DOC_FUNC("Get the ambient lighting value of the scene");
+
+    MFUN(gscene_get_default_light, SG_CKNames[SG_COMPONENT_LIGHT], "light");
+    DOC_FUNC(
+      "Get the first light of the scene. On the initial "
+      "default scene, this returns the default directional light");
+
+    MFUN(gscene_get_lights, "GLight[]", "lights");
+    DOC_FUNC("Get array of all lights in the scene");
 
     // end class -----------------------------------------------------
     QUERY->end_class(QUERY);
@@ -152,4 +163,28 @@ CK_DLL_MFUN(gscene_get_ambient_light)
     SG_Scene* scene   = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
     glm::vec3 ambient = scene->desc.ambient_light;
     RETURN->v_vec3    = { ambient.r, ambient.g, ambient.b };
+}
+
+CK_DLL_MFUN(gscene_get_default_light)
+{
+    SG_Scene* scene  = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    SG_Light* light  = SG_Scene::getLight(scene, 0);
+    RETURN->v_object = light ? light->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gscene_get_lights)
+{
+    SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    int num_lights  = ARENA_LENGTH(&scene->light_ids, SG_ID);
+
+    Chuck_ArrayInt* light_ck_array
+      = (Chuck_ArrayInt*)chugin_createCkObj("GLight[]", false, SHRED);
+
+    for (int i = 0; i < num_lights; i++) {
+        Chuck_Object* ck_light
+          = SG_GetLight(*ARENA_GET_TYPE(&scene->light_ids, SG_ID, i))->ckobj;
+        API->object->array_int_push_back(light_ck_array, (t_CKUINT)ck_light);
+    }
+
+    RETURN->v_object = (Chuck_Object*)light_ck_array;
 }

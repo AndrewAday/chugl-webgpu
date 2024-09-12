@@ -2041,10 +2041,43 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_MaterialSetUniform* cmd
               = (SG_Command_MaterialSetUniform*)command;
             R_Material* material = Component_GetMaterial(cmd->sg_id);
-            SG_MaterialUniformPtrAndSize u_ptr_size
-              = SG_MaterialUniform::data(&cmd->uniform);
-            R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_UNIFORM,
-                                   u_ptr_size.ptr, u_ptr_size.size);
+
+            switch (cmd->uniform.type) {
+                // basic uniform
+                case SG_MATERIAL_UNIFORM_FLOAT:
+                case SG_MATERIAL_UNIFORM_VEC2F:
+                case SG_MATERIAL_UNIFORM_VEC3F:
+                case SG_MATERIAL_UNIFORM_VEC4F:
+                case SG_MATERIAL_UNIFORM_INT:
+                case SG_MATERIAL_UNIFORM_IVEC2:
+                case SG_MATERIAL_UNIFORM_IVEC3:
+                case SG_MATERIAL_UNIFORM_IVEC4: {
+                    SG_MaterialUniformPtrAndSize u_ptr_size
+                      = SG_MaterialUniform::data(&cmd->uniform);
+                    R_Material::setBinding(&app->gctx, material, cmd->location,
+                                           R_BIND_UNIFORM, u_ptr_size.ptr,
+                                           u_ptr_size.size);
+                } break;
+                case SG_MATERIAL_UNIFORM_TEXTURE: {
+                    R_Material::setTextureBinding(&app->gctx, material, cmd->location,
+                                                  cmd->uniform.as.texture_id);
+                } break;
+                case SG_MATERIAL_UNIFORM_SAMPLER: {
+                    R_Material::setSamplerBinding(&app->gctx, material, cmd->location,
+                                                  cmd->uniform.as.sampler);
+                } break;
+                case SG_MATERIAL_UNIFORM_STORAGE_BUFFER_EXTERNAL: {
+                    R_Buffer* buffer
+                      = Component_GetBuffer(cmd->uniform.as.storage_buffer_id);
+                    R_Material::setExternalStorageBinding(
+                      &app->gctx, material, cmd->location, &buffer->gpu_buffer);
+                } break;
+                case SG_MATERIAL_STORAGE_TEXTURE: {
+                    R_Material::setStorageTextureBinding(
+                      &app->gctx, material, cmd->location, cmd->uniform.as.texture_id);
+                } break;
+                default: ASSERT(false);
+            } // end uniform type switch
         } break;
         case SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER: {
             SG_Command_MaterialSetStorageBuffer* cmd
@@ -2054,36 +2087,6 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Material::setBinding(&app->gctx, material, cmd->location, R_BIND_STORAGE,
                                    data, cmd->data_size_bytes);
         } break;
-        case SG_COMMAND_MATERIAL_SET_SAMPLER: {
-            SG_Command_MaterialSetSampler* cmd
-              = (SG_Command_MaterialSetSampler*)command;
-            R_Material* material = Component_GetMaterial(cmd->sg_id);
-            R_Material::setSamplerBinding(&app->gctx, material, cmd->location,
-                                          cmd->sampler);
-        } break;
-        case SG_COMMAND_MATERIAL_SET_TEXTURE: {
-            SG_Command_MaterialSetTexture* cmd
-              = (SG_Command_MaterialSetTexture*)command;
-            R_Material* material = Component_GetMaterial(cmd->sg_id);
-            R_Material::setTextureBinding(&app->gctx, material, cmd->location,
-                                          cmd->texture_id);
-        } break;
-        case SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL: {
-            SG_Command_MaterialSetStorageBufferExternal* cmd
-              = (SG_Command_MaterialSetStorageBufferExternal*)command;
-            R_Material* material = Component_GetMaterial(cmd->material_id);
-            R_Buffer* buffer     = Component_GetBuffer(cmd->buffer_id);
-            R_Material::setExternalStorageBinding(&app->gctx, material, cmd->location,
-                                                  &buffer->gpu_buffer);
-        } break;
-        case SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE: {
-            SG_Command_MaterialSetStorageTexture* cmd
-              = (SG_Command_MaterialSetStorageTexture*)command;
-            R_Material* material = Component_GetMaterial(cmd->sg_id);
-            R_Material::setStorageTextureBinding(&app->gctx, material, cmd->location,
-                                                 cmd->texture_id);
-        } break;
-
         // mesh -------------------------
         case SG_COMMAND_MESH_CREATE: {
             SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;

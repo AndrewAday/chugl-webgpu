@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include "core/memory.h"
+#include "memory.h"
 
 void* reallocate(void* pointer, i64 oldSize, i64 newSize)
 {
@@ -120,6 +121,20 @@ u64 Arena::offsetOf(Arena* a, void* ptr)
     ASSERT(ptr < a->base + a->curr); // must be within the arena
 
     return (u64)((u8*)ptr - a->base);
+}
+
+// Assumes arena is contiguous array of identical elements.
+// Returns nullptr if not found. else returns the pointer to the item
+void* Arena::findItem(Arena* a, void* ptr, size_t size)
+{
+    u8* comp = a->base;
+    while (comp < a->base + a->curr) {
+        if (memcmp(comp, ptr, size) == 0) {
+            return comp;
+        }
+        comp += size;
+    }
+    return nullptr;
 }
 
 bool Arena::containsItem(Arena* a, void* ptr, size_t size)

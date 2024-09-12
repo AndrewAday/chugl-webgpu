@@ -15,15 +15,29 @@ N point lights on rotating around central cube. able to inc/dec number of lights
 
 // scenegraph setup
 
-DiffuseMaterial material;
+7 => int NUM_ROWS;
+
+PBRMaterial material[NUM_ROWS][NUM_ROWS];
 FlatMaterial light_material;
 SphereGeometry geo;
+// SuzanneGeometry geo;
 SuzanneGeometry suzanne_geo;
 
-GMesh mesh(geo, material) --> GG.scene();
-GMesh mesh2(suzanne_geo, material);
+// init pbr meshes
+for (int i; i < NUM_ROWS; i++) {
+    for (int j; j < NUM_ROWS; j++) {
+        material[i][j].albedo(Color.RED); 
+        material[i][j].metallic( (i $ float) / NUM_ROWS );
+        material[i][j].roughness( Math.clampf((j $ float) / NUM_ROWS, 0.05, 1) );
+        GMesh mesh(geo, material[i][j]) --> GG.scene();
+        mesh.pos(@(
+            (j - NUM_ROWS / 2) * 1.5,
+            (i - NUM_ROWS / 2) * 1.5,
+            0
+        ));
+    }
+}
 
-GDirLight dir_light --> GG.scene();
 
 GGen point_light_axis --> GG.scene();
 GPointLight point_lights[1];
@@ -38,11 +52,30 @@ UI_Int num_point_lights(point_lights.size());
 UI_Float dir_light_rotation;
 UI_Float4 bg_color(GG.scene().backgroundColor());
 UI_Float3 ambient_light(GG.scene().ambient());
+UI_Float3 dir_light_color(GG.scene().light().color());
+UI_Float dir_light_intensity(GG.scene().light().intensity());
+
+// material properties
+// UI_Float3 albedo(material.albedo());
+// UI_Float metallic(material.metallic());
+// UI_Float roughness(material.roughness());
 
 fun void ui() {
     while (true) {
         GG.nextFrame() => now;
         if (UI.begin("Lighting Example", null, 0)) {
+
+            // if (UI.colorEdit("material albedo", albedo, 0)) {
+            //     albedo.val() => material.albedo;
+            // }
+
+            // if (UI.slider("material metallic", metallic, 0, 1)) {
+            //     metallic.val() => material.metallic;
+            // }
+
+            // if (UI.slider("material roughness", roughness, 0, 1)) {
+            //     roughness.val() => material.roughness;
+            // }
 
             if (UI.colorEdit("background color", bg_color, 0)) {
                 bg_color.val() => GG.scene().backgroundColor;
@@ -52,10 +85,16 @@ fun void ui() {
                 ambient_light.val() => GG.scene().ambient;
             }
 
+            if (UI.colorEdit("dir light color", dir_light_color, 0)) {
+                dir_light_color.val() => GG.scene().light().color;
+            }
+
+            if (UI.slider("dir light intensity", dir_light_intensity, 0, 10)) {
+                dir_light_intensity.val() => GG.scene().light().intensity;
+            }
+
             if (UI.slider("dir light rotation", dir_light_rotation, -Math.PI, Math.PI)) {
-                dir_light_rotation.val() => dir_light.rotX;
-                dir_light_rotation.val() => mesh2.rotX;
-                <<< dir_light.rot(), dir_light.forward(), dir_light.right(), dir_light.up() >>>;
+                dir_light_rotation.val() => GG.scene().light().rotX;
             }   
 
             if (UI.inputInt("num point lights", num_point_lights)) {

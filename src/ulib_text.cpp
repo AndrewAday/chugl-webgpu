@@ -136,10 +136,10 @@ CK_DLL_CTOR(gtext_ctor)
 
     SG_Texture* tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
     SG_Material::setTexture(material, 6, tex);
-    CQ_PushCommand_MaterialSetTexture(material, 6);
+    CQ_PushCommand_MaterialSetUniform(material, 6);
 
     SG_Material::setSampler(material, 7, SG_SAMPLER_DEFAULT);
-    CQ_PushCommand_MaterialSetSampler(material, 7);
+    CQ_PushCommand_MaterialSetUniform(material, 7);
 
     CQ_PushCommand_TextRebuild(text);
 }
@@ -227,7 +227,7 @@ CK_DLL_MFUN(gtext_set_texture)
 
     SG_Material::setTexture(material, 6, tex);
 
-    CQ_PushCommand_MaterialSetTexture(material, 6);
+    CQ_PushCommand_MaterialSetUniform(material, 6);
 }
 
 CK_DLL_MFUN(gtext_get_texture)

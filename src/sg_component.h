@@ -11,6 +11,9 @@
 
 #include <iostream> // std::string
 
+// forward decls
+struct SG_Light;
+
 #define QUAT_IDENTITY (glm::quat(1.0, 0.0, 0.0, 0.0))
 #define MAT_IDENTITY (glm::mat4(1.0))
 
@@ -152,6 +155,7 @@ struct SG_Transform : public SG_Component {
     // relationships
     SG_ID parentID;
     Arena childrenIDs;
+    SG_ID scene_id; // the scene this transform belongs to
 
     // TODO: come up with staleness scheme that makes sense for scenegraph
 
@@ -204,11 +208,16 @@ struct SG_Transform : public SG_Component {
 struct SG_SceneDesc {
     glm::vec4 bg_color      = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     SG_ID main_camera_id    = 0;
-    glm::vec3 ambient_light = glm::vec3(0.0f);
+    glm::vec3 ambient_light = glm::vec3(0.04f);
 };
 
 struct SG_Scene : public SG_Transform {
     SG_SceneDesc desc;
+    Arena light_ids;
+
+    static void addLight(SG_Scene* scene, SG_ID light_id);
+    static void removeLight(SG_Scene* scene, SG_ID light_id);
+    static SG_Light* getLight(SG_Scene* scene, u32 idx);
 };
 
 // ============================================================================
@@ -398,7 +407,7 @@ union SG_MaterialParams {
 
 struct SG_MaterialPipelineState {
     SG_ID sg_shader_id;
-    WGPUCullMode cull_mode;
+    WGPUCullMode cull_mode                   = WGPUCullMode_None;
     WGPUPrimitiveTopology primitive_topology = WGPUPrimitiveTopology_TriangleList;
     bool exclude_from_render_pass
       = false; // if true, this material is internal to
@@ -649,7 +658,8 @@ enum SG_LightType : u8 {
 struct SG_LightDesc {
     SG_LightType type;
 
-    glm::vec3 color = glm::vec3(.1f);
+    glm::vec3 color = glm::vec3(.7f);
+    float intensity = 1.0f;
 
     // point
     // formula: intensity = (1 - distance / radius)^falloff

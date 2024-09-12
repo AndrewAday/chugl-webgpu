@@ -624,45 +624,6 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
     END_COMMAND();
 }
 
-void CQ_PushCommand_MaterialSetStorageBufferExternal(SG_Material* material,
-                                                     int location, SG_Buffer* buffer)
-{
-    BEGIN_COMMAND(SG_Command_MaterialSetStorageBufferExternal,
-                  SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER_EXTERNAL);
-    command->material_id = material->id;
-    command->location    = location;
-    command->buffer_id   = buffer->id;
-    END_COMMAND();
-}
-
-void CQ_PushCommand_MaterialSetSampler(SG_Material* material, int location)
-{
-    BEGIN_COMMAND(SG_Command_MaterialSetSampler, SG_COMMAND_MATERIAL_SET_SAMPLER);
-    command->sg_id    = material->id;
-    command->location = location;
-    command->sampler  = material->uniforms[location].as.sampler;
-    END_COMMAND();
-}
-
-void CQ_PushCommand_MaterialSetTexture(SG_Material* material, int location)
-{
-    BEGIN_COMMAND(SG_Command_MaterialSetTexture, SG_COMMAND_MATERIAL_SET_TEXTURE);
-    command->sg_id      = material->id;
-    command->location   = location;
-    command->texture_id = material->uniforms[location].as.texture_id;
-    END_COMMAND();
-}
-
-void CQ_PushCommand_MaterialSetStorageTexture(SG_Material* material, int location)
-{
-    BEGIN_COMMAND(SG_Command_MaterialSetStorageTexture,
-                  SG_COMMAND_MATERIAL_SET_STORAGE_TEXTURE);
-    command->sg_id      = material->id;
-    command->location   = location;
-    command->texture_id = material->uniforms[location].as.texture_id;
-    END_COMMAND();
-}
-
 void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
 {
     spinlock::lock(&cq.write_q_lock);
