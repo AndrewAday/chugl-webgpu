@@ -1033,15 +1033,25 @@ CK_DLL_MFUN(ggen_get_scene)
 }
 
 // ===============================================================
-// GMesh
+// GMesh and friends
 // ===============================================================
+
+#define GET_MESH(ckobj) SG_GetMesh(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 
 CK_DLL_CTOR(gmesh_ctor);
 CK_DLL_CTOR(gmesh_ctor_params);
 
+CK_DLL_MFUN(gmesh_get_mat);
+CK_DLL_MFUN(gmesh_set_mat);
+CK_DLL_MFUN(gmesh_get_geo);
+CK_DLL_MFUN(gmesh_set_geo);
+CK_DLL_MFUN(gmesh_set_mat_and_geo);
+
+CK_DLL_CTOR(glines2d_ctor);
+
 static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 {
-    // Material -----------------------------------------------------
+    // GMesh -----------------------------------------------------
     QUERY->begin_class(QUERY, SG_CKNames[SG_COMPONENT_MESH],
                        SG_CKNames[SG_COMPONENT_TRANSFORM]);
 
@@ -1050,8 +1060,34 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
     QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_GEOMETRY], "geo");
     QUERY->add_arg(QUERY, SG_CKNames[SG_COMPONENT_MATERIAL], "mat");
 
+    MFUN(gmesh_get_mat, SG_CKNames[SG_COMPONENT_MATERIAL], "material");
+    DOC_FUNC("Get the material of this GMesh");
+
+    MFUN(gmesh_set_mat, "GMesh", "material");
+    ARG(SG_CKNames[SG_COMPONENT_MATERIAL], "material");
+    DOC_FUNC("Set the material of this GMesh");
+
+    MFUN(gmesh_get_geo, SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
+    DOC_FUNC("Get the geometry of this GMesh");
+
+    MFUN(gmesh_set_geo, "GMesh", "geometry");
+    ARG(SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
+    DOC_FUNC("Set the geometry of this GMesh");
+
+    MFUN(gmesh_set_mat_and_geo, "void", "mesh");
+    ARG(SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
+    ARG(SG_CKNames[SG_COMPONENT_MATERIAL], "material");
+    DOC_FUNC("Set the geometry and material of this GMesh");
+
     // abstract class, no destructor or constructor
     QUERY->end_class(QUERY);
+
+    // GLines2D -----------------------------------------------------
+    BEGIN_CLASS("GLines2D", SG_CKNames[SG_COMPONENT_MESH]);
+
+    CTOR(glines2d_ctor);
+
+    END_CLASS();
 }
 
 CK_DLL_CTOR(gmesh_ctor)
@@ -1061,7 +1097,7 @@ CK_DLL_CTOR(gmesh_ctor)
 
     OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
 
-    CQ_PushCommand_Mesh_Create(mesh);
+    CQ_PushCommand_MeshUpdate(mesh);
 }
 
 CK_DLL_CTOR(gmesh_ctor_params)
@@ -1077,5 +1113,70 @@ CK_DLL_CTOR(gmesh_ctor_params)
     ASSERT(mesh->_geo_id == sg_geo->id);
     ASSERT(mesh->_mat_id == sg_mat->id);
 
-    CQ_PushCommand_Mesh_Create(mesh);
+    CQ_PushCommand_MeshUpdate(mesh);
+}
+
+CK_DLL_MFUN(gmesh_get_mat)
+{
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Material* mat = SG_GetMaterial(mesh->_mat_id);
+    RETURN->v_object = mat ? mat->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gmesh_set_mat)
+{
+    Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
+
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Material* mat = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
+    SG_Mesh::setMaterial(mesh, mat);
+    CQ_PushCommand_MeshUpdate(mesh);
+}
+
+CK_DLL_MFUN(gmesh_get_geo)
+{
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Geometry* geo = SG_GetGeometry(mesh->_geo_id);
+    RETURN->v_object = geo ? geo->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gmesh_set_geo)
+{
+    Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
+
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Geometry* geo = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
+    SG_Mesh::setGeometry(mesh, geo);
+    CQ_PushCommand_MeshUpdate(mesh);
+}
+
+CK_DLL_MFUN(gmesh_set_mat_and_geo)
+{
+    Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
+    Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
+
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Geometry* geo = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
+    SG_Material* mat = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
+    SG_Mesh::setGeometry(mesh, geo);
+    SG_Mesh::setMaterial(mesh, mat);
+    CQ_PushCommand_MeshUpdate(mesh);
+}
+
+// GLines2D ===============================================================
+
+CK_DLL_CTOR(glines2d_ctor)
+{
+    SG_Mesh* mesh = GET_MESH(SELF);
+
+    // create material
+    SG_Material* mat = ulib_material_create(SG_MATERIAL_LINES2D, SHRED);
+
+    // create geometry
+    SG_Geometry* geo = ulib_geometry_create(SG_GEOMETRY_LINES2D, SHRED);
+
+    SG_Mesh::setGeometry(mesh, geo);
+    SG_Mesh::setMaterial(mesh, mat);
+
+    CQ_PushCommand_MeshUpdate(mesh);
 }

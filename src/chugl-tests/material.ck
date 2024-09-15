@@ -75,9 +75,9 @@ T.assert(T.arrayEquals(material.activeUniformLocations(), [0]), "material active
 // Lines2D
 Lines2DMaterial lines2d_material;
 T.assert(T.feq(lines2d_material.uniformFloat(0), 0.1), "lines2d_material uniformFloat default");
-T.assert(T.feq(lines2d_material.thickness(), 0.1), "lines2d_material default thickness");
-lines2d_material.thickness(0.2);
-T.assert(T.feq(lines2d_material.thickness(), 0.2), "lines2d_material thickness");
+T.assert(T.feq(lines2d_material.width(), 0.1), "lines2d_material default width");
+lines2d_material.width(0.2);
+T.assert(T.feq(lines2d_material.width(), 0.2), "lines2d_material width");
 T.assert(lines2d_material.topology() == material.TOPOLOGY_TRIANGLESTRIP, "lines2d_material topology default");
 T.assert(lines2d_material.shader().vertexLayout()[0] == 0, "lines2d_material no vertex layout");
 lines2d_material.shader().fragmentString() @=> string lines2d_frag;

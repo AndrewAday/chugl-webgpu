@@ -414,6 +414,7 @@ void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
                                                int num_components, f32* data,
                                                int data_len)
 {
+    if (data == NULL || data_len == 0 || num_components == 0) return;
 
     BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_GeoSetVertexAttribute,
                                     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
@@ -624,22 +625,13 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
     END_COMMAND();
 }
 
-void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh)
+void CQ_PushCommand_MeshUpdate(SG_Mesh* mesh)
 {
-    spinlock::lock(&cq.write_q_lock);
-    {
-        // allocate memory
-        SG_Command_Mesh_Create* command
-          = ARENA_PUSH_TYPE(cq.write_q, SG_Command_Mesh_Create);
-
-        // initialize memory
-        command->type              = SG_COMMAND_MESH_CREATE;
-        command->nextCommandOffset = cq.write_q->curr;
-        command->mesh_id           = mesh->id;
-        command->geo_id            = mesh->_geo_id;
-        command->mat_id            = mesh->_mat_id;
-    }
-    spinlock::unlock(&cq.write_q_lock);
+    BEGIN_COMMAND(SG_Command_MeshUpdate, SG_COMMAND_MESH_UPDATE);
+    command->mesh_id = mesh->id;
+    command->geo_id  = mesh->_geo_id;
+    command->mat_id  = mesh->_mat_id;
+    END_COMMAND();
 }
 
 void CQ_PushCommand_CameraCreate(SG_Camera* camera)

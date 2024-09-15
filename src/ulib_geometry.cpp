@@ -9,6 +9,7 @@
 // ===============================================================
 // Geometry  (for now, immutable)
 // ===============================================================
+static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo);
 
 CK_DLL_CTOR(geo_ctor);
 
@@ -139,7 +140,8 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     END_CLASS();
 
     // Plane -----------------------------------------------------
-    QUERY->begin_class(QUERY, "PlaneGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    QUERY->begin_class(QUERY, SG_GeometryTypeNames[SG_GEOMETRY_PLANE],
+                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     QUERY->add_ctor(QUERY, plane_geo_ctor);
     QUERY->add_ctor(QUERY, plane_geo_ctor_params);
@@ -152,7 +154,8 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     QUERY->end_class(QUERY);
 
     // Sphere -----------------------------------------------------
-    QUERY->begin_class(QUERY, "SphereGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    QUERY->begin_class(QUERY, SG_GeometryTypeNames[SG_GEOMETRY_SPHERE],
+                       SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     QUERY->add_ctor(QUERY, sphere_geo_ctor);
     QUERY->add_ctor(QUERY, sphere_geo_ctor_params);
@@ -168,13 +171,15 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     QUERY->end_class(QUERY);
 
     // Suzanne ----------
-    BEGIN_CLASS("SuzanneGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_SUZANNE],
+                SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     CTOR(suzanne_geo_ctor);
     END_CLASS();
 
     // lines2d
-    BEGIN_CLASS("Lines2DGeometry", SG_CKNames[SG_COMPONENT_GEOMETRY]);
+    BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_LINES2D],
+                SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
     // CTOR(lines2d_geo_ctor_params);
     // ARG("vec2[]", "points");
@@ -189,9 +194,53 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
 // Geometry -----------------------------------------------------
 
+// if params is NULL, uses default values
+static void ulib_geometry_build(SG_Geometry* geo, void* params)
+{
+    switch (geo->geo_type) {
+        case SG_GEOMETRY_SPHERE: {
+            SphereParams p = {};
+            if (params) p = *(SphereParams*)params;
+            SG_Geometry::buildSphere(geo, &p);
+        } break;
+        case SG_GEOMETRY_PLANE: {
+            PlaneParams p = {};
+            if (params) p = *(PlaneParams*)params;
+            SG_Geometry::buildPlane(geo, &p);
+        } break;
+        case SG_GEOMETRY_SUZANNE: {
+            SG_Geometry::buildSuzanne(geo);
+        } break;
+        case SG_GEOMETRY_LINES2D: {
+        } break;
+        default: ASSERT(false);
+    }
+
+    CQ_UpdateAllVertexAttributes(geo);
+}
+
+SG_Geometry* ulib_geometry_create(SG_GeometryType type, Chuck_VM_Shred* shred)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    ASSERT(type != SG_GEOMETRY);
+    Chuck_Object* obj = chugin_createCkObj(SG_GeometryTypeNames[type], false, shred);
+
+    SG_Geometry* geo                          = SG_CreateGeometry(obj);
+    geo->geo_type                             = type;
+    OBJ_MEMBER_UINT(obj, component_offset_id) = geo->id;
+
+    CQ_PushCommand_GeometryCreate(geo);
+
+    ulib_geometry_build(geo, NULL);
+
+    return geo;
+}
+
 CK_DLL_CTOR(geo_ctor)
 {
     SG_Geometry* geo                           = SG_CreateGeometry(SELF);
+    geo->geo_type                              = SG_GEOMETRY;
     OBJ_MEMBER_UINT(SELF, component_offset_id) = geo->id;
     CQ_PushCommand_GeometryCreate(geo);
 }
@@ -454,14 +503,9 @@ CK_DLL_CTOR(plane_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
     ASSERT(geo);
+    geo->geo_type = SG_GEOMETRY_PLANE;
 
-    PlaneParams params = {};
-    // test default value initialization
-    ASSERT(params.widthSegments == 1 && params.heightSegments == 1);
-
-    SG_Geometry::buildPlane(geo, &params);
-
-    CQ_UpdateAllVertexAttributes(geo);
+    ulib_geometry_build(geo, NULL);
 }
 
 CK_DLL_CTOR(plane_geo_ctor_params)
@@ -473,18 +517,17 @@ CK_DLL_CTOR(plane_geo_ctor_params)
     params.heightSegments = GET_NEXT_INT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_PLANE;
 
-    SG_Geometry::buildPlane(geo, &params);
-
-    CQ_UpdateAllVertexAttributes(geo);
+    ulib_geometry_build(geo, &params);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor)
 {
-    SG_Geometry* geo    = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    SphereParams params = {};
-    SG_Geometry::buildSphere(geo, &params);
-    CQ_UpdateAllVertexAttributes(geo);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_SPHERE;
+
+    ulib_geometry_build(geo, NULL);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor_params)
@@ -499,21 +542,25 @@ CK_DLL_CTOR(sphere_geo_ctor_params)
     params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    SG_Geometry::buildSphere(geo, &params);
-    CQ_UpdateAllVertexAttributes(geo);
+    geo->geo_type    = SG_GEOMETRY_SPHERE;
+
+    ulib_geometry_build(geo, &params);
 }
 
 CK_DLL_CTOR(suzanne_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    SG_Geometry::buildSuzanne(geo);
-    CQ_UpdateAllVertexAttributes(geo);
+    geo->geo_type    = SG_GEOMETRY_SUZANNE;
+
+    ulib_geometry_build(geo, NULL);
 }
 
 // Lines2D Geometry -----------------------------------------------------
 
 CK_DLL_CTOR(lines2d_geo_ctor_params)
 {
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_LINES2D;
     // ==nice-to-have==
 }
 
@@ -523,5 +570,6 @@ CK_DLL_MFUN(lines2d_geo_set_line_points)
     SG_Geometry* geo     = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     int ck_arr_len = geoSetPulledVertexAttribute(geo, 0, ck_arr, 2);
-    CQ_PushCommand_GeometrySetVertexCount(geo, 2 * ck_arr_len);
+    // always draw ck_arr_len+1 points to handle line loop
+    CQ_PushCommand_GeometrySetVertexCount(geo, 2 * (ck_arr_len + 1));
 }

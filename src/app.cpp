@@ -2088,9 +2088,13 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                                    data, cmd->data_size_bytes);
         } break;
         // mesh -------------------------
-        case SG_COMMAND_MESH_CREATE: {
-            SG_Command_Mesh_Create* cmd = (SG_Command_Mesh_Create*)command;
-            Component_CreateMesh(cmd);
+        case SG_COMMAND_MESH_UPDATE: {
+            SG_Command_MeshUpdate* cmd = (SG_Command_MeshUpdate*)command;
+            R_Transform* mesh          = Component_GetMesh(cmd->mesh_id);
+            if (!mesh) {
+                mesh = Component_CreateMesh(cmd->mesh_id, cmd->geo_id, cmd->mat_id);
+            }
+            R_Transform::updateMesh(mesh, cmd->geo_id, cmd->mat_id);
         } break;
         case SG_COMMAND_CAMERA_CREATE: {
             SG_Command_CameraCreate* cmd = (SG_Command_CameraCreate*)command;

@@ -84,7 +84,7 @@ void ulib_texture_createDefaults(CK_DL_API API);
 CK_DLL_CTOR(sampler_ctor);
 
 CK_DLL_CTOR(texture_ctor);
-CK_DLL_CTOR(texture_ctor_usage_dimension_format);
+CK_DLL_CTOR(texture_ctor_dimension_format);
 
 CK_DLL_MFUN(texture_write);
 CK_DLL_MFUN(texture_set_file);
@@ -125,17 +125,18 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         BEGIN_CLASS(SG_CKNames[SG_COMPONENT_TEXTURE], SG_CKNames[SG_COMPONENT_BASE]);
 
         // svars ---------------
-        static t_CKINT texture_usage_copy_src        = WGPUTextureUsage_CopySrc;
-        static t_CKINT texture_usage_copy_dst        = WGPUTextureUsage_CopyDst;
-        static t_CKINT texture_usage_texture_binding = WGPUTextureUsage_TextureBinding;
-        static t_CKINT texture_usage_storage_binding = WGPUTextureUsage_StorageBinding;
-        static t_CKINT texture_usage_render_attachment
-          = WGPUTextureUsage_RenderAttachment;
-        SVAR("int", "Usage_CopySrc", &texture_usage_copy_src);
-        SVAR("int", "Usage_CopyDst", &texture_usage_copy_dst);
-        SVAR("int", "Usage_TextureBinding", &texture_usage_texture_binding);
-        SVAR("int", "Usage_StorageBinding", &texture_usage_storage_binding);
-        SVAR("int", "Usage_RenderAttachment", &texture_usage_render_attachment);
+        // static t_CKINT texture_usage_copy_src        = WGPUTextureUsage_CopySrc;
+        // static t_CKINT texture_usage_copy_dst        = WGPUTextureUsage_CopyDst;
+        // static t_CKINT texture_usage_texture_binding =
+        // WGPUTextureUsage_TextureBinding; static t_CKINT texture_usage_storage_binding
+        // = WGPUTextureUsage_StorageBinding; static t_CKINT
+        // texture_usage_render_attachment
+        //   = WGPUTextureUsage_RenderAttachment;
+        // SVAR("int", "Usage_CopySrc", &texture_usage_copy_src);
+        // SVAR("int", "Usage_CopyDst", &texture_usage_copy_dst);
+        // SVAR("int", "Usage_TextureBinding", &texture_usage_texture_binding);
+        // SVAR("int", "Usage_StorageBinding", &texture_usage_storage_binding);
+        // SVAR("int", "Usage_RenderAttachment", &texture_usage_render_attachment);
 
         static t_CKINT texture_dimension_1d = WGPUTextureDimension_1D;
         static t_CKINT texture_dimension_2d = WGPUTextureDimension_2D;
@@ -146,10 +147,12 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
         static t_CKINT texture_format_rgba8unorm  = WGPUTextureFormat_RGBA8Unorm;
         static t_CKINT texture_format_rgba16float = WGPUTextureFormat_RGBA16Float;
+        static t_CKINT texture_format_rgba32float = WGPUTextureFormat_RGBA32Float;
         // static t_CKINT texture_format_depth24plusstencil8
         //   = WGPUTextureFormat_Depth24PlusStencil8;
         SVAR("int", "Format_RGBA8Unorm", &texture_format_rgba8unorm);
         SVAR("int", "Format_RGBA16Float", &texture_format_rgba16float);
+        SVAR("int", "Format_RGBA32Float", &texture_format_rgba32float);
         // SVAR("int", "Format_Depth24PlusStencil8",
         // &texture_format_depth24plusstencil8);
 
@@ -157,8 +160,7 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
         CTOR(texture_ctor);
 
-        CTOR(texture_ctor_usage_dimension_format);
-        ARG("int", "usage_flags");
+        CTOR(texture_ctor_dimension_format);
         ARG("int", "dimension");
         ARG("int", "format");
 
@@ -173,7 +175,7 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         // ARG("int", "dst_origin_y");
         // ARG("int", "dst_origin_z");
 
-        MFUN(texture_set_file, "void", "file");
+        MFUN(texture_set_file, "void", "load");
         ARG("string", "filepath");
 
         // TODO: specify in WGPUImageCopyTexture where in texture to write to ?
@@ -273,16 +275,16 @@ CK_DLL_CTOR(texture_ctor)
     CQ_PushCommand_TextureCreate(tex);
 }
 
-CK_DLL_CTOR(texture_ctor_usage_dimension_format)
+CK_DLL_CTOR(texture_ctor_dimension_format)
 {
     SG_Texture* tex                            = SG_CreateTexture(SELF);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = tex->id;
-    u32 usage_flags                            = GET_NEXT_UINT(ARGS);
     WGPUTextureDimension dimension = (WGPUTextureDimension)GET_NEXT_INT(ARGS);
     WGPUTextureFormat format       = (WGPUTextureFormat)GET_NEXT_INT(ARGS);
 
     // store texture desc state (like material pso)
-    tex->desc = { usage_flags, dimension, format };
+    tex->desc.dimension = dimension;
+    tex->desc.format    = format;
 
     CQ_PushCommand_TextureCreate(tex);
 }

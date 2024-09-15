@@ -124,6 +124,9 @@ struct R_Transform : public R_Component {
     static void rotateOnLocalAxis(R_Transform* xform, glm::vec3 axis, f32 deg);
     static void rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg);
 
+    // mesh -------------------------------------------------------------------
+    static void updateMesh(R_Transform* xform, SG_ID geo_id, SG_ID mat_id);
+
     // util -------------------------------------------------------------------
     static void print(R_Transform* xform, u32 depth);
     static void print(R_Transform* xform);
@@ -387,8 +390,18 @@ struct R_Light : public R_Transform {
 // =============================================================================
 
 struct MaterialToGeometry {
-    SG_ID material_id; // key
-    Arena geo_ids;     // value, array of SG_IDs
+    SG_ID material_id;   // key
+    Arena geo_ids;       // value, array of SG_IDs
+    hashmap* geo_id_set; // kept in sync with geo_ids, use for quick lookup
+
+    static void addGeometry(MaterialToGeometry* m2g, SG_ID geo_id)
+    {
+        // first check if already exists
+        if (hashmap_get(m2g->geo_id_set, &geo_id) == NULL) {
+            *ARENA_PUSH_TYPE(&m2g->geo_ids, SG_ID) = geo_id;
+            hashmap_set(m2g->geo_id_set, &geo_id);
+        }
+    }
 
     static int compare(const void* a, const void* b, void* udata)
     {
@@ -407,6 +420,7 @@ struct MaterialToGeometry {
     {
         MaterialToGeometry* key = (MaterialToGeometry*)item;
         Arena::free(&key->geo_ids);
+        hashmap_free(key->geo_id_set);
     }
 };
 
@@ -417,10 +431,41 @@ struct GeometryToXformKey {
 
 struct GeometryToXforms {
     GeometryToXformKey key;
-    Arena xform_ids; // value, array of SG_IDs
+    Arena xform_ids;       // value, array of SG_IDs
+    hashmap* xform_id_set; // kept in sync with xform_ids, use for quick lookup
     WGPUBindGroup xform_bind_group;
     GPU_Buffer xform_storage_buffer;
     bool stale;
+
+    static bool hasXform(GeometryToXforms* g2x, SG_ID xform_id)
+    {
+        return hashmap_get(g2x->xform_id_set, &xform_id) != NULL;
+    }
+
+    static void addXform(GeometryToXforms* g2x, SG_ID xform_id)
+    {
+        // first check if already exists
+        if (hashmap_get(g2x->xform_id_set, &xform_id) == NULL) {
+            *ARENA_PUSH_TYPE(&g2x->xform_ids, SG_ID) = xform_id;
+            hashmap_set(g2x->xform_id_set, &xform_id);
+            g2x->stale = true;
+        }
+    }
+
+    static void removeXform(GeometryToXforms* g2x, size_t xform_id_index)
+    {
+        // note: we don't set stale here because removal happens during lazy-deletion,
+        // when we are rebuilding a fresh bindgroup
+
+        SG_ID xform_id      = *ARENA_GET_TYPE(&g2x->xform_ids, SG_ID, xform_id_index);
+        const void* removed = hashmap_delete(g2x->xform_id_set, &xform_id);
+        ASSERT(removed);
+
+        // swap with last element
+        *ARENA_GET_TYPE(&g2x->xform_ids, SG_ID, xform_id_index)
+          = *ARENA_GET_LAST_TYPE(&g2x->xform_ids, SG_ID);
+        ARENA_POP_TYPE(&g2x->xform_ids, SG_ID);
+    }
 
     static int compare(const void* a, const void* b, void* udata)
     {
@@ -441,6 +486,7 @@ struct GeometryToXforms {
         Arena::free(&g2x->xform_ids);
         WGPU_RELEASE_RESOURCE(BindGroup, g2x->xform_bind_group);
         GPU_Buffer::destroy(&g2x->xform_storage_buffer);
+        hashmap_free(g2x->xform_id_set);
     }
 
     static void rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
@@ -471,13 +517,9 @@ struct R_Scene : R_Transform {
         return (i32)hashmap_count(scene->light_id_set);
     }
 
-    static GeometryToXforms* getPrimitive(R_Scene* scene, SG_ID geo_id, SG_ID mat_id)
-    {
-        GeometryToXformKey key = {};
-        key.geo_id             = geo_id;
-        key.mat_id             = mat_id;
-        return (GeometryToXforms*)hashmap_get(scene->geo_to_xform, &key);
-    }
+    static void registerMesh(R_Scene* scene, R_Transform* mesh);
+    static GeometryToXforms* getPrimitive(R_Scene* scene, SG_ID geo_id, SG_ID mat_id);
+    static MaterialToGeometry* getMaterialToGeometry(R_Scene* scene, SG_ID mat_id);
 
     // static void free(R_Scene* scene);
 };
@@ -826,7 +868,7 @@ struct R_Font {
 R_Transform* Component_CreateTransform();
 R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd);
 
-R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd);
+R_Transform* Component_CreateMesh(SG_ID mesh_id, SG_ID geo_id, SG_ID mat_id);
 R_Camera* Component_CreateCamera(GraphicsContext* gctx, SG_Command_CameraCreate* cmd);
 R_Text* Component_CreateText(GraphicsContext* gctx, FT_Library ft,
                              SG_Command_TextRebuild* cmd);
@@ -853,6 +895,7 @@ R_Light* Component_CreateLight(SG_ID id, SG_LightDesc* desc);
 
 R_Component* Component_GetComponent(SG_ID id);
 R_Transform* Component_GetXform(SG_ID id);
+R_Transform* Component_GetMesh(SG_ID id);
 R_Scene* Component_GetScene(SG_ID id);
 R_Geometry* Component_GetGeometry(SG_ID id);
 R_Shader* Component_GetShader(SG_ID id);

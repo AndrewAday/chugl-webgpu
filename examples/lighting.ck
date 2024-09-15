@@ -15,6 +15,14 @@ N point lights on rotating around central cube. able to inc/dec number of lights
 
 // scenegraph setup
 
+Texture albedo_tex;
+Texture normal_tex;
+Texture hdr_radiance_tex(Texture.Dimension_2D, Texture.Format_RGBA32Float);
+
+albedo_tex.load(me.dir() + "../assets/brickwall_albedo.png");
+normal_tex.load(me.dir() + "../assets/brickwall_normal.png");
+hdr_radiance_tex.load(me.dir() + "../assets/newport_loft.hdr");
+
 7 => int NUM_ROWS;
 
 PBRMaterial material[NUM_ROWS][NUM_ROWS];
@@ -26,9 +34,11 @@ SuzanneGeometry suzanne_geo;
 // init pbr meshes
 for (int i; i < NUM_ROWS; i++) {
     for (int j; j < NUM_ROWS; j++) {
-        material[i][j].albedo(Color.RED); 
+        material[i][j].albedo(Color.WHITE); 
         material[i][j].metallic( (i $ float) / NUM_ROWS );
         material[i][j].roughness( Math.clampf((j $ float) / NUM_ROWS, 0.05, 1) );
+        // material[i][j].albedoMap(albedo_tex);
+        // material[i][j].normalMap(normal_tex);
         GMesh mesh(geo, material[i][j]) --> GG.scene();
         mesh.pos(@(
             (j - NUM_ROWS / 2) * 1.5,
@@ -56,18 +66,19 @@ UI_Float3 dir_light_color(GG.scene().light().color());
 UI_Float dir_light_intensity(GG.scene().light().intensity());
 
 // material properties
-// UI_Float3 albedo(material.albedo());
+UI_Float3 albedo(material.albedo());
 // UI_Float metallic(material.metallic());
 // UI_Float roughness(material.roughness());
+UI_Float normal_factor(material[0][0].normalFactor());
 
 fun void ui() {
     while (true) {
         GG.nextFrame() => now;
         if (UI.begin("Lighting Example", null, 0)) {
 
-            // if (UI.colorEdit("material albedo", albedo, 0)) {
-            //     albedo.val() => material.albedo;
-            // }
+            if (UI.colorEdit("material albedo", albedo, 0)) {
+                albedo.val() => material.albedo;
+            }
 
             // if (UI.slider("material metallic", metallic, 0, 1)) {
             //     metallic.val() => material.metallic;
@@ -76,6 +87,14 @@ fun void ui() {
             // if (UI.slider("material roughness", roughness, 0, 1)) {
             //     roughness.val() => material.roughness;
             // }
+
+            if (UI.slider("material normal factor", normal_factor, 0, 1)) {
+                for (int i; i < NUM_ROWS; i++) {
+                    for (int j; j < NUM_ROWS; j++) {
+                        normal_factor.val() => material[i][j].normalFactor;
+                    }
+                }
+            }
 
             if (UI.colorEdit("background color", bg_color, 0)) {
                 bg_color.val() => GG.scene().backgroundColor;

@@ -90,7 +90,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_MATERIAL_SET_STORAGE_BUFFER,
 
     // mesh
-    SG_COMMAND_MESH_CREATE,
+    SG_COMMAND_MESH_UPDATE,
 
     // camera
     SG_COMMAND_CAMERA_CREATE,
@@ -352,8 +352,8 @@ struct SG_Command_MaterialSetStorageBuffer : public SG_Command {
     int data_size_bytes;
 };
 
-struct SG_Command_Mesh_Create : public SG_Command {
-    SG_ID mesh_id; // gmesh id
+struct SG_Command_MeshUpdate : public SG_Command {
+    SG_ID mesh_id;
     SG_ID geo_id;
     SG_ID mat_id;
 };
@@ -523,7 +523,7 @@ void CQ_PushCommand_MaterialSetStorageBuffer(SG_Material* material, int location
                                              Chuck_ArrayFloat* ck_arr);
 
 // mesh
-void CQ_PushCommand_Mesh_Create(SG_Mesh* mesh);
+void CQ_PushCommand_MeshUpdate(SG_Mesh* mesh);
 
 // camera
 void CQ_PushCommand_CameraCreate(SG_Camera* camera);

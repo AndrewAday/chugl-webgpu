@@ -446,7 +446,7 @@ static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b, SG_Geom
 
 void SG_Geometry::buildPlane(SG_Geometry* g, PlaneParams* p)
 {
-    g->geo_type     = SG_GEOMETRY_PLANE;
+    ASSERT(g->geo_type == SG_GEOMETRY_PLANE);
     g->params.plane = *p;
 
     GeometryArenaBuilder gab;
@@ -456,7 +456,7 @@ void SG_Geometry::buildPlane(SG_Geometry* g, PlaneParams* p)
 
 void SG_Geometry::buildSphere(SG_Geometry* g, SphereParams* p)
 {
-    g->geo_type      = SG_GEOMETRY_SPHERE;
+    ASSERT(g->geo_type == SG_GEOMETRY_SPHERE);
     g->params.sphere = *p;
 
     GeometryArenaBuilder gab;
@@ -466,7 +466,7 @@ void SG_Geometry::buildSphere(SG_Geometry* g, SphereParams* p)
 
 void SG_Geometry::buildSuzanne(SG_Geometry* g)
 {
-    g->geo_type = SG_GEOMETRY; // custom type
+    ASSERT(g->geo_type == SG_GEOMETRY_SUZANNE);
     GeometryArenaBuilder gab;
     SG_Geometry_initGABandNumComponents(&gab, g);
     Geometry_buildSuzanne(&gab);
@@ -880,8 +880,7 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
 #undef NULL_TO_EMPTY
 }
 
-SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
-                               void* params)
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type)
 {
     Arena* arena     = &SG_MaterialArena;
     size_t offset    = arena->curr;
@@ -920,11 +919,16 @@ SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg
     size_t offset = arena->curr;
     SG_Mesh* mesh = ARENA_PUSH_TYPE(arena, SG_Mesh);
     *mesh         = {};
-    SG_Transform::_init(mesh, ckobj); // init transform data
 
+    // init transform
+    SG_Transform::_init(mesh, ckobj);
+
+    // init component
     mesh->ckobj = ckobj;
     mesh->id    = SG_GetNewComponentID();
     mesh->type  = SG_COMPONENT_MESH;
+
+    // init mesh
     SG_Mesh::setGeometry(mesh, sg_geo);
     SG_Mesh::setMaterial(mesh, sg_mat);
 
@@ -988,7 +992,7 @@ SG_Scene* SG_GetScene(SG_ID id)
 SG_Geometry* SG_GetGeometry(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_GEOMETRY);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_GEOMETRY);
     return (SG_Geometry*)component;
 }
 
@@ -1002,14 +1006,14 @@ SG_Shader* SG_GetShader(SG_ID id)
 SG_Material* SG_GetMaterial(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_MATERIAL);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_MATERIAL);
     return (SG_Material*)component;
 }
 
 SG_Mesh* SG_GetMesh(SG_ID id)
 {
     SG_Component* component = SG_GetComponent(id);
-    ASSERT(component->type == SG_COMPONENT_MESH);
+    ASSERT(component == NULL || component->type == SG_COMPONENT_MESH);
     return (SG_Mesh*)component;
 }
 

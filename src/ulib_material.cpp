@@ -73,6 +73,12 @@ CK_DLL_MFUN(material_set_storage_texture);
 CK_DLL_CTOR(lines2d_material_ctor);
 CK_DLL_MFUN(lines2d_material_get_thickness);
 CK_DLL_MFUN(lines2d_material_set_thickness);
+CK_DLL_MFUN(lines2d_material_get_color);
+CK_DLL_MFUN(lines2d_material_set_color);
+CK_DLL_MFUN(lines2d_material_get_extrusion);
+CK_DLL_MFUN(lines2d_material_set_extrusion);
+CK_DLL_MFUN(lines2d_material_get_loop);
+CK_DLL_MFUN(lines2d_material_set_loop);
 
 CK_DLL_CTOR(flat_material_ctor);
 CK_DLL_MFUN(flat_material_get_color);
@@ -102,6 +108,12 @@ CK_DLL_MFUN(pbr_material_set_normal_factor);
 
 CK_DLL_MFUN(pbr_material_get_ao_factor);
 CK_DLL_MFUN(pbr_material_set_ao_factor);
+
+CK_DLL_MFUN(pbr_material_get_albedo_tex);
+CK_DLL_MFUN(pbr_material_set_albedo_tex);
+
+CK_DLL_MFUN(pbr_material_get_normal_tex);
+CK_DLL_MFUN(pbr_material_set_normal_tex);
 
 static_assert(sizeof(WGPUVertexFormat) == sizeof(int),
               "WGPUVertexFormat size mismatch");
@@ -325,23 +337,53 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     END_CLASS();
 
     // Lines2DMaterial -----------------------------------------------------
-    BEGIN_CLASS("Lines2DMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_LINES2D],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
 
     CTOR(lines2d_material_ctor);
 
-    // thickness uniform
-    MFUN(lines2d_material_get_thickness, "float", "thickness");
+    MFUN(lines2d_material_get_thickness, "float", "width");
     DOC_FUNC("Get the thickness of the lines in the material.");
 
-    MFUN(lines2d_material_set_thickness, "void", "thickness");
+    MFUN(lines2d_material_set_thickness, "void", "width");
     ARG("float", "thickness");
     DOC_FUNC("Set the thickness of the lines in the material.");
+
+    MFUN(lines2d_material_get_color, "vec3", "color");
+    DOC_FUNC("Get the line color");
+
+    MFUN(lines2d_material_set_color, "void", "color");
+    ARG("vec3", "color");
+    DOC_FUNC("Set the line color");
+
+    MFUN(lines2d_material_get_extrusion, "float", "extrusion");
+    DOC_FUNC(
+      "Get the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of "
+      "0.5 means the line width is split evenly on each side of each line segment "
+      "position.");
+
+    MFUN(lines2d_material_set_extrusion, "void", "extrusion");
+    ARG("float", "extrusion");
+    DOC_FUNC(
+      "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of "
+      "0.5 means the line width is split evenly on each side of each line segment "
+      "position.");
+
+    MFUN(lines2d_material_get_loop, "int", "loop");
+    DOC_FUNC("Get whether the line segments form a closed loop");
+
+    MFUN(lines2d_material_set_loop, "void", "loop");
+    ARG("int", "loop");
+    DOC_FUNC(
+      "Set whether the line segments form a closed loop. Set via material.loop(true) "
+      "or material.loop(false)");
 
     END_CLASS();
 
     // FlatMaterial -----------------------------------------------------
 
-    BEGIN_CLASS("FlatMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_FLAT],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
 
     CTOR(flat_material_ctor);
 
@@ -357,7 +399,8 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
     // Diffuse Material -----------------------------------------------------
 
-    BEGIN_CLASS("DiffuseMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_DIFFUSE],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
 
     CTOR(diffuse_material_ctor);
 
@@ -370,7 +413,8 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     END_CLASS();
 
     // PBR Material -----------------------------------------------------
-    BEGIN_CLASS("PBRMaterial", SG_CKNames[SG_COMPONENT_MATERIAL]);
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_PBR],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
 
     CTOR(pbr_material_ctor);
 
@@ -418,6 +462,20 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(pbr_material_set_ao_factor, "void", "aoFactor");
     ARG("float", "aoFactor");
     DOC_FUNC("Set the ambient occlusion factor of the material. Default 1.0");
+
+    MFUN(pbr_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE], "albedoMap");
+    DOC_FUNC("Get the albedo texture of the material.");
+
+    MFUN(pbr_material_set_albedo_tex, "void", "albedoMap");
+    ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "albedoTexture");
+    DOC_FUNC("Set the albedo texture of the material.");
+
+    MFUN(pbr_material_get_normal_tex, SG_CKNames[SG_COMPONENT_TEXTURE], "normalMap");
+    DOC_FUNC("Get the normal texture of the material.");
+
+    MFUN(pbr_material_set_normal_tex, "void", "normalMap");
+    ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "normalTexture");
+    DOC_FUNC("Set the normal texture of the material.");
 
     // abstract class, no destructor or constructor
     END_CLASS();
@@ -528,7 +586,7 @@ CK_DLL_MFUN(shader_get_lit)
 
 CK_DLL_CTOR(material_ctor)
 {
-    SG_Material* material = SG_CreateMaterial(SELF, SG_MATERIAL_CUSTOM, NULL);
+    SG_Material* material = SG_CreateMaterial(SELF, SG_MATERIAL_CUSTOM);
     ASSERT(material->type == SG_COMPONENT_MATERIAL);
 
     OBJ_MEMBER_UINT(SELF, component_offset_id) = material->id;
@@ -804,29 +862,64 @@ CK_DLL_MFUN(material_set_storage_texture)
 
 // Lines2DMaterial ===================================================================
 
+static void ulib_material_init_uniforms_and_pso(SG_Material* material)
+{
+    switch (material->material_type) {
+        case SG_MATERIAL_LINES2D: {
+            SG_Material::uniformFloat(material, 0, 0.1f); // thickness
+            CQ_PushCommand_MaterialSetUniform(material, 0);
+
+            SG_Material::uniformVec3f(material, 1, glm::vec3(1.0f)); // color
+            CQ_PushCommand_MaterialSetUniform(material, 1);
+
+            SG_Material::uniformInt(material, 2, 0); // loop
+            CQ_PushCommand_MaterialSetUniform(material, 2);
+
+            SG_Material::uniformFloat(material, 3, 0.5f); // extrusion
+            CQ_PushCommand_MaterialSetUniform(material, 3);
+
+            // shader
+            SG_Shader* lines2d_shader
+              = SG_GetShader(g_material_builtin_shaders.lines2d_shader_id);
+            ASSERT(lines2d_shader);
+
+            chugl_materialSetShader(material, lines2d_shader);
+
+            // set pso
+            material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
+            CQ_PushCommand_MaterialUpdatePSO(material);
+        } break;
+        default: ASSERT(false);
+    }
+}
+
+SG_Material* ulib_material_create(SG_MaterialType type, Chuck_VM_Shred* shred)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    Chuck_Object* ckobj = NULL;
+    if (shred)
+        ckobj = chugin_createCkObj(SG_MaterialTypeNames[type], false, shred);
+    else
+        ckobj = chugin_createCkObj(SG_MaterialTypeNames[type], false);
+
+    SG_Material* material = SG_CreateMaterial(ckobj, type);
+    ASSERT(material->type == SG_COMPONENT_MATERIAL);
+    OBJ_MEMBER_UINT(ckobj, component_offset_id) = material->id;
+
+    CQ_PushCommand_MaterialCreate(material);
+
+    ulib_material_init_uniforms_and_pso(material);
+
+    return material;
+}
+
 CK_DLL_CTOR(lines2d_material_ctor)
 {
     SG_Material* material   = GET_MATERIAL(SELF);
     material->material_type = SG_MATERIAL_LINES2D;
 
-    // init shader
-    // Shader lines2d_shader(lines2d_shader_desc);
-    SG_Shader* lines2d_shader
-      = SG_GetShader(g_material_builtin_shaders.lines2d_shader_id);
-    ASSERT(lines2d_shader);
-
-    chugl_materialSetShader(material, lines2d_shader);
-
-    // set pso
-    material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
-    CQ_PushCommand_MaterialUpdatePSO(material);
-
-    // set uniform
-    // TODO where to store default uniform values + locations?
-    SG_Material::uniformFloat(material, 0, 0.1f); // thickness
-    // TODO extrusion uniform
-
-    CQ_PushCommand_MaterialSetUniform(material, 0);
+    ulib_material_init_uniforms_and_pso(material);
 }
 
 CK_DLL_MFUN(lines2d_material_get_thickness)
@@ -841,6 +934,49 @@ CK_DLL_MFUN(lines2d_material_set_thickness)
 
     SG_Material::uniformFloat(material, 0, (f32)thickness);
     CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(lines2d_material_get_color)
+{
+    glm::vec3 color = GET_MATERIAL(SELF)->uniforms[1].as.vec3f;
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(lines2d_material_set_color)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+
+    SG_Material::uniformVec3f(material, 1, glm::vec3(color.x, color.y, color.z));
+    CQ_PushCommand_MaterialSetUniform(material, 1);
+}
+
+CK_DLL_MFUN(lines2d_material_get_extrusion)
+{
+    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[3].as.f;
+}
+
+CK_DLL_MFUN(lines2d_material_set_extrusion)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKFLOAT extrusion   = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 3, (f32)extrusion);
+    CQ_PushCommand_MaterialSetUniform(material, 3);
+}
+
+CK_DLL_MFUN(lines2d_material_get_loop)
+{
+    RETURN->v_int = GET_MATERIAL(SELF)->uniforms[2].as.i;
+}
+
+CK_DLL_MFUN(lines2d_material_set_loop)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT loop          = GET_NEXT_INT(ARGS);
+
+    SG_Material::uniformInt(material, 2, loop ? 1 : 0);
+    CQ_PushCommand_MaterialSetUniform(material, 2);
 }
 
 // FlatMaterial ===================================================================
@@ -1069,6 +1205,40 @@ CK_DLL_MFUN(pbr_material_set_ao_factor)
 
     SG_Material::uniformFloat(material, 11, (f32)ao);
     CQ_PushCommand_MaterialSetUniform(material, 11);
+}
+
+CK_DLL_MFUN(pbr_material_get_albedo_tex)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    SG_Texture* tex       = SG_GetTexture(material->uniforms[1].as.texture_id);
+    RETURN->v_object      = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(pbr_material_set_albedo_tex)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    SG_Texture* tex
+      = SG_GetTexture(OBJ_MEMBER_INT(GET_NEXT_OBJECT(ARGS), component_offset_id));
+
+    SG_Material::setTexture(material, 1, tex);
+    CQ_PushCommand_MaterialSetUniform(material, 1);
+}
+
+CK_DLL_MFUN(pbr_material_get_normal_tex)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    SG_Texture* tex       = SG_GetTexture(material->uniforms[2].as.texture_id);
+    RETURN->v_object      = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(pbr_material_set_normal_tex)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    SG_Texture* tex
+      = SG_GetTexture(OBJ_MEMBER_INT(GET_NEXT_OBJECT(ARGS), component_offset_id));
+
+    SG_Material::setTexture(material, 2, tex);
+    CQ_PushCommand_MaterialSetUniform(material, 2);
 }
 
 // init default materials ========================================================

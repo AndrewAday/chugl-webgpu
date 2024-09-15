@@ -441,6 +441,21 @@ void R_Transform::rotateOnWorldAxis(R_Transform* xform, glm::vec3 axis, f32 deg)
     R_Transform::rot(xform, glm::angleAxis(deg, glm::normalize(axis)) * xform->_rot);
 }
 
+void R_Transform::updateMesh(R_Transform* xform, SG_ID geo_id, SG_ID mat_id)
+{
+    R_Scene* scene = Component_GetScene(xform->scene_id);
+    if (scene) {
+        // mark previous primitives as stale
+        R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID)->stale = true;
+    }
+
+    xform->_geoID = geo_id;
+    xform->_matID = mat_id;
+
+    // add new primitive
+    if (scene) R_Scene::registerMesh(scene, xform);
+}
+
 void R_Transform::print(R_Transform* xform)
 {
     R_Transform::print(xform, 0);
@@ -642,12 +657,34 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
     i32 desired_comps = STBI_rgb_alpha; // force 4 channels
 
     stbi_set_flip_vertically_on_load(true);
-    stbi_uc* pixelData = stbi_load(filepath,     //
-                                   &width,       //
-                                   &height,      //
-                                   &read_comps,  //
-                                   desired_comps //
-    );
+
+    // determine if we should load ldr or hdr
+    void* pixelData = NULL;
+
+    if (texture->desc.format == WGPUTextureFormat_RGBA16Float) {
+        log_error(
+          "WARNING trying to load texture as RGBA16Float, but this format is not "
+          "supported by chugl image loader\n. Use RGBA32Float or RGBA8Unorm instead");
+    }
+
+    bool is_hdr = false;
+    if (texture->desc.format == WGPUTextureFormat_RGBA32Float) {
+        pixelData = stbi_loadf(filepath,     //
+                               &width,       //
+                               &height,      //
+                               &read_comps,  //
+                               desired_comps //
+        );
+        is_hdr    = true;
+    } else {
+        pixelData = stbi_load(filepath,     //
+                              &width,       //
+                              &height,      //
+                              &read_comps,  //
+                              desired_comps //
+        );
+        is_hdr    = false;
+    }
 
     if (pixelData == NULL) {
         log_error("Couldn't load '%s'\n", filepath);
@@ -655,12 +692,12 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
         log_error("Reason: %s\n", stbi_failure_reason());
         return;
     } else {
-        log_debug("Loaded image %s (%d, %d, %d / %d)\n", filepath, width, height,
-                  read_comps, desired_comps);
+        log_debug("Loaded %s image %s (%d, %d, %d / %d)\n", is_hdr ? "HDR" : "LDR",
+                  filepath, width, height, read_comps, desired_comps);
     }
 
     Texture::initFromPixelData(gctx, &texture->gpu_texture, filepath, pixelData, width,
-                               height, true, texture->desc.usage_flags);
+                               height, true, texture->desc.usage_flags, is_hdr ? 4 : 1);
 
     // free pixel data
     stbi_image_free(pixelData);
@@ -999,7 +1036,7 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
                                         WGPUBindGroupLayout layout, Arena* frame_arena)
 {
     if (!g2x->stale) return;
-    g2x->stale = false;
+    defer(g2x->stale = false);
 
     // build new array of matrices on CPU
     u64 model_matrices_offset = frame_arena->curr;
@@ -1008,23 +1045,22 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
     int numInstances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
     SG_ID* xformIDs  = (SG_ID*)g2x->xform_ids.base;
     // delete and swap any destroyed xforms
-    for (int i = 0; i < numInstances; ++i) {
+    for (size_t i = 0; i < numInstances; ++i) {
         R_Transform* xform = Component_GetXform(xformIDs[i]);
         // remove NULL xforms and xforms that have been reassigned new mesh params
+
         // TODO: impl GMesh.geo() and GMesh.mat() to change geo and mat of mesh
         // - impl needs to set GeometryToXforms.stale = true
         // - but does NOT need to linear search the xformIDs arena. because lazy
         // deletion happens right here
+
         bool xform_destroyed = (xform == NULL);
         bool xform_changed_mesh
           = (xform->_geoID != g2x->key.geo_id || xform->_matID != g2x->key.mat_id);
         bool xform_detached_from_scene = (xform->scene_id != scene->id);
         // TODO use arena macro instead
         if (xform_destroyed || xform_changed_mesh || xform_detached_from_scene) {
-            // swap with last element
-            xformIDs[i] = xformIDs[numInstances - 1];
-            // pop last element
-            Arena::pop(&g2x->xform_ids, sizeof(SG_ID));
+            GeometryToXforms::removeXform(g2x, i);
             // decrement to reprocess this index
             --i;
             --numInstances;
@@ -1107,18 +1143,16 @@ void R_Scene::removeSubgraphFromRenderState(R_Scene* scene, R_Transform* root)
             // get xforms from geometry
             GeometryToXforms* g2x
               = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
-            ASSERT(g2x); // GMesh was added, so geometry should exist
 
             // don't need to remove xform from geometry
             // just mark the g2x entry as stale; will be lazily deleted in
             // GeometryToXforms::rebuildBindGroup();
             g2x->stale = true;
-            ASSERT(Arena::containsItem(&g2x->xform_ids, &xform->id, sizeof(xform->id)));
+            ASSERT(GeometryToXforms::hasXform(g2x, xform->id));
 
             // TODO: deletions must cascade upwards to geo-->material-->pipeline
             // we can only remove an SG_ID from a higher level IF that SG_ID
             // at the lower level has an empty arena
-
             // can implement this later. for now deletions will leave a bunch of empty
             // arenas in the 3 hashmaps.
             // better yet: batch all deletions and prune the render state in one go
@@ -1160,7 +1194,6 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
             ASSERT(!replaced);
         } else if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
             ASSERT(xform->type == SG_COMPONENT_MESH);
-            bool add_m2g_and_p2m_entries = false;
 
             // try adding to bottom level GeometryToXform
             // if its not present, build up entire chain:
@@ -1179,50 +1212,7 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
             // this avoids us having to do O(n) search on each xform added/removed
             // from scenegraph render state
 
-            GeometryToXforms* g2x
-              = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
-            if (g2x == NULL) {
-                // add to hashmap, need to add upward entries material-->geo and
-                // pipeline-->mat
-                GeometryToXforms new_g2x = {};
-                new_g2x.key.geo_id       = xform->_geoID;
-                new_g2x.key.mat_id       = xform->_matID;
-                Arena::init(&new_g2x.xform_ids, sizeof(SG_ID) * 8);
-                hashmap_set(scene->geo_to_xform, &new_g2x);
-                g2x = R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID);
-                add_m2g_and_p2m_entries = true;
-            }
-
-            ASSERT(g2x->key.geo_id == xform->_geoID);
-            ASSERT(g2x->key.mat_id == xform->_matID);
-
-            // check if xform already exists in geometry
-            ASSERT(
-              !Arena::containsItem(&g2x->xform_ids, &xform->id, sizeof(xform->id)));
-
-            // add xform to geometry
-            *ARENA_PUSH_ZERO_TYPE(&g2x->xform_ids, SG_ID) = xform->id;
-            g2x->stale = true; // need to rebuild bindgroup
-
-            if (add_m2g_and_p2m_entries) {
-                // get geometry from material
-                MaterialToGeometry* m2g = (MaterialToGeometry*)hashmap_get(
-                  scene->material_to_geo, &xform->_matID);
-
-                if (m2g == NULL) {
-                    MaterialToGeometry new_m2g = {};
-                    new_m2g.material_id        = xform->_matID;
-                    Arena::init(&new_m2g.geo_ids, sizeof(SG_ID) * 8);
-                    hashmap_set(scene->material_to_geo, &new_m2g);
-                    m2g = (MaterialToGeometry*)hashmap_get(scene->material_to_geo,
-                                                           &xform->_matID);
-                }
-
-                // invariant says entry should not have been added
-                ASSERT(!Arena::containsItem(&m2g->geo_ids, &xform->_matID,
-                                            sizeof(xform->_matID)));
-                *ARENA_PUSH_ZERO_TYPE(&m2g->geo_ids, SG_ID) = xform->_geoID;
-            }
+            R_Scene::registerMesh(scene, xform);
         }
     }
 }
@@ -1287,6 +1277,63 @@ void R_Scene::rebuildLightInfoBuffer(GraphicsContext* gctx, R_Scene* scene, u64 
     // upload to gpu
     GPU_Buffer::write(gctx, &scene->light_info_buffer, WGPUBufferUsage_Storage,
                       light_info_arena.base, light_info_arena.curr);
+}
+
+void R_Scene::registerMesh(R_Scene* scene, R_Transform* mesh)
+{
+    if (!scene || !mesh) return;
+
+    if (mesh->_geoID == 0 || mesh->_matID == 0) return;
+
+    ASSERT(mesh->type == SG_COMPONENT_MESH);
+    GeometryToXforms* g2x = R_Scene::getPrimitive(scene, mesh->_geoID, mesh->_matID);
+    GeometryToXforms::addXform(g2x, mesh->id);
+
+    MaterialToGeometry* m2g = R_Scene::getMaterialToGeometry(scene, mesh->_matID);
+    MaterialToGeometry::addGeometry(m2g, mesh->_geoID);
+}
+
+GeometryToXforms* R_Scene::getPrimitive(R_Scene* scene, SG_ID geo_id, SG_ID mat_id)
+{
+    GeometryToXformKey key = {};
+    key.geo_id             = geo_id;
+    key.mat_id             = mat_id;
+    GeometryToXforms* g2x  = (GeometryToXforms*)hashmap_get(scene->geo_to_xform, &key);
+
+    if (!g2x) {
+        // create new one
+        GeometryToXforms new_g2x = {};
+        new_g2x.key.geo_id       = geo_id;
+        new_g2x.key.mat_id       = mat_id;
+        Arena::init(&new_g2x.xform_ids, sizeof(SG_ID) * 8);
+        u64 seed             = time(NULL);
+        new_g2x.xform_id_set = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID,
+                                           compareSGIDs, NULL, NULL);
+        hashmap_set(scene->geo_to_xform, &new_g2x);
+        g2x = (GeometryToXforms*)hashmap_get(scene->geo_to_xform, &key);
+    }
+    ASSERT(g2x);
+    return g2x;
+}
+
+MaterialToGeometry* R_Scene::getMaterialToGeometry(R_Scene* scene, SG_ID mat_id)
+{
+    MaterialToGeometry* m2g
+      = (MaterialToGeometry*)hashmap_get(scene->material_to_geo, &mat_id);
+
+    if (!m2g) {
+        MaterialToGeometry new_m2g = {};
+        new_m2g.material_id        = mat_id;
+        Arena::init(&new_m2g.geo_ids, sizeof(SG_ID) * 8);
+        u64 seed           = time(NULL);
+        new_m2g.geo_id_set = hashmap_new(sizeof(SG_ID), 0, seed, seed, hashSGID,
+                                         compareSGIDs, NULL, NULL);
+        hashmap_set(scene->material_to_geo, &new_m2g);
+
+        m2g = (MaterialToGeometry*)hashmap_get(scene->material_to_geo, &mat_id);
+    }
+    ASSERT(m2g);
+    return m2g;
 }
 
 void R_Scene::initFromSG(GraphicsContext* gctx, R_Scene* r_scene, SG_ID scene_id,
@@ -1372,6 +1419,11 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
 
     // Setup shader module
     R_Shader* shader = Component_GetShader(config->sg_shader_id);
+    if (!shader) {
+        log_error(
+          "Error: failed creating render pipeline from material with shader id = %llu",
+          config->sg_shader_id);
+    }
     ASSERT(shader);
 
     VertexBufferLayout vertexBufferLayout = {};
@@ -1728,15 +1780,15 @@ R_Transform* Component_CreateTransform(SG_Command_CreateXform* cmd)
     return xform;
 }
 
-R_Transform* Component_CreateMesh(SG_Command_Mesh_Create* cmd)
+R_Transform* Component_CreateMesh(SG_ID mesh_id, SG_ID geo_id, SG_ID mat_id)
 {
     R_Transform* xform = ARENA_PUSH_ZERO_TYPE(&xformArena, R_Transform);
 
-    R_Transform_init(xform, cmd->mesh_id, SG_COMPONENT_MESH);
+    R_Transform_init(xform, mesh_id, SG_COMPONENT_MESH);
 
     // init mesh
-    xform->_geoID = cmd->geo_id;
-    xform->_matID = cmd->mat_id;
+    xform->_geoID = geo_id;
+    xform->_matID = mat_id;
 
     // store offset
     R_Location loc = { xform->id, Arena::offsetOf(&xformArena, xform), &xformArena };
@@ -2171,6 +2223,13 @@ R_Transform* Component_GetXform(SG_ID id)
                || comp->type == SG_COMPONENT_MESH || comp->type == SG_COMPONENT_CAMERA
                || comp->type == SG_COMPONENT_TEXT || comp->type == SG_COMPONENT_LIGHT);
     }
+    return (R_Transform*)comp;
+}
+
+R_Transform* Component_GetMesh(SG_ID id)
+{
+    R_Component* comp = Component_GetComponent(id);
+    ASSERT(comp == NULL || comp->type == SG_COMPONENT_MESH);
     return (R_Transform*)comp;
 }
 

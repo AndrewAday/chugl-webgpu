@@ -1271,10 +1271,13 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
 // Texture
 // ============================================================================
 
+// component_size is size in bytes of each channel. E.g. for RGBA8Unorm it is 1
+// for RGBA32Float it is 4
 void Texture::initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
                                 const char* label, const void* pixelData,
                                 int pixel_width, int pixel_height, bool genMipMaps,
-                                WGPUTextureUsageFlags usage_flags)
+                                WGPUTextureUsageFlags usage_flags,
+                                int component_size = 1)
 {
 
     Texture::init(ctx, gpu_texture, pixel_width, pixel_height, 1, genMipMaps, label,
@@ -1302,10 +1305,11 @@ void Texture::initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
         const int num_components     = 4;
         WGPUTextureDataLayout source = {};
         source.offset                = 0; // where to start reading from the cpu buffer
-        source.bytesPerRow           = num_components * gpu_texture->width;
-        source.rowsPerImage          = gpu_texture->height;
+        source.bytesPerRow  = num_components * gpu_texture->width * component_size;
+        source.rowsPerImage = gpu_texture->height;
 
-        const size_t dataSize = pixel_width * pixel_height * num_components;
+        const size_t dataSize
+          = pixel_width * pixel_height * num_components * component_size;
 
         WGPUExtent3D size = { (u32)pixel_width, (u32)pixel_height, 1 };
         wgpuQueueWriteTexture(ctx->queue, &destination, pixelData, dataSize, &source,

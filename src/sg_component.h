@@ -117,7 +117,11 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
 // ============================================================================
 
 struct SG_TextureDesc {
-    WGPUTextureUsageFlags usage_flags;
+    // for now default to ALL usage flags to simplify
+    WGPUTextureUsageFlags usage_flags
+      = WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc
+        | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+        | WGPUTextureUsage_StorageBinding;
     WGPUTextureDimension dimension = WGPUTextureDimension_2D;
     WGPUTextureFormat format       = WGPUTextureFormat_RGBA8Unorm;
 };
@@ -224,15 +228,27 @@ struct SG_Scene : public SG_Transform {
 // SG_Geometry
 // ============================================================================
 
-enum SG_GeometryType : u8 {
-    SG_GEOMETRY = 0, // base class. doubles as custom geometry
-    SG_GEOMETRY_PLANE,
-    SG_GEOMETRY_CUBE,
-    SG_GEOMETRY_SPHERE,
-    SG_GEOMETRY_CYLINDER,
-    SG_GEOMETRY_CONE,
-    SG_GEOMETRY_TORUS,
-    SG_GEOMETRY_COUNT
+#define SG_GeometryTable                                                               \
+    X(SG_GEOMETRY = 0, "Geometry")                                                     \
+    X(SG_GEOMETRY_PLANE, "PlaneGeometry")                                              \
+    X(SG_GEOMETRY_CUBE, "CubeGeometry")                                                \
+    X(SG_GEOMETRY_SPHERE, "SphereGeometry")                                            \
+    X(SG_GEOMETRY_CYLINDER, "CylinderGeometry")                                        \
+    X(SG_GEOMETRY_TORUS, "TorusGeometry")                                              \
+    X(SG_GEOMETRY_SUZANNE, "SuzanneGeometry")                                          \
+    X(SG_GEOMETRY_LINES2D, "Lines2DGeometry")
+
+enum SG_GeometryType {
+#define X(name, str) name,
+    SG_GeometryTable
+#undef X
+      SG_GEOMETRY_COUNT
+};
+
+static const char* SG_GeometryTypeNames[SG_GEOMETRY_COUNT] = {
+#define X(name, str) str,
+    SG_GeometryTable
+#undef X
 };
 
 union SG_GeometryParams {
@@ -302,16 +318,27 @@ struct SG_Shader : SG_Component {
 // SG_Material
 // ============================================================================
 
-enum SG_MaterialType : u8 {
-    SG_MATERIAL_INVALID = 0,
-    SG_MATERIAL_CUSTOM,
-    SG_MATERIAL_LINES2D,
-    SG_MATERIAL_FLAT,
-    SG_MATERIAL_DIFFUSE,
-    SG_MATERIAL_PBR,
-    SG_MATERIAL_TEXT3D,
-    SG_MATERIAL_COMPUTE, // holds compute shader
-    SG_MATERIAL_COUNT
+#define SG_MaterialTypeTable                                                           \
+    X(SG_MATERIAL_INVALID = 0, "Invalid")                                              \
+    X(SG_MATERIAL_CUSTOM, "Material")                                                  \
+    X(SG_MATERIAL_LINES2D, "Lines2DMaterial")                                          \
+    X(SG_MATERIAL_FLAT, "FlatMaterial")                                                \
+    X(SG_MATERIAL_DIFFUSE, "DiffuseMaterial")                                          \
+    X(SG_MATERIAL_PBR, "PBRMaterial")                                                  \
+    X(SG_MATERIAL_TEXT3D, "TextMaterial")                                              \
+    X(SG_MATERIAL_COMPUTE, "ComputeMaterial")
+
+enum SG_MaterialType {
+#define X(name, str) name,
+    SG_MaterialTypeTable
+#undef X
+      SG_MATERIAL_COUNT
+};
+
+static const char* SG_MaterialTypeNames[SG_MATERIAL_COUNT] = {
+#define X(name, str) str,
+    SG_MaterialTypeTable
+#undef X
 };
 
 struct SG_Material_PBR_Params {
@@ -694,8 +721,7 @@ SG_Shader* SG_CreateShader(Chuck_Object* ckobj, const char* vertex_string,
                            const char* compute_string, const char* compute_filepath,
                            bool lit = false);
 
-SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type,
-                               void* params);
+SG_Material* SG_CreateMaterial(Chuck_Object* ckobj, SG_MaterialType material_type);
 SG_Mesh* SG_CreateMesh(Chuck_Object* ckobj, SG_Geometry* sg_geo, SG_Material* sg_mat);
 SG_Light* SG_CreateLight(Chuck_Object* ckobj);
 

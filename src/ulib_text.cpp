@@ -113,7 +113,7 @@ CK_DLL_CTOR(gtext_ctor)
     // create gtext material
     Chuck_Object* material_ckobj
       = chugin_createCkObj(SG_CKNames[SG_COMPONENT_MATERIAL], true);
-    SG_Material* material = SG_CreateMaterial(material_ckobj, SG_MATERIAL_TEXT3D, NULL);
+    SG_Material* material = SG_CreateMaterial(material_ckobj, SG_MATERIAL_TEXT3D);
     OBJ_MEMBER_UINT(material_ckobj, component_offset_id) = material->id;
     CQ_PushCommand_MaterialCreate(material);
 

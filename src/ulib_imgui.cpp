@@ -125,6 +125,7 @@ CK_DLL_SFUN(ui_GetVersion);
 
 // Windows
 CK_DLL_SFUN(ui_begin);
+CK_DLL_SFUN(ui_begin_no_options);
 CK_DLL_SFUN(ui_end);
 
 // Child Windows
@@ -480,6 +481,7 @@ CK_DLL_SFUN(ui_SelectableBoolPtrEx);
 CK_DLL_SFUN(ui_BeginListBox);
 CK_DLL_SFUN(ui_EndListBox);
 CK_DLL_SFUN(ui_ListBox);
+CK_DLL_SFUN(ui_ListBox_default);
 
 // Widgets: Data Plotting
 // - Consider using ImPlot (https://github.com/epezent/implot) which is much
@@ -762,6 +764,8 @@ static t_CKINT ui_combo_callback_vt_offset = -1;
 
 // UI_Bool
 static t_CKUINT ui_bool_val_offset = 0;
+CK_DLL_CTOR(ui_bool_ctor);
+CK_DLL_CTOR(ui_bool_ctor_val);
 CK_DLL_MFUN(ui_bool_get_value);
 CK_DLL_MFUN(ui_bool_set_value);
 
@@ -1056,6 +1060,11 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     // UI_Bool ---------------------------------------------------------------
     QUERY->begin_class(QUERY, "UI_Bool", "Object");
     ui_bool_val_offset = QUERY->add_mvar(QUERY, "int", "bool_val", false);
+
+    CTOR(ui_bool_ctor);
+
+    CTOR(ui_bool_ctor_val);
+    ARG("int", "val");
 
     // can't use b/c collision with mvar val
     MFUN(ui_bool_get_value, "int", "val");
@@ -4560,6 +4569,10 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "  anything to the window. Always call a matching End() for each Begin() call, "
       "regardless of its return value! ");
 
+    SFUN(ui_begin_no_options, "int", "begin");
+    ARG("string", "name");
+    DOC_FUNC("Equivalent to UI.begin(name, null, 0)");
+
     QUERY->add_sfun(QUERY, ui_end, "void", "end");
 
     // Child windows
@@ -5868,6 +5881,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
     ARG("int", "height_in_items");
     DOC_FUNC("set `height_in_items` to -1 to use the default");
 
+    SFUN(ui_ListBox_default, "int", "listBox");
+    ARG("string", "label");
+    ARG("UI_Int", "current_item");
+    ARG("string[]", "items");
+    DOC_FUNC("listbox ui widget, uses default item height");
+
     // Widgets: Data Plotting ------------------------------------------------
 
     SFUN(ui_PlotLines, "void", "plotLines");
@@ -6642,6 +6661,16 @@ CK_DLL_SFUN(ui_GetVersion)
 // ============================================================================
 
 // UI_Bool -----------------------------------------------------------------
+
+CK_DLL_CTOR(ui_bool_ctor)
+{
+    OBJ_MEMBER_UINT(SELF, ui_bool_val_offset) = (t_CKUINT)0;
+}
+
+CK_DLL_CTOR(ui_bool_ctor_val)
+{
+    OBJ_MEMBER_UINT(SELF, ui_bool_val_offset) = GET_NEXT_INT(ARGS) ? 1 : 0;
+}
 
 CK_DLL_MFUN(ui_bool_get_value)
 {
@@ -8494,6 +8523,12 @@ CK_DLL_SFUN(ui_begin)
 
     bool ret      = cimgui::ImGui_Begin(name, p_open, flags);
     RETURN->v_int = ret;
+}
+
+CK_DLL_SFUN(ui_begin_no_options)
+{
+    const char* name = API->object->str(GET_NEXT_STRING(ARGS));
+    RETURN->v_int    = (t_CKINT)cimgui::ImGui_Begin(name, NULL, 0);
 }
 
 CK_DLL_SFUN(ui_end)
@@ -10415,6 +10450,27 @@ CK_DLL_SFUN(ui_ListBox)
 
     RETURN->v_int = cimgui::ImGui_ListBox(label, current_item, items_arr, num_items,
                                           height_in_items);
+}
+
+CK_DLL_SFUN(ui_ListBox_default)
+{
+    const char* label        = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* ui_int_obj = GET_NEXT_OBJECT(ARGS);
+    int* current_item        = (int*)OBJ_MEMBER_UINT(ui_int_obj, ui_int_ptr_offset);
+    Chuck_ArrayInt* items    = (Chuck_ArrayInt*)GET_NEXT_OBJECT(ARGS);
+
+    // copy chuck string array to arena
+    int num_items = API->object->array_int_size(items);
+    const char** items_arr
+      = ARENA_PUSH_COUNT(&audio_frame_arena, const char*, num_items);
+
+    for (int i = 0; i < num_items; ++i) {
+        items_arr[i]
+          = API->object->str((Chuck_String*)API->object->array_int_get_idx(items, i));
+    }
+
+    RETURN->v_int
+      = cimgui::ImGui_ListBox(label, current_item, items_arr, num_items, -1);
 }
 
 // ============================================================================

@@ -305,7 +305,8 @@ struct Texture {
     static void initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
                                   const char* label, const void* pixelData,
                                   int pixel_width, int pixel_height, bool genMipMaps,
-                                  WGPUTextureUsageFlags usage_flags);
+                                  WGPUTextureUsageFlags usage_flags,
+                                  int component_size);
 
     static void release(Texture* texture);
 };

@@ -46,16 +46,6 @@ struct LightUniforms {
     float _pad1[2];
 };
 
-struct MaterialUniforms {     // PBR
-    glm::vec4 baseColor;      // at byte offset 0
-    glm::vec3 emissiveFactor; // at byte offset 16
-    f32 metallic;             // at byte offset 28
-    f32 roughness;            // at byte offset 32
-    f32 normalFactor;         // at byte offset 36
-    f32 aoFactor;             // at byte offset 40
-    f32 _pad0;
-};
-
 // struct DrawUniforms {
 //     glm::mat4x4 modelMat; // at byte offset 0
 // };
@@ -201,18 +191,24 @@ static std::unordered_map<std::string, std::string> shader_table = {
         @vertex 
         fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
             var output : VertexOutput;
+
+            // outUV = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+            // gl_Position = vec4(outUV * 2.0f + -1.0f, 0.0f, 1.0f);
+
+            output.v_uv = vec2f(f32((vertexIndex << 1u) & 2u), f32(vertexIndex & 2u));
+            output.position = vec4f(output.v_uv * 2.0 - 1.0, 0.0, 1.0);
             
             // triangle which covers the screen
-            if (vertexIndex == 0u) {
-                output.position = vec4f(-1.0, -1.0, 0.0, 1.0);
-                output.v_uv = vec2f(0.0, 0.0);
-            } else if (vertexIndex == 1u) {
-                output.position = vec4f(3.0, -1.0, 0.0, 1.0);
-                output.v_uv = vec2f(2.0, 0.0);
-            } else {
-                output.position = vec4f(-1.0, 3.0, 0.0, 1.0);
-                output.v_uv = vec2f(0.0, 2.0);
-            }
+            // if (vertexIndex == 0u) {
+            //     output.position = vec4f(-1.0, -1.0, 0.0, 1.0);
+            //     output.v_uv = vec2f(0.0, 0.0);
+            // } else if (vertexIndex == 1u) {
+            //     output.position = vec4f(3.0, -1.0, 0.0, 1.0);
+            //     output.v_uv = vec2f(2.0, 0.0);
+            // } else {
+            //     output.position = vec4f(-1.0, 3.0, 0.0, 1.0);
+            //     output.v_uv = vec2f(0.0, 2.0);
+            // }
             // flip y (webgpu render textures are flipped)
             output.v_uv.y = 1.0 - output.v_uv.y;
             return output;
@@ -307,10 +303,14 @@ static const char* lines2d_shader_string  = R"glsl(
 
 // line material uniforms
 // TODO add color, extrustion, loop
-@group(1) @binding(0) var<uniform> line_width: f32;
+@group(1) @binding(0) var<uniform> u_line_width: f32;
+@group(1) @binding(1) var<uniform> u_color: vec3f;
+@group(1) @binding(2) var<uniform> u_loop: i32;
+@group(1) @binding(3) var<uniform> u_extrusion_ratio: f32; // how much of the line to extrude in miter direction vs -miter (defaults to 0.5)
 
 #include DRAW_UNIFORMS
 
+// stored as [x0, y0, x1, y1, ...]
 @group(3) @binding(0) var<storage, read> positions : array<f32>; // vertex pulling group 
 
 struct VertexInput {
@@ -319,61 +319,68 @@ struct VertexInput {
 
 #include STANDARD_VERTEX_OUTPUT
 
+fn getPos(pos_idx : i32, num_points : i32) -> vec2f {
+    var idx = pos_idx;
+    if (pos_idx < 0) {
+        idx += (num_points / 2);
+    } else if (pos_idx >= num_points / 2) {
+        idx -= (num_points / 2);
+    }
+    return vec2f(
+        positions[2 * idx + 0],  // x
+        positions[2 * idx + 1]   // y
+    );
+}
+
 fn calculate_line_pos(vertex_id : u32) -> vec2f
 {
-    // var pos_idx = (vertex_id / 2u) + 1u; // add 1 to skip sentinel start point
-    var pos_idx = (vertex_id / 2u);
-    var this_pos = vec2f(
-        positions[2u * pos_idx + 0u],  // x
-        positions[2u * pos_idx + 1u]   // y
-    );
-    var pos = this_pos;
+    let num_points = i32(arrayLength(&positions));
 
-    let half_width = line_width * 0.5; 
+    var pos_idx = i32(vertex_id / 2u);
+    var this_pos = getPos(pos_idx, num_points);
+    var pos = vec2f(0.0);
 
     // get even/odd (odd vertices are expanded down, even vertices are expanded up)
     var orientation : f32 = 0.0;
+    var miter_mod : f32 = 1.0;
     if (vertex_id % 2u == 0u) {
         orientation = 1.0;
+        miter_mod = u_extrusion_ratio;
     } else {
         orientation = -1.0;
+        miter_mod = 1.0 - u_extrusion_ratio;
     }
 
-    // are we the first endpoint?
-    if (vertex_id / 2u == 0u) {
-        var next_pos = vec2f(
-            positions[2u * (pos_idx + 1u) + 0u],  // x
-            positions[2u * (pos_idx + 1u) + 1u],  // y
-        );
+    var prev_pos : vec2f;
+    var next_pos : vec2f;
+
+    // first point 
+    if (u_loop == 0 && pos_idx == 0) {
+        next_pos = getPos(pos_idx + 1, num_points);
 
         var line_seg_dir = normalize(next_pos - this_pos);
         var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
 
         // adjust position
-        pos += half_width * perp_dir;
+        pos = this_pos + (u_line_width * miter_mod) * perp_dir;
     } 
-    else if (pos_idx == arrayLength(&positions) / 2u - 1u) {
-        // last endpoint
-        var prev_pos = vec2f(
-            positions[2u * (pos_idx - 1u) + 0u],  // x
-            positions[2u * (pos_idx - 1u) + 1u],  // y
-        );
+    // last point or N+1 point 
+    // (we always draw N+1 points to close the loop, but if u_loop is disabled, 
+    // we draw the N+1th point on top of the last point)
+    else if (u_loop == 0 && pos_idx >= num_points / 2 - 1) {
+        // reset this_pos to the last point
+        this_pos = getPos(num_points / 2 - 1, num_points); // last point
+        prev_pos = getPos(num_points / 2 - 2, num_points); // second to last point
 
         var line_seg_dir = normalize(this_pos - prev_pos);
         var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
 
         // adjust position
-        pos += half_width * perp_dir;
+        pos = this_pos + (u_line_width * miter_mod) * perp_dir;
     } else {
         // middle points
-        var prev_pos = vec2f(
-            positions[2u * (pos_idx - 1u) + 0u],  // x
-            positions[2u * (pos_idx - 1u) + 1u],  // y
-        );
-        var next_pos = vec2f(
-            positions[2u * (pos_idx + 1u) + 0u],  // x
-            positions[2u * (pos_idx + 1u) + 1u],  // y
-        );
+        prev_pos = getPos(pos_idx - 1, num_points);
+        next_pos = getPos(pos_idx + 1, num_points);
 
         var prev_dir = normalize(this_pos - prev_pos);
         var next_dir = normalize(next_pos - this_pos);
@@ -381,10 +388,10 @@ fn calculate_line_pos(vertex_id : u32) -> vec2f
         var next_dir_perp = orientation * vec2f(-next_dir.y, next_dir.x);
 
         var miter_dir = normalize(prev_dir_perp + next_dir_perp);
-        var miter_length = half_width / dot(miter_dir, prev_dir_perp);
+        var miter_length = (u_line_width * miter_mod) / dot(miter_dir, prev_dir_perp);
 
         // adjust position
-        pos += miter_length * miter_dir;
+        pos = this_pos + miter_length * miter_dir;
     }
 
     return pos;
@@ -431,7 +438,7 @@ fn vs_main(
 fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
 {
     // TODO impl
-
+    // valve half-life diffuse
     // var normal : vec3f;
     // if (is_front) {
     //     normal = in.v_normal;
@@ -441,7 +448,8 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     // var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
     // diffuse = diffuse * diffuse;
     // return vec4f(vec3f(diffuse), 1.0);
-    return vec4f(1.0);
+
+    return vec4f(u_color, 1.0);
 }
 )glsl";
 
