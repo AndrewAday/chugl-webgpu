@@ -84,6 +84,9 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID gtext_shader_id;
     SG_ID diffuse_shader_id;
     SG_ID pbr_shader_id;
+    SG_ID uv_shader_id;
+    SG_ID normal_shader_id;
+    SG_ID tangent_shader_id;
 
     // screen shaders
     SG_ID output_pass_shader_id;

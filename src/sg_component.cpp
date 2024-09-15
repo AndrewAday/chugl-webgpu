@@ -472,6 +472,46 @@ void SG_Geometry::buildSuzanne(SG_Geometry* g)
     Geometry_buildSuzanne(&gab);
 }
 
+void SG_Geometry::buildBox(SG_Geometry* g, BoxParams* p)
+{
+    ASSERT(g->geo_type == SG_GEOMETRY_BOX);
+    g->params.box = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildBox(&gab, p);
+}
+
+void SG_Geometry::buildCircle(SG_Geometry* g, CircleParams* p)
+{
+    ASSERT(g->geo_type == SG_GEOMETRY_CIRCLE);
+    g->params.circle = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildCircle(&gab, p);
+}
+
+void SG_Geometry::buildTorus(SG_Geometry* g, TorusParams* p)
+{
+    ASSERT(g->geo_type == SG_GEOMETRY_TORUS);
+    g->params.torus = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildTorus(&gab, p);
+}
+
+void SG_Geometry::buildCylinder(SG_Geometry* g, CylinderParams* p)
+{
+    ASSERT(g->geo_type == SG_GEOMETRY_CYLINDER);
+    g->params.cylinder = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildCylinder(&gab, p);
+}
+
 u32 SG_Geometry::vertexCount(SG_Geometry* geo)
 {
     if (geo->vertex_attribute_num_components[0] == 0) return 0;

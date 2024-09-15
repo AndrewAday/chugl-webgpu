@@ -231,7 +231,6 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
 struct R_Shader : public R_Component {
     WGPUShaderModule vertex_shader_module;
     WGPUShaderModule fragment_shader_module;
-    // e.g. [3, 3, 2, 4] for [POSITION, NORMAL, TEXCOORD_0, TANGENT]
     WGPUVertexFormat vertex_layout[R_GEOMETRY_MAX_VERTEX_ATTRIBUTES];
 
     WGPUShaderModule compute_shader_module;
@@ -546,6 +545,8 @@ struct R_RenderPipeline /* NOT backed by SG_Component */ {
     WGPUBindGroup frame_group;
     static GPU_Buffer frame_uniform_buffer;
 
+    WGPUBindGroupLayout bind_group_layouts[4];
+
     /*
     possible optimizations:
     - keep material IDs with nonzero #primitive contiguous
@@ -752,10 +753,21 @@ struct R_Pass : public R_Component {
     }
 };
 
-WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
-                                           WGPUTextureFormat format, SG_ID shader_id);
+struct R_ScreenPassPipeline {
+    WGPUTextureFormat format;
+    SG_ID shader_id;
+    WGPURenderPipeline gpu_pipeline;
+    WGPUBindGroupLayout frame_group_layout;
+};
+R_ScreenPassPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
+                                             WGPUTextureFormat format, SG_ID shader_id);
 
-WGPUComputePipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader);
+struct R_ComputePassPipeline {
+    SG_ID shader_id;
+    WGPUComputePipeline gpu_pipeline;
+    WGPUBindGroupLayout bind_group_layout;
+};
+R_ComputePassPipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader);
 
 // =============================================================================
 // R_Buffer
@@ -877,7 +889,7 @@ R_Scene* Component_CreateScene(GraphicsContext* gctx, SG_ID scene_id,
                                SG_SceneDesc* sg_scene_desc);
 
 R_Geometry* Component_CreateGeometry();
-R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd);
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_ID geo_id);
 
 R_Shader* Component_CreateShader(GraphicsContext* gctx, SG_Command_ShaderCreate* cmd);
 

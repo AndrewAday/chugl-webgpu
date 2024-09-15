@@ -1040,7 +1040,6 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
 
     // build new array of matrices on CPU
     u64 model_matrices_offset = frame_arena->curr;
-    int matrixCount           = 0;
 
     int numInstances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
     SG_ID* xformIDs  = (SG_ID*)g2x->xform_ids.base;
@@ -1070,7 +1069,6 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
         ASSERT(xform->_geoID == g2x->key.geo_id);
         ASSERT(xform->_matID == g2x->key.mat_id);
         // else add xform matrix to arena
-        ++matrixCount; // TODO remove matrixCount variable if this all works
         // world matrix should already have been computed by now
         ASSERT(xform->_stale == R_Transform_STALE_NONE);
 
@@ -1079,7 +1077,6 @@ void GeometryToXforms::rebuildBindGroup(GraphicsContext* gctx, R_Scene* scene,
         draw_uniforms->id           = xform->id;
     }
     // sanity check that we have the correct number of matrices
-    ASSERT(matrixCount == numInstances);
     ASSERT(numInstances == ARENA_LENGTH(&g2x->xform_ids, SG_ID));
 
     u64 write_size = frame_arena->curr - model_matrices_offset;
@@ -1463,37 +1460,19 @@ void R_RenderPipeline::init(GraphicsContext* gctx, R_RenderPipeline* pipeline,
       = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
     ASSERT(pipeline->gpu_pipeline);
 
-#if 0
-    { // create per-frame bindgroup
-      // implicit layouts cannot share bindgroups, so need to create one
-      // per render pipeline
-
-        // makes sure shared frame buffer is initialized
-        ASSERT(R_RenderPipeline::frame_uniform_buffer.size == sizeof(FrameUniforms));
-
-        // create bind group entry
-        WGPUBindGroupEntry frame_group_entry = {};
-        frame_group_entry                    = {};
-        frame_group_entry.binding            = 0;
-        frame_group_entry.buffer             = pipeline->frame_uniform_buffer.buf;
-        frame_group_entry.size               = pipeline->frame_uniform_buffer.size;
-
-        // create bind group
-        WGPUBindGroupDescriptor frameGroupDesc;
-        frameGroupDesc        = {};
-        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
-          pipeline->gpu_pipeline, PER_FRAME_GROUP);
-        frameGroupDesc.entries    = &frame_group_entry;
-        frameGroupDesc.entryCount = 1;
-
-        // layout:auto requires a bind group per pipeline
-        pipeline->frame_group
-          = wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
-        ASSERT(pipeline->frame_group);
-    }
-#endif
-
     Arena::init(&pipeline->materialIDs, sizeof(SG_ID) * 8);
+
+    // cache the bind group layouts because apparently
+    // wgpuRenderPipelineGetBindGroupLayout freaking leaks...
+
+    for (int i = 0; i < 3; i++) {
+        pipeline->bind_group_layouts[i]
+          = wgpuRenderPipelineGetBindGroupLayout(pipeline->gpu_pipeline, i);
+        // note: we don't compute the pull bind group (@group(3)) here
+        // because not all pipelines use it, and calling this function with
+        // an index of 3 will crash if the pipeline doesn't have a group(3)
+        // instead we lazily evaluate and cache during the renderloop
+    }
 }
 
 /*
@@ -1934,11 +1913,11 @@ R_Geometry* Component_CreateGeometry()
     return geo;
 }
 
-R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_Command_GeoCreate* cmd)
+R_Geometry* Component_CreateGeometry(GraphicsContext* gctx, SG_ID geo_id)
 {
     R_Geometry* geo = ARENA_PUSH_ZERO_TYPE(&geoArena, R_Geometry);
 
-    geo->id           = cmd->sg_id;
+    geo->id           = geo_id;
     geo->type         = SG_COMPONENT_GEOMETRY;
     geo->vertex_count = -1; // -1 means draw all vertices
 
@@ -3067,19 +3046,13 @@ void R_Font::prepareGlyphsForText(GraphicsContext* gctx, R_Font* font, const cha
 
 // static array of ScreenPass render pipelines
 // all supported texture formats created on app start
-struct R_ScreenPassPipeline {
-    WGPUTextureFormat format;
-    SG_ID shader_id;
-    WGPURenderPipeline gpu_pipeline;
-};
-
 static int r_screen_pass_pipeline_count                 = 0;
 static R_ScreenPassPipeline r_screen_pass_pipelines[32] = {};
 WGPUShaderModule screen_pass_default_passthrough_vs     = NULL;
 WGPUShaderModule screen_pass_default_passthrough_fs     = NULL;
 
-WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
-                                           WGPUTextureFormat format, SG_ID shader_id)
+R_ScreenPassPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
+                                             WGPUTextureFormat format, SG_ID shader_id)
 {
 
     if (!screen_pass_default_passthrough_vs || !screen_pass_default_passthrough_fs) {
@@ -3092,7 +3065,7 @@ WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
     for (int i = 0; i < r_screen_pass_pipeline_count; i++) {
         if (r_screen_pass_pipelines[i].format == format
             && r_screen_pass_pipelines[i].shader_id == shader_id) {
-            return r_screen_pass_pipelines[i].gpu_pipeline;
+            return r_screen_pass_pipelines[i];
         }
     }
     // else create
@@ -3156,23 +3129,21 @@ WGPURenderPipeline R_GetScreenPassPipeline(GraphicsContext* gctx,
     pipeline->shader_id = shader_id;
     pipeline->gpu_pipeline
       = wgpuDeviceCreateRenderPipeline(gctx->device, &pipeline_desc);
-    return pipeline->gpu_pipeline;
-}
+    pipeline->frame_group_layout = wgpuRenderPipelineGetBindGroupLayout(
+      pipeline->gpu_pipeline, 0); // 0 is the frame bind group
 
-struct R_ComputePassPipeline {
-    SG_ID shader_id;
-    WGPUComputePipeline gpu_pipeline;
-};
+    return *pipeline;
+}
 
 static int r_compute_pass_pipeline_count                  = 0;
 static R_ComputePassPipeline r_compute_pass_pipelines[64] = {};
 
-WGPUComputePipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader)
+R_ComputePassPipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* shader)
 {
     // first linear search
     for (int i = 0; i < r_compute_pass_pipeline_count; i++) {
         if (r_compute_pass_pipelines[i].shader_id == shader->id) {
-            return r_compute_pass_pipelines[i].gpu_pipeline;
+            return r_compute_pass_pipelines[i];
         }
     }
 
@@ -3187,8 +3158,10 @@ WGPUComputePipeline R_GetComputePassPipeline(GraphicsContext* gctx, R_Shader* sh
 
     R_ComputePassPipeline* pipeline
       = &r_compute_pass_pipelines[r_compute_pass_pipeline_count++];
-    pipeline->shader_id    = shader->id;
-    pipeline->gpu_pipeline = wgpuDeviceCreateComputePipeline(gctx->device, &desc);
+    pipeline->shader_id         = shader->id;
+    pipeline->gpu_pipeline      = wgpuDeviceCreateComputePipeline(gctx->device, &desc);
+    pipeline->bind_group_layout = wgpuComputePipelineGetBindGroupLayout(
+      pipeline->gpu_pipeline, 0); // caching because this wgpu call leaks memory
 
-    return pipeline->gpu_pipeline;
+    return *pipeline;
 }

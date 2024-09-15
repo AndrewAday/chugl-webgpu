@@ -267,8 +267,6 @@ struct SG_Command_SceneUpdate : public SG_Command {
 
 struct SG_Command_GeoCreate : public SG_Command {
     SG_ID sg_id;
-    SG_GeometryParams params;
-    SG_GeometryType geo_type;
 };
 
 struct SG_Command_GeoSetVertexAttribute : public SG_Command {

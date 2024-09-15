@@ -874,19 +874,20 @@ struct App {
                     R_Material* material
                       = Component_GetMaterial(pass->sg_pass.screen_material_id);
                     SG_ID shader_id = material ? material->pso.sg_shader_id : 0;
-                    WGPURenderPipeline pipeline = R_GetScreenPassPipeline(
+
+                    R_ScreenPassPipeline screen_pass_pipeline = R_GetScreenPassPipeline(
                       &app->gctx, screen_texture_format, shader_id);
 
-                    wgpuRenderPassEncoderSetPipeline(render_pass, pipeline);
+                    wgpuRenderPassEncoderSetPipeline(render_pass,
+                                                     screen_pass_pipeline.gpu_pipeline);
 
                     if (material) {
                         // set bind groups
                         const int screen_pass_binding_location = 0;
 
-                        WGPUBindGroupLayout layout
-                          = wgpuRenderPipelineGetBindGroupLayout(
-                            pipeline, screen_pass_binding_location);
-                        R_Material::rebuildBindGroup(material, &app->gctx, layout);
+                        R_Material::rebuildBindGroup(
+                          material, &app->gctx,
+                          screen_pass_pipeline.frame_group_layout);
 
                         wgpuRenderPassEncoderSetBindGroup(
                           render_pass, screen_pass_binding_location,
@@ -914,24 +915,21 @@ struct App {
                     bool valid_compute_pass = compute_material && compute_shader;
                     if (!valid_compute_pass) break;
 
-                    WGPUComputePipeline pipeline
+                    R_ComputePassPipeline pipeline
                       = R_GetComputePassPipeline(&app->gctx, compute_shader);
 
                     WGPUComputePassEncoder compute_pass
                       = wgpuCommandEncoderBeginComputePass(app->gctx.commandEncoder,
                                                            NULL);
 
-                    wgpuComputePassEncoderSetPipeline(compute_pass, pipeline);
+                    wgpuComputePassEncoderSetPipeline(compute_pass,
+                                                      pipeline.gpu_pipeline);
 
                     { // update bind groups
                         const int compute_pass_binding_location = 0;
 
-                        WGPUBindGroupLayout layout
-                          = wgpuComputePipelineGetBindGroupLayout(
-                            pipeline, compute_pass_binding_location);
-
                         R_Material::rebuildBindGroup(compute_material, &app->gctx,
-                                                     layout);
+                                                     pipeline.bind_group_layout);
 
                         wgpuComputePassEncoderSetBindGroup(
                           compute_pass, compute_pass_binding_location,
@@ -1014,9 +1012,10 @@ struct App {
                           bloom_downscale_material->pso.sg_shader_id);
                         ASSERT(bloom_downscale_material->pso.exclude_from_render_pass);
 
-                        WGPURenderPipeline downscale_pipeline = R_GetScreenPassPipeline(
-                          &app->gctx, output_texture->gpu_texture.format,
-                          bloom_downscale_shader->id);
+                        R_ScreenPassPipeline downscale_pipeline
+                          = R_GetScreenPassPipeline(&app->gctx,
+                                                    output_texture->gpu_texture.format,
+                                                    bloom_downscale_shader->id);
 
                         // set the material uniforms that only need to be set once, not
                         // per mip level dispatch
@@ -1034,12 +1033,9 @@ struct App {
                               downsample_texture_views[i]);
 
                             { // update bind group
-                                WGPUBindGroupLayout layout
-                                  = wgpuRenderPipelineGetBindGroupLayout(
-                                    downscale_pipeline, 0);
-
-                                R_Material::rebuildBindGroup(bloom_downscale_material,
-                                                             &app->gctx, layout);
+                                R_Material::rebuildBindGroup(
+                                  bloom_downscale_material, &app->gctx,
+                                  downscale_pipeline.frame_group_layout);
                             }
 
                             // set color target to mip level i + 1
@@ -1061,8 +1057,8 @@ struct App {
                               = wgpuCommandEncoderBeginRenderPass(
                                 app->gctx.commandEncoder, &render_pass_desc);
 
-                            wgpuRenderPassEncoderSetPipeline(render_pass,
-                                                             downscale_pipeline);
+                            wgpuRenderPassEncoderSetPipeline(
+                              render_pass, downscale_pipeline.gpu_pipeline);
 
                             wgpuRenderPassEncoderSetBindGroup(
                               render_pass, 0, bloom_downscale_material->bind_group, 0,
@@ -1082,7 +1078,7 @@ struct App {
                           bloom_upscale_material->pso.sg_shader_id);
                         ASSERT(bloom_upscale_material->pso.exclude_from_render_pass);
 
-                        WGPURenderPipeline upscale_pipeline = R_GetScreenPassPipeline(
+                        R_ScreenPassPipeline upscale_pipeline = R_GetScreenPassPipeline(
                           &app->gctx, output_texture->gpu_texture.format,
                           bloom_upscale_shader->id);
 
@@ -1109,12 +1105,9 @@ struct App {
                               downsample_texture_views[i]);
 
                             { // update bind group
-                                WGPUBindGroupLayout layout
-                                  = wgpuRenderPipelineGetBindGroupLayout(
-                                    upscale_pipeline, 0);
-
-                                R_Material::rebuildBindGroup(bloom_upscale_material,
-                                                             &app->gctx, layout);
+                                R_Material::rebuildBindGroup(
+                                  bloom_upscale_material, &app->gctx,
+                                  upscale_pipeline.frame_group_layout);
                             }
 
                             // set color target to mip level i + 1
@@ -1136,8 +1129,8 @@ struct App {
                               = wgpuCommandEncoderBeginRenderPass(
                                 app->gctx.commandEncoder, &render_pass_desc);
 
-                            wgpuRenderPassEncoderSetPipeline(render_pass,
-                                                             upscale_pipeline);
+                            wgpuRenderPassEncoderSetPipeline(
+                              render_pass, upscale_pipeline.gpu_pipeline);
 
                             wgpuRenderPassEncoderSetBindGroup(
                               render_pass, 0, bloom_upscale_material->bind_group, 0,
@@ -1634,6 +1627,14 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     R_RenderPipeline* render_pipeline = NULL;
     size_t rpIndex                    = 0;
     while (Component_RenderPipelineIter(&rpIndex, &render_pipeline)) {
+
+        static char debug_group_label[64] = {};
+        snprintf(debug_group_label, sizeof(debug_group_label),
+                 "RenderPipeline[%llu] Shader[%llu] ", render_pipeline->rid,
+                 render_pipeline->pso.sg_shader_id);
+        wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
+        defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+
         ASSERT(render_pipeline->rid != 0);
 
         if (R_RenderPipeline::numMaterials(render_pipeline) == 0) continue;
@@ -1642,11 +1643,9 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
 
         // ==optimize== cache layouts in R_RenderPipeline struct upon creation
         WGPUBindGroupLayout perMaterialLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_MATERIAL_GROUP);
+          = render_pipeline->bind_group_layouts[PER_MATERIAL_GROUP];
         WGPUBindGroupLayout perDrawLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpu_pipeline, PER_DRAW_GROUP);
-        WGPUBindGroupLayout vertex_pulling_layout
-          = NULL; // set lazily right before draw call
+          = render_pipeline->bind_group_layouts[PER_DRAW_GROUP];
 
         R_Shader* shader = Component_GetShader(render_pipeline->pso.sg_shader_id);
 
@@ -1677,9 +1676,9 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
 
             // create bind group
             WGPUBindGroupDescriptor frameGroupDesc;
-            frameGroupDesc        = {};
-            frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
-              render_pipeline->gpu_pipeline, PER_FRAME_GROUP);
+            frameGroupDesc = {};
+            frameGroupDesc.layout
+              = render_pipeline->bind_group_layouts[PER_FRAME_GROUP];
             frameGroupDesc.entries    = frame_group_entries;
             frameGroupDesc.entryCount = shader->lit ? 2 : 1;
 
@@ -1707,6 +1706,13 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
             int geo_count = ARENA_LENGTH(&m2g->geo_ids, SG_ID);
             if (geo_count == 0) continue;
 
+            // debug group
+            snprintf(debug_group_label, sizeof(debug_group_label),
+                     "Material[%llu] Shader[%llu] %s ", r_material->id,
+                     r_material->pso.sg_shader_id, r_material->name.c_str());
+            wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
+            defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+
             // set per_material bind group
             // R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
@@ -1729,6 +1735,12 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                 int num_instances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
                 if (num_instances == 0) continue;
 
+                // debug group
+                snprintf(debug_group_label, sizeof(debug_group_label),
+                         "Geometry[%llu] %s ", geo->id, geo->name.c_str());
+                wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
+                defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+
                 // set model bind group
                 wgpuRenderPassEncoderSetBindGroup(render_pass, PER_DRAW_GROUP,
                                                   g2x->xform_bind_group, 0, NULL);
@@ -1743,12 +1755,15 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
 
                 // set pulled vertex buffers (programmable vertex pulling)
                 if (R_Geometry::usesVertexPulling(geo)) {
-                    if (!vertex_pulling_layout) {
-                        vertex_pulling_layout = wgpuRenderPipelineGetBindGroupLayout(
-                          gpu_pipeline, VERTEX_PULL_GROUP);
+                    if (!render_pipeline->bind_group_layouts[VERTEX_PULL_GROUP]) {
+                        // lazily generate
+                        render_pipeline->bind_group_layouts[VERTEX_PULL_GROUP]
+                          = wgpuRenderPipelineGetBindGroupLayout(
+                            render_pipeline->gpu_pipeline, VERTEX_PULL_GROUP);
                     }
-                    R_Geometry::rebuildPullBindGroup(&app->gctx, geo,
-                                                     vertex_pulling_layout);
+                    R_Geometry::rebuildPullBindGroup(
+                      &app->gctx, geo,
+                      render_pipeline->bind_group_layouts[VERTEX_PULL_GROUP]);
                     wgpuRenderPassEncoderSetBindGroup(render_pass, VERTEX_PULL_GROUP,
                                                       geo->pull_bind_group, 0, NULL);
                 }
@@ -2145,7 +2160,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         // Geometry ---------------------
         case SG_COMMAND_GEO_CREATE: {
             SG_Command_GeoCreate* cmd = (SG_Command_GeoCreate*)command;
-            Component_CreateGeometry(&app->gctx, cmd);
+            Component_CreateGeometry(&app->gctx, cmd->sg_id);
         } break;
         case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
             SG_Command_GeoSetVertexAttribute* cmd

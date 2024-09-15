@@ -88,6 +88,16 @@ CK_DLL_CTOR(diffuse_material_ctor);
 CK_DLL_MFUN(diffuse_material_get_color);
 CK_DLL_MFUN(diffuse_material_set_color);
 
+CK_DLL_CTOR(uv_material_ctor);
+
+CK_DLL_CTOR(normal_material_ctor);
+CK_DLL_MFUN(normal_material_set_worldspace_normals);
+CK_DLL_MFUN(normal_material_get_worldspace_normals);
+
+CK_DLL_CTOR(tangent_material_ctor);
+CK_DLL_MFUN(tangent_material_set_worldspace_tangents);
+CK_DLL_MFUN(tangent_material_get_worldspace_tangents);
+
 // pbr ---------------------------------------------------------------------
 CK_DLL_CTOR(pbr_material_ctor);
 
@@ -223,17 +233,17 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     static t_CKINT topology_linestrip     = WGPUPrimitiveTopology_LineStrip;
     static t_CKINT topology_trianglelist  = WGPUPrimitiveTopology_TriangleList;
     static t_CKINT topology_trianglestrip = WGPUPrimitiveTopology_TriangleStrip;
-    SVAR("int", "TOPOLOGY_POINTLIST", &topology_pointlist);
+    SVAR("int", "Topology_PointList", &topology_pointlist);
     DOC_VAR("Interpret each vertex as a point.");
-    SVAR("int", "TOPOLOGY_LINELIST", &topology_linelist);
+    SVAR("int", "Topology_LineList", &topology_linelist);
     DOC_VAR("Interpret each pair of vertices as a line.");
-    SVAR("int", "TOPOLOGY_LINESTRIP", &topology_linestrip);
+    SVAR("int", "Topology_LineStrip", &topology_linestrip);
     DOC_VAR(
       "Each vertex after the first defines a line primitive between it and the "
       "previous vertex.");
-    SVAR("int", "TOPOLOGY_TRIANGLELIST", &topology_trianglelist);
+    SVAR("int", "Topology_TriangleList", &topology_trianglelist);
     DOC_VAR("Interpret each triplet of vertices as a triangle.");
-    SVAR("int", "TOPOLOGY_TRIANGLESTRIP", &topology_trianglestrip);
+    SVAR("int", "Topology_TriangleStrip", &topology_trianglestrip);
     DOC_VAR(
       "Each vertex after the first two defines a triangle primitive between it and the "
       "previous two vertices.");
@@ -260,15 +270,15 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("int", "topology");
     DOC_FUNC(
       "Set the primitive topology of the material. valid options: "
-      "Material.TOPOLOGY_POINTLIST, Material.TOPOLOGY_LINELIST, "
-      "Material.TOPOLOGY_LINESTRIP, Material.TOPOLOGY_TRIANGLELIST, or "
-      "Material.TOPOLOGY_TRIANGLESTRIP.");
+      "Material.Topology_PointList, Material.Topology_LineList, "
+      "Material.Topology_LineStrip, Material.Topology_TriangleList, or "
+      "Material.Topology_TriangleStrip.");
 
     MFUN(material_get_topology, "int", "topology");
     DOC_FUNC(
-      "Get the primitive topology of the material. Material.TOPOLOGY_POINTLIST, "
-      "Material.TOPOLOGY_LINELIST, Material.TOPOLOGY_LINESTRIP, "
-      "Material.TOPOLOGY_TRIANGLELIST, or Material.TOPOLOGY_TRIANGLESTRIP.");
+      "Get the primitive topology of the material. Material.Topology_PointList, "
+      "Material.Topology_LineList, Material.Topology_LineStrip, "
+      "Material.Topology_TriangleList, or Material.Topology_TriangleStrip.");
 
     // uniforms
     MFUN(material_uniform_remove, "void", "removeUniform");
@@ -409,6 +419,58 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
     MFUN(diffuse_material_set_color, "void", "color");
     ARG("vec3", "color");
+
+    END_CLASS();
+
+    // UV Material -----------------------------------------------------
+
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_UV],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
+    DOC_CLASS("Visualize UV coordinates of a mesh.");
+
+    CTOR(uv_material_ctor);
+
+    END_CLASS();
+
+    // Normal Material -----------------------------------------------------
+
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_NORMAL],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
+    DOC_CLASS("Visualize normals of a mesh.");
+
+    CTOR(normal_material_ctor);
+
+    MFUN(normal_material_set_worldspace_normals, "void", "worldspaceNormals");
+    ARG("int", "use_worldspace_normals");
+    DOC_FUNC(
+      "Set whether to use worldspace normals. If false, visualizes normals in local "
+      "object space.");
+
+    MFUN(normal_material_get_worldspace_normals, "int", "worldspaceNormals");
+    DOC_FUNC(
+      "Get whether to use worldspace normals. If false, visualizes normals in local "
+      "object space.");
+
+    END_CLASS();
+
+    // Tangent Material -----------------------------------------------------
+
+    BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_TANGENT],
+                SG_CKNames[SG_COMPONENT_MATERIAL]);
+    DOC_CLASS("Visualize tangents of a mesh.");
+
+    CTOR(tangent_material_ctor);
+
+    MFUN(tangent_material_set_worldspace_tangents, "void", "worldspaceTangents");
+    ARG("int", "use_worldspace_tangents");
+    DOC_FUNC(
+      "Set whether to use worldspace tangents. If false, visualizes tangents in local "
+      "object space.");
+
+    MFUN(tangent_material_get_worldspace_tangents, "int", "worldspaceTangents");
+    DOC_FUNC(
+      "Get whether to use worldspace tangents. If false, visualizes tangents in local "
+      "object space.");
 
     END_CLASS();
 
@@ -889,6 +951,35 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
             material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
             CQ_PushCommand_MaterialUpdatePSO(material);
         } break;
+        case SG_MATERIAL_UV: {
+            // init shader
+            SG_Shader* shader = SG_GetShader(g_material_builtin_shaders.uv_shader_id);
+            ASSERT(shader);
+
+            chugl_materialSetShader(material, shader);
+        } break;
+        case SG_MATERIAL_NORMAL: {
+            // init shader
+            SG_Shader* shader
+              = SG_GetShader(g_material_builtin_shaders.normal_shader_id);
+            ASSERT(shader);
+
+            chugl_materialSetShader(material, shader);
+
+            SG_Material::uniformInt(material, 0, 1); // use_worldspace_normals
+            CQ_PushCommand_MaterialSetUniform(material, 0);
+        } break;
+        case SG_MATERIAL_TANGENT: {
+            // init shader
+            SG_Shader* shader
+              = SG_GetShader(g_material_builtin_shaders.tangent_shader_id);
+            ASSERT(shader);
+
+            chugl_materialSetShader(material, shader);
+
+            SG_Material::uniformInt(material, 0, 1); // use_worldspace_tangents
+            CQ_PushCommand_MaterialSetUniform(material, 0);
+        } break;
         default: ASSERT(false);
     }
 }
@@ -1053,6 +1144,64 @@ CK_DLL_MFUN(diffuse_material_set_color)
 
     SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
     CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+// UVMaterial ===================================================================
+
+CK_DLL_CTOR(uv_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_UV;
+
+    ulib_material_init_uniforms_and_pso(material);
+}
+
+// NormalMaterial ===================================================================
+
+CK_DLL_CTOR(normal_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_NORMAL;
+
+    ulib_material_init_uniforms_and_pso(material);
+}
+
+CK_DLL_MFUN(normal_material_set_worldspace_normals)
+{
+    SG_Material* material          = GET_MATERIAL(SELF);
+    t_CKINT use_worldspace_normals = GET_NEXT_INT(ARGS);
+
+    SG_Material::uniformInt(material, 0, use_worldspace_normals ? 1 : 0);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(normal_material_get_worldspace_normals)
+{
+    RETURN->v_int = GET_MATERIAL(SELF)->uniforms[0].as.i;
+}
+
+// TangentMaterial ===================================================================
+
+CK_DLL_CTOR(tangent_material_ctor)
+{
+    SG_Material* material   = GET_MATERIAL(SELF);
+    material->material_type = SG_MATERIAL_TANGENT;
+
+    ulib_material_init_uniforms_and_pso(material);
+}
+
+CK_DLL_MFUN(tangent_material_set_worldspace_tangents)
+{
+    SG_Material* material           = GET_MATERIAL(SELF);
+    t_CKINT use_worldspace_tangents = GET_NEXT_INT(ARGS);
+
+    SG_Material::uniformInt(material, 0, use_worldspace_tangents ? 1 : 0);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(tangent_material_get_worldspace_tangents)
+{
+    RETURN->v_int = GET_MATERIAL(SELF)->uniforms[0].as.i;
 }
 
 // PBRMaterial ===================================================================
@@ -1325,4 +1474,19 @@ void chugl_initDefaultMaterials()
     g_material_builtin_shaders.pbr_shader_id = chugl_createShader(
       g_chuglAPI, pbr_shader_string, pbr_shader_string, NULL, NULL,
       standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
+
+    // uv material
+    g_material_builtin_shaders.uv_shader_id = chugl_createShader(
+      g_chuglAPI, uv_shader_string, uv_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, false);
+
+    // normal material
+    g_material_builtin_shaders.normal_shader_id = chugl_createShader(
+      g_chuglAPI, normal_shader_string, normal_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, false);
+
+    // tangent material
+    g_material_builtin_shaders.tangent_shader_id = chugl_createShader(
+      g_chuglAPI, tangent_shader_string, tangent_shader_string, NULL, NULL,
+      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, false);
 }

@@ -35,6 +35,37 @@ struct SphereParams {
     f32 thetaStart = 0.0, thetaLength = PI; // how much along central diameter
 };
 
+struct BoxParams {
+    f32 width = 1.0f, height = 1.0f, depth = 1.0f;
+    u32 widthSeg = 1, heightSeg = 1, depthSeg = 1;
+};
+
+struct CircleParams {
+    float radius      = 1.0f;
+    int segments      = 32;
+    float thetaStart  = 0.0f;
+    float thetaLength = PI * 2.0f;
+};
+
+struct TorusParams {
+    float radius        = 1.0f;
+    float tubeRadius    = 0.4f;
+    int radialSegments  = 12;
+    int tubularSegments = 48;
+    float arcLength     = PI * 2.0f;
+};
+
+struct CylinderParams {
+    float radiusTop             = .2f;
+    float radiusBottom          = .2f;
+    float height                = 1.0f;
+    unsigned int radialSegments = 32;
+    unsigned int heightSegments = 1;
+    bool openEnded              = false;
+    float thetaStart            = 0.0f;
+    float thetaLength           = PI * 2.0f;
+};
+
 // Arena builders
 struct Arena;
 
@@ -49,11 +80,12 @@ struct GeometryArenaBuilder {
 void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params);
 void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params);
 void Geometry_buildSuzanne(GeometryArenaBuilder* builder);
+void Geometry_buildBox(GeometryArenaBuilder* gab, BoxParams* params);
+void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params);
+void Geometry_buildTorus(GeometryArenaBuilder* gab, TorusParams* params);
+void Geometry_buildCylinder(GeometryArenaBuilder* gab, CylinderParams* params);
 
-// TODO: redesign to support tangents / colors
 // add hasColor / hasTangent / has... flags
-// probably requires splitting vertex data into separate arrays
-// per attribute type
 #define CHUGL_FLOATS_PER_VERTEX (3 + 3 + 2 + 4)
 struct Vertices {
     u32 vertexCount;

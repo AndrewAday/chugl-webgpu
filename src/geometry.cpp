@@ -420,6 +420,16 @@ struct gvec2f {
 
 struct gvec3f {
     f32 x, y, z;
+
+    f32* comp(char c)
+    {
+        switch (c) {
+            case 'x': return &x;
+            case 'y': return &y;
+            case 'z': return &z;
+            default: ASSERT(false); return NULL;
+        }
+    }
 };
 
 struct gvec4f {
@@ -456,6 +466,13 @@ static void Geometry_computeTangents(GeometryArenaBuilder* builder)
     SMikkTSpaceContext mikktspaceContext = {};
     mikktspaceContext.m_pInterface       = &mikktspaceIface;
     mikktspaceContext.m_pUserData        = builder;
+
+    // allocate tangent memory if not already
+    if (ARENA_LENGTH(builder->tangent_arena, gvec4f) == 0) {
+        int vertex_count = GAB_vertexCount(builder);
+        ARENA_PUSH_COUNT(builder->tangent_arena, gvec4f, GAB_vertexCount(builder));
+        ASSERT(ARENA_LENGTH(builder->tangent_arena, gvec4f) == vertex_count)
+    }
 
     mikktspaceIface.m_getNumFaces = [](const SMikkTSpaceContext* pContext) {
         return GAB_faceCount((GeometryArenaBuilder*)pContext->m_pUserData);
@@ -513,7 +530,8 @@ static void Geometry_computeTangents(GeometryArenaBuilder* builder)
 
         gvec4f* tangents = (gvec4f*)(builder->tangent_arena->base);
         // make sure index within arena bounds
-        ASSERT(index < ARENA_LENGTH(builder->tangent_arena, gvec4f));
+        int tangent_alloc_length = ARENA_LENGTH(builder->tangent_arena, gvec4f);
+        ASSERT(index < tangent_alloc_length);
         tangents[index] = { fvTangent[0], fvTangent[1], fvTangent[2], fSign };
     };
 
@@ -701,4 +719,355 @@ void Geometry_buildSuzanne(GeometryArenaBuilder* builder)
     memcpy(normals, suzanne_normals, sizeof(suzanne_normals));
     memcpy(texcoords, suzanne_uvs, sizeof(suzanne_uvs));
     memcpy(tangents, suzanne_tangents, sizeof(suzanne_tangents));
+}
+
+// Box ============================================================================
+
+static void Geometry_Box_buildPlane(GeometryArenaBuilder* gab, char u, char v, char w,
+                                    int udir, int vdir, float width, float height,
+                                    float depth, int gridX, int gridY)
+{
+
+    const float segmentWidth  = width / (float)gridX;
+    const float segmentHeight = height / (float)gridY;
+
+    const float widthHalf  = width / 2.0f;
+    const float heightHalf = height / 2.0f;
+    const float depthHalf  = depth / 2.0f;
+
+    const int gridX1 = gridX + 1;
+    const int gridY1 = gridY + 1;
+
+    // save number of vertices BEFORE adding any this round
+    // used to figure out indices
+    const int numberOfVertices = GAB_vertexCount(gab);
+    gvec3f* pos_array  = ARENA_PUSH_COUNT(gab->pos_arena, gvec3f, gridX1 * gridY1);
+    gvec3f* norm_array = ARENA_PUSH_COUNT(gab->norm_arena, gvec3f, gridX1 * gridY1);
+    gvec2f* uv_array   = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, gridX1 * gridY1);
+    gvec3i* indices_array
+      = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, gridX * gridY * 2);
+
+    // generate vertices, normals and uvs
+    int index = 0;
+    for (int iy = 0; iy < gridY1; iy++) {
+        const float y = iy * segmentHeight - heightHalf;
+        for (int ix = 0; ix < gridX1; ix++) {
+            const float x = ix * segmentWidth - widthHalf;
+
+            gvec3f* pos   = &pos_array[index];
+            *pos->comp(u) = x * udir;
+            *pos->comp(v) = y * vdir;
+            *pos->comp(w) = depthHalf;
+
+            // set normals
+            gvec3f* norm   = &norm_array[index];
+            *norm          = { 0, 0, 0 };
+            *norm->comp(w) = depth > 0 ? 1 : -1;
+
+            // set uvs
+            uv_array[index] = { (float)ix / gridX, 1.0f - (float)iy / gridY };
+
+            ++index;
+        }
+    }
+
+    // indices
+
+    // 1. you need three indices to draw a single face
+    // 2. a single segment consists of two faces
+    // 3. so we need to generate six (2*3) indices per segment
+
+    index = 0;
+    for (int iy = 0; iy < gridY; iy++) {
+        for (int ix = 0; ix < gridX; ix++) {
+
+            unsigned int a = numberOfVertices + ix + gridX1 * iy;
+            unsigned int b = numberOfVertices + ix + gridX1 * (iy + 1);
+            unsigned int c = numberOfVertices + (ix + 1) + gridX1 * (iy + 1);
+            unsigned int d = numberOfVertices + (ix + 1) + gridX1 * iy;
+
+            // faces
+            indices_array[index++] = { a, b, d };
+            indices_array[index++] = { b, c, d };
+        }
+    }
+}
+
+void Geometry_buildBox(GeometryArenaBuilder* gab, BoxParams* params)
+{
+    Geometry_Box_buildPlane(gab, 'z', 'y', 'x', -1, -1, params->depth, params->height,
+                            params->width, params->depthSeg, params->heightSeg); // px
+    Geometry_Box_buildPlane(gab, 'z', 'y', 'x', 1, -1, params->depth, params->height,
+                            -params->width, params->depthSeg, params->heightSeg); // nx
+    Geometry_Box_buildPlane(gab, 'x', 'z', 'y', 1, 1, params->width, params->depth,
+                            params->height, params->widthSeg, params->depthSeg); // py
+    Geometry_Box_buildPlane(gab, 'x', 'z', 'y', 1, -1, params->width, params->depth,
+                            -params->height, params->widthSeg, params->depthSeg); // ny
+    Geometry_Box_buildPlane(gab, 'x', 'y', 'z', 1, -1, params->width, params->height,
+                            params->depth, params->widthSeg, params->heightSeg); // pz
+    Geometry_Box_buildPlane(gab, 'x', 'y', 'z', -1, -1, params->width, params->height,
+                            -params->depth, params->widthSeg, params->heightSeg); // nz
+
+    // build tangents
+    Geometry_computeTangents(gab);
+}
+
+void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params)
+{
+    const int num_vertices = params->segments + 2;
+    const int num_indices  = params->segments;
+
+    gvec3f* positions     = ARENA_PUSH_COUNT(gab->pos_arena, gvec3f, num_vertices);
+    gvec3f* normals       = ARENA_PUSH_COUNT(gab->norm_arena, gvec3f, num_vertices);
+    gvec2f* uvs           = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec3i* indices_array = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
+
+    // center vertex
+    positions[0] = { 0, 0, 0 };
+    normals[0]   = { 0, 0, 1.0f };
+    uvs[0]       = { 0.5f, 0.5f };
+
+    int index = 1;
+    for (int s = 0, i = 3; s <= params->segments; s++, i += 3) {
+        const float segment
+          = params->thetaStart
+            + (float)s / (float)params->segments * params->thetaLength;
+
+        // vertex
+        positions[index] = { params->radius * glm::cos(segment),
+                             params->radius * glm::sin(segment), 0 };
+
+        // normal
+        normals[index] = { 0, 0, 1.0f };
+
+        // uvs
+        uvs[index] = { (positions[index].x / params->radius + 1.0f) / 2.0f,
+                       (positions[index].y / params->radius + 1.0f) / 2.0f };
+
+        index++;
+    }
+
+    // indices
+    index = 0;
+    for (u32 i = 1; i <= params->segments; i++) {
+        indices_array[index++] = { i, i + 1, 0 };
+    }
+
+    // build tangents
+    Geometry_computeTangents(gab);
+}
+
+void Geometry_buildTorus(GeometryArenaBuilder* gab, TorusParams* params)
+{
+    const int num_vertices
+      = (params->radialSegments + 1) * (params->tubularSegments + 1);
+    const int num_indices = params->radialSegments * params->tubularSegments * 2;
+
+    ASSERT(sizeof(glm::vec3) == sizeof(gvec3f));
+    glm::vec3* positions = ARENA_PUSH_COUNT(gab->pos_arena, glm::vec3, num_vertices);
+    glm::vec3* normals   = ARENA_PUSH_COUNT(gab->norm_arena, glm::vec3, num_vertices);
+    gvec2f* uvs          = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec3i* indices      = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
+
+    int index = 0;
+    for (int j = 0; j <= params->radialSegments; j++) {
+        for (int i = 0; i <= params->tubularSegments; i++) {
+            const float u
+              = (float)i / (float)params->tubularSegments * params->arcLength;
+            const float v = (float)j / (float)params->radialSegments * PI * 2.0f;
+
+            // vertex
+            positions[index]
+              = { (params->radius + params->tubeRadius * glm::cos(v)) * glm::cos(u),
+                  (params->radius + params->tubeRadius * glm::cos(v)) * glm::sin(u),
+                  params->tubeRadius * glm::sin(v) };
+
+            // normal
+            glm::vec3 center
+              = { params->radius * glm::cos(u), params->radius * glm::sin(u), 0 };
+            normals[index] = glm::normalize(positions[index] - center);
+
+            // uv
+            uvs[index] = { (float)i / (float)params->tubularSegments,
+                           (float)j / (float)params->radialSegments };
+
+            index++;
+        }
+    }
+
+    // generate indices
+    index = 0;
+    for (u32 j = 1; j <= params->radialSegments; j++) {
+        for (u32 i = 1; i <= params->tubularSegments; i++) {
+            // indices
+            const u32 a = (params->tubularSegments + 1) * j + i - 1;
+            const u32 b = (params->tubularSegments + 1) * (j - 1) + i - 1;
+            const u32 c = (params->tubularSegments + 1) * (j - 1) + i;
+            const u32 d = (params->tubularSegments + 1) * j + i;
+
+            indices[index++] = { a, b, d };
+            indices[index++] = { b, c, d };
+        }
+    }
+
+    // build tangents
+    Geometry_computeTangents(gab);
+}
+
+// Cylinder ============================================================================
+static void Geometry_Cylinder_GenerateTorso(GeometryArenaBuilder* gab,
+                                            const CylinderParams& p)
+{
+    const float halfHeight = p.height / 2.0f;
+
+    const int num_vertices = (p.heightSegments + 1) * (p.radialSegments + 1);
+    const int num_indices  = p.heightSegments * p.radialSegments * 2;
+    gvec3f* positions      = ARENA_PUSH_COUNT(gab->pos_arena, gvec3f, num_vertices);
+    gvec3f* normals        = ARENA_PUSH_COUNT(gab->norm_arena, gvec3f, num_vertices);
+    gvec2f* uvs            = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec3i* indices        = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
+
+    static Arena index_array_arena{};
+    ASSERT(ARENA_LENGTH(&index_array_arena, int) == 0);
+    int* indexArray = ARENA_PUSH_COUNT(&index_array_arena, int, num_vertices);
+    defer(Arena::clear(&index_array_arena));
+
+    // this will be used to calculate the normal
+    const float slope = (p.radiusBottom - p.radiusTop) / p.height;
+
+    // generate vertices, normals and uvs
+    int index = 0;
+    for (unsigned int y = 0; y <= p.heightSegments; y++) {
+
+        std::vector<unsigned int> indexRow;
+
+        const float v = (float)y / (float)p.heightSegments;
+
+        // calculate the radius of the current row
+        const float radius = v * (p.radiusBottom - p.radiusTop) + p.radiusTop;
+
+        for (unsigned int x = 0; x <= p.radialSegments; x++) {
+            const float u = (float)x / (float)p.radialSegments;
+
+            const float theta = u * p.thetaLength + p.thetaStart;
+
+            const float sinTheta = glm::sin(theta);
+            const float cosTheta = glm::cos(theta);
+
+            // vertex
+            positions[index]
+              = { radius * sinTheta, -v * p.height + halfHeight, radius * cosTheta };
+
+            // normal
+            glm::vec3 normal = glm::normalize(glm::vec3(sinTheta, slope, cosTheta));
+            normals[index]   = { normal.x, normal.y, normal.z };
+
+            // uv
+            uvs[index] = { u, 1.0f - v };
+
+            indexArray[y * (p.radialSegments + 1) + x] = index;
+            index++;
+        }
+    }
+
+    // generate indices
+    index = 0;
+    for (unsigned int x = 0; x < p.radialSegments; x++) {
+        for (unsigned int y = 0; y < p.heightSegments; y++) {
+
+            // we use the index array to access the correct indices
+            const unsigned int a = indexArray[y * (p.radialSegments + 1) + x];
+            const unsigned int b = indexArray[(y + 1) * (p.radialSegments + 1) + x];
+            const unsigned int c = indexArray[(y + 1) * (p.radialSegments + 1) + x + 1];
+            const unsigned int d = indexArray[y * (p.radialSegments + 1) + x + 1];
+
+            // faces
+            indices[index++] = { a, b, d };
+            indices[index++] = { b, c, d };
+        }
+    }
+}
+
+static void Geometry_Cylinder_GenerateCap(GeometryArenaBuilder* gab,
+                                          const CylinderParams& p, bool top)
+{
+    const float halfHeight = p.height / 2.0f;
+
+    // save the index of the first center vertex
+    const int centerIndexStart = GAB_vertexCount(gab);
+
+    const int num_vertices = 2 * p.radialSegments + 1;
+    const int num_indices  = p.radialSegments;
+
+    gvec3f* positions = ARENA_PUSH_COUNT(gab->pos_arena, gvec3f, num_vertices);
+    gvec3f* normals   = ARENA_PUSH_COUNT(gab->norm_arena, gvec3f, num_vertices);
+    gvec2f* uvs       = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec3i* indices   = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
+
+    const float radius = top ? p.radiusTop : p.radiusBottom;
+    const float sign   = top ? 1.0f : -1.0f;
+
+    // first we generate the center vertex data of the cap.
+    // because the geometry needs one set of uvs per face,
+    // we must generate a center vertex per face/segment
+    int index = 0;
+    for (unsigned int x = 1; x <= p.radialSegments; x++) {
+        positions[index] = { 0.0, halfHeight * sign, 0.0 };
+        normals[index]   = { 0.0, sign, 0.0 };
+        uvs[index]       = { 0.5, 0.5 };
+
+        index++;
+    }
+
+    // save the index of the last center vertex
+    const unsigned int centerIndexEnd = index + centerIndexStart;
+
+    // now we generate the surrounding vertices, normals and uvs
+    for (unsigned int x = 0; x <= p.radialSegments; x++) {
+
+        const float u     = (float)x / (float)p.radialSegments;
+        const float theta = u * p.thetaLength + p.thetaStart;
+
+        const float cosTheta = glm::cos(theta);
+        const float sinTheta = glm::sin(theta);
+
+        // vertex
+        positions[index] = { radius * sinTheta, halfHeight * sign, radius * cosTheta };
+
+        // normal
+        normals[index] = { 0.0, sign, 0.0 };
+
+        // uv
+        uvs[index] = { cosTheta * 0.5f + 0.5f, sinTheta * 0.5f * sign + 0.5f };
+
+        // increase index
+        index++;
+    }
+
+    // generate indices
+    for (unsigned int x = 0; x < p.radialSegments; x++) {
+        const unsigned int c = centerIndexStart + x;
+        const unsigned int i = centerIndexEnd + x;
+
+        if (top) {
+            indices[x] = { i, i + 1, c };
+        } else {
+            indices[x] = { i + 1, i, c };
+        }
+    }
+}
+
+void Geometry_buildCylinder(GeometryArenaBuilder* gab, CylinderParams* params)
+{
+    // generate torso
+    Geometry_Cylinder_GenerateTorso(gab, *params);
+
+    if (!params->openEnded) {
+        if (params->radiusTop > 0) Geometry_Cylinder_GenerateCap(gab, *params, true);
+        if (params->radiusBottom > 0)
+            Geometry_Cylinder_GenerateCap(gab, *params, false);
+    }
+
+    // build tangents
+    Geometry_computeTangents(gab);
 }

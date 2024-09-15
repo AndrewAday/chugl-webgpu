@@ -221,6 +221,132 @@ static std::unordered_map<std::string, std::string> shader_table = {
     // TODO helper fns (srgb to linear, linear to srgb, etc)
 };
 
+
+static const char* uv_shader_string  = R"glsl(
+#include FRAME_UNIFORMS
+#include DRAW_UNIFORMS
+#include STANDARD_VERTEX_INPUT
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_uv : vec2f,
+};
+
+@vertex 
+fn vs_main(in : VertexInput) -> VertexOutput
+{
+    var out : VertexOutput;
+    var u_Draw : DrawUniforms = drawInstances[in.instance];
+
+    out.position = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
+    out.v_uv = in.uv;
+
+    return out;
+}
+
+@fragment 
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    return vec4f(in.v_uv, 0.0, 1.0);
+}
+)glsl";
+
+static const char* normal_shader_string  = R"glsl(
+#include FRAME_UNIFORMS
+#include DRAW_UNIFORMS
+#include STANDARD_VERTEX_INPUT
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_world_normal : vec3f,
+    @location(1) v_local_normal : vec3f,
+};
+
+@vertex 
+fn vs_main(in : VertexInput) -> VertexOutput
+{
+    var out : VertexOutput;
+    var u_Draw : DrawUniforms = drawInstances[in.instance];
+
+    out.position = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
+    // TODO: after wgsl adds matrix inverse, calculate normal matrix here
+    // out.v_normal = (transpose(inverse(u_Frame.viewMat * u_Draw.model)) * vec4f(in.normal, 0.0)).xyz;
+    out.v_world_normal = (u_Draw.model * vec4f(in.normal, 0.0)).xyz;
+    out.v_local_normal = in.normal;
+
+    return out;
+}
+
+
+// our custom material uniforms
+@group(1) @binding(0) var<uniform> world_space_normals: i32;
+
+// don't actually need normals/tangents
+@fragment 
+fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
+{   
+    var world_normal = in.v_world_normal;
+    var local_normal = in.v_local_normal;
+    if (!is_front) {
+        world_normal = -world_normal;
+        local_normal = -local_normal;
+    }
+
+    if (world_space_normals == 1) {
+        return vec4f(max(world_normal, vec3f(0.0)), 1.0);
+    } else {
+        return vec4f(max(local_normal, vec3f(0.0)), 1.0);
+    }
+}
+)glsl";
+
+static const char* tangent_shader_string  = R"glsl(
+#include FRAME_UNIFORMS
+#include DRAW_UNIFORMS
+#include STANDARD_VERTEX_INPUT
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_world_tangent : vec4f,
+    @location(1) v_local_tangent : vec4f,
+};
+
+@vertex 
+fn vs_main(in : VertexInput) -> VertexOutput
+{
+    var out : VertexOutput;
+    var u_Draw : DrawUniforms = drawInstances[in.instance];
+
+    let modelMat3 : mat3x3<f32> = mat3x3(
+        u_Draw.model[0].xyz,
+        u_Draw.model[1].xyz,
+        u_Draw.model[2].xyz
+    );
+
+    out.position = (u_Frame.projection * u_Frame.view) * u_Draw.model * vec4f(in.position, 1.0f);
+
+    // tangent vectors aren't impacted by non-uniform scaling or translation
+    out.v_world_tangent = vec4f(modelMat3 * in.tangent.xyz, in.tangent.w);
+    out.v_local_tangent = in.tangent;
+
+    return out;
+}
+
+// our custom material uniforms
+@group(1) @binding(0) var<uniform> world_space_tangents: i32;
+
+@fragment 
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    if (world_space_tangents == 1) {
+        return vec4f(max(in.v_world_tangent.xyz, vec3f(0.0)), 1.0);
+    } else {
+        return vec4f(max(in.v_local_tangent.xyz, vec3f(0.0)), 1.0);
+    }
+}
+)glsl";
+
+
 static const char* flat_shader_string  = R"glsl(
 #include FRAME_UNIFORMS
 #include DRAW_UNIFORMS
@@ -240,6 +366,8 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4f
     return ret;
 }
 )glsl";
+
+
 
 
 static const char* diffuse_shader_string  = R"glsl(
@@ -610,7 +738,7 @@ static const char* pbr_shader_string = R"glsl(
         }  // end light loop
 
         // // ambient occlusion (hardcoded for now) (ambient should only be applied to direct lighting, not indirect lighting)
-        let ambient : vec3f = vec3f(0.03) * albedo * textureSample(aoMap, texture_sampler, in.v_uv).r * u_aoFactor;
+        let ambient : vec3f = u_Frame.ambient_light * albedo * textureSample(aoMap, texture_sampler, in.v_uv).r * u_aoFactor;
         var finalColor : vec3f = Lo + ambient;  // TODO: update ao calculation after adding IBL
 
         // add emission

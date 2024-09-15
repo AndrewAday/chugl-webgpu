@@ -37,8 +37,8 @@ for (int i; i < NUM_ROWS; i++) {
         material[i][j].albedo(Color.WHITE); 
         material[i][j].metallic( (i $ float) / NUM_ROWS );
         material[i][j].roughness( Math.clampf((j $ float) / NUM_ROWS, 0.05, 1) );
-        // material[i][j].albedoMap(albedo_tex);
-        // material[i][j].normalMap(normal_tex);
+        material[i][j].albedoMap(albedo_tex);
+        material[i][j].normalMap(normal_tex);
         GMesh mesh(geo, material[i][j]) --> GG.scene();
         mesh.pos(@(
             (j - NUM_ROWS / 2) * 1.5,
@@ -66,7 +66,7 @@ UI_Float3 dir_light_color(GG.scene().light().color());
 UI_Float dir_light_intensity(GG.scene().light().intensity());
 
 // material properties
-UI_Float3 albedo(material.albedo());
+UI_Float3 albedo(material[0][0].albedo());
 // UI_Float metallic(material.metallic());
 // UI_Float roughness(material.roughness());
 UI_Float normal_factor(material[0][0].normalFactor());
@@ -77,7 +77,11 @@ fun void ui() {
         if (UI.begin("Lighting Example", null, 0)) {
 
             if (UI.colorEdit("material albedo", albedo, 0)) {
-                albedo.val() => material.albedo;
+                for (int i; i < NUM_ROWS; i++) {
+                    for (int j; j < NUM_ROWS; j++) {
+                        albedo.val() => material[i][j].albedo;
+                    }
+                }
             }
 
             // if (UI.slider("material metallic", metallic, 0, 1)) {

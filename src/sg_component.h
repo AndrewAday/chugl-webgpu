@@ -231,7 +231,8 @@ struct SG_Scene : public SG_Transform {
 #define SG_GeometryTable                                                               \
     X(SG_GEOMETRY = 0, "Geometry")                                                     \
     X(SG_GEOMETRY_PLANE, "PlaneGeometry")                                              \
-    X(SG_GEOMETRY_CUBE, "CubeGeometry")                                                \
+    X(SG_GEOMETRY_BOX, "BoxGeometry")                                                  \
+    X(SG_GEOMETRY_CIRCLE, "CircleGeometry")                                            \
     X(SG_GEOMETRY_SPHERE, "SphereGeometry")                                            \
     X(SG_GEOMETRY_CYLINDER, "CylinderGeometry")                                        \
     X(SG_GEOMETRY_TORUS, "TorusGeometry")                                              \
@@ -254,6 +255,10 @@ static const char* SG_GeometryTypeNames[SG_GEOMETRY_COUNT] = {
 union SG_GeometryParams {
     PlaneParams plane;
     SphereParams sphere;
+    BoxParams box;
+    CircleParams circle;
+    TorusParams torus;
+    CylinderParams cylinder;
 };
 
 #define SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES 8
@@ -293,6 +298,10 @@ struct SG_Geometry : SG_Component {
     static void buildPlane(SG_Geometry* g, PlaneParams* p);
     static void buildSphere(SG_Geometry* g, SphereParams* p);
     static void buildSuzanne(SG_Geometry* g);
+    static void buildBox(SG_Geometry* g, BoxParams* p);
+    static void buildCircle(SG_Geometry* g, CircleParams* p);
+    static void buildTorus(SG_Geometry* g, TorusParams* p);
+    static void buildCylinder(SG_Geometry* g, CylinderParams* p);
 };
 
 // ============================================================================
@@ -323,6 +332,9 @@ struct SG_Shader : SG_Component {
     X(SG_MATERIAL_CUSTOM, "Material")                                                  \
     X(SG_MATERIAL_LINES2D, "Lines2DMaterial")                                          \
     X(SG_MATERIAL_FLAT, "FlatMaterial")                                                \
+    X(SG_MATERIAL_UV, "UVMaterial")                                                    \
+    X(SG_MATERIAL_NORMAL, "NormalMaterial")                                            \
+    X(SG_MATERIAL_TANGENT, "TangentMaterial")                                          \
     X(SG_MATERIAL_DIFFUSE, "DiffuseMaterial")                                          \
     X(SG_MATERIAL_PBR, "PBRMaterial")                                                  \
     X(SG_MATERIAL_TEXT3D, "TextMaterial")                                              \
