@@ -10,8 +10,10 @@
 
 static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
 // static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
+
 static spinlock waitingShredsLock;
-static u64 waitingShreds = 0;
+static u64 waitingShreds              = 0; // guarded by waitingShredsLock
+static i64 waiting_shreds_frame_count = 0; // guarded by waitingShredsLock
 
 static std::mutex gameLoopLock;
 static std::condition_variable gameLoopConditionVar;
@@ -415,6 +417,7 @@ void Event_Broadcast(CHUGL_EventType type, CK_DL_API api, Chuck_VM* vm)
         case CHUGL_EventType::NEXT_FRAME: {
             spinlock::lock(&waitingShredsLock);
             waitingShreds = 0;
+            waiting_shreds_frame_count++;
             api->vm->queue_event(vm, events[type], 1, chuckEventQueue);
             spinlock::unlock(&waitingShredsLock);
             return;

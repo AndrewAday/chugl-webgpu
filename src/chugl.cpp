@@ -35,6 +35,9 @@ struct GG_Config {
     SG_ID root_pass_id;
     SG_ID default_render_pass_id;
     SG_ID default_output_pass_id;
+
+    // options
+    bool auto_update_scenegraph = true;
 };
 
 GG_Config gg_config = {};
@@ -101,29 +104,21 @@ CK_DLL_INFO(ChuGL)
 
 static t_CKUINT chugl_next_frame_event_data_offset = 0;
 
-static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id, Chuck_VM* VM,
+static void autoUpdateScenegraph(Arena* arena, SG_Scene* scene, Chuck_VM* VM,
                                  CK_DL_API API, t_CKINT _ggen_update_vt_offset)
 {
-    static t_CKTIME chuglLastUpdateTime{};
+    // only update once per frame
+    if (scene->last_auto_update_frame == g_frame_count) return;
 
-    t_CKTIME chuckTimeNow  = API->vm->now(VM);
-    t_CKTIME chuckTimeDiff = chuckTimeNow - chuglLastUpdateTime;
-    t_CKFLOAT ckdt         = chuckTimeDiff / API->vm->srate(VM);
-    chuglLastUpdateTime    = chuckTimeNow;
+    // mark updated this frame
+    scene->last_auto_update_frame = g_frame_count;
 
     Chuck_DL_Arg theArg;
-    theArg.kind = kindof_FLOAT;
-    // if (CGL::useChuckTime) {
-    theArg.value.v_float = ckdt;
-    // } else {
-    // TODO: pass window state, dt, etc from render thread --> audio thread
-    // theArg.value.v_float = std::min(
-    //   1.0, CGL::GetTimeInfo().second); // this dt should be same as one
-    //                                    // gotten by chuck CGL.dt()
-    // }
+    theArg.kind          = kindof_FLOAT;
+    theArg.value.v_float = g_last_dt;
 
     void* arena_orig_top             = Arena::top(arena);
-    *(ARENA_PUSH_TYPE(arena, SG_ID)) = main_scene_id;
+    *(ARENA_PUSH_TYPE(arena, SG_ID)) = scene->id;
 
     // BFS through graph
     // TODO: can just walk linearly through entity arenas instead?
@@ -139,16 +134,8 @@ static void autoUpdateScenegraph(Arena* arena, SG_ID main_scene_id, Chuck_VM* VM
         ASSERT(ggen != NULL);
 
         Chuck_VM_Shred* origin_shred = chugin_getOriginShred(ggen);
-
-        // origin_shred == NULL when ggens are default created during QUERY
-        // API->create_without_shred e.g. for mainScene, mainCamera
-        // these, by definition, have no overloaded update() function
-        // because they are not user defined
-        if (origin_shred != NULL) {
-            // invoke the update function in immediate mode
-            API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
-                                                origin_shred, &theArg, 1);
-        }
+        API->vm->invoke_mfun_immediate_mode(ggen, _ggen_update_vt_offset, VM,
+                                            origin_shred, &theArg, 1);
 
         // add children to stack
         size_t numChildren  = SG_Transform::numChildren(xform);
@@ -198,6 +185,17 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
     // see comment in chugl_next_frame
     ++waitingShreds;
     bool allShredsWaiting = waitingShreds == registeredShreds.size();
+
+    // when new shreds are sporked, they will have `allShredsWaiting = true`
+    // so to prevent multiple updates, we also check against the last update frame
+    // and only update if this is the first time this frame
+    static i64 last_update_frame_count{ -1 };
+    bool first_of_last_shreds_waited
+      = last_update_frame_count != waiting_shreds_frame_count;
+    if (allShredsWaiting) {
+        last_update_frame_count = waiting_shreds_frame_count;
+    }
+
     spinlock::unlock(&waitingShredsLock);
 
     ASSERT(registeredShreds.find(SHRED) != registeredShreds.end());
@@ -215,7 +213,7 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
         hook->activate(hook);
     }
 
-    if (allShredsWaiting) {
+    if (allShredsWaiting && first_of_last_shreds_waited) {
         // if #waiting == #registered, all chugl shreds have finished work, and
         // we are safe to wakeup the renderer
         // TODO: bug. If a shred does NOT call GG.nextFrame in an infinite loop,
@@ -237,18 +235,40 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
             static u64 system_last_time{ stm_now() };
             u64 system_dt_ticks = stm_laptime(&system_last_time);
             system_dt_sec       = stm_sec(system_dt_ticks);
+
+            // update render thread dt
+            g_last_dt = CHUGL_Window_dt();
+            g_frame_count++;
+
+#ifdef CHUGL_DEBUG
+            spinlock::lock(&waitingShredsLock);
+            // log_trace("g_frame_count: %d, waiting_shreds_frame_count: %d",
+            //           g_frame_count, waiting_shreds_frame_count);
+            ASSERT(g_frame_count - 1 == waiting_shreds_frame_count);
+            spinlock::unlock(&waitingShredsLock);
+#endif
         }
 
-        // traverse scenegraph and call chuck-defined update() on all GGens
-        autoUpdateScenegraph(&audio_frame_arena, gg_config.mainScene, g_chuglVM,
-                             g_chuglAPI, ggen_update_vt_offset);
+        // traverse rendegraph chuck-defined update() on all render passes
+        if (gg_config.auto_update_scenegraph) {
+            SG_Pass* pass = SG_GetPass(gg_config.root_pass_id);
+            while (pass) {
+                if (pass->pass_type == SG_PassType_Render) {
+                    SG_Scene* scene = SG_GetScene(pass->scene_id);
+                    ASSERT(scene != NULL);
+                    autoUpdateScenegraph(&audio_frame_arena, scene, g_chuglVM,
+                                         g_chuglAPI, ggen_update_vt_offset);
+                }
+                pass = SG_GetPass(pass->next_pass_id);
+            }
+        }
+
+        // Garbage collect (TODO add API function to control this via GG
+        // config) SG_GC();
 
         // signal the graphics-side that audio-side is done processing for
         // this frame
         Sync_SignalUpdateDone();
-
-        // Garbage collect (TODO add API function to control this via GG
-        // config) SG_GC();
 
         // clear audio frame arena
         Arena::clear(&audio_frame_arena);
@@ -292,7 +312,12 @@ CK_DLL_SFUN(chugl_get_fps)
 
 CK_DLL_SFUN(chugl_get_dt)
 {
-    RETURN->v_float = CHUGL_Window_dt();
+    RETURN->v_float = g_last_dt;
+}
+
+CK_DLL_SFUN(chugl_get_frame_count)
+{
+    RETURN->v_uint = g_frame_count;
 }
 
 CK_DLL_SFUN(chugl_get_root_pass)
@@ -308,6 +333,16 @@ CK_DLL_SFUN(chugl_get_default_render_pass)
 CK_DLL_SFUN(chugl_get_default_output_pass)
 {
     RETURN->v_object = SG_GetPass(gg_config.default_output_pass_id)->ckobj;
+}
+
+CK_DLL_SFUN(chugl_get_auto_update_scenegraph)
+{
+    RETURN->v_int = gg_config.auto_update_scenegraph ? 1 : 0;
+}
+
+CK_DLL_SFUN(chugl_set_auto_update_scenegraph)
+{
+    gg_config.auto_update_scenegraph = (GET_NEXT_INT(ARGS) != 0);
 }
 
 // ============================================================================
@@ -405,6 +440,9 @@ CK_DLL_QUERY(ChuGL)
         SFUN(chugl_get_dt, "float", "dt");
         DOC_FUNC("return the laptime of the graphics thread's last frame in seconds");
 
+        SFUN(chugl_get_frame_count, "int", "fc");
+        DOC_FUNC("return the number of frames rendered since the start of the program");
+
         SFUN(chugl_get_root_pass, SG_CKNames[SG_COMPONENT_PASS], "rootPass");
         DOC_FUNC("Get the root pass of the current scene");
 
@@ -415,6 +453,17 @@ CK_DLL_QUERY(ChuGL)
         DOC_FUNC(
           "Get the default output pass (renders the main scene to the screen, "
           "with default tonemapping and exposure settings");
+
+        SFUN(chugl_get_auto_update_scenegraph, "int", "autoUpdate");
+        DOC_FUNC(
+          "Returns true if GGen update() functions are automatically called "
+          "on all GGens in each active scene graph every frame. Default is true.");
+
+        SFUN(chugl_set_auto_update_scenegraph, "void", "autoUpdate");
+        ARG("int", "autoUpdate");
+        DOC_FUNC(
+          "Set whether GGen update() functions are automatically called "
+          "on all GGens in active scene graphs every frame. Default is true.");
 
         QUERY->end_class(QUERY); // GG
     }
@@ -434,14 +483,22 @@ CK_DLL_QUERY(ChuGL)
           = ulib_light_create(dir_light_ckobj, SG_LightType_Directional);
         CQ_PushCommand_AddChild(scene, dir_light);
 
+        // default orbit camera
+        SG_Camera* default_camera
+          = ulib_camera_create(chugin_createCkObj("OrbitCamera", false));
+        CQ_PushCommand_AddChild(scene, default_camera);
+        SG_Scene::setMainCamera(scene, default_camera);
+        CQ_PushCommand_SceneUpdate(scene);
+
         // passRoot()
         gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);
         SG_Pass* root_pass     = SG_GetPass(gg_config.root_pass_id);
 
         // renderPass for main scene
-        // (SG_ID 0 defaults to main scene / main camera / swapchain view )
         gg_config.default_render_pass_id = ulib_pass_createPass(SG_PassType_Render);
         SG_Pass* render_pass             = SG_GetPass(gg_config.default_render_pass_id);
+        render_pass->scene_id            = gg_config.mainScene;
+        CQ_PushCommand_PassUpdate(render_pass);
 
         // connect root to renderPass
         SG_Pass::connect(root_pass, render_pass);

@@ -127,14 +127,7 @@ CK_DLL_MFUN(gscene_set_main_camera)
                  SHRED);
     }
 
-    // refcount new camera
-    SG_AddRef(cam);
-
-    // deref old camera
-    SG_DecrementRef(scene->desc.main_camera_id);
-
-    // update scene
-    scene->desc.main_camera_id = cam ? cam->id : 0;
+    SG_Scene::setMainCamera(scene, cam);
 
     // update gfx thread
     CQ_PushCommand_SceneUpdate(scene);

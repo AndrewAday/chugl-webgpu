@@ -35,6 +35,13 @@ CK_DLL_MFUN(gcamera_world_pos_to_ndc);
 // add mouse click state to GWindow
 // impl arcball Camera
 
+CK_DLL_CTOR(orbit_camera_ctor);
+CK_DLL_MFUN(orbit_camera_update);
+CK_DLL_MFUN(orbit_camera_set_drag_speed);
+CK_DLL_MFUN(orbit_camera_get_drag_speed);
+CK_DLL_MFUN(orbit_camera_set_zoom_speed);
+CK_DLL_MFUN(orbit_camera_get_zoom_speed);
+
 static void ulib_camera_query(Chuck_DL_Query* QUERY)
 {
     BEGIN_CLASS(SG_CKNames[SG_COMPONENT_CAMERA], SG_CKNames[SG_COMPONENT_TRANSFORM]);
@@ -116,15 +123,54 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
     DOC_FUNC("Convert a point in world space to this camera's clip space.");
 
     END_CLASS();
+
+    // orbit camera
+    {
+        BEGIN_CLASS("OrbitCamera", SG_CKNames[SG_COMPONENT_CAMERA]);
+
+        CTOR(orbit_camera_ctor);
+
+        MFUN(orbit_camera_update, "void", "update");
+        ARG("float", "dt");
+
+        MFUN(orbit_camera_set_drag_speed, "void", "dragSpeed");
+        ARG("float", "speed");
+        DOC_FUNC(
+          "Set the speed of the camera's rotation when dragging with the mouse.");
+
+        MFUN(orbit_camera_get_drag_speed, "float", "dragSpeed");
+        DOC_FUNC(
+          "Get the speed of the camera's rotation when dragging with the mouse.");
+
+        MFUN(orbit_camera_set_zoom_speed, "void", "zoomSpeed");
+        ARG("float", "speed");
+        DOC_FUNC(
+          "Set the speed of the camera's zoom when scrolling with the mouse wheel.");
+
+        MFUN(orbit_camera_get_zoom_speed, "float", "zoomSpeed");
+        DOC_FUNC(
+          "Get the speed of the camera's zoom when scrolling with the mouse wheel.");
+
+        END_CLASS();
+    }
+}
+
+SG_Camera* ulib_camera_create(Chuck_Object* ckobj)
+{
+    CK_DL_API API = g_chuglAPI;
+    // create camera component
+    SG_CameraParams default_cam_params = {}; // passing direclty for now rather than
+                                             // creating separate CameraParams struct
+    SG_Camera* cam = SG_CreateCamera(ckobj, default_cam_params);
+    OBJ_MEMBER_UINT(ckobj, component_offset_id) = cam->id;
+    CQ_PushCommand_CameraCreate(cam);
+
+    return cam;
 }
 
 CK_DLL_CTOR(gcamera_ctor)
 {
-    SG_CameraParams default_cam_params = {}; // passing direclty for now rather than
-                                             // creating separate CameraParams struct
-    SG_Camera* cam = SG_CreateCamera(SELF, default_cam_params);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = cam->id;
-    CQ_PushCommand_CameraCreate(cam);
+    ulib_camera_create(SELF);
 }
 
 CK_DLL_MFUN(gcamera_set_mode_persp)
@@ -314,4 +360,66 @@ CK_DLL_MFUN(gcamera_world_pos_to_screen_coord)
     // z is depth value (buggy)
     // float z        = clipPos.z / clipPos.w;
     RETURN->v_vec2 = { x, y };
+}
+
+// Orbit Camera =====================================================================
+
+CK_DLL_CTOR(orbit_camera_ctor)
+{
+}
+
+CK_DLL_MFUN(orbit_camera_update)
+{
+    /* param ideas
+    - lookat location (center of orbit)
+    */
+
+    SG_Camera* camera           = GET_CAMERA(SELF);
+    SG_OrbitCameraParams* orbit = &camera->orbit;
+
+    // note: don't need to multiply by dt since it's scaled by mouse deltas
+
+    // update scroll
+    t_CKVEC2 scroll_deltas = CHUGL_scroll_delta();
+    orbit->spherical.radius
+      = MAX(0.1f, orbit->spherical.radius - orbit->zoom_speed * (scroll_deltas.y));
+
+    if (CHUGL_Mouse_LeftButton()) {
+        t_CKVEC2 mouse_deltas = CHUGL_Mouse_Delta();
+        orbit->spherical.theta -= (orbit->speed * mouse_deltas.x);
+        orbit->spherical.phi -= (orbit->speed * mouse_deltas.y);
+
+        // clamp phi
+        orbit->spherical.phi
+          = CLAMP(orbit->spherical.phi, -PI / (2.0f + EPSILON), PI / (2.0f + EPSILON));
+        // clamp theta
+        orbit->spherical.theta = fmod(orbit->spherical.theta, 2.0f * PI);
+    }
+
+    // update camera position from spherical coordinates
+    camera->pos = SphericalCoords::toCartesian(orbit->spherical);
+    SG_Transform::lookAt(camera, VEC_ORIGIN);
+
+    CQ_PushCommand_SetPosition(camera);
+    CQ_PushCommand_SetRotation(camera);
+}
+
+CK_DLL_MFUN(orbit_camera_set_drag_speed)
+{
+    GET_CAMERA(SELF)->orbit.speed = GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(orbit_camera_get_drag_speed)
+{
+    RETURN->v_float = GET_CAMERA(SELF)->orbit.speed;
+}
+
+CK_DLL_MFUN(orbit_camera_set_zoom_speed)
+{
+    GET_CAMERA(SELF)->orbit.zoom_speed = GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(orbit_camera_get_zoom_speed)
+{
+    RETURN->v_float = GET_CAMERA(SELF)->orbit.zoom_speed;
 }

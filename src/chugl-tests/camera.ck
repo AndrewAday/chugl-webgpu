@@ -39,5 +39,16 @@ T.assert(T.veq(screen_pos, mouse_pos), "ortho camera screenCoordToWorldPos and w
 T.assert(T.veq(camera.worldPosToNDC(ndc_to_world_pos), ndc), "ortho camera NDCToWorldPos"); 
 
 
+// OrbitCamera ========================================
+
+OrbitCamera orbit_camera;
+
+orbit_camera.dragSpeed(0.123);
+T.assert(T.feq(orbit_camera.dragSpeed(), 0.123), "orbit camera drag speed");
+
+orbit_camera.zoomSpeed(0.456);
+T.assert(T.feq(orbit_camera.zoomSpeed(), 0.456), "orbit camera zoom speed");
+
+// FlyCamera =========================================
 
 

@@ -794,9 +794,8 @@ struct App {
             switch (pass->sg_pass.pass_type) {
                 case SG_PassType_Render: {
                     // defaults to main_scene
-                    R_Scene* scene = pass->sg_pass.scene_id != 0 ?
-                                       Component_GetScene(pass->sg_pass.scene_id) :
-                                       Component_GetScene(app->mainScene);
+                    R_Scene* scene = Component_GetScene(pass->sg_pass.scene_id);
+                    ASSERT(scene);
                     // defaults to scene main camera
                     R_Camera* camera
                       = pass->sg_pass.camera_id != 0 ?

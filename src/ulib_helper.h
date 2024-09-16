@@ -59,6 +59,9 @@
 // references to VM and API
 Chuck_VM* g_chuglVM  = NULL;
 CK_DL_API g_chuglAPI = NULL;
+Arena audio_frame_arena;
+f64 g_last_dt     = 0.0;
+u64 g_frame_count = 0;
 
 // offset which stores the component's SG_ID.
 static t_CKUINT component_offset_id = 0;
@@ -109,8 +112,6 @@ static chugl_builtin_textures g_builtin_textures;
 
 // impl in ulib_texture.cpp
 SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc);
-
-Arena audio_frame_arena;
 
 // map from ckobj to shred
 std::unordered_map<Chuck_Object*, Chuck_VM_Shred*> ckobj_2_OriginShred;

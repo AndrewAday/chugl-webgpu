@@ -175,13 +175,13 @@ fun void buildCylinder() {
     );
 }
 
-
 UI_Bool rotate;
-
 fun void ui() {
     while (true) {
         GG.nextFrame() => now; 
         if (UI.begin("Geometry and Material Example")) {
+
+            UI.scenegraph(GG.scene());
 
             UI.checkbox("rotate", rotate);
 
@@ -280,8 +280,6 @@ fun void ui() {
     }
 }
 spork ~ ui();
-
-
 
 while (true) {
     GG.nextFrame() => now;

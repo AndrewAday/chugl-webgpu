@@ -1320,6 +1320,18 @@ void SG_Pass::bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex)
     pass->bloom_input_render_texture_id = tex ? tex->id : 0;
 }
 
+void SG_Scene::setMainCamera(SG_Scene* scene, SG_Camera* camera)
+{
+    // refcount new camera
+    SG_AddRef(camera);
+
+    // deref old camera
+    SG_DecrementRef(scene->desc.main_camera_id);
+
+    // update scene
+    scene->desc.main_camera_id = camera ? camera->id : 0;
+}
+
 void SG_Scene::addLight(SG_Scene* scene, SG_ID light_id)
 {
     ASSERT(!ARENA_CONTAINS(&scene->light_ids, light_id));

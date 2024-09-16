@@ -13,6 +13,7 @@
 
 // forward decls
 struct SG_Light;
+struct SG_Camera;
 
 #define QUAT_IDENTITY (glm::quat(1.0, 0.0, 0.0, 0.0))
 #define MAT_IDENTITY (glm::mat4(1.0))
@@ -218,6 +219,11 @@ struct SG_SceneDesc {
 struct SG_Scene : public SG_Transform {
     SG_SceneDesc desc;
     Arena light_ids;
+
+    // bookkeeping for automatic update (to prevent multiple updates per frame)
+    u64 last_auto_update_frame = 0;
+
+    static void setMainCamera(SG_Scene* scene, SG_Camera* camera);
 
     static void addLight(SG_Scene* scene, SG_ID light_id);
     static void removeLight(SG_Scene* scene, SG_ID light_id);
@@ -547,6 +553,12 @@ enum SG_CameraType : u8 {
     SG_CameraType_ORTHOGRAPHIC = 1,
 };
 
+enum SG_CameraControllerType : u8 {
+    SG_CameraControllerType_None  = 0,
+    SG_CameraControllerType_Orbit = 1,
+    SG_CameraControllerType_Fly   = 2,
+};
+
 struct SG_CameraParams {
     SG_CameraType camera_type;
     float fov_radians = PI / 4.0f; // radians (45deg)
@@ -556,8 +568,39 @@ struct SG_CameraParams {
     float near_plane = .1f;
 };
 
+// spherical coordinates for OrbitCamera
+struct SphericalCoords {
+    f32 radius;
+    f32 theta; // polar (radians)
+    f32 phi;   // azimuth (radians)
+
+    // Left handed system
+    // (1, 0, 0) maps to cartesion coordinate (0, 0, 1)
+    static glm::vec3 toCartesian(SphericalCoords s)
+    {
+        f32 v = s.radius * cos(s.phi);
+        return glm::vec3(v * sin(s.theta),      // x
+                         s.radius * sin(s.phi), // y
+                         v * cos(s.theta)       // z
+        );
+    }
+};
+
+struct SG_OrbitCameraParams {
+    SphericalCoords spherical = { 6.0f, 0.0f, 0.0f };
+    f32 speed                 = 0.01f;
+    f32 zoom_speed            = 0.5f;
+};
+
+struct SG_FlyCameraParams {
+};
+
 struct SG_Camera : SG_Transform {
     SG_CameraParams params;
+    SG_CameraControllerType controller_type;
+
+    SG_OrbitCameraParams orbit;
+    SG_FlyCameraParams fly;
 
     static glm::mat4 projectionMatrix(SG_Camera* camera, float aspect)
     {
@@ -670,17 +713,16 @@ struct SG_Pass : public SG_Component {
 
     // computepass methods
     static void computeShader(SG_Pass* pass, SG_Material* material, SG_Shader* shader);
-
-    // bloom pass methods
-    static void bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex);
-    static void bloomOutputRenderTexture(SG_Pass* pass, SG_Texture* tex);
-
     static void workgroupSize(SG_Pass* pass, u32 x, u32 y, u32 z)
     {
         pass->workgroup.x = x;
         pass->workgroup.y = y;
         pass->workgroup.z = z;
     }
+
+    // bloom pass methods
+    static void bloomInputRenderTexture(SG_Pass* pass, SG_Texture* tex);
+    static void bloomOutputRenderTexture(SG_Pass* pass, SG_Texture* tex);
 };
 
 // ============================================================================

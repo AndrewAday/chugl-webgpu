@@ -24,3 +24,8 @@ T.assert(GG.scene().lights().size() == 1, "detaching lights decreases lights siz
 GG.scene().ambient(@(0.1, 0.2, 0.3));
 T.assert(T.veq(GG.scene().ambient(), @(0.1, 0.2, 0.3)), "set ambient light");
 
+// test auto update
+
+T.assert(GG.autoUpdate(), "default auto update");
+GG.autoUpdate(false);
+T.assert(!GG.autoUpdate(), "set auto update");

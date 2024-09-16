@@ -208,7 +208,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get X position of this GGen in local space");
 
         // float posX(float)
-        QUERY->add_mfun(QUERY, ggen_set_pos_x, "float", "posX");
+        QUERY->add_mfun(QUERY, ggen_set_pos_x, SG_CKNames[SG_COMPONENT_TRANSFORM],
+                        "posX");
         QUERY->add_arg(QUERY, "float", "pos");
         QUERY->doc_func(QUERY, "Set X position of this GGen in local space");
 
@@ -217,7 +218,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get Y position of this GGen in local space");
 
         // float posY(float)
-        QUERY->add_mfun(QUERY, ggen_set_pos_y, "float", "posY");
+        QUERY->add_mfun(QUERY, ggen_set_pos_y, SG_CKNames[SG_COMPONENT_TRANSFORM],
+                        "posY");
         QUERY->add_arg(QUERY, "float", "pos");
         QUERY->doc_func(QUERY, "Set Y position of this GGen in local space");
 
@@ -226,7 +228,8 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get Z position of this GGen in local space");
 
         // float posZ(float)
-        QUERY->add_mfun(QUERY, ggen_set_pos_z, "float", "posZ");
+        QUERY->add_mfun(QUERY, ggen_set_pos_z, SG_CKNames[SG_COMPONENT_TRANSFORM],
+                        "posZ");
         QUERY->add_arg(QUERY, "float", "pos");
         QUERY->doc_func(QUERY, "Set Z position of this GGen in local space");
 
@@ -235,7 +238,7 @@ static void ulib_ggen_query(Chuck_DL_Query* QUERY)
         QUERY->doc_func(QUERY, "Get object position in local space");
 
         // vec3 pos( vec3 )
-        QUERY->add_mfun(QUERY, ggen_set_pos, "vec3", "pos");
+        QUERY->add_mfun(QUERY, ggen_set_pos, SG_CKNames[SG_COMPONENT_TRANSFORM], "pos");
         QUERY->add_arg(QUERY, "vec3", "pos");
         QUERY->doc_func(QUERY, "Set object position in local space");
 
@@ -547,7 +550,7 @@ CK_DLL_MFUN(ggen_set_pos_x)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT posX      = GET_NEXT_FLOAT(ARGS);
     xform->pos.x        = posX;
-    RETURN->v_float     = posX;
+    RETURN->v_object    = SELF;
 
     CQ_PushCommand_SetPosition(xform);
 }
@@ -563,7 +566,7 @@ CK_DLL_MFUN(ggen_set_pos_y)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT posY      = GET_NEXT_FLOAT(ARGS);
     xform->pos.y        = posY;
-    RETURN->v_float     = posY;
+    RETURN->v_object    = SELF;
 
     CQ_PushCommand_SetPosition(xform);
 }
@@ -579,7 +582,7 @@ CK_DLL_MFUN(ggen_set_pos_z)
     SG_Transform* xform = SG_GetTransform(OBJ_MEMBER_UINT(SELF, component_offset_id));
     t_CKFLOAT posZ      = GET_NEXT_FLOAT(ARGS);
     xform->pos.z        = posZ;
-    RETURN->v_float     = posZ;
+    RETURN->v_object    = SELF;
 
     CQ_PushCommand_SetPosition(xform);
 }
@@ -597,7 +600,7 @@ CK_DLL_MFUN(ggen_set_pos)
     xform->pos.x        = vec.x;
     xform->pos.y        = vec.y;
     xform->pos.z        = vec.z;
-    RETURN->v_vec3      = vec;
+    RETURN->v_object    = SELF;
 
     CQ_PushCommand_SetPosition(xform);
 }
@@ -1127,8 +1130,9 @@ CK_DLL_MFUN(gmesh_set_mat)
 {
     Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
 
-    SG_Mesh* mesh    = GET_MESH(SELF);
-    SG_Material* mat = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
+    SG_Mesh* mesh = GET_MESH(SELF);
+    SG_Material* mat
+      = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
     SG_Mesh::setMaterial(mesh, mat);
     CQ_PushCommand_MeshUpdate(mesh);
 }
@@ -1144,8 +1148,9 @@ CK_DLL_MFUN(gmesh_set_geo)
 {
     Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
 
-    SG_Mesh* mesh    = GET_MESH(SELF);
-    SG_Geometry* geo = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
+    SG_Mesh* mesh = GET_MESH(SELF);
+    SG_Geometry* geo
+      = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
     SG_Mesh::setGeometry(mesh, geo);
     CQ_PushCommand_MeshUpdate(mesh);
 }
@@ -1155,9 +1160,11 @@ CK_DLL_MFUN(gmesh_set_mat_and_geo)
     Chuck_Object* ck_geo = GET_NEXT_OBJECT(ARGS);
     Chuck_Object* ck_mat = GET_NEXT_OBJECT(ARGS);
 
-    SG_Mesh* mesh    = GET_MESH(SELF);
-    SG_Geometry* geo = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
-    SG_Material* mat = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
+    SG_Mesh* mesh = GET_MESH(SELF);
+    SG_Geometry* geo
+      = ck_geo ? SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id)) : NULL;
+    SG_Material* mat
+      = ck_mat ? SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id)) : NULL;
     SG_Mesh::setGeometry(mesh, geo);
     SG_Mesh::setMaterial(mesh, mat);
     CQ_PushCommand_MeshUpdate(mesh);
