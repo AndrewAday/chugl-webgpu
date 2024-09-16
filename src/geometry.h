@@ -66,6 +66,15 @@ struct CylinderParams {
     float thetaLength           = PI * 2.0f;
 };
 
+struct KnotParams {
+    float radius        = 1.0f;
+    float tube          = 0.4f;
+    int tubularSegments = 64;
+    int radialSegments  = 8;
+    int p               = 2;
+    int q               = 3;
+};
+
 // Arena builders
 struct Arena;
 
@@ -84,6 +93,7 @@ void Geometry_buildBox(GeometryArenaBuilder* gab, BoxParams* params);
 void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params);
 void Geometry_buildTorus(GeometryArenaBuilder* gab, TorusParams* params);
 void Geometry_buildCylinder(GeometryArenaBuilder* gab, CylinderParams* params);
+void Geometry_buildKnot(GeometryArenaBuilder* gab, KnotParams* params);
 
 // add hasColor / hasTangent / has... flags
 #define CHUGL_FLOATS_PER_VERTEX (3 + 3 + 2 + 4)

@@ -50,7 +50,6 @@ spork ~ readMicInput();
 // graphics stuff --------------------------------------
 
 "
-
 #include FRAME_UNIFORMS
 #include DRAW_UNIFORMS
 #include STANDARD_VERTEX_INPUT
@@ -114,14 +113,14 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     }
 
     return vec4f(cell); // render current generation
-}" => string lambert_shader_string;
+}" => string game_of_life_shader;
 
 Material material;
 PlaneGeometry plane_geo;
 
 ShaderDesc shader_desc;
-lambert_shader_string => shader_desc.vertexString;
-lambert_shader_string => shader_desc.fragmentString;
+game_of_life_shader => shader_desc.vertexString;
+game_of_life_shader => shader_desc.fragmentString;
 [VertexFormat.FLOAT3, VertexFormat.FLOAT3, VertexFormat.FLOAT2, VertexFormat.FLOAT4] @=> shader_desc.vertexLayout; // TODO make this default to builtin geometry layout
 
 Shader custom_shader(shader_desc); // create shader from shader_desc
@@ -129,8 +128,8 @@ custom_shader => material.shader; // connect shader to material
 
 GMesh mesh(plane_geo, material) --> GG.scene();
 
-Texture conway_tex_a(Texture.Usage_StorageBinding, Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
-Texture conway_tex_b(Texture.Usage_StorageBinding, Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
+Texture conway_tex_a(Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
+Texture conway_tex_b(Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
 
 int texture_data[4 * WINDOW_SIZE * WINDOW_SIZE];
 // TODO need a better way to specify texture size

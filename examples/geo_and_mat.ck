@@ -15,6 +15,7 @@ GMesh mesh --> GG.scene();
     new CircleGeometry,
     new TorusGeometry,
     new CylinderGeometry,
+    new KnotGeometry,
 ] @=> Geometry geometries[];
 
 UI_Int geometry_index;
@@ -27,6 +28,7 @@ UI_Int geometry_index;
     "CircleGeometry",
     "TorusGeometry",
     "CylinderGeometry",
+    "KnotGeometry",
 ] @=> string builtin_geometries[];
 
 [
@@ -175,6 +177,26 @@ fun void buildCylinder() {
     );
 }
 
+// Knot geometry params
+geometries[8] $ KnotGeometry @=> KnotGeometry@ knot_geo;
+UI_Float knot_radius(knot_geo.radius());
+UI_Float knot_tube(knot_geo.tube());
+UI_Int knot_tubular_segments(knot_geo.tubularSegments());
+UI_Int knot_radial_segments(knot_geo.radialSegments());
+UI_Int knot_p(knot_geo.p());
+UI_Int knot_q(knot_geo.q());
+fun void buildKnot() {
+    knot_geo.build(
+        knot_radius.val(),
+        knot_tube.val(),
+        knot_tubular_segments.val(),
+        knot_radial_segments.val(),
+        knot_p.val(),
+        knot_q.val()
+    );
+}
+
+
 UI_Bool rotate;
 fun void ui() {
     while (true) {
@@ -274,6 +296,16 @@ fun void ui() {
                 if (UI.checkbox("open ended", cylinder_open_ended)) buildCylinder();
                 if (UI.slider("theta start", cylinder_theta_start, 0, 2 * Math.PI)) buildCylinder();
                 if (UI.slider("theta length", cylinder_theta_length, 0, 2 * Math.PI)) buildCylinder();
+            }
+
+            // knot geometry params
+            if (mesh.geometry() == knot_geo) {
+                if (UI.slider("radius", knot_radius, 0.1, 10)) buildKnot();
+                if (UI.slider("tube", knot_tube, 0.1, 10)) buildKnot();
+                if (UI.slider("tubular segments", knot_tubular_segments, 3, 64)) buildKnot();
+                if (UI.slider("radial segments", knot_radial_segments, 3, 64)) buildKnot();
+                if (UI.slider("p", knot_p, 1, 20)) buildKnot();
+                if (UI.slider("q", knot_q, 1, 20)) buildKnot();
             }
         }
         UI.end();

@@ -95,6 +95,16 @@ CK_DLL_MFUN(cylinder_geo_get_openEnded);
 CK_DLL_MFUN(cylinder_geo_get_thetaStart);
 CK_DLL_MFUN(cylinder_geo_get_thetaLength);
 
+CK_DLL_CTOR(knot_geo_ctor);
+CK_DLL_CTOR(knot_geo_ctor_params);
+CK_DLL_MFUN(knot_geo_build);
+CK_DLL_MFUN(knot_geo_get_radius);
+CK_DLL_MFUN(knot_geo_get_tube);
+CK_DLL_MFUN(knot_geo_get_tubularSegments);
+CK_DLL_MFUN(knot_geo_get_radialSegments);
+CK_DLL_MFUN(knot_geo_get_p);
+CK_DLL_MFUN(knot_geo_get_q);
+
 static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 {
     // Geometry -----------------------------------------------------
@@ -469,6 +479,50 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
         END_CLASS();
     }
+
+    // knot --------------------------------------------------------
+    {
+        BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_KNOT],
+                    SG_CKNames[SG_COMPONENT_GEOMETRY]);
+
+        CTOR(knot_geo_ctor);
+
+        CTOR(knot_geo_ctor_params);
+        ARG("float", "radius");
+        ARG("float", "tube");
+        ARG("int", "tubularSegments");
+        ARG("int", "radialSegments");
+        ARG("int", "p");
+        ARG("int", "q");
+
+        MFUN(knot_geo_build, "void", "build");
+        ARG("float", "radius");
+        ARG("float", "tube");
+        ARG("int", "tubularSegments");
+        ARG("int", "radialSegments");
+        ARG("int", "p");
+        ARG("int", "q");
+
+        MFUN(knot_geo_get_radius, "float", "radius");
+        DOC_FUNC("Get the knot radius.");
+
+        MFUN(knot_geo_get_tube, "float", "tube");
+        DOC_FUNC("Get the knot tube radius.");
+
+        MFUN(knot_geo_get_tubularSegments, "int", "tubularSegments");
+        DOC_FUNC("Get the number of tubular segments.");
+
+        MFUN(knot_geo_get_radialSegments, "int", "radialSegments");
+        DOC_FUNC("Get the number of radial segments.");
+
+        MFUN(knot_geo_get_p, "int", "p");
+        DOC_FUNC("Get the knot p value.");
+
+        MFUN(knot_geo_get_q, "int", "q");
+        DOC_FUNC("Get the knot q value.");
+
+        END_CLASS();
+    }
 }
 
 // Geometry -----------------------------------------------------
@@ -477,20 +531,10 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 static void ulib_geometry_build(SG_Geometry* geo, void* params)
 {
     switch (geo->geo_type) {
-        case SG_GEOMETRY_SPHERE: {
-            SphereParams p = {};
-            if (params) p = *(SphereParams*)params;
-            SG_Geometry::buildSphere(geo, &p);
-        } break;
         case SG_GEOMETRY_PLANE: {
             PlaneParams p = {};
             if (params) p = *(PlaneParams*)params;
             SG_Geometry::buildPlane(geo, &p);
-        } break;
-        case SG_GEOMETRY_SUZANNE: {
-            SG_Geometry::buildSuzanne(geo);
-        } break;
-        case SG_GEOMETRY_LINES2D: {
         } break;
         case SG_GEOMETRY_BOX: {
             BoxParams p = {};
@@ -502,15 +546,30 @@ static void ulib_geometry_build(SG_Geometry* geo, void* params)
             if (params) p = *(CircleParams*)params;
             SG_Geometry::buildCircle(geo, &p);
         } break;
-        case SG_GEOMETRY_TORUS: {
-            TorusParams p = {};
-            if (params) p = *(TorusParams*)params;
-            SG_Geometry::buildTorus(geo, &p);
+        case SG_GEOMETRY_SPHERE: {
+            SphereParams p = {};
+            if (params) p = *(SphereParams*)params;
+            SG_Geometry::buildSphere(geo, &p);
         } break;
         case SG_GEOMETRY_CYLINDER: {
             CylinderParams p = {};
             if (params) p = *(CylinderParams*)params;
             SG_Geometry::buildCylinder(geo, &p);
+        } break;
+        case SG_GEOMETRY_TORUS: {
+            TorusParams p = {};
+            if (params) p = *(TorusParams*)params;
+            SG_Geometry::buildTorus(geo, &p);
+        } break;
+        case SG_GEOMETRY_SUZANNE: {
+            SG_Geometry::buildSuzanne(geo);
+        } break;
+        case SG_GEOMETRY_KNOT: {
+            KnotParams p = {};
+            if (params) p = *(KnotParams*)params;
+            SG_Geometry::buildKnot(geo, &p);
+        } break;
+        case SG_GEOMETRY_LINES2D: {
         } break;
         default: ASSERT(false);
     }
@@ -1228,4 +1287,74 @@ CK_DLL_MFUN(cylinder_geo_get_thetaStart)
 CK_DLL_MFUN(cylinder_geo_get_thetaLength)
 {
     RETURN->v_float = GET_GEOMETRY(SELF)->params.cylinder.thetaLength;
+}
+
+// Knot Geometry -----------------------------------------------------
+
+CK_DLL_CTOR(knot_geo_ctor)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_KNOT;
+
+    ulib_geometry_build(geo, NULL);
+}
+
+CK_DLL_CTOR(knot_geo_ctor_params)
+{
+    KnotParams params      = {};
+    params.radius          = GET_NEXT_FLOAT(ARGS);
+    params.tube            = GET_NEXT_FLOAT(ARGS);
+    params.tubularSegments = GET_NEXT_INT(ARGS);
+    params.radialSegments  = GET_NEXT_INT(ARGS);
+    params.p               = GET_NEXT_INT(ARGS);
+    params.q               = GET_NEXT_INT(ARGS);
+
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_KNOT;
+
+    ulib_geometry_build(geo, &params);
+}
+
+CK_DLL_MFUN(knot_geo_build)
+{
+    SG_Geometry* geo       = GET_GEOMETRY(SELF);
+    KnotParams params      = {};
+    params.radius          = GET_NEXT_FLOAT(ARGS);
+    params.tube            = GET_NEXT_FLOAT(ARGS);
+    params.tubularSegments = GET_NEXT_INT(ARGS);
+    params.radialSegments  = GET_NEXT_INT(ARGS);
+    params.p               = GET_NEXT_INT(ARGS);
+    params.q               = GET_NEXT_INT(ARGS);
+
+    ulib_geometry_build(geo, &params);
+}
+
+CK_DLL_MFUN(knot_geo_get_radius)
+{
+    RETURN->v_float = GET_GEOMETRY(SELF)->params.knot.radius;
+}
+
+CK_DLL_MFUN(knot_geo_get_tube)
+{
+    RETURN->v_float = GET_GEOMETRY(SELF)->params.knot.tube;
+}
+
+CK_DLL_MFUN(knot_geo_get_tubularSegments)
+{
+    RETURN->v_int = GET_GEOMETRY(SELF)->params.knot.tubularSegments;
+}
+
+CK_DLL_MFUN(knot_geo_get_radialSegments)
+{
+    RETURN->v_int = GET_GEOMETRY(SELF)->params.knot.radialSegments;
+}
+
+CK_DLL_MFUN(knot_geo_get_p)
+{
+    RETURN->v_int = GET_GEOMETRY(SELF)->params.knot.p;
+}
+
+CK_DLL_MFUN(knot_geo_get_q)
+{
+    RETURN->v_int = GET_GEOMETRY(SELF)->params.knot.q;
 }

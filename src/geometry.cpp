@@ -1071,3 +1071,115 @@ void Geometry_buildCylinder(GeometryArenaBuilder* gab, CylinderParams* params)
     // build tangents
     Geometry_computeTangents(gab);
 }
+
+// Knot ============================================================================
+
+static void Geometry_Knot_calculatePositionOnCurve(float u, int p, int q, float radius,
+                                                   glm::vec3& position)
+{
+
+    const float quOverP = (f32)q / p * u;
+    const float cs      = glm::cos(quOverP);
+
+    position.x = radius * (2 + cs) * 0.5 * glm::cos(u);
+    position.y = radius * (2 + cs) * glm::sin(u) * 0.5;
+    position.z = radius * glm::sin(quOverP) * 0.5;
+}
+
+void Geometry_buildKnot(GeometryArenaBuilder* gab, KnotParams* params)
+{
+    // buffers
+    const int num_vertices
+      = (params->tubularSegments + 1) * (params->radialSegments + 1);
+    const int num_indices = 2 * params->tubularSegments * params->radialSegments;
+
+    glm::vec3* positions = ARENA_PUSH_COUNT(gab->pos_arena, glm::vec3, num_vertices);
+    glm::vec3* normals   = ARENA_PUSH_COUNT(gab->norm_arena, glm::vec3, num_vertices);
+    gvec2f* uvs          = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec3i* indices      = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
+
+    glm::vec3 P1 = glm::vec3(0.0f);
+    glm::vec3 P2 = glm::vec3(0.0f);
+
+    glm::vec3 B = glm::vec3(0.0f);
+    glm::vec3 T = glm::vec3(0.0f);
+    glm::vec3 N = glm::vec3(0.0f);
+
+    // generate vertices, normals and uvs
+    int index = 0;
+    for (int i = 0; i <= params->tubularSegments; ++i) {
+
+        // the radian "u" is used to calculate the position on the torus curve of the
+        // current tubular segment
+
+        const float u = (f32)i / params->tubularSegments * params->p * PI * 2.0f;
+
+        // now we calculate two points. P1 is our current position on the curve, P2 is a
+        // little farther ahead. these points are used to create a special "coordinate
+        // space", which is necessary to calculate the correct vertex positions
+
+        Geometry_Knot_calculatePositionOnCurve(u, params->p, params->q, params->radius,
+                                               P1);
+        Geometry_Knot_calculatePositionOnCurve(u + 0.01, params->p, params->q,
+                                               params->radius, P2);
+
+        // calculate orthonormal basis
+        T = P2 - P1;
+        N = P2 + P1;
+        B = glm::normalize(glm::cross(T, N));
+        N = glm::normalize(glm::cross(B, T));
+
+        for (int j = 0; j <= params->radialSegments; ++j) {
+
+            // now calculate the vertices. they are nothing more than an extrusion of
+            // the torus curve. because we extrude a shape in the xy-plane, there is no
+            // need to calculate a z-value.
+
+            const float v  = (f32)j / params->radialSegments * PI * 2.0f;
+            const float cx = -params->tube * glm::cos(v);
+            const float cy = params->tube * glm::sin(v);
+
+            // now calculate the final vertex position.
+            // first we orient the extrusion with our basis vectors, then we add it to
+            // the current position on the curve
+
+            positions[index].x = P1.x + (cx * N.x + cy * B.x);
+            positions[index].y = P1.y + (cx * N.y + cy * B.y);
+            positions[index].z = P1.z + (cx * N.z + cy * B.z);
+
+            // normal (P1 is always the center/origin of the extrusion, thus we can use
+            // it to calculate the normal)
+
+            normals[index] = glm::normalize(positions[index] - P1);
+
+            // uv
+            uvs[index].x = (float)i / params->tubularSegments;
+            uvs[index].y = (float)j / params->radialSegments;
+
+            index++;
+        }
+    }
+    ASSERT(index == num_vertices);
+
+    // generate indices
+
+    index = 0;
+    for (int j = 1; j <= params->tubularSegments; j++) {
+        for (int i = 1; i <= params->radialSegments; i++) {
+
+            // indices
+            const u32 a = (params->radialSegments + 1) * (j - 1) + (i - 1);
+            const u32 b = (params->radialSegments + 1) * j + (i - 1);
+            const u32 c = (params->radialSegments + 1) * j + i;
+            const u32 d = (params->radialSegments + 1) * (j - 1) + i;
+
+            // faces
+            indices[index++] = { a, b, d };
+            indices[index++] = { b, c, d };
+        }
+    }
+    ASSERT(index == num_indices);
+
+    // build tangents
+    Geometry_computeTangents(gab);
+}

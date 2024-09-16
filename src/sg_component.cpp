@@ -472,6 +472,16 @@ void SG_Geometry::buildSuzanne(SG_Geometry* g)
     Geometry_buildSuzanne(&gab);
 }
 
+void SG_Geometry::buildKnot(SG_Geometry* g, KnotParams* p)
+{
+    ASSERT(g->geo_type == SG_GEOMETRY_KNOT);
+    g->params.knot = *p;
+
+    GeometryArenaBuilder gab;
+    SG_Geometry_initGABandNumComponents(&gab, g);
+    Geometry_buildKnot(&gab, p);
+}
+
 void SG_Geometry::buildBox(SG_Geometry* g, BoxParams* p)
 {
     ASSERT(g->geo_type == SG_GEOMETRY_BOX);
