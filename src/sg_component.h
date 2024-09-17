@@ -221,7 +221,7 @@ struct SG_Scene : public SG_Transform {
     Arena light_ids;
 
     // bookkeeping for automatic update (to prevent multiple updates per frame)
-    u64 last_auto_update_frame = 0;
+    i64 last_auto_update_frame = 0;
 
     static void setMainCamera(SG_Scene* scene, SG_Camera* camera);
 
@@ -244,7 +244,7 @@ struct SG_Scene : public SG_Transform {
     X(SG_GEOMETRY_TORUS, "TorusGeometry")                                              \
     X(SG_GEOMETRY_SUZANNE, "SuzanneGeometry")                                          \
     X(SG_GEOMETRY_KNOT, "KnotGeometry")                                                \
-    X(SG_GEOMETRY_LINES2D, "Lines2DGeometry")
+    X(SG_GEOMETRY_LINES2D, "LinesGeometry")
 
 enum SG_GeometryType {
 #define X(name, str) name,
@@ -339,7 +339,7 @@ struct SG_Shader : SG_Component {
 #define SG_MaterialTypeTable                                                           \
     X(SG_MATERIAL_INVALID = 0, "Invalid")                                              \
     X(SG_MATERIAL_CUSTOM, "Material")                                                  \
-    X(SG_MATERIAL_LINES2D, "Lines2DMaterial")                                          \
+    X(SG_MATERIAL_LINES2D, "LinesMaterial")                                            \
     X(SG_MATERIAL_FLAT, "FlatMaterial")                                                \
     X(SG_MATERIAL_UV, "UVMaterial")                                                    \
     X(SG_MATERIAL_NORMAL, "NormalMaterial")                                            \
@@ -586,6 +586,15 @@ struct SphericalCoords {
                          s.radius * sin(s.phi), // y
                          v * cos(s.theta)       // z
         );
+    }
+
+    static SphericalCoords fromCartesian(glm::vec3 c)
+    {
+        SphericalCoords s;
+        s.radius = glm::length(c);
+        s.theta  = atan2(c.x, c.z);
+        s.phi    = asin(c.y / s.radius);
+        return s;
     }
 };
 

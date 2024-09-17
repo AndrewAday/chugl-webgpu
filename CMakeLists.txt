@@ -194,6 +194,8 @@ if (MSVC)
         /wd4456
         # ignore unused local variables
         /wd4189
+        # ignore uninitialized member variables
+        /wd26495 
     )
     target_compile_options(
         ${PROJECT_NAME} PRIVATE

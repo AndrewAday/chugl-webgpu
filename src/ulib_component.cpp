@@ -1040,6 +1040,7 @@ CK_DLL_MFUN(ggen_get_scene)
 // ===============================================================
 
 #define GET_MESH(ckobj) SG_GetMesh(OBJ_MEMBER_UINT(ckobj, component_offset_id))
+#define GET_MESH_MATERIAL(ckobj) SG_GetMaterial(GET_MESH(ckobj)->_mat_id)
 
 CK_DLL_CTOR(gmesh_ctor);
 CK_DLL_CTOR(gmesh_ctor_params);
@@ -1051,6 +1052,16 @@ CK_DLL_MFUN(gmesh_set_geo);
 CK_DLL_MFUN(gmesh_set_mat_and_geo);
 
 CK_DLL_CTOR(glines2d_ctor);
+CK_DLL_MFUN(glines2d_set_line_positions);
+CK_DLL_MFUN(glines2d_set_line_colors);
+CK_DLL_MFUN(glines2d_set_width);
+CK_DLL_MFUN(glines2d_set_extrusion);
+CK_DLL_MFUN(glines2d_set_loop);
+CK_DLL_MFUN(glines2d_set_color);
+CK_DLL_MFUN(glines2d_get_width);
+CK_DLL_MFUN(glines2d_get_extrusion);
+CK_DLL_MFUN(glines2d_get_loop);
+CK_DLL_MFUN(glines2d_get_color);
 
 static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 {
@@ -1086,11 +1097,60 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
     QUERY->end_class(QUERY);
 
     // GLines2D -----------------------------------------------------
-    BEGIN_CLASS("GLines2D", SG_CKNames[SG_COMPONENT_MESH]);
+    {
+        BEGIN_CLASS("GLines", SG_CKNames[SG_COMPONENT_MESH]);
 
-    CTOR(glines2d_ctor);
+        CTOR(glines2d_ctor);
 
-    END_CLASS();
+        MFUN(glines2d_set_line_positions, "void", "positions");
+        ARG("vec2[]", "points");
+        DOC_FUNC(
+          "Set the line positions. Z values are fixed to 0.0. Equivalent to "
+          "LinesGeometry.linePoints()");
+
+        MFUN(glines2d_set_line_colors, "void", "colors");
+        ARG("vec3[]", "colors");
+        DOC_FUNC(
+          "Set the line colors. If the array is shorter than the number of lines, "
+          "the last color is used for the remaining lines. Equivalent to "
+          "LinesGeometry.lineColors()");
+
+        MFUN(glines2d_set_width, "void", "width");
+        ARG("float", "width");
+        DOC_FUNC("Set the thickness of the lines in the material.");
+
+        MFUN(glines2d_get_width, "float", "width");
+        DOC_FUNC("Get the thickness of the lines in the material.");
+
+        MFUN(glines2d_set_color, "void", "color");
+        ARG("vec3", "color");
+        DOC_FUNC("Set the line color");
+
+        MFUN(glines2d_get_color, "vec3", "color");
+        DOC_FUNC("Get the line color");
+
+        MFUN(glines2d_set_extrusion, "void", "extrusion");
+        ARG("float", "extrusion");
+        DOC_FUNC(
+          "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value "
+          "of "
+          "0.5 means the line width is split evenly on each side of each line segment "
+          "position.");
+
+        MFUN(glines2d_get_extrusion, "float", "extrusion");
+        DOC_FUNC("Get the miter extrusion ratio of the line.");
+
+        MFUN(glines2d_set_loop, "void", "loop");
+        ARG("int", "loop");
+        DOC_FUNC(
+          "Set whether the line segments form a closed loop. Set via GLines.loop(true) "
+          "or GLines.loop(false)");
+
+        MFUN(glines2d_get_loop, "int", "loop");
+        DOC_FUNC("Get whether the line segments form a closed loop.");
+
+        END_CLASS();
+    }
 }
 
 CK_DLL_CTOR(gmesh_ctor)
@@ -1186,4 +1246,89 @@ CK_DLL_CTOR(glines2d_ctor)
     SG_Mesh::setMaterial(mesh, mat);
 
     CQ_PushCommand_MeshUpdate(mesh);
+}
+
+CK_DLL_MFUN(glines2d_set_line_positions)
+{
+    SG_Mesh* mesh        = GET_MESH(SELF);
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+    SG_Geometry* geo     = SG_GetGeometry(mesh->_geo_id);
+    ulib_geo_lines2d_set_lines_points(geo, ck_arr);
+}
+
+CK_DLL_MFUN(glines2d_set_line_colors)
+{
+    SG_Mesh* mesh        = GET_MESH(SELF);
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+    SG_Geometry* geo     = SG_GetGeometry(mesh->_geo_id);
+    ulib_geo_lines2d_set_line_colors(geo, ck_arr);
+}
+
+CK_DLL_MFUN(glines2d_set_width)
+{
+    SG_Mesh* mesh         = GET_MESH(SELF);
+    SG_Material* material = SG_GetMaterial(mesh->_mat_id); // get the material
+    t_CKFLOAT width       = GET_NEXT_FLOAT(ARGS);
+
+    // TODO find better way to connect this with ulib_material impl
+    SG_Material::uniformFloat(material, 0, (f32)width);
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(glines2d_set_extrusion)
+{
+    SG_Mesh* mesh         = GET_MESH(SELF);
+    SG_Material* material = SG_GetMaterial(mesh->_mat_id); // get the material
+    t_CKFLOAT extrusion   = GET_NEXT_FLOAT(ARGS);
+
+    SG_Material::uniformFloat(material, 3, (f32)extrusion);
+    CQ_PushCommand_MaterialSetUniform(material, 3);
+}
+
+CK_DLL_MFUN(glines2d_set_loop)
+{
+    SG_Mesh* mesh         = GET_MESH(SELF);
+    SG_Material* material = SG_GetMaterial(mesh->_mat_id); // get the material
+    t_CKINT loop          = GET_NEXT_INT(ARGS);
+
+    SG_Material::uniformInt(material, 2, loop ? 1 : 0);
+    CQ_PushCommand_MaterialSetUniform(material, 2);
+}
+
+CK_DLL_MFUN(glines2d_set_color)
+{
+    SG_Mesh* mesh         = GET_MESH(SELF);
+    SG_Material* material = SG_GetMaterial(mesh->_mat_id); // get the material
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+
+    SG_Material::uniformVec3f(material, 1, glm::vec3(color.x, color.y, color.z));
+    CQ_PushCommand_MaterialSetUniform(material, 1);
+}
+
+CK_DLL_MFUN(glines2d_get_width)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    RETURN->v_float       = material ? material->uniforms[0].as.f : 0.0f;
+}
+
+CK_DLL_MFUN(glines2d_get_extrusion)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    RETURN->v_float       = material ? material->uniforms[3].as.f : 0.0f;
+}
+
+CK_DLL_MFUN(glines2d_get_loop)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    RETURN->v_int         = material ? material->uniforms[2].as.i : 0;
+}
+
+CK_DLL_MFUN(glines2d_get_color)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    RETURN->v_vec3        = {};
+    if (material) {
+        glm::vec3 color = material->uniforms[1].as.vec3f;
+        RETURN->v_vec3  = { color.x, color.y, color.z };
+    }
 }

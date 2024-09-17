@@ -451,7 +451,9 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
                                     SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE, bytes);
 
     u8* attribute_data = (u8*)memory;
-    memcpy(attribute_data, data, bytes);
+    if (bytes && data) {
+		memcpy(attribute_data, data, bytes);
+    }
 
     command->sg_id       = geo->id;
     command->location    = location;

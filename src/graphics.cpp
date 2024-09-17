@@ -427,6 +427,8 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
     if (width == 0 || height == 0) {
         ctx->window_minimized = true;
         return;
+    } else {
+        ctx->window_minimized = false;
     }
     // terminate depth buffer
     WGPU_RELEASE_RESOURCE(TextureView, ctx->depthTextureView);

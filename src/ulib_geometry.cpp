@@ -53,8 +53,10 @@ CK_DLL_MFUN(sphere_geo_get_thetaLength);
 
 CK_DLL_CTOR(suzanne_geo_ctor);
 
+CK_DLL_CTOR(lines2d_geo_ctor);
 CK_DLL_CTOR(lines2d_geo_ctor_params);
 CK_DLL_MFUN(lines2d_geo_set_line_points);
+CK_DLL_MFUN(lines2d_geo_set_line_colors);
 
 CK_DLL_CTOR(box_geo_ctor);
 CK_DLL_CTOR(box_geo_ctor_params);
@@ -295,13 +297,22 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_LINES2D],
                 SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
+    CTOR(lines2d_geo_ctor);
+
     // CTOR(lines2d_geo_ctor_params);
     // ARG("vec2[]", "points");
     // DOC_FUNC("construct with line points");
 
-    MFUN(lines2d_geo_set_line_points, "void", "linePoints");
+    MFUN(lines2d_geo_set_line_points, "void", "linePositions");
     ARG("vec2[]", "points");
     DOC_FUNC("Set the line positions. Z values are fixed to 0.0");
+
+    MFUN(lines2d_geo_set_line_colors, "void", "lineColors");
+    ARG("vec3[]", "colors");
+    DOC_FUNC(
+      "Set the line colors. Colors between line points are interpolated. If the number "
+      "of colors is less than the number of points, the vertices will cycle through "
+      "the colors.");
 
     END_CLASS();
 
@@ -570,6 +581,11 @@ static void ulib_geometry_build(SG_Geometry* geo, void* params)
             SG_Geometry::buildKnot(geo, &p);
         } break;
         case SG_GEOMETRY_LINES2D: {
+            // set default vertex positions and colors
+            f32 segment[2] = { 0.0f, 0.0f };
+            ulib_geo_lines2d_set_lines_points(geo, segment, ARRAY_LENGTH(segment));
+            f32 white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+            ulib_geo_lines2d_set_line_colors(geo, white, ARRAY_LENGTH(white));
         } break;
         default: ASSERT(false);
     }
@@ -696,8 +712,23 @@ CK_DLL_MFUN(geo_get_indices)
     RETURN->v_object = (Chuck_Object*)ck_arr;
 }
 
-static int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
-                                       Chuck_Object* ck_arr, int num_components)
+void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
+                                 int data_len)
+{
+    // store locally on SG_Geometry
+    Arena* pull_buffer = &geo->vertex_pull_buffers[location];
+    Arena::clear(pull_buffer);
+
+    f32* local_data = ARENA_PUSH_COUNT(pull_buffer, f32, data_len);
+    memcpy(local_data, data, data_len * sizeof(*data));
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetPulledVertexAttribute(geo, location, local_data,
+                                                    pull_buffer->curr);
+}
+
+int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
+                                Chuck_Object* ck_arr, int num_components)
 {
     int ck_arr_len  = 0;
     f32* local_data = NULL;
@@ -709,25 +740,33 @@ static int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
     switch (num_components) {
         case 1: {
             ck_arr_len
-              = g_chuglAPI->object->array_float_size((Chuck_ArrayFloat*)ck_arr);
+              = ck_arr ?
+                  g_chuglAPI->object->array_float_size((Chuck_ArrayFloat*)ck_arr) :
+                  0;
             local_data
               = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
             chugin_copyCkFloatArray((Chuck_ArrayFloat*)ck_arr, local_data, ck_arr_len);
         } break;
         case 2: {
-            ck_arr_len = g_chuglAPI->object->array_vec2_size((Chuck_ArrayVec2*)ck_arr);
+            ck_arr_len
+              = ck_arr ? g_chuglAPI->object->array_vec2_size((Chuck_ArrayVec2*)ck_arr) :
+                         0;
             local_data
               = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
             chugin_copyCkVec2Array((Chuck_ArrayVec2*)ck_arr, local_data);
         } break;
         case 3: {
-            ck_arr_len = g_chuglAPI->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr);
+            ck_arr_len
+              = ck_arr ? g_chuglAPI->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr) :
+                         0;
             local_data
               = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
             chugin_copyCkVec3Array((Chuck_ArrayVec3*)ck_arr, local_data);
         } break;
         case 4: {
-            ck_arr_len = g_chuglAPI->object->array_vec4_size((Chuck_ArrayVec4*)ck_arr);
+            ck_arr_len
+              = ck_arr ? g_chuglAPI->object->array_vec4_size((Chuck_ArrayVec4*)ck_arr) :
+                         0;
             local_data
               = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
             chugin_copyCkVec4Array((Chuck_ArrayVec4*)ck_arr, local_data);
@@ -999,11 +1038,48 @@ CK_DLL_CTOR(suzanne_geo_ctor)
 
 // Lines2D Geometry -----------------------------------------------------
 
-CK_DLL_CTOR(lines2d_geo_ctor_params)
+void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr)
+{
+    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3);
+}
+
+void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr)
+{
+    int ck_arr_len   = geoSetPulledVertexAttribute(geo, 0, ck_arr, 2);
+    int num_vertices = ck_arr_len > 0 ? 2 * (ck_arr_len + 1) : 0;
+    // always draw ck_arr_len+1 points to handle line loop
+    CQ_PushCommand_GeometrySetVertexCount(geo, num_vertices);
+}
+
+CK_DLL_CTOR(lines2d_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
     geo->geo_type    = SG_GEOMETRY_LINES2D;
+
+    ulib_geometry_build(geo, NULL);
+}
+
+CK_DLL_CTOR(lines2d_geo_ctor_params)
+{
+    ASSERT(false); // not implemented
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    geo->geo_type    = SG_GEOMETRY_LINES2D;
     // ==nice-to-have==
+}
+
+void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, f32* data, int data_len)
+{
+    ASSERT(data_len % 2 == 0);
+
+    geoSetPulledVertexAttribute(geo, 0, data, data_len);
+    int num_vertices = data_len > 0 ? (data_len + 2) : 0;
+    // always draw ck_arr_len+1 points to handle line loop
+    CQ_PushCommand_GeometrySetVertexCount(geo, num_vertices);
+}
+
+void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len)
+{
+    geoSetPulledVertexAttribute(geo, 1, data, data_len);
 }
 
 CK_DLL_MFUN(lines2d_geo_set_line_points)
@@ -1011,9 +1087,19 @@ CK_DLL_MFUN(lines2d_geo_set_line_points)
     Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
     SG_Geometry* geo     = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    int ck_arr_len = geoSetPulledVertexAttribute(geo, 0, ck_arr, 2);
-    // always draw ck_arr_len+1 points to handle line loop
-    CQ_PushCommand_GeometrySetVertexCount(geo, 2 * (ck_arr_len + 1));
+    ulib_geo_lines2d_set_lines_points(geo, ck_arr);
+}
+
+CK_DLL_MFUN(lines2d_geo_set_line_colors)
+{
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+    if (!ck_arr) return;
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    int length = API->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr);
+    if (length == 0) return;
+
+    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3);
 }
 
 // Box Geometry -----------------------------------------------------

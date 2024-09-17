@@ -296,8 +296,8 @@ CK_DLL_MFUN(texture_write)
     // TODO move into member fn?
     {
         Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
-        t_CKINT width          = GET_NEXT_INT(ARGS);
-        t_CKINT height         = GET_NEXT_INT(ARGS);
+        t_CKUINT width          = GET_NEXT_UINT(ARGS);
+        t_CKUINT height         = GET_NEXT_UINT(ARGS);
 
         int ck_arr_len = API->object->array_int_size(ck_arr);
 

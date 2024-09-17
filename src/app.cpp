@@ -790,9 +790,12 @@ struct App {
         R_Pass* root_pass = Component_GetPass(app->root_pass_id);
         R_Pass* pass      = Component_GetPass(root_pass->sg_pass.next_pass_id);
 
+        ASSERT(!(app->window_fb_height == 0 || app->window_fb_width == 0));
+
         while (pass) {
             switch (pass->sg_pass.pass_type) {
                 case SG_PassType_Render: {
+
                     // defaults to main_scene
                     R_Scene* scene = Component_GetScene(pass->sg_pass.scene_id);
                     ASSERT(scene);
@@ -1582,7 +1585,7 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     // update camera
     i32 width, height;
     glfwGetWindowSize(app->window, &width, &height);
-    f32 aspect = (f32)width / (f32)height;
+    f32 aspect = (width > 0 && height > 0) ? (f32)width / (f32)height : 1.0f;
     if (!camera) {
         // if camera not set by chugl user, use default camera
         app->camera.update(&app->camera, (f32)app->dt);
@@ -1782,8 +1785,10 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                     int num_vertices = (int)R_Geometry::vertexCount(geo);
                     int vertex_draw_count
                       = geo->vertex_count >= 0 ? geo->vertex_count : num_vertices;
-                    wgpuRenderPassEncoderDraw(render_pass, vertex_draw_count,
-                                              num_instances, 0, 0);
+                    if (vertex_draw_count > 0) {
+                        wgpuRenderPassEncoderDraw(render_pass, vertex_draw_count,
+                                                  num_instances, 0, 0);
+                    }
                 }
             } // foreach geometry
         } // foreach material

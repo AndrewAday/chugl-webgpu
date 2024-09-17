@@ -118,7 +118,7 @@ u64 Arena::offsetOf(Arena* a, void* ptr)
 {
     ASSERT(a->base != NULL);         // must be initialized
     ASSERT(ptr >= a->base);          // must be within the arena
-    ASSERT(ptr < a->base + a->curr); // must be within the arena
+    ASSERT(ptr <= a->base + a->curr); // must be within the arena
 
     return (u64)((u8*)ptr - a->base);
 }

@@ -261,7 +261,7 @@ void SG_Transform::addChild(SG_Transform* parent, SG_Transform* child)
             }
 
             // add children to queue
-            int num_children = SG_Transform::numChildren(sg);
+            size_t num_children = SG_Transform::numChildren(sg);
             for (size_t i = 0; i < num_children; ++i) {
                 *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID)
                   = *ARENA_GET_TYPE(&sg->childrenIDs, SG_ID, i);
@@ -293,7 +293,7 @@ static void SG_Transform_removeChildSubgraph(SG_Transform* parent, SG_Transform*
             }
 
             // add children to queue
-            int num_children = SG_Transform::numChildren(sg);
+            size_t num_children = SG_Transform::numChildren(sg);
             for (size_t i = 0; i < num_children; ++i) {
                 *ARENA_PUSH_TYPE(&sg_id_arena, SG_ID)
                   = *ARENA_GET_TYPE(&sg->childrenIDs, SG_ID, i);

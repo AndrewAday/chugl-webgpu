@@ -346,7 +346,7 @@ static void _Transform_RebuildDescendants(R_Scene* scene, R_Transform* xform,
 {
     // mark primitive as stale since world matrix will change
     if (xform->_geoID && xform->_matID) {
-        ASSERT(xform->type == SG_COMPONENT_MESH);
+        ASSERT(xform->type == SG_COMPONENT_MESH || xform->type == SG_COMPONENT_TEXT);
         R_Scene::getPrimitive(scene, xform->_geoID, xform->_matID)->stale = true;
     }
 
@@ -599,7 +599,7 @@ void R_Geometry::rebuildPullBindGroup(GraphicsContext* gctx, R_Geometry* geo,
     WGPUBindGroupEntry entries[SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS];
     int num_entries = 0;
     for (u32 i = 0; i < SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS; i++) {
-        if (geo->pull_buffers[i].size == 0) {
+        if (geo->pull_buffers[i].buf == NULL) {
             continue;
         }
 
@@ -1190,7 +1190,8 @@ void R_Scene::addSubgraphToRenderState(R_Scene* scene, R_Transform* root)
             // light should not already be in scene
             ASSERT(!replaced);
         } else if (xform->_geoID != 0 && xform->_matID != 0) { // for all renderables
-            ASSERT(xform->type == SG_COMPONENT_MESH);
+            ASSERT(xform->type == SG_COMPONENT_MESH
+                   || xform->type == SG_COMPONENT_TEXT);
 
             // try adding to bottom level GeometryToXform
             // if its not present, build up entire chain:
@@ -1282,7 +1283,7 @@ void R_Scene::registerMesh(R_Scene* scene, R_Transform* mesh)
 
     if (mesh->_geoID == 0 || mesh->_matID == 0) return;
 
-    ASSERT(mesh->type == SG_COMPONENT_MESH);
+    ASSERT(mesh->type == SG_COMPONENT_MESH || mesh->type == SG_COMPONENT_TEXT);
     GeometryToXforms* g2x = R_Scene::getPrimitive(scene, mesh->_geoID, mesh->_matID);
     GeometryToXforms::addXform(g2x, mesh->id);
 

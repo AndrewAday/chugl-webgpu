@@ -425,6 +425,154 @@ static const char* diffuse_shader_string  = R"glsl(
     }
 )glsl";
 
+static const char* phong_shader_string = R"glsl(
+
+    #include FRAME_UNIFORMS
+    #include LIGHTING_UNIFORMS
+    #include DRAW_UNIFORMS
+    #include STANDARD_VERTEX_INPUT
+    #include STANDARD_VERTEX_OUTPUT
+    #include STANDARD_VERTEX_SHADER
+
+    @group(1) @binding(0) var<uniform> u_specular_color : vec4f;
+    @group(1) @binding(1) var<uniform> u_diffuse_color : vec4f;
+    @group(1) @binding(2) var<uniform> u_shininess : f32; // range from (0, 2^n). must be > 0. logarithmic scale.
+
+    @group(1) @binding(3) texture_sampler: sampler;
+    @group(1) @binding(4) u_diffuse_map: texture_2d<f32>;   
+    @group(1) @binding(5) u_specular_map: texture_2d<f32>;
+
+    // calculate envmap contribution
+    // vec3 CalcEnvMapContribution(vec3 viewDir, vec3 norm)
+    // {
+    //     // TODO: envmap can be optimized by moving some calculations into vertex shader
+    //     vec3 envMapSampleDir = vec3(0.0);
+    //     if (u_EnvMapParams.method == ENV_MAP_METHOD_REFLECTION) {
+    //         envMapSampleDir = reflect(-viewDir, norm);
+    //     }
+    //     else if (u_EnvMapParams.method == ENV_MAP_METHOD_REFRACTION) {
+    //         envMapSampleDir = refract(-viewDir, norm, u_EnvMapParams.ratio);
+    //     }
+    //     return texture(u_Skybox, envMapSampleDir).rgb;
+    // }
+
+    // main =====================================================================================
+    @fragment 
+    fn fs_main(
+        in : VertexOutput,
+        @builtin(front_facing) is_front: bool,
+    ) -> @location(0) vec4f
+    {
+        // TODO normal mapping
+        var normal = normalize(in.v_normal);
+        if (!is_front) {
+            normal = -normal;
+        }
+
+        let viewDir = normalize(u_Frame.camera_pos - in.v_worldpos);  // direction from camera to this frag
+
+        // struct FrameUniforms {
+        //     projection: mat4x4f,
+        //     view: mat4x4f,
+        //     camera_pos: vec3f,
+        //     time: f32,
+        //     ambient_light: vec3f,
+        //     num_lights: i32,
+        // };
+
+        // struct LightUniforms {
+        //     color : vec3f,
+        //     light_type: i32,
+        //     position: vec3f,
+        //     direction: vec3f, 
+
+        //     // point light
+        //     point_radius: f32,
+        //     point_falloff: f32,
+
+        //     // spot light
+        //     spot_cos_angle: f32,
+        // };
+        // @group(0) @binding(1) var<storage, read> u_lights: array<LightUniforms>;
+
+        // struct VertexOutput {
+        //     @builtin(position) position : vec4f,
+        //     @location(0) v_worldpos : vec3f,
+        //     @location(1) v_normal : vec3f,
+        //     @location(2) v_uv : vec2f,
+        //     @location(3) v_tangent : vec4f,
+        // };
+
+        // material color properties (ignore alpha channel for now)
+        let diffuseTex = textureSample(u_diffuse_map, texture_sampler, in.v_uv);
+        let specularTex = textureSample(u_specular_map, texture_sampler, in.v_uv);
+        let diffuse = diffuseTex * u_diffuse_color;
+        let specular = specularTex * u_specular_color;
+
+        var lighting = vec3f(0.0); // accumulate lighting
+        for (var i = 0; i < u_Frame.num_lights; i++) {
+            let light = u_lights[i];
+            var L : vec3f = vec3(0.0);
+            var radiance : vec3f = vec3(0.0);
+            switch (light.light_type) {
+                case 1: { // directional
+                    let lightDir = normalize(-light.direction);
+                    // diffuse shading
+                    float diffuse_factor = max(dot(normal, lightDir), 0.0);
+                    // specular shading
+                    float specular_factor = pow(max(dot(viewDir,reflect(-lightDir, normal)), 0.0), u_shininess);
+                    let diffuse : vec3f = diffuse_factor * diffuse.rgb;
+                    let specular : vec3f = specular_factor * specular.rgb;
+                    // combine results
+                    lighting +=  (light.color * (diffuse + specular));
+                } 
+                case 2: { // point
+                    // calculate attenuation
+                    let dist = distance(in.v_worldpos, light.position);
+                    let attenuation = pow(
+                        clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
+                        light.point_falloff
+                    );
+                    let radiance : vec3f = light.color * attenuation;
+
+                    let lightDir = normalize(light.position - in.v_worldpos);
+
+                    // diffuse 
+                    float diffuse_factor = max(dot(normal, lightDir), 0.0);
+                    // specular 
+                    float specular_factor = max(pow(max(dot(viewDir, reflect(-lightDir, normal)), 0.0), shininess), 0.0);
+
+                    // combine results
+                    lighting += radiance * (diffuse.rgb * diffuse_factor + specular.rgb * specular_factor);
+                }
+                default: {} // no light
+            } // end switch light type
+        }  // end light loop
+
+        // ambient light
+        lighting += u_Frame.ambient_light * diffuse.rgb;
+
+        // calculate envmap contribution
+        // if (u_EnvMapParams.enabled) {
+        //     vec3 envMapContrib = CalcEnvMapContribution(viewDir, norm);
+        //     // blending
+        //     if (u_EnvMapParams.blendMode == ENV_MAP_BLEND_MODE_ADDITIVE) {
+        //         lighting += (u_EnvMapParams.intensity * envMapContrib);
+        //     }
+        //     else if (u_EnvMapParams.blendMode == ENV_MAP_BLEND_MODE_MULTIPLICATIVE) {
+        //         lighting *= (u_EnvMapParams.intensity * envMapContrib);
+        //     }
+        //     else if (u_EnvMapParams.blendMode == ENV_MAP_BLEND_MODE_MIX) {
+        //         lighting = mix(lighting, envMapContrib, u_EnvMapParams.intensity);
+        //     }
+        // }
+
+        result = vec4(
+            lighting, 
+            diffuse.a
+        );
+)glsl";
+
 static const char* lines2d_shader_string  = R"glsl(
 
 #include FRAME_UNIFORMS
@@ -440,14 +588,20 @@ static const char* lines2d_shader_string  = R"glsl(
 
 // stored as [x0, y0, x1, y1, ...]
 @group(3) @binding(0) var<storage, read> positions : array<f32>; // vertex pulling group 
+@group(3) @binding(1) var<storage, read> u_color_array: array<f32>; // per-vertex color rgb
 
 struct VertexInput {
     @builtin(instance_index) instance : u32,
 };
 
-#include STANDARD_VERTEX_OUTPUT
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_worldpos : vec3f,
+    @location(1) v_color : vec3f,
+};
 
-fn getPos(pos_idx : i32, num_points : i32) -> vec2f {
+fn getPos(pos_idx : i32, num_points : i32) -> vec2f 
+{
     var idx = pos_idx;
     if (pos_idx < 0) {
         idx += (num_points / 2);
@@ -534,29 +688,19 @@ fn vs_main(
     var out : VertexOutput;
     var u_Draw : DrawUniforms = drawInstances[in.instance];
 
-    let modelMat3 : mat3x3<f32> = mat3x3(
-        u_Draw.model[0].xyz,
-        u_Draw.model[1].xyz,
-        u_Draw.model[2].xyz
-    );
-
     let worldpos = u_Draw.model * vec4f(calculate_line_pos(vertex_id), 0.0, 1.0);
     out.position = (u_Frame.projection * u_Frame.view) * worldpos;
-    out.v_worldpos = worldpos.xyz;
 
-    out.v_normal = (u_Draw.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz;
-    // tangent vectors aren't impacted by non-uniform scaling or translation
-    out.v_tangent = vec4f(modelMat3 * vec3f(1.0, 0.0, 0.0), 1.0);
-
-    // map uv to progress along line
-    // TODO make this work with line loop / no loop
-    // let total_points = arrayLength(&positions) - 2u; // subtract 2 for sentinel points
-    let total_points = arrayLength(&positions);
-    out.v_uv.x = f32(vertex_id) / (2.0 * f32(total_points));
-    if (vertex_id % 2u == 0u) {
-        out.v_uv.y = 1.0;
-    } else {
-        out.v_uv.y = 0.0;
+    // color
+    out.v_color = vec3f(1.0);
+    var pos_idx = max(i32(vertex_id / 2u), 0);
+    let num_colors = i32(arrayLength(&u_color_array));
+    if (num_colors > 0) {
+        out.v_color = vec3f(
+            u_color_array[(3 * pos_idx + 0) % num_colors],
+            u_color_array[(3 * pos_idx + 1) % num_colors],
+            u_color_array[(3 * pos_idx + 2) % num_colors]
+        );
     }
 
     return out;
@@ -577,7 +721,9 @@ fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     // diffuse = diffuse * diffuse;
     // return vec4f(vec3f(diffuse), 1.0);
 
-    return vec4f(u_color, 1.0);
+
+    // return vec4f(u_color, 1.0);
+    return vec4f(u_color * in.v_color, 1.0);
 }
 )glsl";
 

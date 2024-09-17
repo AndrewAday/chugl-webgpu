@@ -28,6 +28,8 @@
 #define GET_NEXT_VEC2_ARRAY(ptr) (*((Chuck_ArrayVec2**&)ptr)++)
 #define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 
+#define ADVANCE_BY_INT(ptr) (((t_CKINT*&)ptr)++)
+
 #define OBJ_MEMBER_INT_ARRAY(obj, offset)                                              \
     (*(Chuck_ArrayInt**)OBJ_MEMBER_DATA(obj, offset))
 #define OBJ_MEMBER_FLOAT_ARRAY(obj, offset)                                            \
@@ -61,7 +63,7 @@ Chuck_VM* g_chuglVM  = NULL;
 CK_DL_API g_chuglAPI = NULL;
 Arena audio_frame_arena;
 f64 g_last_dt     = 0.0;
-u64 g_frame_count = 0;
+i64 g_frame_count = 0;
 
 // offset which stores the component's SG_ID.
 static t_CKUINT component_offset_id = 0;
@@ -90,6 +92,7 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID uv_shader_id;
     SG_ID normal_shader_id;
     SG_ID tangent_shader_id;
+    SG_ID phong_shader_id;
 
     // screen shaders
     SG_ID output_pass_shader_id;
@@ -187,6 +190,7 @@ int chugin_copyCkIntArray(Chuck_ArrayInt* ck_arr, int* arr, int count)
 // copies up to count elements from ck_arr to arr
 void chugin_copyCkFloatArray(Chuck_ArrayFloat* ck_arr, float* arr, int count)
 {
+    if (!ck_arr) return;
     int size = MIN(g_chuglAPI->object->array_float_size(ck_arr), count);
     for (int i = 0; i < size; i++) {
         arr[i] = (f32)g_chuglAPI->object->array_float_get_idx(ck_arr, i);
@@ -195,6 +199,7 @@ void chugin_copyCkFloatArray(Chuck_ArrayFloat* ck_arr, float* arr, int count)
 
 void chugin_copyCkVec2Array(Chuck_ArrayVec2* ck_arr, f32* arr)
 {
+    if (!ck_arr) return;
     int size = g_chuglAPI->object->array_vec2_size(ck_arr);
     for (int i = 0; i < size; i++) {
         t_CKVEC2 vec2  = g_chuglAPI->object->array_vec2_get_idx(ck_arr, i);
@@ -205,6 +210,7 @@ void chugin_copyCkVec2Array(Chuck_ArrayVec2* ck_arr, f32* arr)
 
 void chugin_copyCkVec3Array(Chuck_ArrayVec3* ck_arr, f32* arr)
 {
+    if (!ck_arr) return;
     int size = g_chuglAPI->object->array_vec3_size(ck_arr);
     for (int i = 0; i < size; i++) {
         t_CKVEC3 vec3  = g_chuglAPI->object->array_vec3_get_idx(ck_arr, i);
@@ -216,6 +222,7 @@ void chugin_copyCkVec3Array(Chuck_ArrayVec3* ck_arr, f32* arr)
 
 void chugin_copyCkVec4Array(Chuck_ArrayVec4* ck_arr, f32* arr)
 {
+    if (!ck_arr) return;
     int size = g_chuglAPI->object->array_vec4_size(ck_arr);
     for (int i = 0; i < size; i++) {
         t_CKVEC4 vec4  = g_chuglAPI->object->array_vec4_get_idx(ck_arr, i);
@@ -267,3 +274,11 @@ SG_Material* ulib_material_create(SG_MaterialType type, Chuck_VM_Shred* shred);
 
 // impl in ulib_geometry.cpp
 SG_Geometry* ulib_geometry_create(SG_GeometryType type, Chuck_VM_Shred* shred);
+int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
+                                Chuck_Object* ck_arr, int num_components);
+void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
+                                 int data_len);
+void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
+void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, f32* data, int data_len);
+void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
+void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);

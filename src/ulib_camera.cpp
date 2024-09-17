@@ -366,6 +366,14 @@ CK_DLL_MFUN(gcamera_world_pos_to_screen_coord)
 
 CK_DLL_CTOR(orbit_camera_ctor)
 {
+    SG_Camera* camera = GET_CAMERA(SELF);
+
+    // set camera transform to initial spherical coords
+    camera->pos = SphericalCoords::toCartesian(camera->orbit.spherical);
+    SG_Transform::lookAt(camera, VEC_ORIGIN);
+
+    CQ_PushCommand_SetPosition(camera);
+    CQ_PushCommand_SetRotation(camera);
 }
 
 CK_DLL_MFUN(orbit_camera_update)
@@ -378,6 +386,11 @@ CK_DLL_MFUN(orbit_camera_update)
     SG_OrbitCameraParams* orbit = &camera->orbit;
 
     // note: don't need to multiply by dt since it's scaled by mouse deltas
+
+    // update spherical coords to current camera position
+    // (length check to avoid NaNs)
+    if (glm::length(camera->pos) > 0.0f)
+        orbit->spherical = SphericalCoords::fromCartesian(camera->pos);
 
     // update scroll
     t_CKVEC2 scroll_deltas = CHUGL_scroll_delta();
