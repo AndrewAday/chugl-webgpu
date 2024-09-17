@@ -271,6 +271,7 @@ bool chugin_typeEquals(Chuck_Object* ckobj, const char* type_name)
 // impl in ulib_material.cpp
 void chugl_materialSetShader(SG_Material* material, SG_Shader* shader);
 SG_Material* ulib_material_create(SG_MaterialType type, Chuck_VM_Shred* shred);
+void ulib_material_cq_update_all_uniforms(SG_Material* material);
 
 // impl in ulib_geometry.cpp
 SG_Geometry* ulib_geometry_create(SG_GeometryType type, Chuck_VM_Shred* shred);

@@ -17,6 +17,7 @@
 #include "ulib_pass.cpp"
 #include "ulib_buffer.cpp"
 #include "ulib_light.cpp"
+#include "ulib_assloader.cpp"
 
 // vendor
 #include <sokol/sokol_time.h>
@@ -403,6 +404,7 @@ CK_DLL_QUERY(ChuGL)
     ulib_mesh_query(QUERY);
     ulib_pass_query(QUERY);
     ulib_text_query(QUERY);
+    ulib_assloader_query(QUERY);
 
     static u64 foo = 12345;
     { // GG static functions

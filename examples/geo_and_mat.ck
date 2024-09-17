@@ -31,26 +31,30 @@ UI_Int geometry_index;
     "KnotGeometry",
 ] @=> string builtin_geometries[];
 
+
+UVMaterial uv_material;
+NormalMaterial normal_material;
+TangentMaterial tangent_material;
+FlatMaterial flat_material;
+DiffuseMaterial diffuse_material;
+PhongMaterial phong_material;
+PBRMaterial pbr_material;
 [
     null,
-    new UVMaterial,
-    new NormalMaterial,
-    new TangentMaterial,
-    new FlatMaterial,
-    new DiffuseMaterial,
-    new PBRMaterial,
+    uv_material,
+    normal_material,
+    tangent_material,
+    flat_material,
+    diffuse_material,
+    phong_material,
+    pbr_material,
 ] @=> Material materials[];
 
 UI_Int material_index;
-[ 
-    "None",
-    "UVMaterial",
-    "NormalMaterial",
-    "TangentMaterial",
-    "FlatMaterial",
-    "DiffuseMaterial",
-    "PBRMaterial",
-] @=> string builtin_materials[];
+[ "None" ] @=> string builtin_materials[];
+for (1 => int i; i < materials.size(); i++) {
+    builtin_materials << Type.of(materials[i]).name();
+}
 
 
 // Material params
@@ -64,8 +68,16 @@ UI_Int material_topology_index(3); // default to triangle list
 ] @=> string material_topologies[];
 
 // Normal material params
-materials[2] $ NormalMaterial @=> NormalMaterial@ normal_material;
 UI_Bool normal_material_worldspace(normal_material.worldspaceNormals());
+
+
+// Phong material params
+UI_Float3 phong_specular(phong_material.specular());
+UI_Float3 phong_diffuse(phong_material.diffuse());
+UI_Float phong_shininess(phong_material.shininess());
+UI_Float3 phong_emission(phong_material.emission());
+UI_Float phong_normal_factor(phong_material.normalFactor());
+UI_Float phong_ao_factor(phong_material.aoFactor());
 
 // Plane geometry params
 geometries[1] $ PlaneGeometry @=> PlaneGeometry@ plane_geo;
@@ -220,7 +232,7 @@ fun void ui() {
                 }
             }
 
-            UI.separatorText("Material Params");
+            UI.separatorText("Base Material Params");
 
             if (mesh.material() != null) {
 
@@ -232,8 +244,37 @@ fun void ui() {
             }
 
             if (mesh.material() == normal_material) {
+                UI.separatorText("Normal Material Params");
+
                 if (UI.checkbox("worldspace normals", normal_material_worldspace)) {
                     normal_material.worldspaceNormals(normal_material_worldspace.val());
+                }
+            }
+
+            if (mesh.material() == phong_material) {
+                UI.separatorText("Phong Material Params");
+                if (UI.colorEdit("specular", phong_specular, 0)) {
+                    phong_specular.val() => phong_material.specular;
+                }
+
+                if (UI.colorEdit("diffuse", phong_diffuse, 0)) {
+                    phong_diffuse.val() => phong_material.diffuse;
+                }
+
+                if (UI.slider("shininess", phong_shininess, 0, 10)) {
+                    phong_shininess.val() => phong_material.shininess;
+                }
+
+                if (UI.colorEdit("emission", phong_emission, 0)) {
+                    phong_emission.val() => phong_material.emission;
+                }
+
+                if (UI.slider("normal factor", phong_normal_factor, 0, 1)) {
+                    phong_normal_factor.val() => phong_material.normalFactor;
+                }
+
+                if (UI.slider("ao factor", phong_ao_factor, 0, 1)) {
+                    phong_ao_factor.val() => phong_material.aoFactor;
                 }
             }
 

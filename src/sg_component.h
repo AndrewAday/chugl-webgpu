@@ -345,6 +345,7 @@ struct SG_Shader : SG_Component {
     X(SG_MATERIAL_NORMAL, "NormalMaterial")                                            \
     X(SG_MATERIAL_TANGENT, "TangentMaterial")                                          \
     X(SG_MATERIAL_DIFFUSE, "DiffuseMaterial")                                          \
+    X(SG_MATERIAL_PHONG, "PhongMaterial")                                              \
     X(SG_MATERIAL_PBR, "PBRMaterial")                                                  \
     X(SG_MATERIAL_TEXT3D, "TextMaterial")                                              \
     X(SG_MATERIAL_COMPUTE, "ComputeMaterial")

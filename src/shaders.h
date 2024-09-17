@@ -426,6 +426,8 @@ static const char* diffuse_shader_string  = R"glsl(
 )glsl";
 
 static const char* phong_shader_string = R"glsl(
+    // phong impl based off obj material model
+    // see https://www.fileformat.info/format/material/
 
     #include FRAME_UNIFORMS
     #include LIGHTING_UNIFORMS
@@ -434,13 +436,19 @@ static const char* phong_shader_string = R"glsl(
     #include STANDARD_VERTEX_OUTPUT
     #include STANDARD_VERTEX_SHADER
 
-    @group(1) @binding(0) var<uniform> u_specular_color : vec4f;
+    @group(1) @binding(0) var<uniform> u_specular_color : vec3f;
     @group(1) @binding(1) var<uniform> u_diffuse_color : vec4f;
     @group(1) @binding(2) var<uniform> u_shininess : f32; // range from (0, 2^n). must be > 0. logarithmic scale.
+    @group(1) @binding(3) var<uniform> u_emission_color : vec3f;
+    @group(1) @binding(4) var<uniform> u_normal_factor : f32;
+    @group(1) @binding(5) var<uniform> u_ao_factor : f32; // 0 disables ao
 
-    @group(1) @binding(3) texture_sampler: sampler;
-    @group(1) @binding(4) u_diffuse_map: texture_2d<f32>;   
-    @group(1) @binding(5) u_specular_map: texture_2d<f32>;
+    @group(1) @binding(6) var texture_sampler: sampler;
+    @group(1) @binding(7) var u_diffuse_map: texture_2d<f32>;   
+    @group(1) @binding(8) var u_specular_map: texture_2d<f32>;
+    @group(1) @binding(9) var u_ao_map: texture_2d<f32>;
+    @group(1) @binding(10) var u_emissive_map: texture_2d<f32>;
+    @group(1) @binding(11) var u_normal_map: texture_2d<f32>;
 
     // calculate envmap contribution
     // vec3 CalcEnvMapContribution(vec3 viewDir, vec3 norm)
@@ -456,6 +464,24 @@ static const char* phong_shader_string = R"glsl(
     //     return texture(u_Skybox, envMapSampleDir).rgb;
     // }
 
+    fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
+        var normal = inNormal;
+        if (!is_front) {
+            normal = -inNormal;
+        }
+
+        var tangentNormal : vec3f = textureSample(u_normal_map, texture_sampler, inUV).rgb * 2.0 - 1.0;
+        tangentNormal.x *= scale;
+        tangentNormal.y *= scale;
+
+        let N : vec3f = normalize(inNormal);
+        let T : vec3f = normalize(inTangent.xyz);
+        let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
+        let TBN : mat3x3f = mat3x3(T, B, N);
+
+        return normalize(TBN * tangentNormal);
+    }
+
     // main =====================================================================================
     @fragment 
     fn fs_main(
@@ -463,51 +489,20 @@ static const char* phong_shader_string = R"glsl(
         @builtin(front_facing) is_front: bool,
     ) -> @location(0) vec4f
     {
-        // TODO normal mapping
-        var normal = normalize(in.v_normal);
-        if (!is_front) {
-            normal = -normal;
-        }
+        var normal = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_normal_factor, is_front);
 
         let viewDir = normalize(u_Frame.camera_pos - in.v_worldpos);  // direction from camera to this frag
 
-        // struct FrameUniforms {
-        //     projection: mat4x4f,
-        //     view: mat4x4f,
-        //     camera_pos: vec3f,
-        //     time: f32,
-        //     ambient_light: vec3f,
-        //     num_lights: i32,
-        // };
-
-        // struct LightUniforms {
-        //     color : vec3f,
-        //     light_type: i32,
-        //     position: vec3f,
-        //     direction: vec3f, 
-
-        //     // point light
-        //     point_radius: f32,
-        //     point_falloff: f32,
-
-        //     // spot light
-        //     spot_cos_angle: f32,
-        // };
-        // @group(0) @binding(1) var<storage, read> u_lights: array<LightUniforms>;
-
-        // struct VertexOutput {
-        //     @builtin(position) position : vec4f,
-        //     @location(0) v_worldpos : vec3f,
-        //     @location(1) v_normal : vec3f,
-        //     @location(2) v_uv : vec2f,
-        //     @location(3) v_tangent : vec4f,
-        // };
 
         // material color properties (ignore alpha channel for now)
         let diffuseTex = textureSample(u_diffuse_map, texture_sampler, in.v_uv);
         let specularTex = textureSample(u_specular_map, texture_sampler, in.v_uv);
-        let diffuse = diffuseTex * u_diffuse_color;
-        let specular = specularTex * u_specular_color;
+        let aoTex = textureSample(u_ao_map, texture_sampler, in.v_uv);
+        let emissiveTex = textureSample(u_emissive_map, texture_sampler, in.v_uv);
+        // factor ao into diffuse
+        var diffuse_color = u_diffuse_color.rgb * diffuseTex.rgb;
+        diffuse_color = mix(diffuse_color, diffuse_color * aoTex.r, u_ao_factor);
+        let specular_color : vec3f = (specularTex.rgb * u_specular_color);
 
         var lighting = vec3f(0.0); // accumulate lighting
         for (var i = 0; i < u_Frame.num_lights; i++) {
@@ -518,13 +513,13 @@ static const char* phong_shader_string = R"glsl(
                 case 1: { // directional
                     let lightDir = normalize(-light.direction);
                     // diffuse shading
-                    float diffuse_factor = max(dot(normal, lightDir), 0.0);
+                    let diffuse_factor : f32 = max(dot(normal, lightDir), 0.0);
                     // specular shading
-                    float specular_factor = pow(max(dot(viewDir,reflect(-lightDir, normal)), 0.0), u_shininess);
-                    let diffuse : vec3f = diffuse_factor * diffuse.rgb;
-                    let specular : vec3f = specular_factor * specular.rgb;
+                    let specular_factor : f32 = pow(max(dot(viewDir,reflect(-lightDir, normal)), 0.0), u_shininess);
+                    let diffuse : vec3f = diffuse_factor * diffuse_color;
+                    let specular : vec3f = specular_factor * specular_color.rgb;
                     // combine results
-                    lighting +=  (light.color * (diffuse + specular));
+                    lighting +=  (light.color * (diffuse+ specular));
                 } 
                 case 2: { // point
                     // calculate attenuation
@@ -538,19 +533,22 @@ static const char* phong_shader_string = R"glsl(
                     let lightDir = normalize(light.position - in.v_worldpos);
 
                     // diffuse 
-                    float diffuse_factor = max(dot(normal, lightDir), 0.0);
+                    let diffuse_factor = max(dot(normal, lightDir), 0.0);
                     // specular 
-                    float specular_factor = max(pow(max(dot(viewDir, reflect(-lightDir, normal)), 0.0), shininess), 0.0);
+                    let specular_factor = max(pow(max(dot(viewDir, reflect(-lightDir, normal)), 0.0), u_shininess), 0.0);
 
                     // combine results
-                    lighting += radiance * (diffuse.rgb * diffuse_factor + specular.rgb * specular_factor);
+                    lighting += radiance * (diffuse_color * diffuse_factor + specular_color.rgb * specular_factor);
                 }
                 default: {} // no light
             } // end switch light type
         }  // end light loop
 
         // ambient light
-        lighting += u_Frame.ambient_light * diffuse.rgb;
+        lighting += u_Frame.ambient_light * diffuse_color;
+
+        // emissive
+        lighting += emissiveTex.rgb * u_emission_color;
 
         // calculate envmap contribution
         // if (u_EnvMapParams.enabled) {
@@ -567,10 +565,11 @@ static const char* phong_shader_string = R"glsl(
         //     }
         // }
 
-        result = vec4(
+        return vec4f(
             lighting, 
-            diffuse.a
+            diffuseTex.a
         );
+    }
 )glsl";
 
 static const char* lines2d_shader_string  = R"glsl(
