@@ -1129,25 +1129,24 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
         MFUN(glines2d_get_color, "vec3", "color");
         DOC_FUNC("Get the line color");
 
-        MFUN(glines2d_set_extrusion, "void", "extrusion");
-        ARG("float", "extrusion");
-        DOC_FUNC(
-          "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value "
-          "of "
-          "0.5 means the line width is split evenly on each side of each line segment "
-          "position.");
+        // MFUN(glines2d_set_extrusion, "void", "extrusion");
+        // ARG("float", "extrusion");
+        // DOC_FUNC(
+        //   "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value
+        //   " "of " "0.5 means the line width is split evenly on each side of each line
+        //   segment " "position.");
 
-        MFUN(glines2d_get_extrusion, "float", "extrusion");
-        DOC_FUNC("Get the miter extrusion ratio of the line.");
+        // MFUN(glines2d_get_extrusion, "float", "extrusion");
+        // DOC_FUNC("Get the miter extrusion ratio of the line.");
 
-        MFUN(glines2d_set_loop, "void", "loop");
-        ARG("int", "loop");
-        DOC_FUNC(
-          "Set whether the line segments form a closed loop. Set via GLines.loop(true) "
-          "or GLines.loop(false)");
+        // MFUN(glines2d_set_loop, "void", "loop");
+        // ARG("int", "loop");
+        // DOC_FUNC(
+        //   "Set whether the line segments form a closed loop. Set via
+        //   GLines.loop(true) " "or GLines.loop(false)");
 
-        MFUN(glines2d_get_loop, "int", "loop");
-        DOC_FUNC("Get whether the line segments form a closed loop.");
+        // MFUN(glines2d_get_loop, "int", "loop");
+        // DOC_FUNC("Get whether the line segments form a closed loop.");
 
         END_CLASS();
     }

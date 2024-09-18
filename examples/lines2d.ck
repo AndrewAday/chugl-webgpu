@@ -20,9 +20,9 @@ line_colors => lines.colors;
 
 // UI variables for line material params
 UI_Float line_width(lines.width());
-UI_Bool line_loop(lines.loop());
+// UI_Bool line_loop(lines.loop());
 UI_Float3 line_color(lines.color());
-UI_Float line_extrusion(lines.extrusion());
+// UI_Float line_extrusion(lines.extrusion());
 
 fun void ui() {
     while (true) {
@@ -36,13 +36,13 @@ fun void ui() {
                 line_color.val() => lines.color;
             }
 
-            if (UI.slider("line extrusion", line_extrusion, 0, 1)) {
-                line_extrusion.val() => lines.extrusion;
-            }
+            // if (UI.slider("line extrusion", line_extrusion, 0, 1)) {
+            //     line_extrusion.val() => lines.extrusion;
+            // }
 
-            if (UI.checkbox("line loop", line_loop)) {
-                line_loop.val() => lines.loop;   
-            }
+            // if (UI.checkbox("line loop", line_loop)) {
+            //     line_loop.val() => lines.loop;   
+            // }
 
             UI.separatorText("vertex positions");
             for (int i; i < line_positions.size(); i++) {

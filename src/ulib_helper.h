@@ -280,6 +280,5 @@ int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
 void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
                                  int data_len);
 void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
-void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, f32* data, int data_len);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);

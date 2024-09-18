@@ -580,8 +580,8 @@ static const char* lines2d_shader_string  = R"glsl(
 // TODO add color, extrustion, loop
 @group(1) @binding(0) var<uniform> u_line_width: f32;
 @group(1) @binding(1) var<uniform> u_color: vec3f;
-@group(1) @binding(2) var<uniform> u_loop: i32;
-@group(1) @binding(3) var<uniform> u_extrusion_ratio: f32; // how much of the line to extrude in miter direction vs -miter (defaults to 0.5)
+// @group(1) @binding(2) var<uniform> u_loop: i32;
+// @group(1) @binding(3) var<uniform> u_extrusion_ratio: f32; // how much of the line to extrude in miter direction vs -miter (defaults to 0.5)
 
 #include DRAW_UNIFORMS
 
@@ -599,80 +599,82 @@ struct VertexOutput {
     @location(1) v_color : vec3f,
 };
 
-fn getPos(pos_idx : i32, num_points : i32) -> vec2f 
+// old: for miter joins
+// fn getPos(pos_idx : i32, num_points : i32) -> vec2f 
+// {
+//     var idx = pos_idx;
+//     if (pos_idx < 0) {
+//         idx += (num_points / 2);
+//     } else if (pos_idx >= num_points / 2) {
+//         idx -= (num_points / 2);
+//     }
+//     return vec2f(
+//         positions[2 * idx + 0],  // x
+//         positions[2 * idx + 1]   // y
+//     );
+// }
+
+// for bevel joins
+fn getPos(vertex_idx : u32) -> vec2f 
 {
-    var idx = pos_idx;
-    if (pos_idx < 0) {
-        idx += (num_points / 2);
-    } else if (pos_idx >= num_points / 2) {
-        idx -= (num_points / 2);
-    }
+    let pos_idx = vertex_idx / 4u; // 4 vertices per line segment in bevel join
     return vec2f(
-        positions[2 * idx + 0],  // x
-        positions[2 * idx + 1]   // y
+        positions[2u * pos_idx + 0u],  // x
+        positions[2u * pos_idx + 1u]   // y
     );
 }
 
 fn calculate_line_pos(vertex_id : u32) -> vec2f
 {
-    let num_points = i32(arrayLength(&positions));
+    let vertex_idx = vertex_id + 4u; // adding 4 to account for sentinel start point
 
-    var pos_idx = i32(vertex_id / 2u);
-    var this_pos = getPos(pos_idx, num_points);
-    var pos = vec2f(0.0);
+    let this_pos = getPos(vertex_idx); // input segment pos
+    let next_pos = getPos(vertex_idx + 4u);
+    let prev_pos = getPos(vertex_idx - 4u);
+    var pos = vec2f(0.0); // final extruded pos
+    let bevel_idx = vertex_id % 4u;
 
-    // get even/odd (odd vertices are expanded down, even vertices are expanded up)
-    var orientation : f32 = 0.0;
-    var miter_mod : f32 = 1.0;
-    if (vertex_id % 2u == 0u) {
-        orientation = 1.0;
-        miter_mod = u_extrusion_ratio;
-    } else {
+    let prev_dir = normalize(this_pos - prev_pos);
+    let next_dir = normalize(next_pos - this_pos);
+    let prev_dir_perp = vec2f(-prev_dir.y, prev_dir.x);
+    let next_dir_perp = vec2f(-next_dir.y, next_dir.x);
+
+    // determine orientation from whether vectors are cw or ccw
+    var orientation = 1.0;
+    var ccw : bool = dot(-prev_dir_perp, next_dir) > 0.0; // next dir is ccw to prev dir
+    let cw : bool = !ccw;
+    if (cw) {
         orientation = -1.0;
-        miter_mod = 1.0 - u_extrusion_ratio;
     }
 
-    var prev_pos : vec2f;
-    var next_pos : vec2f;
+    // every 4 vertices 
+    /*
+    if ccw, we go bevel --> miter --> bevel --> miter
+    if cw, we go miter --> bevel --> miter --> bevel
+    */
 
-    // first point 
-    if (u_loop == 0 && pos_idx == 0) {
-        next_pos = getPos(pos_idx + 1, num_points);
-
-        var line_seg_dir = normalize(next_pos - this_pos);
-        var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
-
-        // adjust position
-        pos = this_pos + (u_line_width * miter_mod) * perp_dir;
-    } 
-    // last point or N+1 point 
-    // (we always draw N+1 points to close the loop, but if u_loop is disabled, 
-    // we draw the N+1th point on top of the last point)
-    else if (u_loop == 0 && pos_idx >= num_points / 2 - 1) {
-        // reset this_pos to the last point
-        this_pos = getPos(num_points / 2 - 1, num_points); // last point
-        prev_pos = getPos(num_points / 2 - 2, num_points); // second to last point
-
-        var line_seg_dir = normalize(this_pos - prev_pos);
-        var perp_dir = orientation * vec2f(-line_seg_dir.y, line_seg_dir.x);
-
-        // adjust position
-        pos = this_pos + (u_line_width * miter_mod) * perp_dir;
-    } else {
-        // middle points
-        prev_pos = getPos(pos_idx - 1, num_points);
-        next_pos = getPos(pos_idx + 1, num_points);
-
-        var prev_dir = normalize(this_pos - prev_pos);
-        var next_dir = normalize(next_pos - this_pos);
-        var prev_dir_perp = orientation * vec2f(-prev_dir.y, prev_dir.x);
-        var next_dir_perp = orientation * vec2f(-next_dir.y, next_dir.x);
-
-        var miter_dir = normalize(prev_dir_perp + next_dir_perp);
-        var miter_length = (u_line_width * miter_mod) / dot(miter_dir, prev_dir_perp);
-
-        // adjust position
-        pos = this_pos + miter_length * miter_dir;
+    if (
+        (ccw && (bevel_idx == 1u || bevel_idx == 3u))
+        ||
+        (cw && (bevel_idx == 0u || bevel_idx == 2u))
+    ) {
+        let miter_dir = 1.0 * normalize(prev_dir_perp + next_dir_perp);
+        let miter_length = (u_line_width * 0.5) / dot(miter_dir, prev_dir_perp);
+        pos = this_pos - orientation * miter_length * miter_dir;
+    }
+    else if (
+        (ccw && bevel_idx == 0u)
+        ||
+        (cw && bevel_idx == 1u)
+    ) {
+        pos = this_pos + orientation * (u_line_width * 0.5) * prev_dir_perp;
+    }
+    else if (
+        (ccw && bevel_idx == 2u)
+        || 
+        (cw && bevel_idx == 3u)
+    ) {
+        pos = this_pos + orientation * (u_line_width * 0.5) * next_dir_perp;
     }
 
     return pos;
@@ -692,7 +694,7 @@ fn vs_main(
 
     // color
     out.v_color = vec3f(1.0);
-    var pos_idx = max(i32(vertex_id / 2u), 0);
+    var pos_idx = max(i32(vertex_id / 4u), 0);
     let num_colors = i32(arrayLength(&u_color_array));
     if (num_colors > 0) {
         out.v_color = vec3f(

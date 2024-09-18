@@ -221,6 +221,7 @@ if ( MSVC )
 
         VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>") # static linking with CRT
 endif()
 
 # add include path
@@ -286,18 +287,12 @@ endif()
 # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 
-# C++17 needed for imgui
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
-
 # set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # The Box2D library uses simde https://github.com/simd-everywhere/simde
 add_subdirectory(vendor/simde)
 add_subdirectory(vendor/box2d/src)
-
-
 
 # linking
 # target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)

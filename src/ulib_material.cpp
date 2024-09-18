@@ -419,27 +419,27 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("vec3", "color");
     DOC_FUNC("Set the line color");
 
-    MFUN(lines2d_material_get_extrusion, "float", "extrusion");
-    DOC_FUNC(
-      "Get the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of "
-      "0.5 means the line width is split evenly on each side of each line segment "
-      "position.");
+    // MFUN(lines2d_material_get_extrusion, "float", "extrusion");
+    // DOC_FUNC(
+    //   "Get the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of
+    //   " "0.5 means the line width is split evenly on each side of each line segment "
+    //   "position.");
 
-    MFUN(lines2d_material_set_extrusion, "void", "extrusion");
-    ARG("float", "extrusion");
-    DOC_FUNC(
-      "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of "
-      "0.5 means the line width is split evenly on each side of each line segment "
-      "position.");
+    // MFUN(lines2d_material_set_extrusion, "void", "extrusion");
+    // ARG("float", "extrusion");
+    // DOC_FUNC(
+    //   "Set the miter extrusion ratio of the line. Varies from 0.0 to 1.0. A value of
+    //   " "0.5 means the line width is split evenly on each side of each line segment "
+    //   "position.");
 
-    MFUN(lines2d_material_get_loop, "int", "loop");
-    DOC_FUNC("Get whether the line segments form a closed loop");
+    // MFUN(lines2d_material_get_loop, "int", "loop");
+    // DOC_FUNC("Get whether the line segments form a closed loop");
 
-    MFUN(lines2d_material_set_loop, "void", "loop");
-    ARG("int", "loop");
-    DOC_FUNC(
-      "Set whether the line segments form a closed loop. Set via material.loop(true) "
-      "or material.loop(false)");
+    // MFUN(lines2d_material_set_loop, "void", "loop");
+    // ARG("int", "loop");
+    // DOC_FUNC(
+    //   "Set whether the line segments form a closed loop. Set via material.loop(true)
+    //   " "or material.loop(false)");
 
     END_CLASS();
 
@@ -1084,11 +1084,11 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
             SG_Material::uniformVec3f(material, 1, glm::vec3(1.0f)); // color
             CQ_PushCommand_MaterialSetUniform(material, 1);
 
-            SG_Material::uniformInt(material, 2, 0); // loop
-            CQ_PushCommand_MaterialSetUniform(material, 2);
+            // SG_Material::uniformInt(material, 2, 0); // loop
+            // CQ_PushCommand_MaterialSetUniform(material, 2);
 
-            SG_Material::uniformFloat(material, 3, 0.5f); // extrusion
-            CQ_PushCommand_MaterialSetUniform(material, 3);
+            // SG_Material::uniformFloat(material, 3, 0.5f); // extrusion
+            // CQ_PushCommand_MaterialSetUniform(material, 3);
 
             // shader
             SG_Shader* lines2d_shader
