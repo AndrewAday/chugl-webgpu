@@ -3,12 +3,10 @@ PlaneGeometry plane_geo;
 SphereGeometry sphere_geo;
 FlatMaterial mat1, mat2, mat3;
 
-// TODO port color class
-
 2 => float intensity;
 mat1.color( @(intensity, 0, 0));
 mat2.color( @(0, 0, intensity));
-mat3.color( @(0, intensity, 0));
+mat3.color( 4 * @(0, intensity, 0));
 
 GMesh plane_l(plane_geo, mat1) --> GG.scene();
 GMesh plane_r(plane_geo, mat2) --> GG.scene();

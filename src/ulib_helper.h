@@ -113,6 +113,11 @@ struct chugl_builtin_textures {
 };
 static chugl_builtin_textures g_builtin_textures;
 
+struct {
+    Chuck_ArrayFloat* empty_float_array;
+    Chuck_ArrayFloat* init_2d_pos; // {0.0, 0.0}
+} g_builting_ckobjs;
+
 // impl in ulib_texture.cpp
 SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc);
 
@@ -155,16 +160,14 @@ Chuck_VM_Shred* chugin_removeFromOriginShredMap(Chuck_Object* ckobj)
 }
 
 Chuck_Object* chugin_createCkObj(const char* type_name, bool add_ref,
-                                 Chuck_VM_Shred* shred)
+                                 Chuck_VM_Shred* shred = NULL)
 {
     Chuck_DL_Api::Type cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
-    return g_chuglAPI->object->create(shred, cktype, add_ref);
-}
-
-Chuck_Object* chugin_createCkObj(const char* type_name, bool add_ref)
-{
-    Chuck_DL_Api::Type cktype = g_chuglAPI->type->lookup(g_chuglVM, type_name);
-    return g_chuglAPI->object->create_without_shred(g_chuglVM, cktype, add_ref);
+    if (shred) {
+        return g_chuglAPI->object->create(shred, cktype, add_ref);
+    } else {
+        return g_chuglAPI->object->create_without_shred(g_chuglVM, cktype, add_ref);
+    }
 }
 
 const char* chugin_copyCkString(Chuck_String* ck_str)
@@ -282,3 +285,10 @@ void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
 void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);
+
+// impl in ulib_component.cpp
+struct SG_Mesh;
+struct SG_Geometry;
+struct SG_Material;
+SG_Mesh* ulib_mesh_create(Chuck_Object* mesh_ckobj, SG_Geometry* geo, SG_Material* mat,
+                          Chuck_VM_Shred* shred);

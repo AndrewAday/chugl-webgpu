@@ -387,6 +387,13 @@ CK_DLL_QUERY(ChuGL)
         QUERY->end_class(QUERY);
     }
 
+    { // create default ckobjs
+        g_builting_ckobjs.empty_float_array = chugin_createCkFloatArray(NULL, 0);
+        float init_2d_pos[2]                = { 0.0f, 0.0f };
+        g_builting_ckobjs.init_2d_pos
+          = chugin_createCkFloatArray(init_2d_pos, ARRAY_LENGTH(init_2d_pos));
+    }
+
     ulib_color_query(QUERY);
     ulib_box2d_query(QUERY);
 

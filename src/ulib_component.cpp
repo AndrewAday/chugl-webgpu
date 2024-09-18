@@ -1055,13 +1055,13 @@ CK_DLL_CTOR(glines2d_ctor);
 CK_DLL_MFUN(glines2d_set_line_positions);
 CK_DLL_MFUN(glines2d_set_line_colors);
 CK_DLL_MFUN(glines2d_set_width);
-CK_DLL_MFUN(glines2d_set_extrusion);
-CK_DLL_MFUN(glines2d_set_loop);
 CK_DLL_MFUN(glines2d_set_color);
 CK_DLL_MFUN(glines2d_get_width);
-CK_DLL_MFUN(glines2d_get_extrusion);
-CK_DLL_MFUN(glines2d_get_loop);
 CK_DLL_MFUN(glines2d_get_color);
+// CK_DLL_MFUN(glines2d_get_extrusion);
+// CK_DLL_MFUN(glines2d_get_loop);
+// CK_DLL_MFUN(glines2d_set_extrusion);
+// CK_DLL_MFUN(glines2d_set_loop);
 
 static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 {
@@ -1152,14 +1152,27 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
     }
 }
 
-CK_DLL_CTOR(gmesh_ctor)
+SG_Mesh* ulib_mesh_create(Chuck_Object* mesh_ckobj, SG_Geometry* geo, SG_Material* mat,
+                          Chuck_VM_Shred* shred)
 {
-    SG_Mesh* mesh = SG_CreateMesh(SELF, NULL, NULL);
+    CK_DL_API API = g_chuglAPI;
+
+    if (mesh_ckobj == NULL) {
+        mesh_ckobj = chugin_createCkObj(SG_CKNames[SG_COMPONENT_MESH], false, shred);
+    }
+
+    SG_Mesh* mesh = SG_CreateMesh(mesh_ckobj, geo, mat);
     ASSERT(mesh->type == SG_COMPONENT_MESH);
 
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
+    OBJ_MEMBER_UINT(mesh_ckobj, component_offset_id) = mesh->id;
 
     CQ_PushCommand_MeshUpdate(mesh);
+    return mesh;
+}
+
+CK_DLL_CTOR(gmesh_ctor)
+{
+    ulib_mesh_create(SELF, NULL, NULL, SHRED);
 }
 
 CK_DLL_CTOR(gmesh_ctor_params)
@@ -1170,12 +1183,7 @@ CK_DLL_CTOR(gmesh_ctor_params)
     SG_Geometry* sg_geo = SG_GetGeometry(OBJ_MEMBER_UINT(ck_geo, component_offset_id));
     SG_Material* sg_mat = SG_GetMaterial(OBJ_MEMBER_UINT(ck_mat, component_offset_id));
 
-    SG_Mesh* mesh                              = SG_CreateMesh(SELF, sg_geo, sg_mat);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = mesh->id;
-    ASSERT(mesh->_geo_id == sg_geo->id);
-    ASSERT(mesh->_mat_id == sg_mat->id);
-
-    CQ_PushCommand_MeshUpdate(mesh);
+    ulib_mesh_create(SELF, sg_geo, sg_mat, SHRED);
 }
 
 CK_DLL_MFUN(gmesh_get_mat)

@@ -1130,6 +1130,44 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
             SG_Material::uniformInt(material, 0, 1); // use_worldspace_tangents
             CQ_PushCommand_MaterialSetUniform(material, 0);
         } break;
+        case SG_MATERIAL_PHONG: {
+            SG_Shader* shader
+              = SG_GetShader(g_material_builtin_shaders.phong_shader_id);
+            chugl_materialSetShader(material, shader);
+
+            // init uniforms
+            {
+                SG_Material::uniformVec3f(material, 0,
+                                          glm::vec3(1.0f)); // specular color
+                SG_Material::uniformVec4f(material, 1,
+                                          glm::vec4(1.0f));    // diffuse color
+                SG_Material::uniformFloat(material, 2, 32.0f); // shininess
+                SG_Material::uniformVec3f(material, 3,
+                                          glm::vec3(0.0f));   // emission color
+                SG_Material::uniformFloat(material, 4, 1.0f); // normal factor
+                SG_Material::uniformFloat(material, 5, 1.0f); // ao factor
+
+                SG_Material::setSampler(material, 6,
+                                        SG_SAMPLER_DEFAULT); // texture sampler
+                SG_Material::setTexture(
+                  material, 7,
+                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // albedo
+                SG_Material::setTexture(
+                  material, 8,
+                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // specular
+                SG_Material::setTexture(
+                  material, 9,
+                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // ao
+                SG_Material::setTexture(
+                  material, 10,
+                  SG_GetTexture(g_builtin_textures.black_pixel_id)); // emissive
+                SG_Material::setTexture(
+                  material, 11,
+                  SG_GetTexture(g_builtin_textures.normal_pixel_id)); // normal
+
+                ulib_material_cq_update_all_uniforms(material);
+            }
+        } break;
         default: ASSERT(false);
     }
 }
@@ -1361,35 +1399,7 @@ CK_DLL_CTOR(phong_material_ctor)
     SG_Material* material   = GET_MATERIAL(SELF);
     material->material_type = SG_MATERIAL_PHONG;
 
-    // init shader
-    SG_Shader* shader = SG_GetShader(g_material_builtin_shaders.phong_shader_id);
-    ASSERT(shader);
-
-    chugl_materialSetShader(material, shader);
-
-    // init uniforms
-    {
-        SG_Material::uniformVec3f(material, 0, glm::vec3(1.0f)); // specular color
-        SG_Material::uniformVec4f(material, 1, glm::vec4(1.0f)); // diffuse color
-        SG_Material::uniformFloat(material, 2, 32.0f);           // shininess
-        SG_Material::uniformVec3f(material, 3, glm::vec3(0.0f)); // emission color
-        SG_Material::uniformFloat(material, 4, 1.0f);            // normal factor
-        SG_Material::uniformFloat(material, 5, 1.0f);            // ao factor
-
-        SG_Material::setSampler(material, 6, SG_SAMPLER_DEFAULT); // texture sampler
-        SG_Material::setTexture(
-          material, 7, SG_GetTexture(g_builtin_textures.white_pixel_id)); // albedo
-        SG_Material::setTexture(
-          material, 8, SG_GetTexture(g_builtin_textures.white_pixel_id)); // specular
-        SG_Material::setTexture(material, 9,
-                                SG_GetTexture(g_builtin_textures.white_pixel_id)); // ao
-        SG_Material::setTexture(
-          material, 10, SG_GetTexture(g_builtin_textures.black_pixel_id)); // emissive
-        SG_Material::setTexture(
-          material, 11, SG_GetTexture(g_builtin_textures.normal_pixel_id)); // normal
-
-        ulib_material_cq_update_all_uniforms(material);
-    }
+    ulib_material_init_uniforms_and_pso(material);
 }
 
 CK_DLL_MFUN(phong_material_get_specular_color)

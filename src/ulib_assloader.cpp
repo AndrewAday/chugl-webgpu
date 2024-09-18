@@ -62,6 +62,9 @@ CK_DLL_SFUN(assloader_load_obj)
         // obj_material.illum
     }
 
+    // for now just use phong material for all
+    SG_Material* phong_material = ulib_material_create(SG_MATERIAL_PHONG, SHRED);
+
     for (const rapidobj::Shape& shape : result.shapes) {
         if (!shape.lines.indices.empty()) {
             log_warn("Obj Shape \"%s\" has polylines; unsupported; skipping",
@@ -72,9 +75,38 @@ CK_DLL_SFUN(assloader_load_obj)
                      shape.name.c_str());
         }
 
-        // process mesh
+        // create geometry data
+        SG_Geometry* geo = ulib_geometry_create(SG_GEOMETRY, SHRED);
+
+        result.attributes.positions;
+        result.attributes.normals;
+        result.attributes.texcoords;
+
+#if 0
+        { // set attribute
+    ASSERT(location < SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES && location >= 0);
+    ASSERT(num_components >= 0);
+
+    Arena* arena = &geo->vertex_attribute_data[location];
+    Arena::clear(arena);
+
+    // write ck_array data to arena
+    f32* arena_data = ARENA_PUSH_COUNT(arena, f32, ck_arr_len);
+    for (int i = 0; i < ck_arr_len; i++)
+        arena_data[i] = (f32)api->object->array_float_get_idx(ck_array, i);
+
+    // set num components
+    geo->vertex_attribute_num_components[location] = num_components;
+
+    ASSERT(ARENA_LENGTH(arena, f32) == ck_arr_len);
+
+    return arena_data;
+        }
+#endif
+
         shape.mesh.indices;
-        shape.mesh.material_ids;
+
+        // shape.mesh.material_ids;
 
         // num_triangles += shape.mesh.num_face_vertices.size();
     }

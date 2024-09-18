@@ -542,6 +542,9 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 static void ulib_geometry_build(SG_Geometry* geo, void* params)
 {
     switch (geo->geo_type) {
+        case SG_GEOMETRY: {
+            // custom geometry has no setup
+        }; break;
         case SG_GEOMETRY_PLANE: {
             PlaneParams p = {};
             if (params) p = *(PlaneParams*)params;
@@ -583,8 +586,9 @@ static void ulib_geometry_build(SG_Geometry* geo, void* params)
         case SG_GEOMETRY_LINES2D: {
             // set default vertex positions and colors
             // f32 segment[2] = { 0.0f, 0.0f };
-            // ulib_geo_lines2d_set_lines_points(geo, segment, ARRAY_LENGTH(segment));
-            CQ_PushCommand_GeometrySetVertexCount(geo, 0);
+            ulib_geo_lines2d_set_lines_points(
+              geo, (Chuck_Object*)g_builting_ckobjs.init_2d_pos);
+            // CQ_PushCommand_GeometrySetVertexCount(geo, 0);
             f32 white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
             ulib_geo_lines2d_set_line_colors(geo, white, ARRAY_LENGTH(white));
         } break;
@@ -1112,7 +1116,7 @@ CK_DLL_CTOR(lines2d_geo_ctor_params)
 //     ASSERT(data_len % 2 == 0);
 
 //     geoSetPulledVertexAttribute(geo, 0, data, data_len);
-//     int num_vertices = data_len > 0 ? (data_len + 2) : 0;
+//     int num_vertices = data_len < 4 ? 0 : 4 * data_len;
 
 //     // always draw ck_arr_len+1 points to handle line loop
 //     CQ_PushCommand_GeometrySetVertexCount(geo, num_vertices);
