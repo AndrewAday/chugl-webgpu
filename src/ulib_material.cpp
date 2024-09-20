@@ -54,6 +54,12 @@ CK_DLL_MFUN(material_get_uniform_float4);
 
 CK_DLL_MFUN(material_set_uniform_int);
 CK_DLL_MFUN(material_get_uniform_int);
+CK_DLL_MFUN(material_set_uniform_int2);
+CK_DLL_MFUN(material_get_uniform_int2);
+CK_DLL_MFUN(material_set_uniform_int3);
+CK_DLL_MFUN(material_get_uniform_int3);
+CK_DLL_MFUN(material_set_uniform_int4);
+CK_DLL_MFUN(material_get_uniform_int4);
 
 // getting back storage buffers is tricky because it may have been modified by shader
 // so no getter for now (until we figure out compute shaders)
@@ -372,6 +378,33 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("vec4", "uniform_value");
 
     MFUN(material_get_uniform_float4, "vec4", "uniformVec4");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_int2, "void", "uniformInt2");
+    ARG("int", "location");
+    ARG("int", "x");
+    ARG("int", "y");
+
+    MFUN(material_get_uniform_int2, "int[]", "uniformInt2");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_int3, "void", "uniformInt3");
+    ARG("int", "location");
+    ARG("int", "x");
+    ARG("int", "y");
+    ARG("int", "z");
+
+    MFUN(material_get_uniform_int3, "int[]", "uniformInt3");
+    ARG("int", "location");
+
+    MFUN(material_set_uniform_int4, "void", "uniformInt4");
+    ARG("int", "location");
+    ARG("int", "x");
+    ARG("int", "y");
+    ARG("int", "z");
+    ARG("int", "w");
+
+    MFUN(material_get_uniform_int4, "int[]", "uniformInt4");
     ARG("int", "location");
 
     // storage buffers
@@ -1012,6 +1045,90 @@ CK_DLL_MFUN(material_get_uniform_int)
     }
 
     RETURN->v_int = material->uniforms[location].as.i;
+}
+
+CK_DLL_MFUN(material_set_uniform_int2)
+{
+    SG_Material* material    = GET_MATERIAL(SELF);
+    t_CKINT location         = GET_NEXT_INT(ARGS);
+    t_CKINT x                = GET_NEXT_INT(ARGS);
+    t_CKINT y                = GET_NEXT_INT(ARGS);
+    glm::ivec2 uniform_value = { x, y };
+
+    SG_Material::setUniform(material, location, &uniform_value,
+                            SG_MATERIAL_UNIFORM_IVEC2);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_int2)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_IVEC2) {
+        CK_THROW("MaterialGetUniformInt2", "Uniform location is not an int2", SHRED);
+    }
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkIntArray(
+      (int*)&material->uniforms[location].as.ivec2, 2);
+}
+
+CK_DLL_MFUN(material_set_uniform_int3)
+{
+    SG_Material* material    = GET_MATERIAL(SELF);
+    t_CKINT location         = GET_NEXT_INT(ARGS);
+    t_CKINT x                = GET_NEXT_INT(ARGS);
+    t_CKINT y                = GET_NEXT_INT(ARGS);
+    t_CKINT z                = GET_NEXT_INT(ARGS);
+    glm::ivec3 uniform_value = { x, y, z };
+
+    SG_Material::setUniform(material, location, &uniform_value,
+                            SG_MATERIAL_UNIFORM_IVEC3);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_int3)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_IVEC3) {
+        CK_THROW("MaterialGetUniformInt3", "Uniform location is not an int3", SHRED);
+    }
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkIntArray(
+      (int*)&material->uniforms[location].as.ivec3, 3);
+}
+
+CK_DLL_MFUN(material_set_uniform_int4)
+{
+    SG_Material* material    = GET_MATERIAL(SELF);
+    t_CKINT location         = GET_NEXT_INT(ARGS);
+    t_CKINT x                = GET_NEXT_INT(ARGS);
+    t_CKINT y                = GET_NEXT_INT(ARGS);
+    t_CKINT z                = GET_NEXT_INT(ARGS);
+    t_CKINT w                = GET_NEXT_INT(ARGS);
+    glm::ivec4 uniform_value = { x, y, z, w };
+
+    SG_Material::setUniform(material, location, &uniform_value,
+                            SG_MATERIAL_UNIFORM_IVEC4);
+
+    CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_uniform_int4)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_IVEC4) {
+        CK_THROW("MaterialGetUniformInt4", "Uniform location is not an int4", SHRED);
+    }
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkIntArray(
+      (int*)&material->uniforms[location].as.ivec4, 4);
 }
 
 CK_DLL_MFUN(material_set_storage_buffer)

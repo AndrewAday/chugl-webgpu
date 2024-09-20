@@ -1,7 +1,7 @@
 AssLoader ass_loader;
 
-ass_loader.loadObj(me.dir() + "../assets/suzanne.obj") @=> GGen@ model;
-// ass_loader.loadObj(me.dir() + "../assets/backpack/backpack.obj") @=> GGen@ model;
+// ass_loader.loadObj(me.dir() + "../assets/obj/suzanne.obj") @=> GGen@ model;
+ass_loader.loadObj(me.dir() + "../assets/obj/backpack/backpack.obj") @=> GGen@ model;
 
 model --> GG.scene();
 

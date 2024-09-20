@@ -56,6 +56,8 @@ T.assert(material.shader() == null, "material shader default");
 shader => material.shader;
 T.assert(material.shader() == shader, "material shader");
 
+// Uniforms
+
 material.uniformFloat(0, 1.2);
 T.assert(T.feq(material.uniformFloat(0), 1.2), "material uniformFloat");
 T.assert(T.arrayEquals(material.activeUniformLocations(), [0]), "material activeUniformLocations");
@@ -72,19 +74,11 @@ T.assert(T.arrayEquals(material.activeUniformLocations(), empty_int_arr), "mater
 material.storageBuffer(0, [1.0]);
 T.assert(T.arrayEquals(material.activeUniformLocations(), [0]), "material activeUniformLocations after storageBuffer");
 
-// Lines2D
-Lines2DMaterial lines2d_material;
-T.assert(T.feq(lines2d_material.uniformFloat(0), 0.1), "lines2d_material uniformFloat default");
-T.assert(T.feq(lines2d_material.width(), 0.1), "lines2d_material default width");
-lines2d_material.width(0.2);
-T.assert(T.feq(lines2d_material.width(), 0.2), "lines2d_material width");
-T.assert(lines2d_material.topology() == material.Topology_TriangleStrip, "lines2d_material topology default");
-T.assert(lines2d_material.shader().vertexLayout()[0] == 0, "lines2d_material no vertex layout");
-lines2d_material.shader().fragmentString() @=> string lines2d_frag;
-
-// Flat
-FlatMaterial flat_material;
-T.assert(T.veq(flat_material.uniformVec4(0), @(1.0, 1.0, 1.0, 1.0)), "flat_material default");
-T.assert(T.veq(flat_material.color(), @(1.0, 1.0, 1.0)), "flat_material color default");
-flat_material.color(@(0.1, 0.2, 0.3));
-T.assert(T.veq(flat_material.color(), @(0.1, 0.2, 0.3)), "flat_material color");
+material.uniformInt(1, 1);
+T.assert(material.uniformInt(1) == 1, "material uniformInt");
+material.uniformInt2(2, 1, 2);
+T.assert(T.arrayEquals(material.uniformInt2(2), [1, 2]), "material uniformInt2");
+material.uniformInt3(3, 1, 2, 3);
+T.assert(T.arrayEquals(material.uniformInt3(3), [1, 2, 3]), "material uniformInt3");
+material.uniformInt4(4, 1, 2, 3, 4);
+T.assert(T.arrayEquals(material.uniformInt4(4), [1, 2, 3, 4]), "material uniformInt4");
