@@ -113,6 +113,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
     SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE,
     SG_COMMAND_GEO_SET_VERTEX_COUNT,
+    SG_COMMAND_GEO_SET_INDICES_COUNT,
     SG_COMMAND_GEO_SET_INDICES,
 
     // texture
@@ -278,7 +279,7 @@ struct SG_Command_GeoSetVertexAttribute : public SG_Command {
     SG_ID sg_id;
     int location;
     int num_components;
-    int data_len;          // # of floats in data array
+    int data_size_bytes;
     ptrdiff_t data_offset; // byte offset into command queue arena for attribute data
 };
 
@@ -290,6 +291,11 @@ struct SG_Command_GeometrySetPulledVertexAttribute : public SG_Command {
 };
 
 struct SG_Command_GeometrySetVertexCount : public SG_Command {
+    SG_ID sg_id;
+    int count;
+};
+
+struct SG_Command_GeometrySetIndicesCount : public SG_Command {
     SG_ID sg_id;
     int count;
 };
@@ -502,12 +508,13 @@ void CQ_PushCommand_SceneUpdate(SG_Scene* scene);
 // geometry
 void CQ_PushCommand_GeometryCreate(SG_Geometry* geo);
 void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
-                                               int num_components, f32* data,
-                                               int data_len);
+                                               int num_components, void* data,
+                                               int data_size_bytes);
 void CQ_PushCommand_GeometrySetIndices(SG_Geometry* geo, u32* indices, int index_count);
 void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int location,
                                                      void* data, size_t bytes);
 void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count);
+void CQ_PushCommand_GeometrySetIndicesCount(SG_Geometry* geo, int count);
 
 // texture
 void CQ_PushCommand_TextureCreate(SG_Texture* texture);

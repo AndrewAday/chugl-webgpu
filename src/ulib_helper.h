@@ -28,6 +28,8 @@
 #define GET_NEXT_INT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 #define GET_NEXT_FLOAT_ARRAY(ptr) (*((Chuck_ArrayFloat**&)ptr)++)
 #define GET_NEXT_VEC2_ARRAY(ptr) (*((Chuck_ArrayVec2**&)ptr)++)
+#define GET_NEXT_VEC3_ARRAY(ptr) (*((Chuck_ArrayVec3**&)ptr)++)
+#define GET_NEXT_VEC4_ARRAY(ptr) (*((Chuck_ArrayVec4**&)ptr)++)
 #define GET_NEXT_OBJECT_ARRAY(ptr) (*((Chuck_ArrayInt**&)ptr)++)
 
 #define ADVANCE_BY_INT(ptr) (((t_CKINT*&)ptr)++)
@@ -117,7 +119,8 @@ static chugl_builtin_textures g_builtin_textures;
 
 struct {
     Chuck_ArrayFloat* empty_float_array;
-    Chuck_ArrayFloat* init_2d_pos; // {0.0, 0.0}
+    Chuck_ArrayFloat* init_2d_pos;     // {0.0, 0.0}
+    Chuck_ArrayVec3* init_white_color; // [@(1,1,1)]
 } g_builting_ckobjs;
 
 // impl in ulib_texture.cpp
@@ -258,6 +261,35 @@ Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count)
     return ck_arr;
 }
 
+Chuck_ArrayVec2* chugin_createCkFloat2Array(glm::vec2* arr, int count)
+{
+    Chuck_ArrayVec2* ck_arr = (Chuck_ArrayVec2*)chugin_createCkObj("vec2[]", false);
+    for (int i = 0; i < count; i++) {
+        g_chuglAPI->object->array_vec2_push_back(ck_arr, { arr[i].x, arr[i].y });
+    }
+    return ck_arr;
+}
+
+Chuck_ArrayVec3* chugin_createCkFloat3Array(glm::vec3* arr, int count)
+{
+    Chuck_ArrayVec3* ck_arr = (Chuck_ArrayVec3*)chugin_createCkObj("vec3[]", false);
+    for (int i = 0; i < count; i++) {
+        g_chuglAPI->object->array_vec3_push_back(ck_arr,
+                                                 { arr[i].x, arr[i].y, arr[i].z });
+    }
+    return ck_arr;
+}
+
+Chuck_ArrayVec4* chugin_createCkFloat4Array(glm::vec4* arr, int count)
+{
+    Chuck_ArrayVec4* ck_arr = (Chuck_ArrayVec4*)chugin_createCkObj("vec4[]", false);
+    for (int i = 0; i < count; i++) {
+        g_chuglAPI->object->array_vec4_push_back(
+          ck_arr, { arr[i].x, arr[i].y, arr[i].z, arr[i].w });
+    }
+    return ck_arr;
+}
+
 bool chugin_typeEquals(Chuck_Object* ckobj, const char* type_name)
 {
     Chuck_DL_Api::Type ggenType = g_chuglAPI->type->lookup(g_chuglVM, type_name);
@@ -280,10 +312,6 @@ void ulib_material_cq_update_all_uniforms(SG_Material* material);
 
 // impl in ulib_geometry.cpp
 SG_Geometry* ulib_geometry_create(SG_GeometryType type, Chuck_VM_Shred* shred);
-int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
-                                Chuck_Object* ck_arr, int num_components);
-void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
-                                 int data_len);
 void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);

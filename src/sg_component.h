@@ -294,8 +294,9 @@ struct SG_Geometry : SG_Component {
     static u32 indexCount(SG_Geometry* geo);
 
     // data_len is length of data in floats, not bytes not components
-    static f32* setAttribute(SG_Geometry* geo, int location, int num_components,
-                             CK_DL_API api, Chuck_ArrayFloat* ck_array, int ck_arr_len);
+    static Arena* setAttribute(SG_Geometry* geo, int location, int num_components,
+                               CK_DL_API api, Chuck_Object* ck_array,
+                               int ck_array_num_components, bool is_int);
     static u32* setIndices(SG_Geometry* geo, CK_DL_API API, Chuck_ArrayInt* indices,
                            int index_count);
     static u32* getIndices(SG_Geometry* geo);

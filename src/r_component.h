@@ -141,7 +141,8 @@ struct R_Geometry : public R_Component {
     // storage buffers for vertex pulling
     GPU_Buffer pull_buffers[SG_GEOMETRY_MAX_VERTEX_PULL_BUFFERS];
     WGPUBindGroup pull_bind_group;
-    int vertex_count = -1; // if set, overrides vertex count from vertices
+    int vertex_count  = -1; // if set, overrides vertex count from vertices
+    int indices_count = -1; // if set, overrides index count from indices
     bool pull_bind_group_dirty;
 
     static void init(R_Geometry* geo);

@@ -213,6 +213,7 @@ UI_Bool rotate;
 fun void ui() {
     while (true) {
         GG.nextFrame() => now; 
+        UI.setNextWindowBgAlpha(0.00);
         if (UI.begin("Geometry and Material Example")) {
 
             UI.scenegraph(GG.scene());

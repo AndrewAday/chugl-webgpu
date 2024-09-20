@@ -392,6 +392,9 @@ CK_DLL_QUERY(ChuGL)
         float init_2d_pos[2]                = { 0.0f, 0.0f };
         g_builting_ckobjs.init_2d_pos
           = chugin_createCkFloatArray(init_2d_pos, ARRAY_LENGTH(init_2d_pos));
+        glm::vec3 white_color = glm::vec3(1.0f);
+        g_builting_ckobjs.init_white_color
+          = chugin_createCkFloat3Array(&white_color, 1);
     }
 
     ulib_color_query(QUERY);

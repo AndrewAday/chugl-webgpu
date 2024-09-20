@@ -1371,7 +1371,6 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         App* app = (App*)glfwGetWindowUserPointer(window);
         UNUSED_VAR(app);
 
-
         CHUGL_scroll_delta(xoffset, yoffset);
     }
 
@@ -1417,7 +1416,7 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
     frameUniforms.projection    = R_Camera::projectionMatrix(camera, aspect);
-    frameUniforms.view = R_Camera::viewMatrix(camera);
+    frameUniforms.view          = R_Camera::viewMatrix(camera);
     frameUniforms.camera_pos    = camera->_pos;
     frameUniforms.time          = time;
     frameUniforms.ambient_light = scene->sg_scene_desc.ambient_light;
@@ -1591,9 +1590,8 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                 }
 
                 // populate index buffer
-                u32 num_indices = R_Geometry::indexCount(geo);
+                int num_indices = (int)R_Geometry::indexCount(geo);
                 if (num_indices > 0) {
-                    // indexed draw
                     wgpuRenderPassEncoderSetIndexBuffer(
                       render_pass, geo->gpu_index_buffer.buf, WGPUIndexFormat_Uint32, 0,
                       geo->gpu_index_buffer.size);
@@ -2029,13 +2027,10 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE: {
             SG_Command_GeoSetVertexAttribute* cmd
               = (SG_Command_GeoSetVertexAttribute*)command;
-            R_Geometry* geo = Component_GetGeometry(cmd->sg_id);
-
-            f32* data = (f32*)CQ_ReadCommandGetOffset(cmd->data_offset);
-
-            R_Geometry::setVertexAttribute(&app->gctx, geo, cmd->location,
-                                           cmd->num_components, data, cmd->data_len);
-
+            R_Geometry::setVertexAttribute(
+              &app->gctx, Component_GetGeometry(cmd->sg_id), cmd->location,
+              cmd->num_components, CQ_ReadCommandGetOffset(cmd->data_offset),
+              cmd->data_size_bytes);
         } break;
         case SG_COMMAND_GEO_SET_PULLED_VERTEX_ATTRIBUTE: {
             SG_Command_GeometrySetPulledVertexAttribute* cmd
@@ -2050,6 +2045,12 @@ static void _R_HandleCommand(App* app, SG_Command* command)
         case SG_COMMAND_GEO_SET_VERTEX_COUNT: {
             SG_Command_GeometrySetVertexCount* cmd
               = (SG_Command_GeometrySetVertexCount*)command;
+            R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
+            geo->vertex_count = cmd->count;
+        } break;
+        case SG_COMMAND_GEO_SET_INDICES_COUNT: {
+            SG_Command_GeometrySetIndicesCount* cmd
+              = (SG_Command_GeometrySetIndicesCount*)command;
             R_Geometry* geo   = Component_GetGeometry(cmd->sg_id);
             geo->vertex_count = cmd->count;
         } break;

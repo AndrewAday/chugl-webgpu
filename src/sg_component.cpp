@@ -547,27 +547,76 @@ u32 SG_Geometry::indexCount(SG_Geometry* geo)
     return ARENA_LENGTH(&geo->indices, u32);
 }
 
-f32* SG_Geometry::setAttribute(SG_Geometry* geo, int location, int num_components,
-                               CK_DL_API api, Chuck_ArrayFloat* ck_array,
-                               int ck_arr_len)
+Arena* SG_Geometry::setAttribute(SG_Geometry* geo, int location, int num_components,
+                                 CK_DL_API api, Chuck_Object* ck_array,
+                                 int ck_array_num_components, bool is_int)
 {
     ASSERT(location < SG_GEOMETRY_MAX_VERTEX_ATTRIBUTES && location >= 0);
     ASSERT(num_components >= 0);
 
     Arena* arena = &geo->vertex_attribute_data[location];
     Arena::clear(arena);
-
-    // write ck_array data to arena
-    f32* arena_data = ARENA_PUSH_COUNT(arena, f32, ck_arr_len);
-    for (int i = 0; i < ck_arr_len; i++)
-        arena_data[i] = (f32)api->object->array_float_get_idx(ck_array, i);
-
-    // set num components
     geo->vertex_attribute_num_components[location] = num_components;
 
-    ASSERT(ARENA_LENGTH(arena, f32) == ck_arr_len);
-
-    return arena_data;
+    if (is_int) {
+        ASSERT(ck_array_num_components == 1);
+        // write ck_array data to arena
+        int ck_arr_len  = api->object->array_int_size((Chuck_ArrayInt*)ck_array);
+        i32* arena_data = ARENA_PUSH_COUNT(arena, i32, ck_arr_len);
+        for (int i = 0; i < ck_arr_len; i++)
+            arena_data[i]
+              = (i32)api->object->array_int_get_idx((Chuck_ArrayInt*)ck_array, i);
+        ASSERT(ARENA_LENGTH(arena, i32) == ck_arr_len);
+    } else {
+        switch (ck_array_num_components) {
+            case 1: {
+                int ck_arr_len
+                  = api->object->array_float_size((Chuck_ArrayFloat*)ck_array);
+                f32* arena_data = ARENA_PUSH_COUNT(arena, f32, ck_arr_len);
+                for (int i = 0; i < ck_arr_len; i++)
+                    arena_data[i] = (f32)api->object->array_float_get_idx(
+                      (Chuck_ArrayFloat*)ck_array, i);
+                ASSERT(ARENA_LENGTH(arena, f32) == ck_arr_len);
+            } break;
+            case 2: {
+                int ck_arr_len
+                  = api->object->array_vec2_size((Chuck_ArrayVec2*)ck_array);
+                glm::vec2* arena_data = ARENA_PUSH_COUNT(arena, glm::vec2, ck_arr_len);
+                for (int i = 0; i < ck_arr_len; i++) {
+                    t_CKVEC2 v
+                      = api->object->array_vec2_get_idx((Chuck_ArrayVec2*)ck_array, i);
+                    arena_data[i] = { v.x, v.y };
+                }
+                ASSERT(ARENA_LENGTH(arena, glm::vec2) == ck_arr_len);
+            } break;
+            case 3: {
+                int ck_arr_len
+                  = api->object->array_vec3_size((Chuck_ArrayVec3*)ck_array);
+                glm::vec3* arena_data = ARENA_PUSH_COUNT(arena, glm::vec3, ck_arr_len);
+                for (int i = 0; i < ck_arr_len; i++) {
+                    t_CKVEC3 v
+                      = api->object->array_vec3_get_idx((Chuck_ArrayVec3*)ck_array, i);
+                    arena_data[i] = { v.x, v.y, v.z };
+                }
+                ASSERT(ARENA_LENGTH(arena, glm::vec3) == ck_arr_len);
+            } break;
+            case 4: {
+                int ck_arr_len
+                  = api->object->array_vec4_size((Chuck_ArrayVec4*)ck_array);
+                glm::vec4* arena_data = ARENA_PUSH_COUNT(arena, glm::vec4, ck_arr_len);
+                for (int i = 0; i < ck_arr_len; i++) {
+                    t_CKVEC4 v
+                      = api->object->array_vec4_get_idx((Chuck_ArrayVec4*)ck_array, i);
+                    arena_data[i] = { v.x, v.y, v.z, v.w };
+                }
+                ASSERT(ARENA_LENGTH(arena, glm::vec4) == ck_arr_len);
+            } break;
+            default: {
+                ASSERT(false);
+            }
+        }
+    }
+    return arena;
 }
 
 u32* SG_Geometry::setIndices(SG_Geometry* geo, CK_DL_API API, Chuck_ArrayInt* indices,

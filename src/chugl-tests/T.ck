@@ -45,45 +45,6 @@ public class T {
     //     return equals;
     // }
 
-    fun static int arrayEquals(int a[], int b[]) {
-        if (a == null && b == null) {
-            return 1;
-        }
-        if (a == null || b == null) {
-            return 0;
-        }
-        if (a.size() != b.size()) {
-            return 0;
-        }
-        for (0 => int i; i < a.size(); ++i) {
-            if (a[i] != b[i]) {
-                return 0;
-            }
-        }
-        return 1;
-    }
-
-    fun static int arrayEquals(float a[], float b[]) {
-        if (a == null && b == null) {
-            return 1;
-        }
-        if (a == null || b == null) {
-            return 0;
-        }
-        if (a.size() != b.size()) {
-            return 0;
-        }
-        for (0 => int i; i < a.size(); ++i) {
-            if (!T.feq(a[i], b[i])) {
-                <<< a[i], " != ", b[i], " at index ", i >>>;
-                T.println("Arrays not equal:");
-                T.printArray(a);
-                T.printArray(b);
-                return 0;
-            }
-        }
-        return 1;
-    }
 
     fun static int feq(float a, float b) {
         return Math.fabs(a - b) < 0.0001;
@@ -148,7 +109,22 @@ public class T {
         }
         chout <= "]" <= IO.nl();
     }
-    
+
+    fun static void printArray(vec3 arr[]) {
+        chout <= "[ ";
+        for (0 => int i; i < arr.size(); ++i) {
+            chout <= "( " <= arr[i].x <= ", " <= arr[i].y <= ", " <= arr[i].z <= " ), ";
+        }
+        chout <= "]" <= IO.nl();
+    }
+
+    fun static void printArray(vec4 arr[]) {
+        chout <= "[ ";
+        for (0 => int i; i < arr.size(); ++i) {
+            chout <= "( " <= arr[i].x <= ", " <= arr[i].y <= ", " <= arr[i].z <= ", " <= arr[i].w <= " ), ";
+        }
+        chout <= "]" <= IO.nl();
+    }
 
     fun static void printArray(int arr[]) {
         T.printArray(arr, 1);
@@ -156,5 +132,111 @@ public class T {
 
     fun static void printArray(float arr[]) {
         T.printArray(arr, 1);
+    }
+
+    fun static int arrayEquals(int a[], int b[]) {
+        if (a == null && b == null) {
+            return 1;
+        }
+        if (a == null || b == null) {
+            return 0;
+        }
+        if (a.size() != b.size()) {
+            return 0;
+        }
+        for (0 => int i; i < a.size(); ++i) {
+            if (a[i] != b[i]) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    fun static int arrayEquals(float a[], float b[]) {
+        if (a == null && b == null) {
+            return 1;
+        }
+        if (a == null || b == null) {
+            return 0;
+        }
+        if (a.size() != b.size()) {
+            return 0;
+        }
+        for (0 => int i; i < a.size(); ++i) {
+            if (!T.feq(a[i], b[i])) {
+                <<< a[i], " != ", b[i], " at index ", i >>>;
+                T.println("Arrays not equal:");
+                T.printArray(a);
+                T.printArray(b);
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    fun static int arrayEquals(vec2 a[], vec2 b[]) {
+        if (a == null && b == null) {
+            return 1;
+        }
+        if (a == null || b == null) {
+            return 0;
+        }
+        if (a.size() != b.size()) {
+            return 0;
+        }
+        for (0 => int i; i < a.size(); ++i) {
+            if (!T.veq(a[i], b[i])) {
+                <<< a[i], " != ", b[i], " at index ", i >>>;
+                T.println("Arrays not equal:");
+                T.printArray(a);
+                T.printArray(b);
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    fun static int arrayEquals(vec3 a[], vec3 b[]) {
+        if (a == null && b == null) {
+            return 1;
+        }
+        if (a == null || b == null) {
+            return 0;
+        }
+        if (a.size() != b.size()) {
+            return 0;
+        }
+        for (0 => int i; i < a.size(); ++i) {
+            if (!T.veq(a[i], b[i])) {
+                <<< a[i], " != ", b[i], " at index ", i >>>;
+                T.println("Arrays not equal:");
+                T.printArray(a);
+                T.printArray(b);
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    fun static int arrayEquals(vec4 a[], vec4 b[]) {
+        if (a == null && b == null) {
+            return 1;
+        }
+        if (a == null || b == null) {
+            return 0;
+        }
+        if (a.size() != b.size()) {
+            return 0;
+        }
+        for (0 => int i; i < a.size(); ++i) {
+            if (!T.veq(a[i], b[i])) {
+                <<< a[i], " != ", b[i], " at index ", i >>>;
+                T.println("Arrays not equal:");
+                T.printArray(a);
+                T.printArray(b);
+                return 0;
+            }
+        }
+        return 1;
     }
 }

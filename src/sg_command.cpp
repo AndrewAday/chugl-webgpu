@@ -406,31 +406,30 @@ void CQ_PushCommand_GeometryCreate(SG_Geometry* geo)
 }
 
 // copies data pointer into command arena. does NOT take ownership
+// assumes data is 4bytes (i32 or f32)
+// data_len is the number of elements in data array, NOT size in bytes
 void CQ_PushCommand_GeometrySetVertexAttribute(SG_Geometry* geo, int location,
-                                               int num_components, f32* data,
-                                               int data_len)
+                                               int num_components, void* data,
+                                               int data_size_bytes)
 {
-    if (data == NULL || data_len == 0 || num_components == 0) return;
+    if (data == NULL || data_size_bytes == 0 || num_components == 0) return;
 
     BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_GeoSetVertexAttribute,
                                     SG_COMMAND_GEO_SET_VERTEX_ATTRIBUTE,
-                                    data_len * sizeof(*data));
+                                    data_size_bytes);
 
     // get cq memory for vertex data
     f32* attribute_data = (f32*)memory;
-    memcpy(attribute_data, data, data_len * sizeof(*data));
+    memcpy(attribute_data, data, data_size_bytes);
 
-    command->sg_id             = geo->id;
-    command->num_components    = num_components;
-    command->location          = location;
-    command->data_len          = data_len;
-    command->data_offset       = Arena::offsetOf(cq.write_q, attribute_data);
-    command->nextCommandOffset = cq.write_q->curr;
+    command->sg_id           = geo->id;
+    command->num_components  = num_components;
+    command->location        = location;
+    command->data_size_bytes = data_size_bytes;
+    command->data_offset     = Arena::offsetOf(cq.write_q, attribute_data);
 
-    ASSERT(command->nextCommandOffset - command->data_offset
-           == (data_len * sizeof(*data)));
-
-    ASSERT(command->data_len % num_components == 0);
+    ASSERT((data_size_bytes % 4) == 0);
+    ASSERT((data_size_bytes / 4) % num_components == 0);
 
     END_COMMAND();
 }
@@ -472,6 +471,14 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
 void CQ_PushCommand_GeometrySetVertexCount(SG_Geometry* geo, int count)
 {
     BEGIN_COMMAND(SG_Command_GeometrySetVertexCount, SG_COMMAND_GEO_SET_VERTEX_COUNT);
+    command->sg_id = geo->id;
+    command->count = count;
+    END_COMMAND();
+}
+
+void CQ_PushCommand_GeometrySetIndicesCount(SG_Geometry* geo, int count)
+{
+    BEGIN_COMMAND(SG_Command_GeometrySetIndicesCount, SG_COMMAND_GEO_SET_INDICES_COUNT);
     command->sg_id = geo->id;
     command->count = count;
     END_COMMAND();

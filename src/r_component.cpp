@@ -513,53 +513,6 @@ u32 R_Geometry::vertexAttributeCount(R_Geometry* geo)
     return ARRAY_LENGTH(geo->vertex_attribute_num_components);
 }
 
-void R_Geometry::buildFromVertices(GraphicsContext* gctx, R_Geometry* geo,
-                                   Vertices* vertices)
-{
-    // TODO: optimization. Flag if tangents are already present
-    // actually tangents should be built before being passed...
-    Vertices::buildTangents(vertices);
-
-    // write indices
-    if (vertices->indicesCount > 0) {
-        R_Geometry::setIndices(gctx, geo, vertices->indices, vertices->indicesCount);
-    }
-
-    // TODO probably refactor vertices to encode attrib layout (# components and
-    // location)
-    { // write vertices
-        R_Geometry::setVertexAttribute(gctx, geo, 0, 3, Vertices::positions(vertices),
-                                       vertices->vertexCount);
-
-        R_Geometry::setVertexAttribute(gctx, geo, 1, 3, Vertices::normals(vertices),
-                                       vertices->vertexCount);
-
-        R_Geometry::setVertexAttribute(gctx, geo, 2, 2, Vertices::texcoords(vertices),
-                                       vertices->vertexCount);
-
-        R_Geometry::setVertexAttribute(gctx, geo, 3, 4, Vertices::tangents(vertices),
-                                       vertices->vertexCount);
-    }
-
-    Vertices::free(vertices);
-}
-
-// data count is # of floats in data array NOT length / num_components
-void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
-                                    u32 location, u32 num_components, f32* data,
-                                    u32 data_count)
-{
-    ASSERT(location >= 0
-           && location < ARRAY_LENGTH(geo->vertex_attribute_num_components));
-
-    ASSERT(data_count % num_components == 0);
-
-    geo->vertex_attribute_num_components[location] = num_components;
-    GPU_Buffer::write(gctx, &geo->gpu_vertex_buffers[location],
-                      (WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst), data,
-                      data_count * sizeof(f32));
-}
-
 void R_Geometry::setVertexAttribute(GraphicsContext* gctx, R_Geometry* geo,
                                     u32 location, u32 num_components_per_attrib,
                                     void* data, size_t size)

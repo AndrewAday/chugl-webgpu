@@ -15,21 +15,39 @@
 CK_DLL_CTOR(geo_ctor);
 
 CK_DLL_MFUN(geo_set_vertex_attribute);
+CK_DLL_MFUN(geo_set_vertex_attribute_int);
+
+CK_DLL_MFUN(geo_set_positions);
+CK_DLL_MFUN(geo_set_normals);
+CK_DLL_MFUN(geo_set_uvs);
+CK_DLL_MFUN(geo_set_tangents);
+CK_DLL_MFUN(geo_get_positions);
+CK_DLL_MFUN(geo_get_normals);
+CK_DLL_MFUN(geo_get_uvs);
+CK_DLL_MFUN(geo_get_tangents);
+
 CK_DLL_MFUN(geo_get_vertex_attribute_num_components);
 CK_DLL_MFUN(geo_get_vertex_attribute_num_components_all);
+
 CK_DLL_MFUN(geo_get_vertex_attribute_data);
+CK_DLL_MFUN(geo_get_vertex_attribute_data_int);
 
 CK_DLL_MFUN(geo_set_indices);
 CK_DLL_MFUN(geo_get_indices);
 
 CK_DLL_MFUN(geo_set_vertex_count);
-// CK_DLL_MFUN(geo_set_indices_count); // TODO
 
 CK_DLL_MFUN(geo_set_pulled_vertex_attribute);
 CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec2);
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec3);
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec4);
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_int);
 CK_DLL_MFUN(geo_get_pulled_vertex_attribute);
+CK_DLL_MFUN(geo_get_pulled_vertex_attribute_int);
 
 CK_DLL_MFUN(geo_generate_tangents);
+
+// end Geometry -----------------------------------------------------
 
 CK_DLL_CTOR(plane_geo_ctor);
 CK_DLL_CTOR(plane_geo_ctor_params);
@@ -118,19 +136,19 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     static t_CKINT uv_attr_loc{ SG_GEOMETRY_UV_ATTRIBUTE_LOCATION };
     static t_CKINT tangent_attr_loc{ SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION };
 
-    SVAR("int", "MAX_VERTEX_ATTRIBUTES", &sg_geometry_max_attributes);
+    SVAR("int", "AttributeLocation_Count", &sg_geometry_max_attributes);
     DOC_VAR("Maximum number of vertex attributes.");
 
-    SVAR("int", "POSITION_ATTRIBUTE_LOCATION", &pos_attr_loc);
+    SVAR("int", "AttributeLocation_Position", &pos_attr_loc);
     DOC_VAR("Position attribute location used by builtin renderer");
 
-    SVAR("int", "NORMAL_ATTRIBUTE_LOCATION", &norm_attr_loc);
+    SVAR("int", "AttributeLocation_Normal", &norm_attr_loc);
     DOC_VAR("Normal attribute location used by builtin renderer");
 
-    SVAR("int", "UV_ATTRIBUTE_LOCATION", &uv_attr_loc);
+    SVAR("int", "AttributeLocation_UV", &uv_attr_loc);
     DOC_VAR("UV attribute location used by builtin renderer");
 
-    SVAR("int", "TANGENT_ATTRIBUTE_LOCATION", &tangent_attr_loc);
+    SVAR("int", "AttributeLocation_Tangent", &tangent_attr_loc);
     DOC_VAR("Tangent attribute location used by builtin renderer");
 
     // ctor
@@ -143,7 +161,51 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     ARG("float[]", "attributeData");
     DOC_FUNC(
       "Set the vertex attribute data for a geometry. location must be between "
-      "0 and MAX_VERTEX_ATTRIBUTES.");
+      "0 and AttributeLocation_Max.");
+
+    MFUN(geo_set_vertex_attribute_int, "void", "vertexAttribute");
+    ARG("int", "location");
+    ARG("int", "numComponents");
+    ARG("int[]", "attributeData");
+    DOC_FUNC(
+      "Set the vertex attribute data for a geometry. location must be between "
+      "0 and Geometry.AttributeLocation_Count");
+
+    MFUN(geo_set_positions, "void", "positions");
+    ARG("vec3[]", "positions");
+    DOC_FUNC(
+      "Set the positions for a geometry. Equivalent to setVertexAttribute(0, 3, "
+      "positions)");
+
+    MFUN(geo_set_normals, "void", "normals");
+    ARG("vec3[]", "normals");
+    DOC_FUNC(
+      "Set the normals for a geometry. Equivalent to setVertexAttribute(1, 3, "
+      "normals)");
+
+    MFUN(geo_set_uvs, "void", "uvs");
+    ARG("vec2[]", "uvs");
+    DOC_FUNC("Set the UVs for a geometry. Equivalent to setVertexAttribute(2, 2, uvs)");
+
+    MFUN(geo_set_tangents, "void", "tangents");
+    ARG("vec4[]", "tangents");
+    DOC_FUNC(
+      "Set the tangents for a geometry. Equivalent to setVertexAttribute(3, 4, "
+      "tangents)");
+
+    MFUN(geo_get_positions, "vec3[]", "positions");
+    DOC_FUNC(
+      "Get the positions for a geometry. Equivalent to getVertexAttributeData(0)");
+
+    MFUN(geo_get_normals, "vec3[]", "normals");
+    DOC_FUNC("Get the normals for a geometry. Equivalent to getVertexAttributeData(1)");
+
+    MFUN(geo_get_uvs, "vec2[]", "uvs");
+    DOC_FUNC("Get the UVs for a geometry. Equivalent to getVertexAttributeData(2)");
+
+    MFUN(geo_get_tangents, "vec4[]", "tangents");
+    DOC_FUNC(
+      "Get the tangents for a geometry. Equivalent to getVertexAttributeData(3)");
 
     MFUN(geo_get_vertex_attribute_num_components, "int",
          "vertexAttributeNumComponents");
@@ -158,6 +220,10 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     DOC_FUNC("Get the vertex data for a vertex attribute. Default empty array.");
 
+    MFUN(geo_get_vertex_attribute_data_int, "int[]", "vertexAttributeDataInt");
+    ARG("int", "location");
+    DOC_FUNC("Get the vertex data for a vertex attribute. Default empty array.");
+
     MFUN(geo_set_indices, "void", "indices");
     ARG("int[]", "indices");
     DOC_FUNC("Set the indices for a geometry.");
@@ -169,7 +235,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     ARG("float[]", "data");
     DOC_FUNC(
-      "Set storage buffer for programmable vertex pulling.  pulled attriubtes will be "
+      "Set storage buffer for programmable vertex pulling.  pulled attributes will be "
       "set as storage buffers bound to @group(3) in the shader. Location must be "
       "between 0-3");
 
@@ -177,11 +243,41 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     ARG("vec2[]", "data");
     DOC_FUNC(
-      "Set storage buffer for programmable vertex pulling.  pulled attriubtes will be "
+      "Set storage buffer for programmable vertex pulling.  pulled attributes will be "
+      "set as storage buffers bound to @group(3) in the shader. Location must be "
+      "between 0-3");
+
+    MFUN(geo_set_pulled_vertex_attribute_vec3, "void", "pulledVertexAttribute");
+    ARG("int", "location");
+    ARG("vec3[]", "data");
+    DOC_FUNC(
+      "Set storage buffer for programmable vertex pulling.  pulled attributes will be "
+      "set as storage buffers bound to @group(3) in the shader. Location must be "
+      "between 0-3");
+
+    MFUN(geo_set_pulled_vertex_attribute_vec4, "void", "pulledVertexAttribute");
+    ARG("int", "location");
+    ARG("vec4[]", "data");
+    DOC_FUNC(
+      "Set storage buffer for programmable vertex pulling.  pulled attributes will be "
+      "set as storage buffers bound to @group(3) in the shader. Location must be "
+      "between 0-3");
+
+    MFUN(geo_set_pulled_vertex_attribute_int, "void", "pulledVertexAttribute");
+    ARG("int", "location");
+    ARG("int[]", "data");
+    DOC_FUNC(
+      "Set storage buffer for programmable vertex pulling.  pulled attributes will be "
       "set as storage buffers bound to @group(3) in the shader. Location must be "
       "between 0-3");
 
     MFUN(geo_get_pulled_vertex_attribute, "float[]", "pulledVertexAttribute");
+    ARG("int", "location");
+    DOC_FUNC(
+      "Get the pulled vertex attribute data at this location. location must be "
+      "between 0-3");
+
+    MFUN(geo_get_pulled_vertex_attribute_int, "int[]", "pulledVertexAttributeInt");
     ARG("int", "location");
     DOC_FUNC(
       "Get the pulled vertex attribute data at this location. location must be "
@@ -587,12 +683,10 @@ static void ulib_geometry_build(SG_Geometry* geo, SG_GeometryType geo_type,
         } break;
         case SG_GEOMETRY_LINES2D: {
             // set default vertex positions and colors
-            // f32 segment[2] = { 0.0f, 0.0f };
             ulib_geo_lines2d_set_lines_points(
               geo, (Chuck_Object*)g_builting_ckobjs.init_2d_pos);
-            // CQ_PushCommand_GeometrySetVertexCount(geo, 0);
-            f32 white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-            ulib_geo_lines2d_set_line_colors(geo, white, ARRAY_LENGTH(white));
+            ulib_geo_lines2d_set_line_colors(
+              geo, (Chuck_Object*)g_builting_ckobjs.init_white_color);
         } break;
         default: ASSERT(false);
     }
@@ -642,17 +736,139 @@ CK_DLL_MFUN(geo_set_vertex_attribute)
     need to free because arena memory is cleared on each frame
     */
 
-    t_CKINT ck_arr_len = API->object->array_float_size(ck_arr);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    // set attribute locally
+    Arena* vertex_attrib_data = SG_Geometry::setAttribute(
+      geo, location, num_components, API, (Chuck_Object*)ck_arr, 1, false);
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(geo, location, num_components,
+                                              vertex_attrib_data->base,
+                                              vertex_attrib_data->curr);
+}
+
+CK_DLL_MFUN(geo_set_vertex_attribute_int)
+{
+    t_CKINT location       = GET_NEXT_INT(ARGS);
+    t_CKINT num_components = GET_NEXT_INT(ARGS);
+    Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
     // set attribute locally
-    f32* vertex_attrib_data = SG_Geometry::setAttribute(geo, location, num_components,
-                                                        API, ck_arr, ck_arr_len);
+    Arena* vertex_attrib_data = SG_Geometry::setAttribute(
+      geo, location, num_components, API, (Chuck_Object*)ck_arr, 1, true);
 
     // push attribute change to command queue
     CQ_PushCommand_GeometrySetVertexAttribute(geo, location, num_components,
-                                              vertex_attrib_data, ck_arr_len);
+                                              vertex_attrib_data->base,
+                                              vertex_attrib_data->curr);
+}
+
+CK_DLL_MFUN(geo_set_positions)
+{
+    Chuck_ArrayVec3* ck_arr = GET_NEXT_VEC3_ARRAY(ARGS);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    Arena* attrib_arena
+      = SG_Geometry::setAttribute(geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, API,
+                                  (Chuck_Object*)ck_arr, 3, false);
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(
+      geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, attrib_arena->base,
+      attrib_arena->curr);
+}
+
+CK_DLL_MFUN(geo_set_normals)
+{
+    Chuck_ArrayVec3* ck_arr = GET_NEXT_VEC3_ARRAY(ARGS);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    Arena* attrib_arena
+      = SG_Geometry::setAttribute(geo, SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3, API,
+                                  (Chuck_Object*)ck_arr, 3, false);
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(geo,
+                                              SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3,
+                                              attrib_arena->base, attrib_arena->curr);
+}
+
+CK_DLL_MFUN(geo_set_uvs)
+{
+    Chuck_ArrayVec2* ck_arr = GET_NEXT_VEC2_ARRAY(ARGS);
+    SG_Geometry* geo    = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    Arena* attrib_arena = SG_Geometry::setAttribute(
+      geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2, API, (Chuck_Object*)ck_arr, 2, false);
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2,
+                                              attrib_arena->base, attrib_arena->curr);
+}
+
+CK_DLL_MFUN(geo_set_tangents)
+{
+    Chuck_ArrayVec4* ck_arr = GET_NEXT_VEC4_ARRAY(ARGS);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+    Arena* attrib_arena
+      = SG_Geometry::setAttribute(geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, API,
+                                  (Chuck_Object*)ck_arr, 4, false);
+
+    // push attribute change to command queue
+    CQ_PushCommand_GeometrySetVertexAttribute(geo,
+                                              SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4,
+                                              attrib_arena->base, attrib_arena->curr);
+}
+
+CK_DLL_MFUN(geo_get_positions)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    glm::vec3* data
+      = (glm::vec3*)geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION]
+          .base;
+    int data_count = ARENA_LENGTH(
+      &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION], glm::vec3);
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkFloat3Array(data, data_count);
+}
+
+CK_DLL_MFUN(geo_get_normals)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    glm::vec3* data
+      = (glm::vec3*)geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION]
+          .base;
+    int data_count = ARENA_LENGTH(
+      &geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION], glm::vec3);
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkFloat3Array(data, data_count);
+}
+
+CK_DLL_MFUN(geo_get_uvs)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    glm::vec2* data
+      = (glm::vec2*)geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION].base;
+    int data_count = ARENA_LENGTH(
+      &geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION], glm::vec2);
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkFloat2Array(data, data_count);
+}
+
+CK_DLL_MFUN(geo_get_tangents)
+{
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    glm::vec4* data
+      = (glm::vec4*)geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION]
+          .base;
+    int data_count = ARENA_LENGTH(
+      &geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION], glm::vec4);
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkFloat4Array(data, data_count);
 }
 
 CK_DLL_MFUN(geo_get_vertex_attribute_num_components)
@@ -679,16 +895,21 @@ CK_DLL_MFUN(geo_get_vertex_attribute_data)
     t_CKINT location = GET_NEXT_INT(ARGS);
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    f32* data = SG_Geometry::getAttributeData(geo, location);
-    int data_count
-      = SG_Geometry::vertexCount(geo) * geo->vertex_attribute_num_components[location];
+    f32* data      = (f32*)geo->vertex_attribute_data[location].base;
+    int data_count = ARENA_LENGTH(&geo->vertex_attribute_data[location], f32);
 
-    Chuck_ArrayFloat* ck_arr
-      = (Chuck_ArrayFloat*)chugin_createCkObj("float[]", false, SHRED);
-    for (int i = 0; i < data_count; i++)
-        API->object->array_float_push_back(ck_arr, data[i]);
+    RETURN->v_object = (Chuck_Object*)chugin_createCkFloatArray(data, data_count);
+}
 
-    RETURN->v_object = (Chuck_Object*)ck_arr;
+CK_DLL_MFUN(geo_get_vertex_attribute_data_int)
+{
+    t_CKINT location = GET_NEXT_INT(ARGS);
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    i32* data      = (i32*)geo->vertex_attribute_data[location].base;
+    int data_count = ARENA_LENGTH(&geo->vertex_attribute_data[location], i32);
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkIntArray(data, data_count);
 }
 
 CK_DLL_MFUN(geo_set_indices)
@@ -717,8 +938,8 @@ CK_DLL_MFUN(geo_get_indices)
     RETURN->v_object = (Chuck_Object*)ck_arr;
 }
 
-void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
-                                 int data_len)
+void geoSetPulledVertexAttributeData(SG_Geometry* geo, t_CKINT location, f32* data,
+                                     int data_len)
 {
     // store locally on SG_Geometry
     Arena* pull_buffer = &geo->vertex_pull_buffers[location];
@@ -732,57 +953,68 @@ void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
                                                     pull_buffer->curr);
 }
 
-int geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
-                                Chuck_Object* ck_arr, int num_components)
+void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
+                                 Chuck_Object* ck_arr, int num_components, bool is_int)
 {
-    int ck_arr_len  = 0;
-    f32* local_data = NULL;
+    int ck_arr_len = 0;
 
     // store locally on SG_Geometry
     Arena* pull_buffer = &geo->vertex_pull_buffers[location];
     Arena::clear(pull_buffer);
 
-    switch (num_components) {
-        case 1: {
-            ck_arr_len
-              = ck_arr ?
-                  g_chuglAPI->object->array_float_size((Chuck_ArrayFloat*)ck_arr) :
-                  0;
-            local_data
-              = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
-            chugin_copyCkFloatArray((Chuck_ArrayFloat*)ck_arr, local_data, ck_arr_len);
-        } break;
-        case 2: {
-            ck_arr_len
-              = ck_arr ? g_chuglAPI->object->array_vec2_size((Chuck_ArrayVec2*)ck_arr) :
-                         0;
-            local_data
-              = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
-            chugin_copyCkVec2Array((Chuck_ArrayVec2*)ck_arr, local_data);
-        } break;
-        case 3: {
-            ck_arr_len
-              = ck_arr ? g_chuglAPI->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr) :
-                         0;
-            local_data
-              = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
-            chugin_copyCkVec3Array((Chuck_ArrayVec3*)ck_arr, local_data);
-        } break;
-        case 4: {
-            ck_arr_len
-              = ck_arr ? g_chuglAPI->object->array_vec4_size((Chuck_ArrayVec4*)ck_arr) :
-                         0;
-            local_data
-              = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
-            chugin_copyCkVec4Array((Chuck_ArrayVec4*)ck_arr, local_data);
-        } break;
-        default: ASSERT(false);
+    if (is_int) {
+        ASSERT(num_components == 1);
+        ck_arr_len
+          = ck_arr ? g_chuglAPI->object->array_int_size((Chuck_ArrayInt*)ck_arr) : 0;
+        i32* data = ARENA_PUSH_COUNT(pull_buffer, i32, ck_arr_len * num_components);
+        chugin_copyCkIntArray((Chuck_ArrayInt*)ck_arr, data, ck_arr_len);
+    } else {
+        f32* local_data = NULL;
+        switch (num_components) {
+            case 1: {
+                ck_arr_len
+                  = ck_arr ?
+                      g_chuglAPI->object->array_float_size((Chuck_ArrayFloat*)ck_arr) :
+                      0;
+                local_data
+                  = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
+                chugin_copyCkFloatArray((Chuck_ArrayFloat*)ck_arr, local_data,
+                                        ck_arr_len);
+            } break;
+            case 2: {
+                ck_arr_len
+                  = ck_arr ?
+                      g_chuglAPI->object->array_vec2_size((Chuck_ArrayVec2*)ck_arr) :
+                      0;
+                local_data
+                  = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
+                chugin_copyCkVec2Array((Chuck_ArrayVec2*)ck_arr, local_data);
+            } break;
+            case 3: {
+                ck_arr_len
+                  = ck_arr ?
+                      g_chuglAPI->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr) :
+                      0;
+                local_data
+                  = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
+                chugin_copyCkVec3Array((Chuck_ArrayVec3*)ck_arr, local_data);
+            } break;
+            case 4: {
+                ck_arr_len
+                  = ck_arr ?
+                      g_chuglAPI->object->array_vec4_size((Chuck_ArrayVec4*)ck_arr) :
+                      0;
+                local_data
+                  = ARENA_PUSH_COUNT(pull_buffer, f32, ck_arr_len * num_components);
+                chugin_copyCkVec4Array((Chuck_ArrayVec4*)ck_arr, local_data);
+            } break;
+            default: ASSERT(false);
+        }
     }
 
     // push attribute change to command queue
-    CQ_PushCommand_GeometrySetPulledVertexAttribute(geo, location, local_data,
+    CQ_PushCommand_GeometrySetPulledVertexAttribute(geo, location, pull_buffer->base,
                                                     pull_buffer->curr);
-    return ck_arr_len;
 }
 
 CK_DLL_MFUN(geo_set_pulled_vertex_attribute)
@@ -792,7 +1024,7 @@ CK_DLL_MFUN(geo_set_pulled_vertex_attribute)
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    geoSetPulledVertexAttribute(geo, location, ck_arr, 1);
+    geoSetPulledVertexAttribute(geo, location, ck_arr, 1, false);
 }
 
 CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec2)
@@ -802,7 +1034,37 @@ CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec2)
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
 
-    geoSetPulledVertexAttribute(geo, location, ck_arr, 2);
+    geoSetPulledVertexAttribute(geo, location, ck_arr, 2, false);
+}
+
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec3)
+{
+    t_CKINT location     = GET_NEXT_INT(ARGS);
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    geoSetPulledVertexAttribute(geo, location, ck_arr, 3, false);
+}
+
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_vec4)
+{
+    t_CKINT location     = GET_NEXT_INT(ARGS);
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    geoSetPulledVertexAttribute(geo, location, ck_arr, 4, false);
+}
+
+CK_DLL_MFUN(geo_set_pulled_vertex_attribute_int)
+{
+    t_CKINT location     = GET_NEXT_INT(ARGS);
+    Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
+
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    geoSetPulledVertexAttribute(geo, location, ck_arr, 1, true);
 }
 
 CK_DLL_MFUN(geo_get_pulled_vertex_attribute)
@@ -815,6 +1077,18 @@ CK_DLL_MFUN(geo_get_pulled_vertex_attribute)
 
     RETURN->v_object = (Chuck_Object*)chugin_createCkFloatArray(
       (f32*)pull_buffer->base, ARENA_LENGTH(pull_buffer, f32));
+}
+
+CK_DLL_MFUN(geo_get_pulled_vertex_attribute_int)
+{
+    t_CKINT location = GET_NEXT_INT(ARGS);
+
+    SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
+
+    Arena* pull_buffer = &geo->vertex_pull_buffers[location];
+
+    RETURN->v_object = (Chuck_Object*)chugin_createCkIntArray(
+      (i32*)pull_buffer->base, ARENA_LENGTH(pull_buffer, i32));
 }
 
 CK_DLL_MFUN(geo_set_vertex_count)
@@ -863,8 +1137,8 @@ CK_DLL_MFUN(geo_generate_tangents)
 
     // push to command queue
     CQ_PushCommand_GeometrySetVertexAttribute(g, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION,
-                                              4, (f32*)b.tangent_arena->base,
-                                              ARENA_LENGTH(b.tangent_arena, f32));
+                                              4, b.tangent_arena->base,
+                                              b.tangent_arena->curr);
 }
 
 // Plane Geometry -----------------------------------------------------
@@ -875,25 +1149,24 @@ void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
     Arena* positions_arena
       = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
     CQ_PushCommand_GeometrySetVertexAttribute(
-      geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, (f32*)positions_arena->base,
-      ARENA_LENGTH(positions_arena, f32));
+      geo, SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION, 3, positions_arena->base,
+      positions_arena->curr);
 
     Arena* normals_arena
       = &geo->vertex_attribute_data[SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION];
-    CQ_PushCommand_GeometrySetVertexAttribute(
-      geo, SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3, (f32*)normals_arena->base,
-      ARENA_LENGTH(normals_arena, f32));
+    CQ_PushCommand_GeometrySetVertexAttribute(geo,
+                                              SG_GEOMETRY_NORMAL_ATTRIBUTE_LOCATION, 3,
+                                              normals_arena->base, normals_arena->curr);
 
     Arena* uvs_arena = &geo->vertex_attribute_data[SG_GEOMETRY_UV_ATTRIBUTE_LOCATION];
     CQ_PushCommand_GeometrySetVertexAttribute(geo, SG_GEOMETRY_UV_ATTRIBUTE_LOCATION, 2,
-                                              (f32*)uvs_arena->base,
-                                              ARENA_LENGTH(uvs_arena, f32));
+                                              uvs_arena->base, uvs_arena->curr);
 
     Arena* tangents_arena
       = &geo->vertex_attribute_data[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION];
     CQ_PushCommand_GeometrySetVertexAttribute(
-      geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, (f32*)tangents_arena->base,
-      ARENA_LENGTH(tangents_arena, f32));
+      geo, SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION, 4, tangents_arena->base,
+      tangents_arena->curr);
 
     Arena* indices_arena = &geo->indices;
     if (indices_arena->curr > 0) {
@@ -1041,7 +1314,7 @@ CK_DLL_CTOR(suzanne_geo_ctor)
 
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr)
 {
-    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3);
+    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3, false);
 }
 
 void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr)
@@ -1106,22 +1379,6 @@ CK_DLL_CTOR(lines2d_geo_ctor_params)
     // ==nice-to-have==
 }
 
-// void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, f32* data, int data_len)
-// {
-//     ASSERT(data_len % 2 == 0);
-
-//     geoSetPulledVertexAttribute(geo, 0, data, data_len);
-//     int num_vertices = data_len < 4 ? 0 : 4 * data_len;
-
-//     // always draw ck_arr_len+1 points to handle line loop
-//     CQ_PushCommand_GeometrySetVertexCount(geo, num_vertices);
-// }
-
-void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len)
-{
-    geoSetPulledVertexAttribute(geo, 1, data, data_len);
-}
-
 CK_DLL_MFUN(lines2d_geo_set_line_points)
 {
     Chuck_Object* ck_arr = GET_NEXT_OBJECT(ARGS);
@@ -1139,7 +1396,7 @@ CK_DLL_MFUN(lines2d_geo_set_line_colors)
     int length = API->object->array_vec3_size((Chuck_ArrayVec3*)ck_arr);
     if (length == 0) return;
 
-    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3);
+    geoSetPulledVertexAttribute(geo, 1, ck_arr, 3, false);
 }
 
 // Box Geometry -----------------------------------------------------
