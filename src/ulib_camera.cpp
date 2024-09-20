@@ -41,6 +41,8 @@ CK_DLL_MFUN(orbit_camera_set_drag_speed);
 CK_DLL_MFUN(orbit_camera_get_drag_speed);
 CK_DLL_MFUN(orbit_camera_set_zoom_speed);
 CK_DLL_MFUN(orbit_camera_get_zoom_speed);
+CK_DLL_MFUN(orbit_camera_set_target);
+CK_DLL_MFUN(orbit_camera_get_target);
 
 static void ulib_camera_query(Chuck_DL_Query* QUERY)
 {
@@ -126,7 +128,7 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
 
     // orbit camera
     {
-        BEGIN_CLASS("OrbitCamera", SG_CKNames[SG_COMPONENT_CAMERA]);
+        BEGIN_CLASS("GOrbitCamera", SG_CKNames[SG_COMPONENT_CAMERA]);
 
         CTOR(orbit_camera_ctor);
 
@@ -150,6 +152,13 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
         MFUN(orbit_camera_get_zoom_speed, "float", "zoomSpeed");
         DOC_FUNC(
           "Get the speed of the camera's zoom when scrolling with the mouse wheel.");
+
+        MFUN(orbit_camera_set_target, "void", "target");
+        ARG("vec3", "target");
+        DOC_FUNC("Set the point in world space that the camera orbits around.");
+
+        MFUN(orbit_camera_get_target, "vec3", "target");
+        DOC_FUNC("Get the point in world space that the camera orbits around.");
 
         END_CLASS();
     }
@@ -368,8 +377,12 @@ CK_DLL_CTOR(orbit_camera_ctor)
 {
     SG_Camera* camera = GET_CAMERA(SELF);
 
+    // initialize orbit params
+    camera->orbit = {};
+
     // set camera transform to initial spherical coords
-    camera->pos = SphericalCoords::toCartesian(camera->orbit.spherical);
+    camera->pos
+      = SphericalCoords::toCartesian(camera->orbit.spherical, camera->orbit.target);
     SG_Transform::lookAt(camera, VEC_ORIGIN);
 
     CQ_PushCommand_SetPosition(camera);
@@ -378,10 +391,6 @@ CK_DLL_CTOR(orbit_camera_ctor)
 
 CK_DLL_MFUN(orbit_camera_update)
 {
-    /* param ideas
-    - lookat location (center of orbit)
-    */
-
     SG_Camera* camera           = GET_CAMERA(SELF);
     SG_OrbitCameraParams* orbit = &camera->orbit;
 
@@ -389,8 +398,8 @@ CK_DLL_MFUN(orbit_camera_update)
 
     // update spherical coords to current camera position
     // (length check to avoid NaNs)
-    if (glm::length(camera->pos) > 0.0f)
-        orbit->spherical = SphericalCoords::fromCartesian(camera->pos);
+    if (glm::length(camera->pos - orbit->target) > 0.0f)
+        orbit->spherical = SphericalCoords::fromCartesian(camera->pos - orbit->target);
 
     // update scroll
     t_CKVEC2 scroll_deltas = CHUGL_scroll_delta();
@@ -410,8 +419,13 @@ CK_DLL_MFUN(orbit_camera_update)
     }
 
     // update camera position from spherical coordinates
-    camera->pos = SphericalCoords::toCartesian(orbit->spherical);
-    SG_Transform::lookAt(camera, VEC_ORIGIN);
+    camera->pos = SphericalCoords::toCartesian(orbit->spherical, orbit->target);
+    SG_Transform::lookAt(camera, orbit->target);
+
+    //log_debug("orbit camera update: radius %f, theta %f, phi %f",
+    //          orbit->spherical.radius, orbit->spherical.theta, orbit->spherical.phi);
+    //log_debug("orbit camera transform: pos %f %f %f", camera->pos.x, camera->pos.y,
+    //          camera->pos.z);
 
     CQ_PushCommand_SetPosition(camera);
     CQ_PushCommand_SetRotation(camera);
@@ -435,4 +449,25 @@ CK_DLL_MFUN(orbit_camera_set_zoom_speed)
 CK_DLL_MFUN(orbit_camera_get_zoom_speed)
 {
     RETURN->v_float = GET_CAMERA(SELF)->orbit.zoom_speed;
+}
+
+CK_DLL_MFUN(orbit_camera_set_target)
+{
+    SG_Camera* camera    = GET_CAMERA(SELF);
+    t_CKVEC3 target      = GET_NEXT_VEC3(ARGS);
+    camera->orbit.target = { target.x, target.y, target.z };
+
+    // update camera position
+    camera->pos
+      = SphericalCoords::toCartesian(camera->orbit.spherical, camera->orbit.target);
+    SG_Transform::lookAt(camera, camera->orbit.target);
+
+    CQ_PushCommand_SetPosition(camera);
+    CQ_PushCommand_SetRotation(camera);
+}
+
+CK_DLL_MFUN(orbit_camera_get_target)
+{
+    glm::vec3 target = GET_CAMERA(SELF)->orbit.target;
+    RETURN->v_vec3   = { target.x, target.y, target.z };
 }

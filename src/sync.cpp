@@ -8,6 +8,8 @@
 #include "core/memory.h"
 #include "core/spinlock.h"
 
+#include <glfw/include/GLFW/glfw3.h>
+
 static std::unordered_map<Chuck_VM_Shred*, bool> registeredShreds;
 // static std::unordered_set<Chuck_VM_Shred*> waitingShreds;
 
@@ -354,6 +356,56 @@ t_CKVEC2 CHUGL_scroll_delta()
     delta.y = chugl_mouse.scroll_dy;
     spinlock::unlock(&chugl_mouse.mouse_lock);
     return delta;
+}
+
+struct CHUGL_KbKey {
+    unsigned char pressed : 1;
+    unsigned char released : 1;
+};
+
+struct CHUGL_KbKeyState {
+    bool down;
+    bool pressed;
+    bool released;
+};
+
+struct {
+    // 3 fields per key
+    // down (1 if pressed, 0 if not)
+    // click (1 on the frame the key is pressed, 0 otherwise)
+    // release (1 on the frame the key is released, 0 otherwise)
+    spinlock lock;
+    CHUGL_KbKey keys[GLFW_KEY_LAST + 1]; // separate for quick memzero on each frame
+    bool keys_down[GLFW_KEY_LAST + 1];
+} CHUGL_Kb;
+
+// resets the per-frame pressed and released states of all keys
+void CHUGL_Kb_ZeroPressedReleased()
+{
+    spinlock::lock(&CHUGL_Kb.lock);
+    memset(CHUGL_Kb.keys, 0, sizeof(CHUGL_Kb.keys));
+    spinlock::unlock(&CHUGL_Kb.lock);
+}
+
+// called on the frame the key is pressed or released
+// if pressed, down = true
+// if released, down = false
+void CHUGL_Kb_action(int key, bool down)
+{
+    spinlock::lock(&CHUGL_Kb.lock);
+    CHUGL_Kb.keys_down[key]     = down;
+    CHUGL_Kb.keys[key].pressed  = down;
+    CHUGL_Kb.keys[key].released = !down;
+    spinlock::unlock(&CHUGL_Kb.lock);
+}
+
+CHUGL_KbKeyState CHUGL_Kb_key(int key)
+{
+    spinlock::lock(&CHUGL_Kb.lock);
+    CHUGL_KbKeyState k = { CHUGL_Kb.keys_down[key], (bool) CHUGL_Kb.keys[key].pressed,
+                           (bool) CHUGL_Kb.keys[key].released };
+    spinlock::unlock(&CHUGL_Kb.lock);
+    return k;
 }
 
 // ============================================================================

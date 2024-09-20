@@ -497,7 +497,7 @@ CK_DLL_QUERY(ChuGL)
 
         // default orbit camera
         SG_Camera* default_camera
-          = ulib_camera_create(chugin_createCkObj("OrbitCamera", false));
+          = ulib_camera_create(chugin_createCkObj("GOrbitCamera", false));
         CQ_PushCommand_AddChild(scene, default_camera);
         SG_Scene::setMainCamera(scene, default_camera);
         CQ_PushCommand_SceneUpdate(scene);

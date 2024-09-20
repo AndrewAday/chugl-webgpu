@@ -579,13 +579,14 @@ struct SphericalCoords {
 
     // Left handed system
     // (1, 0, 0) maps to cartesion coordinate (0, 0, 1)
-    static glm::vec3 toCartesian(SphericalCoords s)
+    static glm::vec3 toCartesian(SphericalCoords s, glm::vec3 o)
     {
         f32 v = s.radius * cos(s.phi);
-        return glm::vec3(v * sin(s.theta),      // x
-                         s.radius * sin(s.phi), // y
-                         v * cos(s.theta)       // z
-        );
+        return o
+               + glm::vec3(v * sin(s.theta),      // x
+                           s.radius * sin(s.phi), // y
+                           v * cos(s.theta)       // z
+               );
     }
 
     static SphericalCoords fromCartesian(glm::vec3 c)
@@ -599,9 +600,10 @@ struct SphericalCoords {
 };
 
 struct SG_OrbitCameraParams {
-    SphericalCoords spherical = { 6.0f, 0.0f, 0.0f };
+    SphericalCoords spherical = { 6.0f, 0.0f, 0.0f }; // *relative to target*
     f32 speed                 = 0.01f;
     f32 zoom_speed            = 0.5f;
+    glm::vec3 target          = glm::vec3(0.0f); // point to look at
 };
 
 struct SG_FlyCameraParams {

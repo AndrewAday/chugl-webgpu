@@ -549,6 +549,7 @@ struct App {
 
             // imgui and window callbacks
             CHUGL_Zero_MouseDeltasAndClickState();
+            CHUGL_Kb_ZeroPressedReleased();
             glfwPollEvents();
 
             if (do_ui) {
@@ -1314,6 +1315,12 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
 
         App* app = (App*)glfwGetWindowUserPointer(window);
         UNUSED_VAR(app);
+
+        if (action == GLFW_PRESS) {
+            CHUGL_Kb_action(key, true);
+        } else if (action == GLFW_RELEASE) {
+            CHUGL_Kb_action(key, false);
+        }
     }
 
     // this is deliberately NOT made a glfw callback because glfwPollEvents()

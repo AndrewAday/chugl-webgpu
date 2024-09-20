@@ -8,7 +8,8 @@ Press '3' to maximize (windowed fullscreen).
 Press '4' to iconify / restore
 press '5' to toggle window opacity
 press '6' to toggle mouse mode (normal - hidden - disabled)
-press '7' to swtich between custom and normal cursor (not supported on all platforms)
+
+Listens for keyboard input on space key
 
 Author: Andrew Zhu Aday (azaday) June 2024
 */
@@ -33,20 +34,46 @@ true => GWindow.floating;
 fun void mouseListener() {
     while (true) {
         GG.nextFrame() => now;
-        if (GWindow.mouseLBClicked()) {
-            <<< "left mouse button clicked" >>>;
+
+        if (GWindow.mouseLeft()) {
+            <<< "left mouse button held" >>>;
         }
-        if (GWindow.mouseRBClicked()) {
-            <<< "right mouse button clicked" >>>;
+
+        if (GWindow.mouseRight()) {
+            <<< "right mouse button held" >>>;
         }
-        if (GWindow.mouseLBReleased()) {
+
+        if (GWindow.mouseLeftDown()) {
+            <<< "left mouse button pressed" >>>;
+        }
+        if (GWindow.mouseRightDown()) {
+            <<< "right mouse button pressed" >>>;
+        }
+        if (GWindow.mouseLeftUp()) {
             <<< "left mouse button released" >>>;
         }
-        if (GWindow.mouseRBReleased()) {
+        if (GWindow.mouseRightUp()) {
             <<< "right mouse button released" >>>;
         }
     }
 } spork ~ mouseListener();
+
+fun void kbListener() {
+    while (true) {
+        GG.nextFrame() => now;
+        if (GWindow.key(GWindow.Key_Space)) {
+            <<< "space key held" >>>;
+        }
+
+        if (GWindow.keyDown(GWindow.Key_Space)) {
+            <<< "space key pressed" >>>;
+        }
+
+        if (GWindow.keyUp(GWindow.Key_Space)) {
+            <<< "space key released" >>>;
+        }
+    }
+} spork ~ kbListener();
 
 fun void closeCallback() {
     while (1) {
@@ -70,23 +97,11 @@ fun void contentScaleCallback() {
     }
 } spork ~ contentScaleCallback();
 
-fun void makeCustomCursor() {
-    // make cursor into a green dot
-    int cursor_image[8 * 8 * 4];
-    for (int i; i < 8 * 8 * 4; 4 +=> i) {
-        0 => cursor_image[i];
-        255 => cursor_image[i + 1];
-        0 => cursor_image[i + 2];
-        255 => cursor_image[i + 3];
-    }
-    GWindow.customCursor(cursor_image, 8, 8, 0, 0);
-}
-
 int fc;
 true => int opaque;
 false => int floating;
 0 => int mouse_mode;
-false => int custom_cursor;
+
 while (1) { 
     GG.nextFrame() => now;
     if (UI.isKeyPressed(UI_Key.Num1)) GWindow.fullscreen();
@@ -126,19 +141,6 @@ while (1) {
         }
         GWindow.mouseMode(mouse_mode);
     }
-    if (UI.isKeyPressed(UI_Key.Num7, false)) {
-        if (custom_cursor) {
-            <<< "switching to normal cursor" >>>;
-            GWindow.normalCursor();
-            false => custom_cursor;
-        } else {
-            <<< "switching to custom cursor" >>>;
-            makeCustomCursor();
-            true => custom_cursor;
-        }
-    }
-
-    // <<< "Mouse Pos", GWindow.mousePos(), "Mouse Deltas", GWindow.mouseDeltaPos() >>>;
 
     GWindow.title("GWindow Demo | Frame: " + (++fc));
 }

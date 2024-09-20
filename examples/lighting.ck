@@ -48,7 +48,6 @@ for (int i; i < NUM_ROWS; i++) {
     }
 }
 
-
 GGen point_light_axis --> GG.scene();
 GPointLight point_lights[1];
 GMesh point_light_meshes[0];
@@ -70,6 +69,10 @@ UI_Float3 albedo(material[0][0].albedo());
 // UI_Float metallic(material.metallic());
 // UI_Float roughness(material.roughness());
 UI_Float normal_factor(material[0][0].normalFactor());
+
+
+GG.scene().camera() $ GOrbitCamera @=> GOrbitCamera camera;
+UI_Float3 camera_target(camera.target());
 
 fun void ui() {
     while (true) {
@@ -153,6 +156,9 @@ fun void ui() {
 
             UI.scenegraph(GG.scene());
 
+            if (UI.drag("camera target", camera_target, 0.01, 0, 0, "%0.2f", 0)) {
+                camera_target.val() => camera.target;
+            }
         }
         UI.end();
     }

@@ -49,7 +49,7 @@ fun void ui()
 
 while (true) {
     GG.nextFrame() => now;
-    if (GWindow.mouseLBClicked()) {
+    if (GWindow.mouseLeftDown()) {
         GMesh sphere(sphere_geo, material) --> GG.scene();
         sphere.sca(.1);
         sphere.pos(camera.screenCoordToWorldPos(GWindow.mousePos(), 10));

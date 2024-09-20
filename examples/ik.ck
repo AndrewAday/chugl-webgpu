@@ -22,24 +22,6 @@ camera.posZ(5);
 camera.orthographic();
 GG.scene().camera(camera); // set main camera
 
-// fun void mouse() {
-//     while (true) {
-//         GG.nextFrame() => now;
-//         if (UI.isMouseClicked(UI_MouseButton.Left)) { // TODO track mouse click in GWindow
-//             <<< "Mouse position: ", GWindow.mousePos() >>>;
-//             camera.screenCoordToWorldPos(GWindow.mousePos(), 5) => vec3 pos;
-
-//             // spawn a sphere at the intersection point
-//             GMesh sphere(sphere_geo, flat_material) --> GG.scene();
-//             .1 => sphere.sca;
-//             pos => sphere.pos;
-
-//             <<< "Screen position: ", camera.worldPosToScreenCoord(pos) >>>;
-//         }
-//     }
-// }
-// spork ~ mouse();
-
 fun void fabrik(vec3 start_target, vec3 end_target, vec3 points[], float lengths[]) {
     0.01 => float TOLERANCE;
     10 => int MAX_ITERATIONS;
