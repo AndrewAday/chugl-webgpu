@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdlib>
 #include <cstring>
 
@@ -8,6 +10,15 @@ struct FileReadResult {
     u32 size;
     u8* data_owned;
 };
+
+std::string File_dirname(const std::string& path)
+{
+    size_t last_slash = path.find_last_of("/\\");
+    if (last_slash == std::string::npos) {
+        return path;
+    }
+    return path.substr(0, last_slash + 1);
+}
 
 int File_exists(const char* filename)
 {

@@ -52,6 +52,15 @@ CK_DLL_MFUN(component_get_name)
     RETURN->v_string = API->object->create_string(VM, component->name, false);
 }
 
+void ulib_component_set_name(SG_Component* component, const char* name)
+{
+    int str_len = MIN(strlen(name), sizeof(component->name) - 1);
+    strncpy(component->name, name, str_len);
+    component->name[str_len] = 0;
+
+    CQ_PushCommand_ComponentUpdateName(component);
+}
+
 CK_DLL_MFUN(component_set_name)
 {
     SG_Component* component
@@ -59,9 +68,8 @@ CK_DLL_MFUN(component_set_name)
 
     Chuck_String* name = GET_NEXT_STRING(ARGS);
     const char* ck_str = API->object->str(name);
-    size_t len         = MIN(strlen(ck_str), sizeof(component->name) - 1);
-    strncpy(component->name, ck_str, len);
-    component->name[len] = 0;
+
+    ulib_component_set_name(component, ck_str);
 
     RETURN->v_string = name;
 }
@@ -493,7 +501,7 @@ CK_DLL_CTOR(ggen_ctor)
         || API->type->origin_hint(thisType)
              == ckte_origin_IMPORT // .ck file included in search path
     ) {
-        CQ_PushCommand_CreateTransform(SELF, component_offset_id, API);
+        ulib_ggen_create(SELF, SHRED);
     }
 
     // always register to shred map
@@ -1150,6 +1158,24 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 
         END_CLASS();
     }
+}
+
+SG_Transform* ulib_ggen_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    if (ckobj == NULL) {
+        ckobj = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TRANSFORM], false, shred);
+    }
+
+    // execute change on audio thread side
+    SG_Transform* xform = SG_CreateTransform(ckobj);
+    // save SG_ID
+    OBJ_MEMBER_UINT(ckobj, component_offset_id) = xform->id;
+
+    CQ_PushCommand_CreateTransform(xform);
+
+    return xform;
 }
 
 SG_Mesh* ulib_mesh_create(Chuck_Object* mesh_ckobj, SG_Geometry* geo, SG_Material* mat,

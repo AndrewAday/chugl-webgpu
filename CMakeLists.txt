@@ -168,6 +168,7 @@ else()
         -Wno-deprecated-declarations
         -Wno-compound-token-split-by-macro
         -Wno-sign-compare
+        -Wno-unused-but-set-variable
     )
 endif()
 

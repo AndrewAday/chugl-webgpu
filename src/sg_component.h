@@ -303,6 +303,9 @@ struct SG_Geometry : SG_Component {
     static f32* getAttributeData(SG_Geometry* geo, int location);
 
     // builder functions
+    static void computeTangents(SG_Geometry* geo);
+    static void initGABandNumComponents(GeometryArenaBuilder* b, SG_Geometry* g,
+                                        bool clear);
     static void buildPlane(SG_Geometry* g, PlaneParams* p);
     static void buildSphere(SG_Geometry* g, SphereParams* p);
     static void buildSuzanne(SG_Geometry* g);
@@ -375,11 +378,6 @@ struct SG_Material_PBR_Params {
     // textures and samplers
     // TODO
     // SG_Sampler baseColorSampler;
-};
-
-struct SG_Material_Lines2DParams {
-    f32 thickness       = 0.1f;
-    f32 extrution_ratio = 0.5f;
 };
 
 #define SG_MATERIAL_MAX_UNIFORMS 32 // @group(1) @binding(0 - 31)

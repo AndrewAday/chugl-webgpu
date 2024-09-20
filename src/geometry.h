@@ -86,6 +86,7 @@ struct GeometryArenaBuilder {
     Arena* indices_arena;
 };
 
+void Geometry_computeTangents(GeometryArenaBuilder* builder);
 void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params);
 void Geometry_buildSphere(GeometryArenaBuilder* builder, SphereParams* params);
 void Geometry_buildSuzanne(GeometryArenaBuilder* builder);

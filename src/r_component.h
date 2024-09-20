@@ -218,7 +218,7 @@ struct R_Texture : public R_Component {
     }
 
     static void fromFile(GraphicsContext* gctx, R_Texture* texture,
-                         const char* filepath);
+                         const char* filepath, bool flip_vertically);
 };
 
 void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,

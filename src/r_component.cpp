@@ -646,7 +646,7 @@ void R_Texture::init(R_Texture* texture)
 }
 
 void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
-                         const char* filepath)
+                         const char* filepath, bool flip_vertically = true)
 {
     i32 width = 0, height = 0;
     // Force loading 4 channel images to 3 channel by stb becasue Dawn
@@ -656,7 +656,7 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
     i32 read_comps    = 0;
     i32 desired_comps = STBI_rgb_alpha; // force 4 channels
 
-    stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(flip_vertically);
 
     // determine if we should load ldr or hdr
     void* pixelData = NULL;
@@ -2071,7 +2071,7 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
     }
 
     // clear hashmap
-    hashmap_clear(materials_with_new_pso, true);
+    hashmap_clear(materials_with_new_pso, false);
 }
 
 R_Texture* Component_CreateTexture()

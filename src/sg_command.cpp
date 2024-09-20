@@ -262,6 +262,19 @@ void CQ_PushCommand_UI_Disabled(bool disabled)
     END_COMMAND();
 }
 
+void CQ_PushCommand_ComponentUpdateName(SG_Component* component)
+{
+    BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(SG_Command_ComponentUpdateName,
+                                         SG_COMMAND_COMPONENT_UPDATE_NAME,
+                                         sizeof(component->name));
+
+    // copy string
+    strncpy((char*)memory, component->name, sizeof(component->name));
+    command->sg_id       = component->id;
+    command->name_offset = Arena::offsetOf(cq.write_q, memory);
+    END_COMMAND();
+}
+
 void CQ_PushCommand_GG_Scene(SG_Scene* scene)
 {
     BEGIN_COMMAND(SG_Command_GG_Scene, SG_COMMAND_GG_SCENE);
@@ -269,14 +282,8 @@ void CQ_PushCommand_GG_Scene(SG_Scene* scene)
     END_COMMAND();
 }
 
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT id_offset,
-                                    CK_DL_API API)
+void CQ_PushCommand_CreateTransform(SG_Transform* xform)
 {
-    // execute change on audio thread side
-    SG_Transform* xform = SG_CreateTransform(ckobj);
-    // save SG_ID
-    OBJ_MEMBER_UINT(ckobj, id_offset) = xform->id;
-
     BEGIN_COMMAND(SG_Command_CreateXform, SG_COMMAND_CREATE_XFORM);
     command->sg_id = xform->id;
     command->pos   = xform->pos;
@@ -452,7 +459,7 @@ void CQ_PushCommand_GeometrySetPulledVertexAttribute(SG_Geometry* geo, int locat
 
     u8* attribute_data = (u8*)memory;
     if (bytes && data) {
-		memcpy(attribute_data, data, bytes);
+        memcpy(attribute_data, data, bytes);
     }
 
     command->sg_id       = geo->id;
@@ -500,7 +507,8 @@ void CQ_PushCommand_TextureData(SG_Texture* texture)
     END_COMMAND();
 }
 
-void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath)
+void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath,
+                                    bool flip_vertically = true)
 {
     size_t filepath_len = strlen(filepath);
     BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(
@@ -509,6 +517,7 @@ void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath)
     char* filepath_copy = (char*)memory;
     strncpy(filepath_copy, filepath, strlen(filepath));
     command->filepath_offset = Arena::offsetOf(cq.write_q, filepath_copy);
+    command->flip_vertically = flip_vertically;
     END_COMMAND();
 }
 

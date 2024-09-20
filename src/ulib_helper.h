@@ -7,6 +7,8 @@
 #include "core/macros.h"
 #include "core/memory.h"
 
+#include "sg_command.h"
+
 // TODO: group all this shared state together into a "chugl_audio_context"
 // struct, similar to App or Renderer struct
 
@@ -285,10 +287,169 @@ void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location, f32* data,
 void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);
+void CQ_UpdateAllVertexAttributes(SG_Geometry* geo);
 
 // impl in ulib_component.cpp
 struct SG_Mesh;
 struct SG_Geometry;
 struct SG_Material;
+
+void ulib_component_set_name(SG_Component* component, const char* name);
+SG_Transform* ulib_ggen_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred);
+
 SG_Mesh* ulib_mesh_create(Chuck_Object* mesh_ckobj, SG_Geometry* geo, SG_Material* mat,
                           Chuck_VM_Shred* shred);
+
+// impl in ulib_texture.cpp
+struct SG_TextureDesc;
+SG_Texture* ulib_texture_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred,
+                                SG_TextureDesc* desc);
+
+// builder for Phong Material
+struct PhongParams {
+    static void specular(SG_Material* mat, glm::vec3 color)
+    {
+        SG_Material::uniformVec3f(mat, 0, color);
+        CQ_PushCommand_MaterialSetUniform(mat, 0);
+    }
+
+    static glm::vec3* specular(SG_Material* mat)
+    {
+        return &mat->uniforms[0].as.vec3f;
+    }
+
+    static void diffuse(SG_Material* mat, glm::vec3 color)
+    {
+        SG_Material::uniformVec4f(mat, 1, glm::vec4(color, 1.0));
+        CQ_PushCommand_MaterialSetUniform(mat, 1);
+    }
+
+    static glm::vec4* diffuse(SG_Material* mat)
+    {
+        return &mat->uniforms[1].as.vec4f;
+    }
+
+    static void shininess(SG_Material* mat, float shininess)
+    {
+        SG_Material::uniformFloat(mat, 2, shininess);
+        CQ_PushCommand_MaterialSetUniform(mat, 2);
+    }
+
+    static float* shininess(SG_Material* mat)
+    {
+        return &mat->uniforms[2].as.f;
+    }
+    static void emission(SG_Material* mat, glm::vec3 color)
+    {
+        SG_Material::uniformVec3f(mat, 3, color);
+        CQ_PushCommand_MaterialSetUniform(mat, 3);
+    }
+
+    static glm::vec3* emission(SG_Material* mat)
+    {
+        return &mat->uniforms[3].as.vec3f;
+    }
+
+    static void normalFactor(SG_Material* mat, float factor)
+    {
+        SG_Material::uniformFloat(mat, 4, factor);
+        CQ_PushCommand_MaterialSetUniform(mat, 4);
+    }
+
+    static float* normalFactor(SG_Material* mat)
+    {
+        return &mat->uniforms[4].as.f;
+    }
+
+    static void aoFactor(SG_Material* mat, float factor)
+    {
+        SG_Material::uniformFloat(mat, 5, factor);
+        CQ_PushCommand_MaterialSetUniform(mat, 5);
+    }
+
+    static float* aoFactor(SG_Material* mat)
+    {
+        return &mat->uniforms[5].as.f;
+    }
+
+    static void sampler(SG_Material* mat, SG_Sampler sampler)
+    {
+        SG_Material::setSampler(mat, 6, sampler);
+        CQ_PushCommand_MaterialSetUniform(mat, 6);
+    }
+
+    static SG_Sampler sampler(SG_Material* mat)
+    {
+        return mat->uniforms[6].as.sampler;
+    }
+
+    static void albedoTex(SG_Material* mat, SG_Texture* tex)
+    {
+        if (!tex) {
+            tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
+        }
+        SG_Material::setTexture(mat, 7, tex);
+        CQ_PushCommand_MaterialSetUniform(mat, 7);
+    }
+
+    static SG_Texture* albedoTex(SG_Material* mat)
+    {
+        return SG_GetTexture(mat->uniforms[7].as.texture_id);
+    }
+
+    static void specularTex(SG_Material* mat, SG_Texture* tex)
+    {
+        if (!tex) {
+            tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
+        }
+        SG_Material::setTexture(mat, 8, tex);
+        CQ_PushCommand_MaterialSetUniform(mat, 8);
+    }
+
+    static SG_Texture* specularTex(SG_Material* mat)
+    {
+        return SG_GetTexture(mat->uniforms[8].as.texture_id);
+    }
+
+    static void aoTex(SG_Material* mat, SG_Texture* tex)
+    {
+        if (!tex) {
+            tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
+        }
+        SG_Material::setTexture(mat, 9, tex);
+        CQ_PushCommand_MaterialSetUniform(mat, 9);
+    }
+
+    static SG_Texture* aoTex(SG_Material* mat)
+    {
+        return SG_GetTexture(mat->uniforms[9].as.texture_id);
+    }
+
+    static void emissiveTex(SG_Material* mat, SG_Texture* tex)
+    {
+        if (!tex) {
+            tex = SG_GetTexture(g_builtin_textures.black_pixel_id);
+        }
+        SG_Material::setTexture(mat, 10, tex);
+        CQ_PushCommand_MaterialSetUniform(mat, 10);
+    }
+
+    static SG_Texture* emissiveTex(SG_Material* mat)
+    {
+        return SG_GetTexture(mat->uniforms[10].as.texture_id);
+    }
+
+    static void normalTex(SG_Material* mat, SG_Texture* tex)
+    {
+        if (!tex) {
+            tex = SG_GetTexture(g_builtin_textures.normal_pixel_id);
+        }
+        SG_Material::setTexture(mat, 11, tex);
+        CQ_PushCommand_MaterialSetUniform(mat, 11);
+    }
+
+    static SG_Texture* normalTex(SG_Material* mat)
+    {
+        return SG_GetTexture(mat->uniforms[11].as.texture_id);
+    }
+};

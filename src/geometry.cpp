@@ -460,7 +460,7 @@ static int GAB_indexFromFace(GeometryArenaBuilder* builder, int iFace, int iVert
     return (indices_count > 0) ? indices_array[iFace * 3 + iVert] : (iFace * 3 + iVert);
 }
 
-static void Geometry_computeTangents(GeometryArenaBuilder* builder)
+void Geometry_computeTangents(GeometryArenaBuilder* builder)
 {
     SMikkTSpaceInterface mikktspaceIface = {};
     SMikkTSpaceContext mikktspaceContext = {};

@@ -68,6 +68,7 @@ enum SG_CommandType : u32 {
     SG_COMMAND_b2_SUBSTEP_COUNT, // # of substeps per physics step
 
     // components
+    SG_COMMAND_COMPONENT_UPDATE_NAME,
     SG_COMMAND_GG_SCENE,
     SG_COMMAND_CREATE_XFORM,
     SG_COMMAND_ADD_CHILD,
@@ -216,6 +217,10 @@ struct SG_Command_UI_Disabled : public SG_Command {
 };
 
 // Component Commands -----------------------------------------------------
+struct SG_Command_ComponentUpdateName : public SG_Command {
+    SG_ID sg_id;
+    ptrdiff_t name_offset;
+};
 
 struct SG_Command_GG_Scene : public SG_Command {
     SG_ID sg_id;
@@ -310,6 +315,7 @@ struct SG_Command_TextureData : public SG_Command {
 struct SG_Command_TextureFromFile : public SG_Command {
     SG_ID sg_id;
     ptrdiff_t filepath_offset;
+    bool flip_vertically;
 };
 
 struct SG_Command_ShaderCreate : public SG_Command {
@@ -479,10 +485,10 @@ void CQ_PushCommand_MouseCursorNormal();
 void CQ_PushCommand_UI_Disabled(bool disabled);
 
 // components
+void CQ_PushCommand_ComponentUpdateName(SG_Component* component);
 
 void CQ_PushCommand_GG_Scene(SG_Scene* scene);
-void CQ_PushCommand_CreateTransform(Chuck_Object* ckobj, t_CKUINT component_offset_id,
-                                    CK_DL_API API);
+void CQ_PushCommand_CreateTransform(SG_Transform* xform);
 void CQ_PushCommand_AddChild(SG_Transform* parent, SG_Transform* child);
 void CQ_PushCommand_RemoveChild(SG_Transform* parent, SG_Transform* child);
 void CQ_PushCommand_RemoveAllChildren(SG_Transform* parent);
@@ -508,7 +514,8 @@ void CQ_PushCommand_TextureCreate(SG_Texture* texture);
 void CQ_PushCommand_TextureData(
   SG_Texture* texture); // TODO currently assumes texture data is already set
 
-void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath);
+void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath,
+                                    bool flip_vertically);
 
 // shader
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader);

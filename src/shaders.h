@@ -427,6 +427,7 @@ static const char* diffuse_shader_string  = R"glsl(
 
 static const char* phong_shader_string = R"glsl(
     // phong impl based off obj material model
+    // actually, blinn* phong
     // see https://www.fileformat.info/format/material/
 
     #include FRAME_UNIFORMS
@@ -464,8 +465,13 @@ static const char* phong_shader_string = R"glsl(
     //     return texture(u_Skybox, envMapSampleDir).rgb;
     // }
 
+    fn srgbToLinear(srgb_in : vec3f) -> vec3f {
+        return pow(srgb_in.rgb,vec3f(2.2));
+    }
+
     fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
         var normal = inNormal;
+
         if (!is_front) {
             normal = -inNormal;
         }
@@ -500,7 +506,7 @@ static const char* phong_shader_string = R"glsl(
         let aoTex = textureSample(u_ao_map, texture_sampler, in.v_uv);
         let emissiveTex = textureSample(u_emissive_map, texture_sampler, in.v_uv);
         // factor ao into diffuse
-        var diffuse_color = u_diffuse_color.rgb * diffuseTex.rgb;
+        var diffuse_color = u_diffuse_color.rgb * srgbToLinear(diffuseTex.rgb);
         diffuse_color = mix(diffuse_color, diffuse_color * aoTex.r, u_ao_factor);
         let specular_color : vec3f = (specularTex.rgb * u_specular_color);
 
@@ -512,10 +518,11 @@ static const char* phong_shader_string = R"glsl(
             switch (light.light_type) {
                 case 1: { // directional
                     let lightDir = normalize(-light.direction);
+                    let halfwayDir = normalize(lightDir + viewDir);
                     // diffuse shading
                     let diffuse_factor : f32 = max(dot(normal, lightDir), 0.0);
                     // specular shading
-                    let specular_factor : f32 = pow(max(dot(viewDir,reflect(-lightDir, normal)), 0.0), u_shininess);
+                    let specular_factor : f32 = pow(max(dot(normal, halfwayDir), 0.0), u_shininess);
                     let diffuse : vec3f = diffuse_factor * diffuse_color;
                     let specular : vec3f = specular_factor * specular_color.rgb;
                     // combine results
@@ -531,11 +538,12 @@ static const char* phong_shader_string = R"glsl(
                     let radiance : vec3f = light.color * attenuation;
 
                     let lightDir = normalize(light.position - in.v_worldpos);
+                    let halfwayDir = normalize(lightDir + viewDir);
 
                     // diffuse 
                     let diffuse_factor = max(dot(normal, lightDir), 0.0);
                     // specular 
-                    let specular_factor = max(pow(max(dot(viewDir, reflect(-lightDir, normal)), 0.0), u_shininess), 0.0);
+                    let specular_factor = max(pow(max(dot(normal, halfwayDir), 0.0), u_shininess), 0.0);
 
                     // combine results
                     lighting += radiance * (diffuse_color * diffuse_factor + specular_color.rgb * specular_factor);
@@ -548,7 +556,7 @@ static const char* phong_shader_string = R"glsl(
         lighting += u_Frame.ambient_light * diffuse_color;
 
         // emissive
-        lighting += emissiveTex.rgb * u_emission_color;
+        lighting += srgbToLinear(emissiveTex.rgb) * u_emission_color;
 
         // calculate envmap contribution
         // if (u_EnvMapParams.enabled) {

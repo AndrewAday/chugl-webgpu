@@ -56,6 +56,8 @@ struct Arena {
 #define ARENA_PUSH_TYPE(a, type) (type*)Arena::push(a, sizeof(type))
 #define ARENA_PUSH_ZERO_TYPE(a, type) (type*)Arena::pushZero(a, sizeof(type))
 #define ARENA_PUSH_COUNT(a, type, count) (type*)Arena::push(a, sizeof(type) * (count))
+#define ARENA_PUSH_ZERO_COUNT(a, type, count)                                          \
+    (type*)Arena::pushZero(a, sizeof(type) * (count))
 
 // assuming arena all contiguous elements of type
 #define ARENA_LENGTH(a, type) ((a)->curr / sizeof(type))

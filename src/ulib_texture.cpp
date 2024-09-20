@@ -233,7 +233,7 @@ void ulib_texture_createDefaults(CK_DL_API API)
                                                        WGPUTextureDimension_2D,
                                                        WGPUTextureFormat_RGBA8Unorm });
         // upload pixel data
-        u8 black_pixel[] = { 255, 255, 255, 255 };
+        u8 black_pixel[] = { 0, 0, 0, 0 };
         SG_Texture::write(tex, black_pixel, 1, 1);
         CQ_PushCommand_TextureData(tex);
 
@@ -268,25 +268,38 @@ CK_DLL_CTOR(sampler_ctor)
 
 // Texture =====================================================================
 
+SG_Texture* ulib_texture_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred,
+                                SG_TextureDesc* desc)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    if (ckobj == NULL) {
+        ckobj = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], false, shred);
+    }
+
+    SG_Texture* tex                             = SG_CreateTexture(ckobj);
+    OBJ_MEMBER_UINT(ckobj, component_offset_id) = tex->id;
+    tex->desc                                   = *desc;
+
+    CQ_PushCommand_TextureCreate(tex);
+    return tex;
+}
+
 CK_DLL_CTOR(texture_ctor)
 {
-    SG_Texture* tex                            = SG_CreateTexture(SELF);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = tex->id;
-    CQ_PushCommand_TextureCreate(tex);
+    SG_TextureDesc desc = {};
+    ulib_texture_create(SELF, SHRED, &desc);
 }
 
 CK_DLL_CTOR(texture_ctor_dimension_format)
 {
-    SG_Texture* tex                            = SG_CreateTexture(SELF);
-    OBJ_MEMBER_UINT(SELF, component_offset_id) = tex->id;
     WGPUTextureDimension dimension = (WGPUTextureDimension)GET_NEXT_INT(ARGS);
     WGPUTextureFormat format       = (WGPUTextureFormat)GET_NEXT_INT(ARGS);
+    SG_TextureDesc desc            = {};
+    desc.dimension                 = dimension;
+    desc.format                    = format;
 
-    // store texture desc state (like material pso)
-    tex->desc.dimension = dimension;
-    tex->desc.format    = format;
-
-    CQ_PushCommand_TextureCreate(tex);
+    ulib_texture_create(SELF, SHRED, &desc);
 }
 
 CK_DLL_MFUN(texture_write)
@@ -296,8 +309,8 @@ CK_DLL_MFUN(texture_write)
     // TODO move into member fn?
     {
         Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
-        t_CKUINT width          = GET_NEXT_UINT(ARGS);
-        t_CKUINT height         = GET_NEXT_UINT(ARGS);
+        t_CKUINT width         = GET_NEXT_UINT(ARGS);
+        t_CKUINT height        = GET_NEXT_UINT(ARGS);
 
         int ck_arr_len = API->object->array_int_size(ck_arr);
 
@@ -331,5 +344,5 @@ CK_DLL_MFUN(texture_set_file)
     // 1) don't have to do file IO
     // 2) don't have to pass texture data over command queue
 
-    CQ_PushCommand_TextureFromFile(tex, API->object->str(ck_str));
+    CQ_PushCommand_TextureFromFile(tex, API->object->str(ck_str), true);
 }

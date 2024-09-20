@@ -203,115 +203,6 @@ GLFWmonitor* getCurrentMonitor(GLFWwindow* window)
 
 struct App;
 
-#if 0
-// map entry for map from (pipeline_id, camera_id) --> WGPUBindGroup
-struct FrameUniformsItem {
-    SG_ID pipeline_id;
-    SG_ID camera_id;
-    SG_ID scene_id;
-
-    // bindgroup needs to be rebuilt if lighting info changes
-    WGPUBindGroup frame_bindgroup;
-
-    static WGPUBindGroup get(App* app, R_RenderPipeline* pipeline, R_Camera* camera,
-                             R_Scene* scene, bool rebuild)
-    {
-
-        WGPUBindGroup frame_bind_group;
-        FrameUniformsItem key = { pipeline->rid, camera ? camera->id : 0, scene->id };
-        FrameUniformsItem* item
-          = (FrameUniformsItem*)hashmap_get(app->frame_uniforms_map, &key);
-
-        if (item) {
-            if (rebuild) {
-                WGPU_RELEASE_RESOURCE(BindGroup, item->frame_bindgroup);
-                item->frame_bindgroup = FrameUniformsItem::rebuildFrameBindGroup(
-                  &app->gctx, pipeline, camera, scene);
-            }
-            frame_bind_group = item->frame_bindgroup;
-        } else {
-            // create new one
-            frame_bind_group = FrameUniformsItem::set(app, pipeline, camera, scene);
-        }
-
-        return frame_bind_group;
-    }
-
-    static WGPUBindGroup rebuildFrameBindGroup(GraphicsContext* gctx,
-                                               R_RenderPipeline* pipeline,
-                                               R_Camera* camera, R_Scene* scene)
-    {
-        WGPUBindGroupEntry frame_group_entries[2] = {};
-
-        WGPUBindGroupEntry* frame_group_entry = &frame_group_entries[0];
-        frame_group_entry->binding            = 0;
-        // TODO remove pipeline->frame_uniform_buffer after adding chugl default camera
-        frame_group_entry->buffer = camera ? camera->frame_uniform_buffer.buf :
-                                             pipeline->frame_uniform_buffer.buf;
-        frame_group_entry->size   = camera ? camera->frame_uniform_buffer.size :
-                                             pipeline->frame_uniform_buffer.size;
-
-        WGPUBindGroupEntry* lighting_entry = &frame_group_entries[1];
-        ASSERT(!scene->light_info_dirty);
-        lighting_entry->binding = 1;
-        lighting_entry->buffer  = scene->light_info_buffer.buf;
-        lighting_entry->size    = scene->light_info_buffer.size;
-
-        // create bind group
-        WGPUBindGroupDescriptor frameGroupDesc;
-        frameGroupDesc        = {};
-        frameGroupDesc.layout = wgpuRenderPipelineGetBindGroupLayout(
-          pipeline->gpu_pipeline, PER_FRAME_GROUP);
-        frameGroupDesc.entries    = frame_group_entries;
-        frameGroupDesc.entryCount = ARRAY_LENGTH(frame_group_entries);
-
-        // layout:auto requires a bind group per pipeline
-        return wgpuDeviceCreateBindGroup(gctx->device, &frameGroupDesc);
-    }
-
-    static WGPUBindGroup set(App* app, R_RenderPipeline* pipeline, R_Camera* camera,
-                             R_Scene* scene)
-    {
-        FrameUniformsItem item = {};
-        item.pipeline_id       = pipeline->rid;
-        item.camera_id         = camera ? camera->id : 0;
-        item.scene_id          = scene->id;
-        item.frame_bindgroup   = FrameUniformsItem::rebuildFrameBindGroup(
-          &app->gctx, pipeline, camera, scene);
-        ASSERT(item.frame_bindgroup);
-
-        const void* replaced = hashmap_set(app->frame_uniforms_map, &item);
-        ASSERT(!replaced);
-
-        return item.frame_bindgroup;
-    }
-
-    static int compare(const void* a, const void* b, void* udata)
-    {
-        FrameUniformsItem* ga = (FrameUniformsItem*)a;
-        FrameUniformsItem* gb = (FrameUniformsItem*)b;
-
-        SG_ID key_a[3] = { ga->pipeline_id, ga->camera_id, ga->scene_id };
-        SG_ID key_b[3] = { gb->pipeline_id, gb->camera_id, gb->scene_id };
-
-        return memcmp(key_a, key_b, sizeof(key_a));
-    }
-
-    static u64 hash(const void* item, uint64_t seed0, uint64_t seed1)
-    {
-        FrameUniformsItem* e = (FrameUniformsItem*)item;
-        SG_ID key[3]         = { e->pipeline_id, e->camera_id, e->scene_id };
-        return hashmap_xxhash3(&key, sizeof(key), seed0, seed1);
-    }
-
-    static void free(void* item)
-    {
-        FrameUniformsItem* e = (FrameUniformsItem*)item;
-        WGPU_RELEASE_RESOURCE(BindGroup, e->frame_bindgroup);
-    }
-};
-#endif
-
 static void _R_HandleCommand(App* app, SG_Command* command);
 
 static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
@@ -325,9 +216,6 @@ static void _R_glfwErrorCallback(int error, const char* description)
 static int frame_buffer_width  = 0;
 static int frame_buffer_height = 0;
 struct App {
-    // options
-    bool standalone; // no chuck. renderer only
-
     GLFWwindow* window;
     GraphicsContext gctx; // pass as pointer?
     int window_fb_width;
@@ -342,10 +230,6 @@ struct App {
     f64 lastTime;
     f64 dt;
     bool show_fps_title = true;
-
-    // renderer tests
-    Camera camera;
-    TestCallbacks callbacks;
 
     // scenegraph state
     SG_ID mainScene;
@@ -383,13 +267,7 @@ struct App {
         app->ckvm  = vm;
         app->ckapi = api;
 
-        Camera::init(&app->camera);
         Arena::init(&app->frameArena, MEGABYTE); // 1MB
-
-        // int seed = time(NULL);
-        // app->frame_uniforms_map = hashmap_new(
-        //   sizeof(FrameUniformsItem), 0, seed, seed, FrameUniformsItem::hash,
-        //   FrameUniformsItem::compare, FrameUniformsItem::free, NULL);
     }
 
     static void gameloop(App* app)
@@ -426,10 +304,7 @@ struct App {
             }
         }
 
-        if (app->standalone)
-            _testLoop(app); // renderer-only tests
-        else
-            _mainLoop(app); // chuck loop
+        _mainLoop(app); // chuck loop
 
         Arena::clear(&app->frameArena);
     }
@@ -560,16 +435,9 @@ struct App {
 
         // initialize imgui frame (should be threadsafe as long as graphics
         // shreds start with GG.nextFrame() => now)
-        if (!app->standalone) {
-            ImGui_ImplWGPU_NewFrame();
-            ImGui_ImplGlfw_NewFrame();
-            ImGui::NewFrame();
-        }
-
-        if (app->standalone && app->callbacks.onInit)
-            app->callbacks.onInit(&app->gctx, app->window);
-
-        app->camera.entity.pos = glm::vec3(0.0, 0.0, 6.0); // move camera back
+        ImGui_ImplWGPU_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
         // main loop
         log_trace("entering  main loop");
@@ -595,7 +463,6 @@ struct App {
 #endif
 
         log_trace("Exiting main loop");
-        if (app->standalone && app->callbacks.onExit) app->callbacks.onExit();
     }
 
     static void end(App* app)
@@ -628,28 +495,8 @@ struct App {
     // App Internal Functions
     // ============================================================================
 
-    static void _testLoop(App* app)
-    {
-        // handle input -------------------
-        glfwPollEvents();
-        // update camera
-        // TODO store aspect in app state
-        i32 width, height;
-        glfwGetWindowSize(app->window, &width, &height);
-        f32 aspect = (f32)width / (f32)height;
-        app->camera.update(&app->camera, 1.0f / 60.0f); // TODO actually set dt
-
-        if (app->callbacks.onUpdate) app->callbacks.onUpdate(app->dt);
-        if (app->callbacks.onRender) {
-            app->callbacks.onRender(Camera::projectionMatrix(&app->camera, aspect),
-                                    Entity::viewMatrix(&app->camera.entity),
-                                    app->camera.entity.pos);
-        }
-    }
-
     static void _mainLoop(App* app)
     {
-        ASSERT(!app->standalone);
         // Render Loop ===========================================
         static u64 prev_lap_time{ stm_now() };
 
@@ -1437,17 +1284,13 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
     static void _closeCallback(GLFWwindow* window)
     {
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onExit) app->callbacks.onExit();
-
-        log_error("closing window");
+        log_trace("closing window");
 
         // ChuGL
-        if (!app->standalone) {
-            // broadcast WindowCloseEvent
-            Event_Broadcast(CHUGL_EventType::WINDOW_CLOSE, app->ckapi, app->ckvm);
-            // block closeable
-            if (!CHUGL_Window_Closeable()) glfwSetWindowShouldClose(window, GLFW_FALSE);
-        }
+        // broadcast WindowCloseEvent
+        Event_Broadcast(CHUGL_EventType::WINDOW_CLOSE, app->ckapi, app->ckvm);
+        // block closeable
+        if (!CHUGL_Window_Closeable()) glfwSetWindowShouldClose(window, GLFW_FALSE);
     }
 
     static void _contentScaleCallback(GLFWwindow* window, float xscale, float yscale)
@@ -1455,11 +1298,9 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         App* app = (App*)glfwGetWindowUserPointer(window);
 
         // broadcast to chuck
-        if (!app->standalone) {
-            CHUGL_Window_ContentScale(xscale, yscale);
-            // update content scale
-            Event_Broadcast(CHUGL_EventType::CONTENT_SCALE, app->ckapi, app->ckvm);
-        }
+        CHUGL_Window_ContentScale(xscale, yscale);
+        // update content scale
+        Event_Broadcast(CHUGL_EventType::CONTENT_SCALE, app->ckapi, app->ckvm);
     }
 
     static void _keyCallback(GLFWwindow* window, int key, int scancode, int action,
@@ -1472,7 +1313,7 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         }
 
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onKey) app->callbacks.onKey(key, scancode, action, mods);
+        UNUSED_VAR(app);
     }
 
     // this is deliberately NOT made a glfw callback because glfwPollEvents()
@@ -1492,18 +1333,12 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
 
         GraphicsContext::resize(&app->gctx, width, height);
 
-        // ImGui_ImplWGPU_CreateDeviceObjects();
-
-        if (app->callbacks.onWindowResize) app->callbacks.onWindowResize(width, height);
-
-        if (!app->standalone) {
-            // update size stats
-            int window_width, window_height;
-            glfwGetWindowSize(window, &window_width, &window_height);
-            CHUGL_Window_Size(window_width, window_height, width, height);
-            // broadcast to chuck
-            Event_Broadcast(CHUGL_EventType::WINDOW_RESIZE, app->ckapi, app->ckvm);
-        }
+        // update size stats
+        int window_width, window_height;
+        glfwGetWindowSize(window, &window_width, &window_height);
+        CHUGL_Window_Size(window_width, window_height, width, height);
+        // broadcast to chuck
+        Event_Broadcast(CHUGL_EventType::WINDOW_RESIZE, app->ckapi, app->ckvm);
     }
 
     static void _mouseButtonCallback(GLFWwindow* window, int button, int action,
@@ -1515,21 +1350,16 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         if (io.WantCaptureMouse) return;
 
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onMouseButton)
-            app->callbacks.onMouseButton(button, action, mods);
-
-        app->camera.onMouseButton(&app->camera, button, action, mods);
+        UNUSED_VAR(app);
 
         // update chugl state
-        if (!app->standalone) {
-            switch (button) {
-                case GLFW_MOUSE_BUTTON_LEFT:
-                    CHUGL_Mouse_LeftButton(action == GLFW_PRESS);
-                    break;
-                case GLFW_MOUSE_BUTTON_RIGHT:
-                    CHUGL_Mouse_RightButton(action == GLFW_PRESS);
-                    break;
-            }
+        switch (button) {
+            case GLFW_MOUSE_BUTTON_LEFT:
+                CHUGL_Mouse_LeftButton(action == GLFW_PRESS);
+                break;
+            case GLFW_MOUSE_BUTTON_RIGHT:
+                CHUGL_Mouse_RightButton(action == GLFW_PRESS);
+                break;
         }
     }
 
@@ -1539,9 +1369,8 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
         if (io.WantCaptureMouse) return;
 
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onScroll) app->callbacks.onScroll(xoffset, yoffset);
+        UNUSED_VAR(app);
 
-        app->camera.onScroll(&app->camera, xoffset, yoffset);
 
         CHUGL_scroll_delta(xoffset, yoffset);
     }
@@ -1549,10 +1378,7 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
     static void _cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
     {
         App* app = (App*)glfwGetWindowUserPointer(window);
-        if (app->callbacks.onCursorPosition)
-            app->callbacks.onCursorPosition(xpos, ypos);
-
-        app->camera.onCursorPosition(&app->camera, xpos, ypos);
+        UNUSED_VAR(app);
 
         CHUGL_Mouse_Position(xpos, ypos);
     }
@@ -1586,19 +1412,13 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     i32 width, height;
     glfwGetWindowSize(app->window, &width, &height);
     f32 aspect = (width > 0 && height > 0) ? (f32)width / (f32)height : 1.0f;
-    if (!camera) {
-        // if camera not set by chugl user, use default camera
-        app->camera.update(&app->camera, (f32)app->dt);
-    }
 
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
-    frameUniforms.projection    = camera ? R_Camera::projectionMatrix(camera, aspect) :
-                                           Camera::projectionMatrix(&app->camera, aspect);
-    frameUniforms.view
-      = camera ? R_Camera::viewMatrix(camera) : Entity::viewMatrix(&app->camera.entity);
-    frameUniforms.camera_pos    = app->camera.entity.pos;
+    frameUniforms.projection    = R_Camera::projectionMatrix(camera, aspect);
+    frameUniforms.view = R_Camera::viewMatrix(camera);
+    frameUniforms.camera_pos    = camera->_pos;
     frameUniforms.time          = time;
     frameUniforms.ambient_light = scene->sg_scene_desc.ambient_light;
     frameUniforms.num_lights    = R_Scene::numLights(scene);
@@ -1995,6 +1815,46 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             SG_Command_b2_SubstepCount* cmd = (SG_Command_b2_SubstepCount*)command;
             app->b2_substep_count           = cmd->substep_count;
         } break;
+        // component --------------
+        case SG_COMMAND_COMPONENT_UPDATE_NAME: {
+            SG_Command_ComponentUpdateName* cmd
+              = (SG_Command_ComponentUpdateName*)command;
+            R_Component* component = Component_GetComponent(cmd->sg_id);
+            char* new_name         = (char*)CQ_ReadCommandGetOffset(cmd->name_offset);
+            component->name        = new_name;
+
+            // if backed by a wgpu type, update the label
+            switch (component->type) {
+                case SG_COMPONENT_BASE: break; // nothing to do
+                case SG_COMPONENT_TRANSFORM: break;
+                case SG_COMPONENT_SCENE: break;
+                case SG_COMPONENT_GEOMETRY: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_SHADER: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_MATERIAL: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_TEXTURE: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_MESH: break;
+                case SG_COMPONENT_CAMERA: break;
+                case SG_COMPONENT_TEXT: break;
+                case SG_COMPONENT_PASS: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_BUFFER: {
+                    // TODO
+                } break;
+                case SG_COMPONENT_LIGHT: break;
+                default: {
+                    ASSERT(FALSE);
+                } break;
+            }
+        } break;
         case SG_COMMAND_GG_SCENE: {
             app->mainScene = ((SG_Command_GG_Scene*)command)->sg_id;
             // update scene's render state
@@ -2218,7 +2078,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
             R_Texture* texture              = Component_GetTexture(cmd->sg_id);
             const char* path
               = (const char*)CQ_ReadCommandGetOffset(cmd->filepath_offset);
-            R_Texture::fromFile(&app->gctx, texture, path);
+            R_Texture::fromFile(&app->gctx, texture, path, cmd->flip_vertically);
         } break;
         // buffers ----------------------
         case SG_COMMAND_BUFFER_UPDATE: {

@@ -56,9 +56,54 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
                 // already) and give control come back to this after finalizing PBR
                 // Material
 
-                snprintf(buffer, ARRAY_LENGTH(buffer), "Material: [%s %llu] %s",
+                snprintf(buffer, ARRAY_LENGTH(buffer), "%s: [%s %llu] %s",
+                         SG_MaterialTypeNames[material->material_type],
                          SG_CKNames[material->type], material->id, material->name);
                 cimgui::ImGui_Text("%s", buffer);
+
+                // material options TODO add rest of builtins
+                switch (material->material_type) {
+                    case SG_MATERIAL_PHONG: {
+                        if (ImGui::ColorEdit3(
+                              "Diffuse", (float*)PhongParams::diffuse(material), 0)) {
+                            PhongParams::diffuse(
+                              material, glm::vec3(*PhongParams::diffuse(material)));
+                        }
+
+                        if (ImGui::ColorEdit3(
+                              "Specular", (float*)PhongParams::specular(material), 0)) {
+                            PhongParams::specular(
+                              material, glm::vec3(*PhongParams::specular(material)));
+                        }
+                        if (ImGui::ColorEdit3(
+                              "Emission", (float*)PhongParams::emission(material), 0)) {
+                            PhongParams::emission(
+                              material, glm::vec3(*PhongParams::emission(material)));
+                        }
+
+                        if (ImGui::DragFloat("Shininess",
+                                             PhongParams::shininess(material), 0.05f)) {
+                            PhongParams::shininess(material,
+                                                   *PhongParams::shininess(material));
+                        }
+
+                        if (cimgui::ImGui_SliderFloat(
+                              "Normal Factor", PhongParams::normalFactor(material),
+                              0.0f, 1.0f)) {
+                            PhongParams::normalFactor(
+                              material, *PhongParams::normalFactor(material));
+                        }
+
+                        if (cimgui::ImGui_SliderFloat("AO Factor",
+                                                      PhongParams::aoFactor(material),
+                                                      0.0f, 1.0f)) {
+                            PhongParams::aoFactor(material,
+                                                  *PhongParams::aoFactor(material));
+                        }
+                    } break;
+                    default: {
+                    }
+                }
             }
 
             // geometry info
@@ -9501,7 +9546,8 @@ CK_DLL_SFUN(ui_DragFloat2Speed)
     Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
     float* v          = (float*)OBJ_MEMBER_UINT(obj, ui_float2_ptr_offset);
     float v_speed     = GET_NEXT_FLOAT(ARGS);
-    RETURN->v_int = cimgui::ImGui_DragFloat2Ex(label, v, v_speed, 0.0f, 0.0f, "%.3f", 0);
+    RETURN->v_int
+      = cimgui::ImGui_DragFloat2Ex(label, v, v_speed, 0.0f, 0.0f, "%.3f", 0);
 }
 
 CK_DLL_SFUN(ui_DragFloat3)

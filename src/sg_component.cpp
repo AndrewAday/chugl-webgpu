@@ -419,7 +419,8 @@ SG_Sampler SG_Sampler::fromCkObj(Chuck_Object* ckobj)
 //     }
 // }
 
-static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b, SG_Geometry* g)
+void SG_Geometry::initGABandNumComponents(GeometryArenaBuilder* b, SG_Geometry* g,
+                                          bool clear = true)
 {
     // set arena pointers
     b->pos_arena  = &g->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
@@ -430,11 +431,13 @@ static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b, SG_Geom
     b->indices_arena = &g->indices;
 
     // clear arenas
-    Arena::clear(b->pos_arena);
-    Arena::clear(b->norm_arena);
-    Arena::clear(b->uv_arena);
-    Arena::clear(b->tangent_arena);
-    Arena::clear(b->indices_arena);
+    if (clear) {
+        Arena::clear(b->pos_arena);
+        Arena::clear(b->norm_arena);
+        Arena::clear(b->uv_arena);
+        Arena::clear(b->tangent_arena);
+        Arena::clear(b->indices_arena);
+    }
 
     // set num components
     ZERO_ARRAY(g->vertex_attribute_num_components);
@@ -444,13 +447,23 @@ static void SG_Geometry_initGABandNumComponents(GeometryArenaBuilder* b, SG_Geom
     g->vertex_attribute_num_components[SG_GEOMETRY_TANGENT_ATTRIBUTE_LOCATION]  = 4;
 }
 
+// computes tangents assuming pos/norm/uv already populated
+void SG_Geometry::computeTangents(SG_Geometry* geo)
+{
+    ASSERT(geo);
+    GeometryArenaBuilder gab;
+    SG_Geometry::initGABandNumComponents(&gab, geo, false);
+
+    Geometry_computeTangents(&gab);
+}
+
 void SG_Geometry::buildPlane(SG_Geometry* g, PlaneParams* p)
 {
     ASSERT(g->geo_type == SG_GEOMETRY_PLANE);
     g->params.plane = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildPlane(&gab, p);
 }
 
@@ -460,7 +473,7 @@ void SG_Geometry::buildSphere(SG_Geometry* g, SphereParams* p)
     g->params.sphere = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildSphere(&gab, p);
 }
 
@@ -468,7 +481,7 @@ void SG_Geometry::buildSuzanne(SG_Geometry* g)
 {
     ASSERT(g->geo_type == SG_GEOMETRY_SUZANNE);
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildSuzanne(&gab);
 }
 
@@ -478,7 +491,7 @@ void SG_Geometry::buildKnot(SG_Geometry* g, KnotParams* p)
     g->params.knot = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildKnot(&gab, p);
 }
 
@@ -488,7 +501,7 @@ void SG_Geometry::buildBox(SG_Geometry* g, BoxParams* p)
     g->params.box = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildBox(&gab, p);
 }
 
@@ -498,7 +511,7 @@ void SG_Geometry::buildCircle(SG_Geometry* g, CircleParams* p)
     g->params.circle = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildCircle(&gab, p);
 }
 
@@ -508,7 +521,7 @@ void SG_Geometry::buildTorus(SG_Geometry* g, TorusParams* p)
     g->params.torus = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildTorus(&gab, p);
 }
 
@@ -518,7 +531,7 @@ void SG_Geometry::buildCylinder(SG_Geometry* g, CylinderParams* p)
     g->params.cylinder = *p;
 
     GeometryArenaBuilder gab;
-    SG_Geometry_initGABandNumComponents(&gab, g);
+    SG_Geometry::initGABandNumComponents(&gab, g);
     Geometry_buildCylinder(&gab, p);
 }
 

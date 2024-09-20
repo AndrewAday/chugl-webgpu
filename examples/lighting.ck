@@ -60,7 +60,7 @@ point_light_meshes[0] --> point_lights[0] --> point_light_axis --> GG.scene();
 
 UI_Int num_point_lights(point_lights.size());
 UI_Float dir_light_rotation;
-UI_Float4 bg_color(GG.scene().backgroundColor());
+UI_Float3 bg_color(GG.scene().backgroundColor());
 UI_Float3 ambient_light(GG.scene().ambient());
 UI_Float3 dir_light_color(GG.scene().light().color());
 UI_Float dir_light_intensity(GG.scene().light().intensity());

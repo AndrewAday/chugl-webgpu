@@ -1137,35 +1137,25 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
 
             // init uniforms
             {
-                SG_Material::uniformVec3f(material, 0,
-                                          glm::vec3(1.0f)); // specular color
-                SG_Material::uniformVec4f(material, 1,
-                                          glm::vec4(1.0f));    // diffuse color
-                SG_Material::uniformFloat(material, 2, 32.0f); // shininess
-                SG_Material::uniformVec3f(material, 3,
-                                          glm::vec3(0.0f));   // emission color
-                SG_Material::uniformFloat(material, 4, 1.0f); // normal factor
-                SG_Material::uniformFloat(material, 5, 1.0f); // ao factor
+                PhongParams::specular(material, glm::vec3(1.0f));
+                PhongParams::diffuse(material, glm::vec3(1.0f));
+                PhongParams::shininess(material, 32.0f);
+                PhongParams::emission(material, glm::vec3(0.0f));
+                PhongParams::normalFactor(material, 1.0f);
+                PhongParams::aoFactor(material, 1.0f);
 
-                SG_Material::setSampler(material, 6,
-                                        SG_SAMPLER_DEFAULT); // texture sampler
-                SG_Material::setTexture(
-                  material, 7,
-                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // albedo
-                SG_Material::setTexture(
-                  material, 8,
-                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // specular
-                SG_Material::setTexture(
-                  material, 9,
-                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // ao
-                SG_Material::setTexture(
-                  material, 10,
-                  SG_GetTexture(g_builtin_textures.black_pixel_id)); // emissive
-                SG_Material::setTexture(
-                  material, 11,
-                  SG_GetTexture(g_builtin_textures.normal_pixel_id)); // normal
-
-                ulib_material_cq_update_all_uniforms(material);
+                // textures
+                PhongParams::sampler(material, SG_SAMPLER_DEFAULT);
+                PhongParams::albedoTex(
+                  material, SG_GetTexture(g_builtin_textures.white_pixel_id));
+                PhongParams::specularTex(
+                  material, SG_GetTexture(g_builtin_textures.white_pixel_id));
+                PhongParams::aoTex(material,
+                                   SG_GetTexture(g_builtin_textures.white_pixel_id));
+                PhongParams::emissiveTex(
+                  material, SG_GetTexture(g_builtin_textures.black_pixel_id));
+                PhongParams::normalTex(
+                  material, SG_GetTexture(g_builtin_textures.normal_pixel_id));
             }
         } break;
         default: ASSERT(false);
@@ -1405,7 +1395,7 @@ CK_DLL_CTOR(phong_material_ctor)
 CK_DLL_MFUN(phong_material_get_specular_color)
 {
     SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec3 color       = material->uniforms[0].as.vec3f;
+    glm::vec3 color       = *PhongParams::specular(material);
 
     RETURN->v_vec3 = { color.r, color.g, color.b };
 }
@@ -1415,14 +1405,13 @@ CK_DLL_MFUN(phong_material_set_specular_color)
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
 
-    SG_Material::uniformVec3f(material, 0, glm::vec3(color.x, color.y, color.z));
-    CQ_PushCommand_MaterialSetUniform(material, 0);
+    PhongParams::specular(material, glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_diffuse_color)
 {
     SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec4 color       = material->uniforms[1].as.vec4f;
+    glm::vec4 color       = *PhongParams::diffuse(material);
 
     RETURN->v_vec3 = { color.r, color.g, color.b };
 }
@@ -1432,14 +1421,13 @@ CK_DLL_MFUN(phong_material_set_diffuse_color)
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
 
-    SG_Material::uniformVec4f(material, 1, glm::vec4(color.x, color.y, color.z, 1));
-    CQ_PushCommand_MaterialSetUniform(material, 1);
+    PhongParams::diffuse(material, glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_log_shininess)
 {
     SG_Material* material = GET_MATERIAL(SELF);
-    RETURN->v_float       = glm::log2(material->uniforms[2].as.f);
+    RETURN->v_float       = glm::log2(*PhongParams::shininess(material));
 }
 
 CK_DLL_MFUN(phong_material_set_log_shininess)
@@ -1447,14 +1435,14 @@ CK_DLL_MFUN(phong_material_set_log_shininess)
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKFLOAT shininess   = GET_NEXT_FLOAT(ARGS);
 
-    SG_Material::uniformFloat(material, 2, glm::pow(2.0f, (f32)shininess));
+    PhongParams::shininess(material, glm::pow(2.0f, (f32)shininess));
     CQ_PushCommand_MaterialSetUniform(material, 2);
 }
 
 CK_DLL_MFUN(phong_material_get_emission_color)
 {
     SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec3 color       = material->uniforms[3].as.vec3f;
+    glm::vec3 color       = *PhongParams::emission(material);
 
     RETURN->v_vec3 = { color.r, color.g, color.b };
 }
@@ -1464,43 +1452,33 @@ CK_DLL_MFUN(phong_material_set_emission_color)
     SG_Material* material = GET_MATERIAL(SELF);
     t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
 
-    SG_Material::uniformVec3f(material, 3, glm::vec3(color.x, color.y, color.z));
-    CQ_PushCommand_MaterialSetUniform(material, 3);
+    PhongParams::emission(material, glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_normal_factor)
 {
-    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[4].as.f;
+    RETURN->v_float = *PhongParams::normalFactor(GET_MATERIAL(SELF));
 }
 
 CK_DLL_MFUN(phong_material_set_normal_factor)
 {
-    SG_Material* material   = GET_MATERIAL(SELF);
-    t_CKFLOAT normal_factor = GET_NEXT_FLOAT(ARGS);
-
-    SG_Material::uniformFloat(material, 4, (f32)normal_factor);
-    CQ_PushCommand_MaterialSetUniform(material, 4);
+    PhongParams::normalFactor(GET_MATERIAL(SELF), GET_NEXT_FLOAT(ARGS));
 }
 
 CK_DLL_MFUN(phong_material_get_ao_factor)
 {
-    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[5].as.f;
+    RETURN->v_float = *PhongParams::aoFactor(GET_MATERIAL(SELF));
 }
 
 CK_DLL_MFUN(phong_material_set_ao_factor)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKFLOAT ao_factor   = GET_NEXT_FLOAT(ARGS);
-
-    SG_Material::uniformFloat(material, 5, (f32)ao_factor);
-    CQ_PushCommand_MaterialSetUniform(material, 5);
+    PhongParams::aoFactor(GET_MATERIAL(SELF), GET_NEXT_FLOAT(ARGS));
 }
 
 CK_DLL_MFUN(phong_material_get_albedo_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    SG_Texture* tex       = SG_GetTexture(material->uniforms[7].as.texture_id);
-    RETURN->v_object      = tex ? tex->ckobj : NULL;
+    SG_Texture* tex  = PhongParams::albedoTex(GET_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(phong_material_set_albedo_tex)
@@ -1515,15 +1493,13 @@ CK_DLL_MFUN(phong_material_set_albedo_tex)
         tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
     }
 
-    SG_Material::setTexture(material, 7, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 7);
+    PhongParams::albedoTex(material, tex);
 }
 
 CK_DLL_MFUN(phong_material_get_specular_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    SG_Texture* tex       = SG_GetTexture(material->uniforms[8].as.texture_id);
-    RETURN->v_object      = tex ? tex->ckobj : NULL;
+    SG_Texture* tex  = PhongParams::specularTex(GET_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(phong_material_set_specular_tex)
@@ -1538,15 +1514,13 @@ CK_DLL_MFUN(phong_material_set_specular_tex)
         tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
     }
 
-    SG_Material::setTexture(material, 8, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 8);
+    PhongParams::specularTex(material, tex);
 }
 
 CK_DLL_MFUN(phong_material_get_ao_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    SG_Texture* tex       = SG_GetTexture(material->uniforms[9].as.texture_id);
-    RETURN->v_object      = tex ? tex->ckobj : NULL;
+    SG_Texture* tex  = PhongParams::aoTex(GET_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(phong_material_set_ao_tex)
@@ -1561,15 +1535,13 @@ CK_DLL_MFUN(phong_material_set_ao_tex)
         tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
     }
 
-    SG_Material::setTexture(material, 9, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 9);
+    PhongParams::aoTex(material, tex);
 }
 
 CK_DLL_MFUN(phong_material_get_emissive_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    SG_Texture* tex       = SG_GetTexture(material->uniforms[10].as.texture_id);
-    RETURN->v_object      = tex ? tex->ckobj : NULL;
+    SG_Texture* tex  = PhongParams::emissiveTex(GET_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(phong_material_set_emissive_tex)
@@ -1584,15 +1556,13 @@ CK_DLL_MFUN(phong_material_set_emissive_tex)
         tex = SG_GetTexture(g_builtin_textures.black_pixel_id);
     }
 
-    SG_Material::setTexture(material, 10, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 10);
+    PhongParams::emissiveTex(material, tex);
 }
 
 CK_DLL_MFUN(phong_material_get_normal_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    SG_Texture* tex       = SG_GetTexture(material->uniforms[11].as.texture_id);
-    RETURN->v_object      = tex ? tex->ckobj : NULL;
+    SG_Texture* tex  = PhongParams::normalTex(GET_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(phong_material_set_normal_tex)
@@ -1607,8 +1577,7 @@ CK_DLL_MFUN(phong_material_set_normal_tex)
         tex = SG_GetTexture(g_builtin_textures.normal_pixel_id);
     }
 
-    SG_Material::setTexture(material, 11, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 11);
+    PhongParams::normalTex(material, tex);
 }
 
 // PBRMaterial ===================================================================

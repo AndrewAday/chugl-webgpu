@@ -11,7 +11,6 @@
 // ===============================================================
 // Geometry  (for now, immutable)
 // ===============================================================
-static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo);
 
 CK_DLL_CTOR(geo_ctor);
 
@@ -539,8 +538,11 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 // Geometry -----------------------------------------------------
 
 // if params is NULL, uses default values
-static void ulib_geometry_build(SG_Geometry* geo, void* params)
+static void ulib_geometry_build(SG_Geometry* geo, SG_GeometryType geo_type,
+                                void* params)
 {
+    geo->geo_type = geo_type;
+
     switch (geo->geo_type) {
         case SG_GEOMETRY: {
             // custom geometry has no setup
@@ -602,16 +604,14 @@ SG_Geometry* ulib_geometry_create(SG_GeometryType type, Chuck_VM_Shred* shred)
 {
     CK_DL_API API = g_chuglAPI;
 
-    ASSERT(type != SG_GEOMETRY);
     Chuck_Object* obj = chugin_createCkObj(SG_GeometryTypeNames[type], false, shred);
 
     SG_Geometry* geo                          = SG_CreateGeometry(obj);
-    geo->geo_type                             = type;
     OBJ_MEMBER_UINT(obj, component_offset_id) = geo->id;
 
     CQ_PushCommand_GeometryCreate(geo);
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, type, NULL);
 
     return geo;
 }
@@ -869,8 +869,9 @@ CK_DLL_MFUN(geo_generate_tangents)
 
 // Plane Geometry -----------------------------------------------------
 
-static void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
+void CQ_UpdateAllVertexAttributes(SG_Geometry* geo)
 { // push attribute changes to command queue
+    ASSERT(geo);
     Arena* positions_arena
       = &geo->vertex_attribute_data[SG_GEOMETRY_POSITION_ATTRIBUTE_LOCATION];
     CQ_PushCommand_GeometrySetVertexAttribute(
@@ -905,9 +906,8 @@ CK_DLL_CTOR(plane_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
     ASSERT(geo);
-    geo->geo_type = SG_GEOMETRY_PLANE;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_PLANE, NULL);
 }
 
 CK_DLL_CTOR(plane_geo_ctor_params)
@@ -919,9 +919,8 @@ CK_DLL_CTOR(plane_geo_ctor_params)
     params.heightSegments = GET_NEXT_INT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_PLANE;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_PLANE, &params);
 }
 
 CK_DLL_MFUN(plane_geo_build)
@@ -933,7 +932,7 @@ CK_DLL_MFUN(plane_geo_build)
     params.widthSegments  = GET_NEXT_INT(ARGS);
     params.heightSegments = GET_NEXT_INT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_PLANE, &params);
 }
 
 CK_DLL_MFUN(plane_geo_get_width)
@@ -959,9 +958,8 @@ CK_DLL_MFUN(plane_geo_get_heightSegments)
 CK_DLL_CTOR(sphere_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_SPHERE;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_SPHERE, NULL);
 }
 
 CK_DLL_CTOR(sphere_geo_ctor_params)
@@ -976,9 +974,8 @@ CK_DLL_CTOR(sphere_geo_ctor_params)
     params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_SPHERE;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_SPHERE, &params);
 }
 
 CK_DLL_MFUN(sphere_geo_build)
@@ -993,7 +990,7 @@ CK_DLL_MFUN(sphere_geo_build)
     params.thetaStart   = GET_NEXT_FLOAT(ARGS);
     params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_SPHERE, &params);
 }
 
 CK_DLL_MFUN(sphere_geo_get_radius)
@@ -1036,9 +1033,8 @@ CK_DLL_MFUN(sphere_geo_get_thetaLength)
 CK_DLL_CTOR(suzanne_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_SUZANNE;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_SUZANNE, NULL);
 }
 
 // Lines2D Geometry -----------------------------------------------------
@@ -1098,9 +1094,8 @@ void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr)
 CK_DLL_CTOR(lines2d_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_LINES2D;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_LINES2D, NULL);
 }
 
 CK_DLL_CTOR(lines2d_geo_ctor_params)
@@ -1152,9 +1147,8 @@ CK_DLL_MFUN(lines2d_geo_set_line_colors)
 CK_DLL_CTOR(box_geo_ctor)
 {
     SG_Geometry* geo = GET_GEOMETRY(SELF);
-    geo->geo_type    = SG_GEOMETRY_BOX;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_BOX, NULL);
 }
 
 CK_DLL_CTOR(box_geo_ctor_params)
@@ -1168,9 +1162,8 @@ CK_DLL_CTOR(box_geo_ctor_params)
     params.depthSeg  = GET_NEXT_INT(ARGS);
 
     SG_Geometry* geo = GET_GEOMETRY(SELF);
-    geo->geo_type    = SG_GEOMETRY_BOX;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_BOX, &params);
 }
 
 CK_DLL_MFUN(box_geo_build)
@@ -1184,7 +1177,7 @@ CK_DLL_MFUN(box_geo_build)
     params.heightSeg = GET_NEXT_INT(ARGS);
     params.depthSeg  = GET_NEXT_INT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_BOX, &params);
 }
 
 CK_DLL_MFUN(box_geo_get_width)
@@ -1222,9 +1215,8 @@ CK_DLL_MFUN(box_geo_get_depth_segments)
 CK_DLL_CTOR(circle_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_CIRCLE;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_CIRCLE, NULL);
 }
 
 CK_DLL_CTOR(circle_geo_ctor_params)
@@ -1236,9 +1228,8 @@ CK_DLL_CTOR(circle_geo_ctor_params)
     params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_CIRCLE;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CIRCLE, &params);
 }
 
 CK_DLL_MFUN(circle_geo_build)
@@ -1250,7 +1241,7 @@ CK_DLL_MFUN(circle_geo_build)
     params.thetaStart   = GET_NEXT_FLOAT(ARGS);
     params.thetaLength  = GET_NEXT_FLOAT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CIRCLE, &params);
 }
 
 CK_DLL_MFUN(circle_geo_get_radius)
@@ -1278,9 +1269,8 @@ CK_DLL_MFUN(circle_geo_get_thetaLength)
 CK_DLL_CTOR(torus_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_TORUS;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_TORUS, NULL);
 }
 
 CK_DLL_CTOR(torus_geo_ctor_params)
@@ -1293,9 +1283,8 @@ CK_DLL_CTOR(torus_geo_ctor_params)
     params.arcLength       = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_TORUS;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_TORUS, &params);
 }
 
 CK_DLL_MFUN(torus_geo_build)
@@ -1308,7 +1297,7 @@ CK_DLL_MFUN(torus_geo_build)
     params.tubularSegments = GET_NEXT_INT(ARGS);
     params.arcLength       = GET_NEXT_FLOAT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_TORUS, &params);
 }
 
 CK_DLL_MFUN(torus_geo_get_radius)
@@ -1341,9 +1330,8 @@ CK_DLL_MFUN(torus_geo_get_arcLength)
 CK_DLL_CTOR(cylinder_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_CYLINDER;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_CYLINDER, NULL);
 }
 
 CK_DLL_CTOR(cylinder_geo_ctor_params)
@@ -1359,9 +1347,8 @@ CK_DLL_CTOR(cylinder_geo_ctor_params)
     params.thetaLength    = GET_NEXT_FLOAT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_CYLINDER;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CYLINDER, &params);
 }
 
 CK_DLL_MFUN(cylinder_geo_build)
@@ -1377,7 +1364,7 @@ CK_DLL_MFUN(cylinder_geo_build)
     params.thetaStart     = GET_NEXT_FLOAT(ARGS);
     params.thetaLength    = GET_NEXT_FLOAT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CYLINDER, &params);
 }
 
 CK_DLL_MFUN(cylinder_geo_get_radiusTop)
@@ -1425,9 +1412,8 @@ CK_DLL_MFUN(cylinder_geo_get_thetaLength)
 CK_DLL_CTOR(knot_geo_ctor)
 {
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_KNOT;
 
-    ulib_geometry_build(geo, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_KNOT, NULL);
 }
 
 CK_DLL_CTOR(knot_geo_ctor_params)
@@ -1441,9 +1427,8 @@ CK_DLL_CTOR(knot_geo_ctor_params)
     params.q               = GET_NEXT_INT(ARGS);
 
     SG_Geometry* geo = SG_GetGeometry(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    geo->geo_type    = SG_GEOMETRY_KNOT;
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_KNOT, &params);
 }
 
 CK_DLL_MFUN(knot_geo_build)
@@ -1457,7 +1442,7 @@ CK_DLL_MFUN(knot_geo_build)
     params.p               = GET_NEXT_INT(ARGS);
     params.q               = GET_NEXT_INT(ARGS);
 
-    ulib_geometry_build(geo, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_KNOT, &params);
 }
 
 CK_DLL_MFUN(knot_geo_get_radius)

@@ -43,10 +43,10 @@ static void ulib_gscene_query(Chuck_DL_Query* QUERY)
 
     // background color
     QUERY->add_mfun(QUERY, gscene_set_background_color, "void", "backgroundColor");
-    QUERY->add_arg(QUERY, "vec4", "color");
+    QUERY->add_arg(QUERY, "vec3", "color");
     QUERY->doc_func(QUERY, "Set the background color of the scene");
 
-    QUERY->add_mfun(QUERY, gscene_get_background_color, "vec4", "backgroundColor");
+    QUERY->add_mfun(QUERY, gscene_get_background_color, "vec3", "backgroundColor");
     QUERY->doc_func(QUERY, "Get the background color of the scene");
 
     // main camera
@@ -93,15 +93,15 @@ CK_DLL_MFUN(gscene_get_background_color)
 {
     SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
     glm::vec4 color = scene->desc.bg_color;
-    RETURN->v_vec4  = { color.r, color.g, color.b, color.a };
+    RETURN->v_vec3  = { color.r, color.g, color.b };
 }
 
 CK_DLL_MFUN(gscene_set_background_color)
 {
     SG_Scene* scene = SG_GetScene(OBJ_MEMBER_UINT(SELF, component_offset_id));
-    t_CKVEC4 color  = GET_NEXT_VEC4(ARGS);
+    t_CKVEC3 color  = GET_NEXT_VEC3(ARGS);
 
-    scene->desc.bg_color = { color.x, color.y, color.z, color.w };
+    scene->desc.bg_color = { color.x, color.y, color.z, 1.0f };
 
     CQ_PushCommand_SceneUpdate(scene);
 }
