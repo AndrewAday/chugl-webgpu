@@ -667,7 +667,9 @@ fn calculate_line_pos(vertex_id : u32) -> vec2f
         (cw && (bevel_idx == 0u || bevel_idx == 2u))
     ) {
         let miter_dir = 1.0 * normalize(prev_dir_perp + next_dir_perp);
-        let miter_length = (u_line_width * 0.5) / dot(miter_dir, prev_dir_perp);
+        let max_miter_len = min(length(next_pos - this_pos), length(prev_pos - this_pos));
+        let miter_length = clamp((u_line_width * 0.5) / dot(miter_dir, prev_dir_perp), 0.0, max_miter_len);
+        
         pos = this_pos - orientation * miter_length * miter_dir;
     }
     else if (
