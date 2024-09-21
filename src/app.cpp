@@ -377,6 +377,24 @@ struct App {
         // initialize R_Component manager
         Component_Init(&app->gctx);
 
+        { // initialize imgui
+            // Setup Dear ImGui context
+            IMGUI_CHECKVERSION();
+            ImGui::CreateContext();
+            ImGuiIO& io = ImGui::GetIO();
+            (void)io;
+            io.ConfigFlags
+              |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+            io.ConfigFlags
+              |= ImGuiConfigFlags_NavEnableGamepad;           // Enable Gamepad Controls
+            io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
+            io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
+
+            // Setup Dear ImGui style
+            ImGui::StyleColorsDark();
+            // ImGui::StyleColorsLight();
+        }
+
         { // set window callbacks
 #ifdef CHUGL_DEBUG
             glfwSetErrorCallback(_R_glfwErrorCallback);
@@ -398,24 +416,8 @@ struct App {
                               //   https://github.com/glfw/glfw/issues/1968)
         }
 
-        { // initialize imgui
-            // Setup Dear ImGui context
-            IMGUI_CHECKVERSION();
-            ImGui::CreateContext();
-            ImGuiIO& io = ImGui::GetIO();
-            (void)io;
-            io.ConfigFlags
-              |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-            io.ConfigFlags
-              |= ImGuiConfigFlags_NavEnableGamepad;           // Enable Gamepad Controls
-            io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
-            io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
-
-            // Setup Dear ImGui style
-            ImGui::StyleColorsDark();
-            // ImGui::StyleColorsLight();
-
-            // Setup Platform/Renderer backends
+        // Setup ImGui Platform/Renderer backends
+        {
             ImGui_ImplGlfw_InitForOther(app->window, true);
 #ifdef __EMSCRIPTEN__
             ImGui_ImplGlfw_InstallEmscriptenCanvasResizeCallback("#canvas");
@@ -653,8 +655,9 @@ struct App {
                           Component_GetCamera(pass->sg_pass.camera_id) :
                           Component_GetCamera(scene->sg_scene_desc.main_camera_id);
                     // defaults to swapchain current view
-                    // TODO: maybe don't need WindowTexture, let null texture default to
-                    // window tex? but that would only work in renderpass context...
+                    // TODO: maybe don't need WindowTexture, let null texture
+                    // default to window tex? but that would only work in renderpass
+                    // context...
                     // TODO fix texture creation
                     R_Texture* r_tex
                       = Component_GetTexture(pass->sg_pass.resolve_target_id);
@@ -681,7 +684,8 @@ struct App {
                       = r_tex->gpu_texture.format;
 
                     // it's ok for camera to be null
-                    // TODO re-add camera check after adding GCamera default controllers
+                    // TODO re-add camera check after adding GCamera default
+                    // controllers
                     ASSERT(scene && resolve_target_view);
 
                     {
@@ -867,8 +871,8 @@ struct App {
                                                     output_texture->gpu_texture.format,
                                                     bloom_downscale_shader->id);
 
-                        // set the material uniforms that only need to be set once, not
-                        // per mip level dispatch
+                        // set the material uniforms that only need to be set once,
+                        // not per mip level dispatch
                         R_Material::setSamplerBinding(
                           &app->gctx, bloom_downscale_material, 1, bloom_sampler);
 
@@ -932,8 +936,8 @@ struct App {
                           &app->gctx, output_texture->gpu_texture.format,
                           bloom_upscale_shader->id);
 
-                        // set the material uniforms that only need to be set once, not
-                        // per mip level dispatch
+                        // set the material uniforms that only need to be set once,
+                        // not per mip level dispatch
                         R_Material::setSamplerBinding(
                           &app->gctx, bloom_upscale_material, 1, bloom_sampler);
 
@@ -1383,6 +1387,9 @@ if (GraphicsContext::prepareFrame(&app->gctx)) {
 
     static void _cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
     {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureMouse) return;
+
         App* app = (App*)glfwGetWindowUserPointer(window);
         UNUSED_VAR(app);
 
@@ -1429,9 +1436,9 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
     frameUniforms.ambient_light = scene->sg_scene_desc.ambient_light;
     frameUniforms.num_lights    = R_Scene::numLights(scene);
 
-    // update frame-level uniforms (storing on camera because same scene can be rendered
-    // from multiple camera angles)
-    // every camera belongs to a single scene, but a scene can have multiple cameras
+    // update frame-level uniforms (storing on camera because same scene can be
+    // rendered from multiple camera angles) every camera belongs to a single scene,
+    // but a scene can have multiple cameras
     if (camera) {
         bool frame_uniforms_recreated = GPU_Buffer::write(
           &app->gctx, &camera->frame_uniform_buffer, WGPUBufferUsage_Uniform,
@@ -1559,7 +1566,8 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                 GeometryToXforms::rebuildBindGroup(&app->gctx, scene, g2x,
                                                    perDrawLayout, &app->frameArena);
 
-                // check *after* rebuildBindGroup because some xform ids may be removed
+                // check *after* rebuildBindGroup because some xform ids may be
+                // removed
                 int num_instances = ARENA_LENGTH(&g2x->xform_ids, SG_ID);
                 if (num_instances == 0) continue;
 

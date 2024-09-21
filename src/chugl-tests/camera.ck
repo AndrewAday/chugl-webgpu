@@ -54,5 +54,13 @@ T.assert(T.veq(orbit_camera.target(), @(.1, .2, .3)), "orbit camera target");
 
 // FlyCamera =========================================
 
-// TODO
+GFlyCamera fly_camera;
+
+fly_camera.speed(0.123);
+T.assert(T.feq(fly_camera.speed(), 0.123), "fly camera speed");
+
+fly_camera.sensitivity(0.123);
+
+
+
 

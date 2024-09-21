@@ -15,10 +15,6 @@ N point lights on rotating around central cube. able to inc/dec number of lights
 
 // scenegraph setup
 
-GWindow.mouseMode(GWindow.MouseMode_Disabled);
-GFlyCamera fly_camera --> GG.scene();
-GG.scene().camera(fly_camera);
-
 Texture albedo_tex;
 Texture normal_tex;
 
@@ -73,8 +69,7 @@ UI_Float3 albedo(material[0][0].albedo());
 UI_Float normal_factor(material[0][0].normalFactor());
 
 
-// GG.scene().camera() $ GOrbitCamera @=> GOrbitCamera camera;
-GOrbitCamera camera;
+GG.scene().camera() $ GOrbitCamera @=> GOrbitCamera camera;
 UI_Float3 camera_target(camera.target());
 
 fun void ui() {

@@ -43,6 +43,33 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
             CQ_PushCommand_SetScale(node);
         }
 
+        // struct SG_OrbitCameraParams {
+        //     SphericalCoords spherical = { 6.0f, 0.0f, 0.0f }; // *relative to target*
+        //     f32 speed                 = 0.01f;
+        //     f32 zoom_speed            = 0.5f;
+        //     glm::vec3 target          = glm::vec3(0.0f); // point to look at
+        // };
+
+        // struct SG_FlyCameraParams {
+        //     f32 speed             = 2.5f;
+        //     f32 mouse_sensitivity = 0.003f;
+        // };
+
+        // if (node->type == SG_COMPONENT_CAMERA) {
+        //     SG_Camera* camera = (SG_Camera*)node;
+        //     switch (camera->controller_type) {
+        //         case SG_CameraControllerType_Orbit: {
+        //             SG_OrbitCameraParams* orbit = &camera->orbit;
+        //             ImGui::DragFloat("Orbit Speed", &orbit->speed, 0.01f);
+        //             ImGui::DragFloat("Orbit Zoom Speed", &orbit->zoom_speed, 0.01f);
+        //             ImGui::DragFloat3("Orbit Target", &orbit->target[0], 0.1f);
+        //         } break;
+        //         case SG_CameraControllerType_Fly: {
+        //         } break;
+        //         default: break;
+        //     }
+        // }
+
         if (node->type == SG_COMPONENT_MESH) {
             SG_Mesh* mesh = SG_GetMesh(node->id);
             cimgui::ImGui_SeparatorText("Mesh");

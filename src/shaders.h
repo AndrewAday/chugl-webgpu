@@ -379,7 +379,39 @@ static const char* diffuse_shader_string  = R"glsl(
     #include STANDARD_VERTEX_SHADER
 
     // our custom material uniforms
-    @group(1) @binding(0) var<uniform> albedo: vec4f;
+    @group(1) @binding(0) var<uniform> u_diffuse_color: vec4f;
+    @group(1) @binding(1) var<uniform> u_emission_color : vec3f;
+    @group(1) @binding(2) var<uniform> u_normal_factor : f32;
+    @group(1) @binding(3) var<uniform> u_ao_factor : f32; // 0 disables ao
+
+    @group(1) @binding(4) var texture_sampler: sampler;
+    @group(1) @binding(5) var u_diffuse_map: texture_2d<f32>;   
+    @group(1) @binding(6) var u_ao_map: texture_2d<f32>;
+    @group(1) @binding(7) var u_emissive_map: texture_2d<f32>;
+    @group(1) @binding(8) var u_normal_map: texture_2d<f32>;
+    
+    fn srgbToLinear(srgb_in : vec3f) -> vec3f {
+        return pow(srgb_in.rgb,vec3f(2.2));
+    }
+
+    fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
+        var normal = inNormal;
+
+        if (!is_front) {
+            normal = -inNormal;
+        }
+
+        var tangentNormal : vec3f = textureSample(u_normal_map, texture_sampler, inUV).rgb * 2.0 - 1.0;
+        tangentNormal.x *= scale;
+        tangentNormal.y *= scale;
+
+        let N : vec3f = normalize(inNormal);
+        let T : vec3f = normalize(inTangent.xyz);
+        let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
+        let TBN : mat3x3f = mat3x3(T, B, N);
+
+        return normalize(TBN * tangentNormal);
+    }
 
     // don't actually need normals/tangents
     @fragment 
@@ -388,40 +420,45 @@ static const char* diffuse_shader_string  = R"glsl(
         @builtin(front_facing) is_front: bool,
     ) -> @location(0) vec4f
     {
-        // calculate normal
-        var normal : vec3f;
-        if (is_front) {
-            normal = in.v_normal;
-        } else {
-            normal = -in.v_normal;
-        }
-        normal = normalize(normal);
+        var normal = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_normal_factor, is_front);
+        let viewDir = normalize(u_Frame.camera_pos - in.v_worldpos);  // direction from camera to this frag
 
-        // ambient lighting
-        var ambient = albedo.rgb * u_Frame.ambient_light;
-        var diffuse = vec3(0.0);
+        // material color properties (ignore alpha channel for now)
+        let diffuseTex = textureSample(u_diffuse_map, texture_sampler, in.v_uv);
+        let aoTex = textureSample(u_ao_map, texture_sampler, in.v_uv);
+        let emissiveTex = textureSample(u_emissive_map, texture_sampler, in.v_uv);
+        // factor ao into diffuse
+        var diffuse_color = u_diffuse_color.rgb * srgbToLinear(diffuseTex.rgb);
+        diffuse_color = mix(diffuse_color, diffuse_color * aoTex.r, u_ao_factor);
 
+        var lighting = vec3f(0.0); // accumulate lighting
         // add diffuse contributions
         for (var i = 0; i < u_Frame.num_lights; i++) {
             let light = u_lights[i];
             switch (light.light_type) {
             case 1: { // directional
-                diffuse += max(dot(normal, -light.direction), 0.0) * light.color * albedo.rgb;
+                lighting += max(dot(normal, -light.direction), 0.0) * light.color * diffuse_color;
             }
             case 2: { // point
                 let dist = distance(in.v_worldpos, light.position);
-                let intensity = pow(
+                let attenuation = pow(
                     clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
                     light.point_falloff
                 );
                 let dir = normalize(light.position - in.v_worldpos);
-                diffuse += max(dot(normal, dir), 0.0) * light.color * albedo.rgb * intensity;
+                lighting += max(dot(normal, dir), 0.0) * attenuation * light.color * diffuse_color;
             }
             default: {}
             } // end switch
         }
 
-        return vec4f(ambient + diffuse, albedo.a);
+        // add ambient lighting
+        lighting += diffuse_color * u_Frame.ambient_light;
+
+        // add emissive
+        lighting += srgbToLinear(emissiveTex.rgb) * u_emission_color;
+
+        return vec4f(lighting, diffuseTex.a);
     }
 )glsl";
 
@@ -498,7 +535,6 @@ static const char* phong_shader_string = R"glsl(
         var normal = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_normal_factor, is_front);
 
         let viewDir = normalize(u_Frame.camera_pos - in.v_worldpos);  // direction from camera to this frag
-
 
         // material color properties (ignore alpha channel for now)
         let diffuseTex = textureSample(u_diffuse_map, texture_sampler, in.v_uv);
@@ -585,11 +621,8 @@ static const char* lines2d_shader_string  = R"glsl(
 #include FRAME_UNIFORMS
 
 // line material uniforms
-// TODO add color, extrustion, loop
 @group(1) @binding(0) var<uniform> u_line_width: f32;
 @group(1) @binding(1) var<uniform> u_color: vec3f;
-// @group(1) @binding(2) var<uniform> u_loop: i32;
-// @group(1) @binding(3) var<uniform> u_extrusion_ratio: f32; // how much of the line to extrude in miter direction vs -miter (defaults to 0.5)
 
 #include DRAW_UNIFORMS
 
@@ -606,21 +639,6 @@ struct VertexOutput {
     @location(0) v_worldpos : vec3f,
     @location(1) v_color : vec3f,
 };
-
-// old: for miter joins
-// fn getPos(pos_idx : i32, num_points : i32) -> vec2f 
-// {
-//     var idx = pos_idx;
-//     if (pos_idx < 0) {
-//         idx += (num_points / 2);
-//     } else if (pos_idx >= num_points / 2) {
-//         idx -= (num_points / 2);
-//     }
-//     return vec2f(
-//         positions[2 * idx + 0],  // x
-//         positions[2 * idx + 1]   // y
-//     );
-// }
 
 // for bevel joins
 fn getPos(vertex_idx : u32) -> vec2f 
@@ -720,20 +738,6 @@ fn vs_main(
 @fragment 
 fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
 {
-    // TODO impl
-    // valve half-life diffuse
-    // var normal : vec3f;
-    // if (is_front) {
-    //     normal = in.v_normal;
-    // } else {
-    //     normal = -in.v_normal;
-    // }
-    // var diffuse : f32 = 0.5 * dot(normal, -u_Frame.dirLight) + 0.5;
-    // diffuse = diffuse * diffuse;
-    // return vec4f(vec3f(diffuse), 1.0);
-
-
-    // return vec4f(u_color, 1.0);
     return vec4f(u_color * in.v_color, 1.0);
 }
 )glsl";
@@ -902,22 +906,7 @@ static const char* pbr_shader_string = R"glsl(
         let emissiveColor : vec3f = srgbToLinear(textureSample(emissiveMap, texture_sampler, in.v_uv).rgb);
         finalColor += emissiveColor * u_emissiveFactor;
 
-        // lambertian diffuse
-        // let normal = normalize(in.v_normal);
-        // var lightContrib : f32 = max(0.0, dot(u_Frame.dirLight, -normal));
-        // return vec4f(lightContrib * albedo, 1.0);
-        // add global ambient
-        // lightContrib = clamp(lightContrib, 0.2, 1.0);
-
         return vec4f(finalColor, u_baseColor.a);
-        // return vec4f(Lo, u_baseColor.a);
-        // return vec4f(kD, u_baseColor.a);
-        // return vec4f(vec3f(ao), u_baseColor.a);
-        // return vec4f(kD, u_baseColor.a);
-        // return vec4f(
-        //     ambient, u_baseColor.a);
-        // return vec4f(in.v_normal, 1.0);
-        // return vec4f(in.v_uv, 0.0, 1.0);
     }
 )glsl";
 

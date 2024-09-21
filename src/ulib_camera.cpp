@@ -47,6 +47,11 @@ CK_DLL_MFUN(orbit_camera_get_target);
 CK_DLL_CTOR(fly_camera_ctor);
 CK_DLL_MFUN(fly_camera_update);
 
+CK_DLL_MFUN(fly_camera_set_speed);
+CK_DLL_MFUN(fly_camera_get_speed);
+CK_DLL_MFUN(fly_camera_set_sensitivity);
+CK_DLL_MFUN(fly_camera_get_sensitivity);
+
 static void ulib_camera_query(Chuck_DL_Query* QUERY)
 {
     BEGIN_CLASS(SG_CKNames[SG_COMPONENT_CAMERA], SG_CKNames[SG_COMPONENT_TRANSFORM]);
@@ -176,6 +181,20 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
         ARG("float", "dt");
         DOC_FUNC(
           "Overrides the GGen.update(dt) method. Called automatically every frame.");
+
+        MFUN(fly_camera_set_speed, "void", "speed");
+        ARG("float", "speed");
+        DOC_FUNC("Set the move speed of the camera");
+
+        MFUN(fly_camera_get_speed, "float", "speed");
+        DOC_FUNC("Get the move speed of the camera");
+
+        MFUN(fly_camera_set_sensitivity, "void", "sensitivity");
+        ARG("float", "sensitivity");
+        DOC_FUNC("Set the mouse look sensitivity of the camera");
+
+        MFUN(fly_camera_get_sensitivity, "float", "sensitivity");
+        DOC_FUNC("Get the mouse look sensitivity of the camera");
 
         END_CLASS();
     }
@@ -392,7 +411,8 @@ CK_DLL_MFUN(gcamera_world_pos_to_screen_coord)
 
 CK_DLL_CTOR(orbit_camera_ctor)
 {
-    SG_Camera* camera = GET_CAMERA(SELF);
+    SG_Camera* camera       = GET_CAMERA(SELF);
+    camera->controller_type = SG_CameraControllerType_Orbit;
 
     // initialize orbit params
     camera->orbit = {};
@@ -496,7 +516,8 @@ CK_DLL_CTOR(fly_camera_ctor)
 {
     SG_Camera* camera = GET_CAMERA(SELF);
     // initialize orbit params
-    camera->fly = {};
+    camera->fly             = {};
+    camera->controller_type = SG_CameraControllerType_Fly;
 }
 
 CK_DLL_MFUN(fly_camera_update)
@@ -543,4 +564,24 @@ CK_DLL_MFUN(fly_camera_update)
 
     CQ_PushCommand_SetPosition(camera);
     CQ_PushCommand_SetRotation(camera);
+}
+
+CK_DLL_MFUN(fly_camera_set_speed)
+{
+    GET_CAMERA(SELF)->fly.speed = GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(fly_camera_get_speed)
+{
+    RETURN->v_float = GET_CAMERA(SELF)->fly.speed;
+}
+
+CK_DLL_MFUN(fly_camera_set_sensitivity)
+{
+    GET_CAMERA(SELF)->fly.mouse_sensitivity = GET_NEXT_FLOAT(ARGS);
+}
+
+CK_DLL_MFUN(fly_camera_get_sensitivity)
+{
+    RETURN->v_float = GET_CAMERA(SELF)->fly.mouse_sensitivity;
 }

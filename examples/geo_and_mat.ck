@@ -70,6 +70,9 @@ UI_Int material_topology_index(3); // default to triangle list
 // Normal material params
 UI_Bool normal_material_worldspace(normal_material.worldspaceNormals());
 
+// Diffuse material params
+UI_Float3 diffuse_color(diffuse_material.color());
+
 
 // Phong material params
 UI_Float3 phong_specular(phong_material.specular());
@@ -249,6 +252,13 @@ fun void ui() {
 
                 if (UI.checkbox("worldspace normals", normal_material_worldspace)) {
                     normal_material.worldspaceNormals(normal_material_worldspace.val());
+                }
+            }
+
+            if (mesh.material() == diffuse_material) {
+                UI.separatorText("Diffuse Material Params");
+                if (UI.colorEdit("color", diffuse_color, 0)) {
+                    diffuse_color.val() => diffuse_material.color;
                 }
             }
 
