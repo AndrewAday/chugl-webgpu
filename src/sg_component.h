@@ -607,6 +607,8 @@ struct SG_OrbitCameraParams {
 };
 
 struct SG_FlyCameraParams {
+    f32 speed             = 2.5f;
+    f32 mouse_sensitivity = 0.003f;
 };
 
 struct SG_Camera : SG_Transform {

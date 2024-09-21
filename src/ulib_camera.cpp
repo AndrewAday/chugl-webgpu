@@ -44,6 +44,9 @@ CK_DLL_MFUN(orbit_camera_get_zoom_speed);
 CK_DLL_MFUN(orbit_camera_set_target);
 CK_DLL_MFUN(orbit_camera_get_target);
 
+CK_DLL_CTOR(fly_camera_ctor);
+CK_DLL_MFUN(fly_camera_update);
+
 static void ulib_camera_query(Chuck_DL_Query* QUERY)
 {
     BEGIN_CLASS(SG_CKNames[SG_COMPONENT_CAMERA], SG_CKNames[SG_COMPONENT_TRANSFORM]);
@@ -159,6 +162,20 @@ static void ulib_camera_query(Chuck_DL_Query* QUERY)
 
         MFUN(orbit_camera_get_target, "vec3", "target");
         DOC_FUNC("Get the point in world space that the camera orbits around.");
+
+        END_CLASS();
+    }
+
+    // fly camera
+    {
+        BEGIN_CLASS("GFlyCamera", SG_CKNames[SG_COMPONENT_CAMERA]);
+
+        CTOR(fly_camera_ctor);
+
+        MFUN(fly_camera_update, "void", "update");
+        ARG("float", "dt");
+        DOC_FUNC(
+          "Overrides the GGen.update(dt) method. Called automatically every frame.");
 
         END_CLASS();
     }
@@ -394,7 +411,8 @@ CK_DLL_MFUN(orbit_camera_update)
     SG_Camera* camera           = GET_CAMERA(SELF);
     SG_OrbitCameraParams* orbit = &camera->orbit;
 
-    // note: don't need to multiply by dt since it's scaled by mouse deltas
+    // note: don't need to multiply by dt since it's scaled by mouse deltas (which is a
+    // measure of distance, not time)
 
     // update spherical coords to current camera position
     // (length check to avoid NaNs)
@@ -422,10 +440,10 @@ CK_DLL_MFUN(orbit_camera_update)
     camera->pos = SphericalCoords::toCartesian(orbit->spherical, orbit->target);
     SG_Transform::lookAt(camera, orbit->target);
 
-    //log_debug("orbit camera update: radius %f, theta %f, phi %f",
-    //          orbit->spherical.radius, orbit->spherical.theta, orbit->spherical.phi);
-    //log_debug("orbit camera transform: pos %f %f %f", camera->pos.x, camera->pos.y,
-    //          camera->pos.z);
+    // log_debug("orbit camera update: radius %f, theta %f, phi %f",
+    //           orbit->spherical.radius, orbit->spherical.theta, orbit->spherical.phi);
+    // log_debug("orbit camera transform: pos %f %f %f", camera->pos.x, camera->pos.y,
+    //           camera->pos.z);
 
     CQ_PushCommand_SetPosition(camera);
     CQ_PushCommand_SetRotation(camera);
@@ -470,4 +488,59 @@ CK_DLL_MFUN(orbit_camera_get_target)
 {
     glm::vec3 target = GET_CAMERA(SELF)->orbit.target;
     RETURN->v_vec3   = { target.x, target.y, target.z };
+}
+
+// GFlyCamera =====================================================================
+
+CK_DLL_CTOR(fly_camera_ctor)
+{
+    SG_Camera* camera = GET_CAMERA(SELF);
+    // initialize orbit params
+    camera->fly = {};
+}
+
+CK_DLL_MFUN(fly_camera_update)
+{
+    /*
+    TODO:
+    - scroll change camera fov
+    */
+
+    SG_Camera* camera = GET_CAMERA(SELF);
+    f32 dt            = GET_NEXT_FLOAT(ARGS);
+
+    if (CHUGL_Kb_key(GLFW_KEY_W).down)
+        SG_Transform::translate(camera,
+                                camera->fly.speed * dt * SG_Transform::forward(camera));
+
+    if (CHUGL_Kb_key(GLFW_KEY_S).down)
+        SG_Transform::translate(camera, -camera->fly.speed * dt
+                                          * SG_Transform::forward(camera));
+
+    if (CHUGL_Kb_key(GLFW_KEY_D).down)
+        SG_Transform::translate(camera,
+                                camera->fly.speed * dt * SG_Transform::right(camera));
+
+    if (CHUGL_Kb_key(GLFW_KEY_A).down)
+        SG_Transform::translate(camera,
+                                -camera->fly.speed * dt * SG_Transform::right(camera));
+
+    if (CHUGL_Kb_key(GLFW_KEY_E).down)
+        SG_Transform::translate(camera, camera->fly.speed * dt * VEC_UP);
+
+    if (CHUGL_Kb_key(GLFW_KEY_Q).down)
+        SG_Transform::translate(camera, -camera->fly.speed * dt * VEC_UP);
+
+    // mouse lookaround
+    t_CKVEC2 mouse_deltas = CHUGL_Mouse_Delta();
+
+    // for mouse deltaY, rotate around right axis
+    SG_Transform::rotateOnLocalAxis(camera, VEC_RIGHT,
+                                    camera->fly.mouse_sensitivity * -mouse_deltas.y);
+    // for mouse deltaX, rotate around (0,1,0)
+    SG_Transform::rotateOnWorldAxis(camera, VEC_UP,
+                                    camera->fly.mouse_sensitivity * -mouse_deltas.x);
+
+    CQ_PushCommand_SetPosition(camera);
+    CQ_PushCommand_SetRotation(camera);
 }

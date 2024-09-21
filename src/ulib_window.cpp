@@ -525,16 +525,16 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     static t_CKINT mouse_mode_hidden   = 1;
     static t_CKINT mouse_mode_disabled = 2;
 
-    SVAR("int", "MouseModeNormal", &mouse_mode_normal);
+    SVAR("int", "MouseMode_Normal", &mouse_mode_normal);
     DOC_VAR(
       "Normal mouse mode, the cursor is visible and behaves normally. Set via "
       "GWindow.mouseMode()");
-    SVAR("int", "MouseModeHidden", &mouse_mode_hidden);
+    SVAR("int", "MouseMode_Hidden", &mouse_mode_hidden);
     DOC_VAR(
       "Hidden mouse mode, hides the cursor when it is focused and hovering "
       "over the window, but does not lock it to the window. Set via "
       "GWindow.mouseMode(). May not be supported on all platforms.");
-    SVAR("int", "MouseModeDisabled", &mouse_mode_disabled);
+    SVAR("int", "MouseMode_Disabled", &mouse_mode_disabled);
     DOC_VAR(
       "Disabled mouse mode, hides the cursor and locks it to the window, "
       "useful for first-person games. Set via GWindow.mouseMode()");
@@ -542,8 +542,8 @@ void ulib_window_query(Chuck_DL_Query* QUERY)
     SFUN(gwindow_set_mouse_mode, "void", "mouseMode");
     ARG("int", "mode");
     DOC_FUNC(
-      "Set the mouse mode. Possible values are: GWindow.MouseModeNormal (0) , "
-      "GWindow.MouseModeDisabled (1), and GWindow.MouseModeHidden (2)"
+      "Set the mouse mode. Possible values are: GWindow.MouseMode_Normal (0) , "
+      "GWindow.MouseMode_Disabled (1), and GWindow.MouseMode_Hidden (2)"
       "Normal mode is the default mode, the cursor is visible and behaves "
       "normally."
       "Disabled mode hides the cursor and locks it to the window, useful for "
