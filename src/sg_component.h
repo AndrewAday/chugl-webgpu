@@ -117,14 +117,20 @@ static SG_Sampler SG_SAMPLER_DEFAULT // make this a #define instead?
 // SG_Texture
 // ============================================================================
 
+WGPUTextureUsageFlags WGPUTextureUsage_All
+  = WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc
+    | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+    | WGPUTextureUsage_StorageBinding;
+
 struct SG_TextureDesc {
     // for now default to ALL usage flags to simplify
-    WGPUTextureUsageFlags usage_flags
-      = WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc
-        | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
-        | WGPUTextureUsage_StorageBinding;
-    WGPUTextureDimension dimension = WGPUTextureDimension_2D;
-    WGPUTextureFormat format       = WGPUTextureFormat_RGBA8Unorm;
+    WGPUTextureUsageFlags usage_flags = WGPUTextureUsage_All;
+    WGPUTextureDimension dimension    = WGPUTextureDimension_2D;
+    WGPUTextureFormat format          = WGPUTextureFormat_RGBA8Unorm;
+    int width                         = 1;
+    int height                        = 1;
+    int depth                         = 1;
+    int mips                          = 0; // 0 means determine from dimensions
 };
 
 struct SG_Texture : SG_Component {

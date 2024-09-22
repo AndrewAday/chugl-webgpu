@@ -76,13 +76,79 @@ void wgpuQueueWriteTexture(
     WGPUExtent3D* writeSize             // size of destination region in texture
 );
 
+// ============ Impl Texture Writes =============
+/*
+Invariants
+- Texture.size() will always create max mips
+- TextureFormat and TextureDim are immutable
+*/
+
+TextureUsage_All = TextureUsage_CopySrc | TextureUsage_CopyDst | TextureUsage_TextureBinding | TextureUsage_StorageBinding | TextureUsage_RenderAttachment
+
+class TextureDesc {
+    TextureFormat format = RGBA8Unorm;
+    TextureDimension dimension = 2D;
+
+    int width = 1;
+    int height = 1;
+    int depth = 1;
+
+    TextureUsageFlags usage = TextureUsage_All;
+
+    int samples = 1;
+    int mips = 0; // <= 0 means auto generate based on size
+}
+
+class TextureWriteParams {
+    // Image Location
+    int mip;
+    int offset_x;
+    int offset_y;
+    int offset_z;
+
+    // write region size
+    int width;
+    int height;
+    int depth;
+
+    // to add later
+    // int offset
+};
+
+class TextureLoadParams {
+    bool flip_vertically = false;
+    bool gen_mips = true;
+}
+
+// Remember to call Queue.submit() after wgpuTextureWrite !
+
+// TODO: do we texture load on audio thread of graphics thread?
+
+// validation checks
+// - based on texture format, determine the # of chuck array entries per texel
+// - check that the length of the chuck array is >= the expected region size (width * height * depth)
+
 #endif
 
 #define GET_TEXTURE(ckobj) SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 void ulib_texture_createDefaults(CK_DL_API API);
 
+// TextureSampler ---------------------------------------------------------------------
 CK_DLL_CTOR(sampler_ctor);
 
+// TextureDesc -----------------------------------------------------------------
+
+static t_CKUINT texture_desc_format_offset    = 0;
+static t_CKUINT texture_desc_dimension_offset = 0;
+static t_CKUINT texture_desc_width_offset     = 0;
+static t_CKUINT texture_desc_height_offset    = 0;
+static t_CKUINT texture_desc_depth_offset     = 0;
+static t_CKUINT texture_desc_usage_offset     = 0;
+// static t_CKUINT texture_desc_samples_offset   = 0; // not exposing for now
+static t_CKUINT texture_desc_mips_offset = 0; // not exposing for now
+CK_DLL_CTOR(texture_desc_ctor);
+
+// Texture ---------------------------------------------------------------------
 CK_DLL_CTOR(texture_ctor);
 CK_DLL_CTOR(texture_ctor_dimension_format);
 
@@ -120,6 +186,22 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         QUERY->end_class(QUERY); // Sampler
     }
 
+    { // TextureDesc
+        BEGIN_CLASS("TextureDesc", "Object");
+
+        // member vars
+        texture_desc_format_offset    = MVAR("int", "format", false);
+        texture_desc_dimension_offset = MVAR("int", "dimension", false);
+        texture_desc_width_offset     = MVAR("int", "width", false);
+        texture_desc_height_offset    = MVAR("int", "height", false);
+        texture_desc_depth_offset     = MVAR("int", "depth", false);
+        texture_desc_usage_offset     = MVAR("int", "usage", false);
+        // texture_desc_samples_offset   = MVAR("int", "samples");
+        texture_desc_mips_offset = MVAR("int", "mips", false);
+
+        END_CLASS();
+    } // end TextureDesc
+
     // Texture
     {
         BEGIN_CLASS(SG_CKNames[SG_COMPONENT_TEXTURE], SG_CKNames[SG_COMPONENT_BASE]);
@@ -148,11 +230,13 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         static t_CKINT texture_format_rgba8unorm  = WGPUTextureFormat_RGBA8Unorm;
         static t_CKINT texture_format_rgba16float = WGPUTextureFormat_RGBA16Float;
         static t_CKINT texture_format_rgba32float = WGPUTextureFormat_RGBA32Float;
+        static t_CKINT texture_format_r32float    = WGPUTextureFormat_R32Float;
         // static t_CKINT texture_format_depth24plusstencil8
         //   = WGPUTextureFormat_Depth24PlusStencil8;
         SVAR("int", "Format_RGBA8Unorm", &texture_format_rgba8unorm);
         SVAR("int", "Format_RGBA16Float", &texture_format_rgba16float);
         SVAR("int", "Format_RGBA32Float", &texture_format_rgba32float);
+        SVAR("int", "Format_R32Float", &texture_format_r32float);
         // SVAR("int", "Format_Depth24PlusStencil8",
         // &texture_format_depth24plusstencil8);
 
@@ -186,6 +270,41 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
     ulib_texture_createDefaults(QUERY->ck_api(QUERY));
 }
+
+// TextureSampler ------------------------------------------------------------------
+
+// TextureDesc ---------------------------------------------------------------------
+
+CK_DLL_CTOR(texture_desc_ctor)
+{
+    OBJ_MEMBER_INT(SELF, texture_desc_format_offset)    = WGPUTextureFormat_RGBA8Unorm;
+    OBJ_MEMBER_INT(SELF, texture_desc_dimension_offset) = WGPUTextureDimension_2D;
+    OBJ_MEMBER_INT(SELF, texture_desc_width_offset)     = 1;
+    OBJ_MEMBER_INT(SELF, texture_desc_height_offset)    = 1;
+    OBJ_MEMBER_INT(SELF, texture_desc_depth_offset)     = 1;
+    OBJ_MEMBER_INT(SELF, texture_desc_usage_offset)     = WGPUTextureUsage_All;
+    // OBJ_MEMBER_INT(SELF, texture_desc_samples_offset) = 1;
+    OBJ_MEMBER_INT(SELF, texture_desc_mips_offset) = 0;
+}
+
+SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    SG_TextureDesc desc = {};
+    desc.format = (WGPUTextureFormat)OBJ_MEMBER_INT(ckobj, texture_desc_format_offset);
+    desc.dimension
+      = (WGPUTextureDimension)OBJ_MEMBER_INT(ckobj, texture_desc_dimension_offset);
+    desc.width       = OBJ_MEMBER_INT(ckobj, texture_desc_width_offset);
+    desc.height      = OBJ_MEMBER_INT(ckobj, texture_desc_height_offset);
+    desc.depth       = OBJ_MEMBER_INT(ckobj, texture_desc_depth_offset);
+    desc.usage_flags = OBJ_MEMBER_INT(ckobj, texture_desc_usage_offset);
+    // desc.samples        = OBJ_MEMBER_INT(ckobj, texture_desc_samples_offset);
+    desc.mips = OBJ_MEMBER_INT(ckobj, texture_desc_mips_offset);
+    return desc;
+}
+
+// Texture -----------------------------------------------------------------
 
 SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc)
 {

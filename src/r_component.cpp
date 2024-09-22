@@ -590,14 +590,6 @@ void R_Geometry::setPulledVertexAttribute(GraphicsContext* gctx, R_Geometry* geo
 // R_Texture
 // ============================================================================
 
-void R_Texture::init(R_Texture* texture)
-{
-    ASSERT(texture->id == 0);
-    *texture      = {};
-    texture->id   = getNewComponentID();
-    texture->type = SG_COMPONENT_TEXTURE;
-}
-
 void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
                          const char* filepath, bool flip_vertically = true)
 {
@@ -669,49 +661,6 @@ void MaterialTextureView::init(MaterialTextureView* view)
     view->scale[1] = 1.0f;
 }
 
-// static void _R_Material_Init(R_Material* mat)
-//{
-//     ASSERT(mat->id == 0);
-//     ASSERT(mat->pipelineID == 0);
-//     *mat       = {};
-//     mat->id    = getNewComponentID();
-//     mat->type  = SG_COMPONENT_MATERIAL;
-//     mat->stale = true;
-//
-//     // initialize primitives arena
-//     Arena::init(&mat->primitives, sizeof(Material_Primitive) * 8);
-//
-//     // initialize bind entry arenas
-//     Arena::init(&mat->bindings, sizeof(R_Binding) * 8);
-//     Arena::init(&mat->bindGroupEntries, sizeof(WGPUBindGroupEntry) * 8);
-//     Arena::init(&mat->uniformData, 64);
-// }
-
-// void R_Material::init(GraphicsContext* gctx, R_Material* mat, R_MaterialConfig*
-// config)
-// {
-//     _R_Material_Init(mat);
-
-//     // copy config (TODO do we even need to save this? it's stored in the
-//     // pipeline anyways)
-//     mat->config = *config;
-
-//     // get pipeline
-//     R_RenderPipeline* pipeline = Component_GetPipeline(gctx, config);
-
-//     // add material to pipeline
-//     R_RenderPipeline::addMaterial(pipeline, mat);
-//     ASSERT(mat->pipelineID != 0);
-
-//     // init texture views
-//     // MaterialTextureView::init(&mat->baseColorTextureView);
-//     // MaterialTextureView::init(&mat->metallicRoughnessTextureView);
-//     // MaterialTextureView::init(&mat->normalTextureView);
-
-//     // init base color to white
-//     // mat->baseColor = glm::vec4(1.0f);
-// }
-
 void R_Material::updatePSO(GraphicsContext* gctx, R_Material* mat,
                            SG_MaterialPipelineState* pso)
 {
@@ -727,7 +676,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
     // at first R_BIND_EMPTY can early-out
     // check in chugl example if we can skip @binding() numbers
     // unfortunately wgsl still compiles if there are skips/holes in bindgroup numbering
-    if (mat->fresh_bind_group) {
+    if (!mat->bind_group_stale) {
         // check all texture bindings and see if generation# changed
         // ==optimize== have textures track an arena of bound mat IDs, and mark as stale
         // upon change or have a "bindgroup" manager class do the same
@@ -747,7 +696,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
         }
         if (!needs_rebuild) return;
     }
-    mat->fresh_bind_group = true;
+    mat->bind_group_stale = false;
 
     // log_info("rebuilding bind group\n");
 
@@ -876,50 +825,19 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
 {
     R_Binding* binding = &mat->bindings[location];
 
-    // rebuild binding logic
-    if (binding->type != type) {
-        // need to rebuild bind group, the binding entry at `location` has changed
-        mat->fresh_bind_group = false;
+    mat->bind_group_stale = true;
+    // logic for when the bind group is *not* made stale by this new binding
+    bool same_bind_type = (binding->type == type);
+    // clang-format off
+    if (same_bind_type && 
+    (
+        (type == R_BIND_STORAGE && binding->size == bytes) // local storage binding same size
+        ||
+        (type == R_BIND_SAMPLER && memcmp(&binding->as.samplerConfig, data, bytes) == 0) // sampler config the same
+    )) {
+        mat->bind_group_stale = false;
     }
-    // rebuild logic for storage bindings
-    else if (binding->type == R_BIND_STORAGE && binding->size != bytes) {
-        // for wgsl builtin arrayLength() to work, need to update the
-        // corresponding BindGroupEntry size
-        mat->fresh_bind_group = false;
-    }
-    // rebuild logic for samplers
-    else if (type == R_BIND_SAMPLER) {
-        ASSERT(bytes == sizeof(SamplerConfig));
-        // if the sampler has changed, need to rebuild bind group
-        if (memcmp(&binding->as.samplerConfig, data, bytes) != 0) {
-            mat->fresh_bind_group = false;
-        }
-    }
-    // rebuild logic for textures
-    // TODO support change in texture type, size, etc
-    else if (type == R_BIND_TEXTURE_ID || type == R_BIND_STORAGE_TEXTURE_ID) {
-        ASSERT(bytes == sizeof(SG_ID));
-        // if the texture has changed, need to rebuild bind group
-        if (binding->as.textureID != *(SG_ID*)data) {
-            mat->fresh_bind_group = false;
-        }
-        // or texture id the same, but generation count is different
-        else {
-            R_Texture* tex = Component_GetTexture(*(SG_ID*)data);
-            if (binding->generation != tex->generation) {
-                ASSERT(tex->generation
-                       > binding->generation); // generation count should only increase
-                mat->fresh_bind_group = false;
-            }
-        }
-    } else if (type == R_BIND_STORAGE_EXTERNAL) {
-        // for now, always rebuild (external buffer may have changed but maintained same
-        // size)
-        mat->fresh_bind_group = false;
-    } else if (type == R_BIND_TEXTURE_VIEW) {
-        // simple, always rebuild
-        mat->fresh_bind_group = false;
-    }
+    // clang-format on
 
     R_BindType prev_bind_type = binding->type;
     binding->type             = type;
@@ -969,7 +887,6 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
             binding->as.textureView = G_createTextureViewAtMipLevel(
               Component_GetTexture(*(SG_ID*)data)->gpu_texture.texture, 0,
               "storage texture");
-
         } break;
         default:
             // if the new binding is also STORAGE reuse the memory, don't
@@ -2025,23 +1942,6 @@ void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
 
     // clear hashmap
     hashmap_clear(materials_with_new_pso, false);
-}
-
-R_Texture* Component_CreateTexture()
-{
-    R_Texture* texture = ARENA_PUSH_ZERO_TYPE(&textureArena, R_Texture);
-    R_Texture::init(texture);
-
-    ASSERT(texture->id != 0);                      // ensure id is set
-    ASSERT(texture->type == SG_COMPONENT_TEXTURE); // ensure type is set
-
-    // store offset
-    R_Location loc
-      = { texture->id, Arena::offsetOf(&textureArena, texture), &textureArena };
-    const void* result = hashmap_set(r_locator, &loc);
-    ASSERT(result == NULL); // ensure id is unique
-
-    return texture;
 }
 
 R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCreate* cmd)

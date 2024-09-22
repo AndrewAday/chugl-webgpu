@@ -186,12 +186,9 @@ struct R_Texture : public R_Component {
     // u32 mip_level_count;
     // WGPUTexture texture;
     // WGPUTextureView view;
-    // SamplerConfig samplerConfig; // TODO texture: maybe have sampler separate?
-    u64 generation = 0; // incremented every time texture is modified
 
+    u32 generation = 0;  // incremented every time texture is modified
     SG_TextureDesc desc; // TODO redundant with R_Texture.gpu_texture
-
-    static void init(R_Texture* texture); // called by Renderer-Tester only
 
     // resizes texture and updates generation, clears any previous data
     // does gen mipmaps. used for framebuffer attachments
@@ -294,7 +291,7 @@ struct MaterialTextureView {
 struct R_Material : public R_Component {
     SG_MaterialPipelineState pso;
 
-    b32 fresh_bind_group; // set if modified by chuck user, need to rebuild bind groups
+    b32 bind_group_stale; // set if modified by chuck user, need to rebuild bind groups
 
     R_ID pipelineID; // renderpipeline this material belongs to
     bool pipeline_stale;

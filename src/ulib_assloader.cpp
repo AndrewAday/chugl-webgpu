@@ -12,6 +12,7 @@
 #include <rapidobj/rapidobj.hpp>
 
 CK_DLL_SFUN(assloader_load_obj);
+CK_DLL_SFUN(assloader_load_obj_flip_y);
 
 #define RAPID_FLOAT3_TO_GLM_VEC3(f3) glm::vec3(f3[0], f3[1], f3[2])
 
@@ -76,6 +77,13 @@ void ulib_assloader_query(Chuck_DL_Query* QUERY)
         ARG("string", "filepath");
         DOC_FUNC("Load an .obj file from the given filepath");
 
+        SFUN(assloader_load_obj_flip_y, "GGen", "loadObj");
+        ARG("string", "filepath");
+        ARG("int", "flip_y");
+        DOC_FUNC(
+          "Load an .obj file from the given filepath. If flip_y is true, the y-axis is "
+          "flipped (default is false)");
+
         END_CLASS();
     }
 
@@ -87,26 +95,23 @@ void ulib_assloader_query(Chuck_DL_Query* QUERY)
 
 // impl ============================================================================
 
-CK_DLL_SFUN(assloader_load_obj)
+static SG_Transform* ulib_assloader_load_obj(const char* filepath,
+                                             Chuck_VM_Shred* SHRED, bool flip_y)
 {
     // for simplicity, does not support lines or points
     // renders all models with Phong lighting (for pbr use gltf loader instead)
-
-    RETURN->v_object = NULL;
-
-    const char* filepath    = API->object->str(GET_NEXT_STRING(ARGS));
     rapidobj::Result result = rapidobj::ParseFile(filepath);
 
     if (result.error) {
         logRapidobjError(result.error);
-        return;
+        return NULL;
     }
 
     rapidobj::Triangulate(result);
 
     if (result.error) {
         logRapidobjError(result.error);
-        return;
+        return NULL;
     }
 
     // first create all unique materials
@@ -159,35 +164,35 @@ CK_DLL_SFUN(assloader_load_obj)
         if (obj_material.diffuse_texname.size()) {
             SG_Texture* tex      = ulib_texture_create(NULL, SHRED, &texture_desc);
             std::string tex_path = directory + obj_material.diffuse_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), false);
+            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
             PhongParams::albedoTex(phong_material, tex);
         }
 
         if (obj_material.specular_texname.size()) {
             SG_Texture* tex      = ulib_texture_create(NULL, SHRED, &texture_desc);
             std::string tex_path = directory + obj_material.specular_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), false);
+            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
             PhongParams::specularTex(phong_material, tex);
         }
 
         if (obj_material.bump_texname.size()) {
             SG_Texture* tex      = ulib_texture_create(NULL, SHRED, &texture_desc);
             std::string tex_path = directory + obj_material.bump_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), false);
+            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
             PhongParams::normalTex(phong_material, tex);
         }
 
         if (obj_material.ambient_texname.size()) {
             SG_Texture* tex      = ulib_texture_create(NULL, SHRED, &texture_desc);
             std::string tex_path = directory + obj_material.ambient_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), false);
+            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
             PhongParams::aoTex(phong_material, tex);
         }
 
         if (obj_material.emissive_texname.size()) {
             SG_Texture* tex      = ulib_texture_create(NULL, SHRED, &texture_desc);
             std::string tex_path = directory + obj_material.emissive_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), false);
+            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
             PhongParams::emissiveTex(phong_material, tex);
         }
     }
@@ -315,5 +320,25 @@ CK_DLL_SFUN(assloader_load_obj)
         }
     }
 
-    RETURN->v_object = obj_shape_root ? obj_shape_root->ckobj : NULL;
+    return obj_shape_root;
+}
+
+CK_DLL_SFUN(assloader_load_obj)
+{
+    RETURN->v_object = NULL;
+
+    SG_Transform* obj_root
+      = ulib_assloader_load_obj(API->object->str(GET_NEXT_STRING(ARGS)), SHRED, false);
+    RETURN->v_object = obj_root ? obj_root->ckobj : NULL;
+}
+
+CK_DLL_SFUN(assloader_load_obj_flip_y)
+{
+    RETURN->v_object     = NULL;
+    const char* filepath = API->object->str(GET_NEXT_STRING(ARGS));
+    bool flip_y          = (bool)GET_NEXT_INT(ARGS);
+
+    SG_Transform* obj_root
+      = ulib_assloader_load_obj(filepath, SHRED, flip_y);
+    RETURN->v_object = obj_root ? obj_root->ckobj : NULL;
 }
