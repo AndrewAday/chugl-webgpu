@@ -1,6 +1,7 @@
 #include "sg_component.h"
 #include "core/hashmap.h"
 #include "geometry.h"
+#include "sg_command.h"
 
 #include "ulib_helper.h"
 
@@ -842,21 +843,59 @@ SG_Geometry* SG_CreateGeometry(Chuck_Object* ckobj)
     return geo;
 }
 
-SG_Texture* SG_CreateTexture(Chuck_Object* ckobj)
+SG_Texture* SG_CreateTexture(SG_TextureDesc* desc, Chuck_Object* ckobj,
+                             Chuck_VM_Shred* shred, bool add_ref)
 {
+    CK_DL_API API = g_chuglAPI;
+
+    // create ckobj
+    Chuck_Object* texture_obj
+      = ckobj ? ckobj :
+                chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], add_ref, shred);
+
+    // create chugl obj
     Arena* arena    = &SG_TextureArena;
     size_t offset   = arena->curr;
     SG_Texture* tex = ARENA_PUSH_TYPE(arena, SG_Texture);
     *tex            = {};
+    tex->desc       = *desc;
+
+    { // validate texture desc
+#define ULIB_TEXTURE_NUM_MIP_LEVELS(width, height)                                     \
+    (floor((float)(log2(MAX(width, height)))) + 1)
+
+        // clamp size values
+        tex->desc.width  = MAX(tex->desc.width, 1);
+        tex->desc.height = MAX(tex->desc.height, 1);
+        tex->desc.depth  = MAX(tex->desc.depth, 1);
+
+        // enforce usage_flags are a subset of ALL
+        tex->desc.usage_flags &= WGPUTextureUsage_All;
+
+        // if mips <= 0, auto determine the max count
+        int max_mips = ULIB_TEXTURE_NUM_MIP_LEVELS(tex->desc.width, tex->desc.height);
+        if (tex->desc.mips <= 0) {
+            tex->desc.mips = max_mips;
+        } else {
+            // clamp to legal values
+            tex->desc.mips = MIN(tex->desc.mips, max_mips);
+        }
+
+#undef ULIB_TEXTURE_NUM_MIP_LEVELS
+    }
 
     // init SG_Component base class
-    tex->id    = SG_GetNewComponentID();
-    tex->type  = SG_COMPONENT_TEXTURE;
-    tex->ckobj = ckobj;
+    tex->id                                          = SG_GetNewComponentID();
+    tex->type                                        = SG_COMPONENT_TEXTURE;
+    tex->ckobj                                       = texture_obj;
+    OBJ_MEMBER_UINT(tex->ckobj, component_offset_id) = tex->id;
 
     // store in map
     SG_Location loc = { tex->id, offset, arena };
     hashmap_set(locator, &loc);
+
+    // create
+    CQ_PushCommand_TextureCreate(tex);
 
     return tex;
 }

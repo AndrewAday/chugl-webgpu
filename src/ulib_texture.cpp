@@ -150,7 +150,15 @@ CK_DLL_CTOR(texture_desc_ctor);
 
 // Texture ---------------------------------------------------------------------
 CK_DLL_CTOR(texture_ctor);
-CK_DLL_CTOR(texture_ctor_dimension_format);
+CK_DLL_CTOR(texture_ctor_with_desc);
+
+CK_DLL_MFUN(texture_get_format);
+CK_DLL_MFUN(texture_get_dimension);
+CK_DLL_MFUN(texture_get_width);
+CK_DLL_MFUN(texture_get_height);
+CK_DLL_MFUN(texture_get_depth);
+CK_DLL_MFUN(texture_get_usage);
+CK_DLL_MFUN(texture_get_mips);
 
 CK_DLL_MFUN(texture_write);
 CK_DLL_MFUN(texture_set_file);
@@ -189,6 +197,8 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
     { // TextureDesc
         BEGIN_CLASS("TextureDesc", "Object");
 
+        CTOR(texture_desc_ctor);
+
         // member vars
         texture_desc_format_offset    = MVAR("int", "format", false);
         texture_desc_dimension_offset = MVAR("int", "dimension", false);
@@ -207,18 +217,19 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         BEGIN_CLASS(SG_CKNames[SG_COMPONENT_TEXTURE], SG_CKNames[SG_COMPONENT_BASE]);
 
         // svars ---------------
-        // static t_CKINT texture_usage_copy_src        = WGPUTextureUsage_CopySrc;
-        // static t_CKINT texture_usage_copy_dst        = WGPUTextureUsage_CopyDst;
-        // static t_CKINT texture_usage_texture_binding =
-        // WGPUTextureUsage_TextureBinding; static t_CKINT texture_usage_storage_binding
-        // = WGPUTextureUsage_StorageBinding; static t_CKINT
-        // texture_usage_render_attachment
-        //   = WGPUTextureUsage_RenderAttachment;
-        // SVAR("int", "Usage_CopySrc", &texture_usage_copy_src);
-        // SVAR("int", "Usage_CopyDst", &texture_usage_copy_dst);
-        // SVAR("int", "Usage_TextureBinding", &texture_usage_texture_binding);
-        // SVAR("int", "Usage_StorageBinding", &texture_usage_storage_binding);
-        // SVAR("int", "Usage_RenderAttachment", &texture_usage_render_attachment);
+        static t_CKINT texture_usage_copy_src        = WGPUTextureUsage_CopySrc;
+        static t_CKINT texture_usage_copy_dst        = WGPUTextureUsage_CopyDst;
+        static t_CKINT texture_usage_texture_binding = WGPUTextureUsage_TextureBinding;
+        static t_CKINT texture_usage_storage_binding = WGPUTextureUsage_StorageBinding;
+        static t_CKINT texture_usage_render_attachment
+          = WGPUTextureUsage_RenderAttachment;
+        static t_CKINT texture_usage_all = WGPUTextureUsage_All;
+        SVAR("int", "Usage_CopySrc", &texture_usage_copy_src);
+        SVAR("int", "Usage_CopyDst", &texture_usage_copy_dst);
+        SVAR("int", "Usage_TextureBinding", &texture_usage_texture_binding);
+        SVAR("int", "Usage_StorageBinding", &texture_usage_storage_binding);
+        SVAR("int", "Usage_RenderAttachment", &texture_usage_render_attachment);
+        SVAR("int", "Usage_All", &texture_usage_all);
 
         static t_CKINT texture_dimension_1d = WGPUTextureDimension_1D;
         static t_CKINT texture_dimension_2d = WGPUTextureDimension_2D;
@@ -244,20 +255,46 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
         CTOR(texture_ctor);
 
-        CTOR(texture_ctor_dimension_format);
-        ARG("int", "dimension");
-        ARG("int", "format");
+        CTOR(texture_ctor_with_desc);
+        ARG("TextureDesc", "texture_desc");
 
         MFUN(texture_write, "void", "write");
         ARG("int[]", "pixel_data"); // assumed rgba, so 4 ints per pixel
         ARG("int", "width");        // in pixels
         ARG("int", "height");       // in pixels
 
-        // MFUN(texture_write_base, "void", "write");
-        // ARG("int", "dst_mip_level");
-        // ARG("int", "dst_origin_x");
-        // ARG("int", "dst_origin_y");
-        // ARG("int", "dst_origin_z");
+        MFUN(texture_get_format, "int", "format");
+        DOC_FUNC(
+          "Get the texture format (immutable). Returns a value from the "
+          "Texture.Format_XXXXX enum, e.g. Texture.Format_RGBA8Unorm");
+
+        MFUN(texture_get_dimension, "int", "dimension");
+        DOC_FUNC(
+          "Get the texture dimension (immutable). Returns a value from the "
+          "Texture.Dimension_XXXXX enum, e.g. Texture.Dimension_2D");
+
+        MFUN(texture_get_width, "int", "width");
+        DOC_FUNC("Get the texture width (immutable)");
+
+        MFUN(texture_get_height, "int", "height");
+        DOC_FUNC("Get the texture height (immutable)");
+
+        MFUN(texture_get_depth, "int", "depth");
+        DOC_FUNC(
+          "Get the texture depth (immutable). For a 2D texture, depth corresponds to "
+          "the number of array layers (e.g. depth=6 for a cubemap)");
+
+        MFUN(texture_get_usage, "int", "usage");
+        DOC_FUNC(
+          "Get the texture usage flags (immutable). Returns a bitmask of usage flgas "
+          "from the Texture.Usage_XXXXX enum e.g. Texture.Usage_TextureBinding | "
+          "Texture.Usage_RenderAttachment. By default, textures are created with ALL "
+          "usages enabled");
+
+        MFUN(texture_get_mips, "int", "mips");
+        DOC_FUNC(
+          "Get the number of mip levels (immutable). Returns the number of mip levels "
+          "in the texture.");
 
         MFUN(texture_set_file, "void", "load");
         ARG("string", "filepath");
@@ -273,6 +310,17 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
 // TextureSampler ------------------------------------------------------------------
 
+CK_DLL_CTOR(sampler_ctor)
+{
+    // default to repeat wrapping and linear filtering
+    OBJ_MEMBER_INT(SELF, sampler_offset_wrapU)     = SG_SAMPLER_WRAP_REPEAT;
+    OBJ_MEMBER_INT(SELF, sampler_offset_wrapV)     = SG_SAMPLER_WRAP_REPEAT;
+    OBJ_MEMBER_INT(SELF, sampler_offset_wrapW)     = SG_SAMPLER_WRAP_REPEAT;
+    OBJ_MEMBER_INT(SELF, sampler_offset_filterMin) = SG_SAMPLER_FILTER_LINEAR;
+    OBJ_MEMBER_INT(SELF, sampler_offset_filterMag) = SG_SAMPLER_FILTER_LINEAR;
+    OBJ_MEMBER_INT(SELF, sampler_offset_filterMip) = SG_SAMPLER_FILTER_LINEAR;
+}
+
 // TextureDesc ---------------------------------------------------------------------
 
 CK_DLL_CTOR(texture_desc_ctor)
@@ -287,7 +335,7 @@ CK_DLL_CTOR(texture_desc_ctor)
     OBJ_MEMBER_INT(SELF, texture_desc_mips_offset) = 0;
 }
 
-SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
+static SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
 {
     CK_DL_API API = g_chuglAPI;
 
@@ -301,34 +349,22 @@ SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
     desc.usage_flags = OBJ_MEMBER_INT(ckobj, texture_desc_usage_offset);
     // desc.samples        = OBJ_MEMBER_INT(ckobj, texture_desc_samples_offset);
     desc.mips = OBJ_MEMBER_INT(ckobj, texture_desc_mips_offset);
+
+    // validation happens at final layer SG_CreateTexture
+
     return desc;
 }
 
 // Texture -----------------------------------------------------------------
 
-SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc)
-{
-    CK_DL_API API = g_chuglAPI;
-
-    Chuck_Object* texture_obj
-      = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], true);
-
-    SG_Texture* tex                                   = SG_CreateTexture(texture_obj);
-    OBJ_MEMBER_UINT(texture_obj, component_offset_id) = tex->id;
-    tex->desc                                         = desc;
-    CQ_PushCommand_TextureCreate(tex);
-
-    return tex;
-}
-
 // create default pixel textures and samplers
 void ulib_texture_createDefaults(CK_DL_API API)
 {
+    SG_TextureDesc texture_binding_desc = {};
+    texture_binding_desc.usage_flags    = WGPUTextureUsage_TextureBinding;
     // white pixel
     {
-        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
-                                                       WGPUTextureDimension_2D,
-                                                       WGPUTextureFormat_RGBA8Unorm });
+        SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
         u8 white_pixel[] = { 255, 255, 255, 255 };
         SG_Texture::write(tex, white_pixel, 1, 1);
@@ -339,18 +375,18 @@ void ulib_texture_createDefaults(CK_DL_API API)
     }
     //  default render texture (hdr)
     {
-        SG_Texture* tex = ulib_texture_createTexture(
-          { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
-              | WGPUTextureUsage_StorageBinding,
-            WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float });
+        SG_TextureDesc render_texture_desc = {};
+        render_texture_desc.usage_flags    = WGPUTextureUsage_RenderAttachment
+                                          | WGPUTextureUsage_TextureBinding
+                                          | WGPUTextureUsage_StorageBinding;
+        render_texture_desc.format = WGPUTextureFormat_RGBA16Float;
         // set global
-        g_builtin_textures.default_render_texture_id = tex->id;
+        g_builtin_textures.default_render_texture_id
+          = SG_CreateTexture(&render_texture_desc, NULL, NULL, true)->id;
     }
 
     { // black pixel
-        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
-                                                       WGPUTextureDimension_2D,
-                                                       WGPUTextureFormat_RGBA8Unorm });
+        SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
         u8 black_pixel[] = { 0, 0, 0, 0 };
         SG_Texture::write(tex, black_pixel, 1, 1);
@@ -361,9 +397,7 @@ void ulib_texture_createDefaults(CK_DL_API API)
     }
 
     { // default normal map
-        SG_Texture* tex = ulib_texture_createTexture({ WGPUTextureUsage_TextureBinding,
-                                                       WGPUTextureDimension_2D,
-                                                       WGPUTextureFormat_RGBA8Unorm });
+        SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
         u8 normal_pixel[] = { 128, 128, 255, 255 };
         SG_Texture::write(tex, normal_pixel, 1, 1);
@@ -374,51 +408,51 @@ void ulib_texture_createDefaults(CK_DL_API API)
     }
 }
 
-CK_DLL_CTOR(sampler_ctor)
-{
-    // default to repeat wrapping and linear filtering
-    OBJ_MEMBER_INT(SELF, sampler_offset_wrapU)     = SG_SAMPLER_WRAP_REPEAT;
-    OBJ_MEMBER_INT(SELF, sampler_offset_wrapV)     = SG_SAMPLER_WRAP_REPEAT;
-    OBJ_MEMBER_INT(SELF, sampler_offset_wrapW)     = SG_SAMPLER_WRAP_REPEAT;
-    OBJ_MEMBER_INT(SELF, sampler_offset_filterMin) = SG_SAMPLER_FILTER_LINEAR;
-    OBJ_MEMBER_INT(SELF, sampler_offset_filterMag) = SG_SAMPLER_FILTER_LINEAR;
-    OBJ_MEMBER_INT(SELF, sampler_offset_filterMip) = SG_SAMPLER_FILTER_LINEAR;
-}
-
-// Texture =====================================================================
-
-SG_Texture* ulib_texture_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred,
-                                SG_TextureDesc* desc)
-{
-    CK_DL_API API = g_chuglAPI;
-
-    if (ckobj == NULL) {
-        ckobj = chugin_createCkObj(SG_CKNames[SG_COMPONENT_TEXTURE], false, shred);
-    }
-
-    SG_Texture* tex                             = SG_CreateTexture(ckobj);
-    OBJ_MEMBER_UINT(ckobj, component_offset_id) = tex->id;
-    tex->desc                                   = *desc;
-
-    CQ_PushCommand_TextureCreate(tex);
-    return tex;
-}
-
 CK_DLL_CTOR(texture_ctor)
 {
     SG_TextureDesc desc = {};
-    ulib_texture_create(SELF, SHRED, &desc);
+    SG_CreateTexture(&desc, SELF, SHRED, false);
 }
 
-CK_DLL_CTOR(texture_ctor_dimension_format)
+CK_DLL_CTOR(texture_ctor_with_desc)
 {
-    WGPUTextureDimension dimension = (WGPUTextureDimension)GET_NEXT_INT(ARGS);
-    WGPUTextureFormat format       = (WGPUTextureFormat)GET_NEXT_INT(ARGS);
-    SG_TextureDesc desc            = {};
-    desc.dimension                 = dimension;
-    desc.format                    = format;
+    SG_TextureDesc desc = ulib_texture_textureDescFromCkobj(GET_NEXT_OBJECT(ARGS));
+    SG_CreateTexture(&desc, SELF, SHRED, false);
+}
 
-    ulib_texture_create(SELF, SHRED, &desc);
+CK_DLL_MFUN(texture_get_format)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.format;
+}
+
+CK_DLL_MFUN(texture_get_dimension)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.dimension;
+}
+
+CK_DLL_MFUN(texture_get_width)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.width;
+}
+
+CK_DLL_MFUN(texture_get_height)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.height;
+}
+
+CK_DLL_MFUN(texture_get_depth)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.depth;
+}
+
+CK_DLL_MFUN(texture_get_usage)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.usage_flags;
+}
+
+CK_DLL_MFUN(texture_get_mips)
+{
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.mips;
 }
 
 CK_DLL_MFUN(texture_write)

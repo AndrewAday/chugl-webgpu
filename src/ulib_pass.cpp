@@ -723,25 +723,19 @@ CK_DLL_CTOR(bloompass_ctor)
     SG_Pass* pass                              = SG_CreatePass(SELF, SG_PassType_Bloom);
     OBJ_MEMBER_UINT(SELF, component_offset_id) = pass->id;
 
-#if 0
-    SG_Shader* bloom_downsample_shader
-      = SG_GetShader(g_material_builtin_shaders.bloom_downsample_shader_id);
-    SG_Shader* bloom_upsample_shader
-      = SG_GetShader(g_material_builtin_shaders.bloom_upsample_shader_id);
-#else
     SG_Shader* bloom_downsample_shader
       = SG_GetShader(g_material_builtin_shaders.bloom_downsample_screen_shader_id);
     SG_Shader* bloom_upsample_shader
       = SG_GetShader(g_material_builtin_shaders.bloom_upsample_screen_shader_id);
-#endif
 
     // create default output render texture
-    SG_TextureDesc output_render_texture_desc
-      = { WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
-            | WGPUTextureUsage_StorageBinding,
-          WGPUTextureDimension_2D, WGPUTextureFormat_RGBA16Float };
+    SG_TextureDesc output_render_texture_desc = {};
+    output_render_texture_desc.usage_flags    = WGPUTextureUsage_RenderAttachment
+                                             | WGPUTextureUsage_TextureBinding
+                                             | WGPUTextureUsage_StorageBinding;
+    output_render_texture_desc.format = WGPUTextureFormat_RGBA16Float;
     SG_Texture* output_render_texture
-      = ulib_texture_createTexture(output_render_texture_desc);
+      = SG_CreateTexture(&output_render_texture_desc, NULL, SHRED, false);
 
     SG_Material* bloom_downsample_mat
       = chugl_createInternalMaterial(SG_MATERIAL_COMPUTE, bloom_downsample_shader);

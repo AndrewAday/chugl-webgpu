@@ -831,6 +831,8 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
     // clang-format off
     if (same_bind_type && 
     (
+        (type == R_BIND_UNIFORM) // uniform buffer is never recreated
+        ||
         (type == R_BIND_STORAGE && binding->size == bytes) // local storage binding same size
         ||
         (type == R_BIND_SAMPLER && memcmp(&binding->as.samplerConfig, data, bytes) == 0) // sampler config the same

@@ -123,9 +123,6 @@ struct {
     Chuck_ArrayVec3* init_white_color; // [@(1,1,1)]
 } g_builting_ckobjs;
 
-// impl in ulib_texture.cpp
-SG_Texture* ulib_texture_createTexture(SG_TextureDesc desc);
-
 // map from ckobj to shred
 std::unordered_map<Chuck_Object*, Chuck_VM_Shred*> ckobj_2_OriginShred;
 
@@ -327,11 +324,6 @@ SG_Transform* ulib_ggen_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred);
 
 SG_Mesh* ulib_mesh_create(Chuck_Object* mesh_ckobj, SG_Geometry* geo, SG_Material* mat,
                           Chuck_VM_Shred* shred);
-
-// impl in ulib_texture.cpp
-struct SG_TextureDesc;
-SG_Texture* ulib_texture_create(Chuck_Object* ckobj, Chuck_VM_Shred* shred,
-                                SG_TextureDesc* desc);
 
 // builder for Phong Material
 struct PhongParams {
