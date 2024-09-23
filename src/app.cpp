@@ -1266,7 +1266,7 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
 
         static char debug_group_label[64] = {};
         snprintf(debug_group_label, sizeof(debug_group_label),
-                 "RenderPipeline[%llu] Shader[%llu] ", render_pipeline->rid,
+                 "RenderPipeline[%d] Shader[%d] ", render_pipeline->rid,
                  render_pipeline->pso.sg_shader_id);
         wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
         defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
@@ -1343,11 +1343,11 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
             if (geo_count == 0) continue;
 
             // debug group
-            snprintf(debug_group_label, sizeof(debug_group_label),
-                     "Material[%llu] Shader[%llu] %s ", r_material->id,
-                     r_material->pso.sg_shader_id, r_material->name.c_str());
-            wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
-            defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+//            snprintf(debug_group_label, sizeof(debug_group_label),
+//                     "Material[%d] Shader[%d] %s ", r_material->id,
+//                     r_material->pso.sg_shader_id, r_material->name.c_str());
+//            wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
+//            defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
 
             // set per_material bind group
             // R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
@@ -1374,10 +1374,10 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                 if (num_instances == 0) continue;
 
                 // debug group
-                snprintf(debug_group_label, sizeof(debug_group_label),
-                         "Geometry[%llu] %s ", geo->id, geo->name.c_str());
-                wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
-                defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+//                snprintf(debug_group_label, sizeof(debug_group_label),
+//                         "Geometry[%d] %s ", geo->id, geo->name.c_str());
+//                wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
+//                defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
 
                 // set model bind group
                 wgpuRenderPassEncoderSetBindGroup(render_pass, PER_DRAW_GROUP,

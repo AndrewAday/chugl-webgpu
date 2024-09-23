@@ -350,6 +350,23 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
 // TextureSampler ------------------------------------------------------------------
 
+Chuck_Object* ulib_texture_ckobj_from_sampler(SG_Sampler sampler, bool add_ref,
+                                              Chuck_VM_Shred* shred)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    Chuck_Object* ckobj = chugin_createCkObj("TextureSampler", add_ref, shred);
+
+    OBJ_MEMBER_INT(ckobj, sampler_offset_wrapU)     = sampler.wrapU;
+    OBJ_MEMBER_INT(ckobj, sampler_offset_wrapV)     = sampler.wrapV;
+    OBJ_MEMBER_INT(ckobj, sampler_offset_wrapW)     = sampler.wrapW;
+    OBJ_MEMBER_INT(ckobj, sampler_offset_filterMin) = sampler.filterMin;
+    OBJ_MEMBER_INT(ckobj, sampler_offset_filterMag) = sampler.filterMag;
+    OBJ_MEMBER_INT(ckobj, sampler_offset_filterMip) = sampler.filterMip;
+
+    return ckobj;
+}
+
 CK_DLL_CTOR(sampler_ctor)
 {
     // default to repeat wrapping and linear filtering

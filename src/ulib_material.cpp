@@ -76,6 +76,9 @@ CK_DLL_MFUN(material_set_sampler);
 CK_DLL_MFUN(material_set_texture);
 CK_DLL_MFUN(material_set_storage_texture);
 
+CK_DLL_MFUN(material_get_sampler);
+CK_DLL_MFUN(material_get_texture);
+
 CK_DLL_CTOR(lines2d_material_ctor);
 CK_DLL_MFUN(lines2d_material_get_thickness);
 CK_DLL_MFUN(lines2d_material_set_thickness);
@@ -90,25 +93,6 @@ CK_DLL_MFUN(lines2d_material_set_loop);
 CK_DLL_CTOR(flat_material_ctor);
 CK_DLL_MFUN(flat_material_get_color);
 CK_DLL_MFUN(flat_material_set_color);
-
-// diffuse material
-CK_DLL_CTOR(diffuse_material_ctor);
-CK_DLL_MFUN(diffuse_material_get_color);
-CK_DLL_MFUN(diffuse_material_set_color);
-CK_DLL_MFUN(diffuse_material_get_emissive_color);
-CK_DLL_MFUN(diffuse_material_set_emissive_color);
-CK_DLL_MFUN(diffuse_material_get_normal_factor);
-CK_DLL_MFUN(diffuse_material_set_normal_factor);
-CK_DLL_MFUN(diffuse_material_get_ao_factor);
-CK_DLL_MFUN(diffuse_material_set_ao_factor);
-CK_DLL_MFUN(diffuse_material_get_diffuse_map);
-CK_DLL_MFUN(diffuse_material_set_diffuse_map);
-CK_DLL_MFUN(diffuse_material_get_ao_map);
-CK_DLL_MFUN(diffuse_material_set_ao_map);
-CK_DLL_MFUN(diffuse_material_get_emissive_map);
-CK_DLL_MFUN(diffuse_material_set_emissive_map);
-CK_DLL_MFUN(diffuse_material_get_normal_map);
-CK_DLL_MFUN(diffuse_material_set_normal_map);
 
 CK_DLL_CTOR(uv_material_ctor);
 
@@ -446,9 +430,15 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("int", "location");
     ARG("TextureSampler", "sampler");
 
+    MFUN(material_get_sampler, "TextureSampler", "sampler");
+    ARG("int", "location");
+
     MFUN(material_set_texture, "void", "texture");
     ARG("int", "location");
     ARG("Texture", "texture");
+
+    MFUN(material_get_texture, "Texture", "texture");
+    ARG("int", "location");
 
     MFUN(material_set_storage_texture, "void", "storageTexture");
     ARG("int", "location");
@@ -520,78 +510,6 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     DOC_FUNC("Set material color uniform as an rgb. Alpha set to 1.0.");
 
     END_CLASS();
-
-    // Diffuse Material -----------------------------------------------------
-    {
-        BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_DIFFUSE],
-                    SG_CKNames[SG_COMPONENT_MATERIAL]);
-
-        CTOR(diffuse_material_ctor);
-
-        MFUN(diffuse_material_get_color, "vec3", "color");
-        DOC_FUNC("Get the color of the material.");
-
-        MFUN(diffuse_material_set_color, "void", "color");
-        ARG("vec3", "color");
-
-        MFUN(diffuse_material_get_emissive_color, "vec3", "emissiveColor");
-        DOC_FUNC("Get the emissive color of the material.");
-
-        MFUN(diffuse_material_set_emissive_color, "void", "emissiveColor");
-        ARG("vec3", "emissiveColor");
-        DOC_FUNC("Set the emissive color of the material.");
-
-        MFUN(diffuse_material_get_normal_factor, "float", "normalFactor");
-        DOC_FUNC(
-          "Get the normal factor of the material. Scales effect of normal map. Default "
-          "1.0");
-
-        MFUN(diffuse_material_set_normal_factor, "void", "normalFactor");
-        ARG("float", "normalFactor");
-        DOC_FUNC("Set the normal factor of the material. Scales effect of normal map");
-
-        MFUN(diffuse_material_get_ao_factor, "float", "aoFactor");
-        DOC_FUNC("Get the ambient occlusion factor of the material. Default 1.0");
-
-        MFUN(diffuse_material_set_ao_factor, "void", "aoFactor");
-        ARG("float", "aoFactor");
-        DOC_FUNC(
-          "Set the ambient occlusion factor of the material. Default 1.0. 0 disables "
-          "AO. Set between 0 and 1.");
-
-        MFUN(diffuse_material_get_diffuse_map, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "colorMap");
-        DOC_FUNC("Get the diffuse texture of the material.");
-
-        MFUN(diffuse_material_set_diffuse_map, "void", "colorMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "diffuseTexture");
-        DOC_FUNC("Set the diffuse texture of the material.");
-
-        MFUN(diffuse_material_get_ao_map, SG_CKNames[SG_COMPONENT_TEXTURE], "aoMap");
-        DOC_FUNC("Get the ambient occlusion texture of the material.");
-
-        MFUN(diffuse_material_set_ao_map, "void", "aoMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "aoTexture");
-        DOC_FUNC("Set the ambient occlusion texture of the material.");
-
-        MFUN(diffuse_material_get_emissive_map, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "emissiveMap");
-        DOC_FUNC("Get the emissive texture of the material.");
-
-        MFUN(diffuse_material_set_emissive_map, "void", "emissiveMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "emissiveTexture");
-        DOC_FUNC("Set the emissive texture of the material.");
-
-        MFUN(diffuse_material_get_normal_map, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "normalMap");
-        DOC_FUNC("Get the normal texture of the material.");
-
-        MFUN(diffuse_material_set_normal_map, "void", "normalMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "normalTexture");
-        DOC_FUNC("Set the normal texture of the material.");
-
-        END_CLASS();
-    } // diffuse material
 
     // UV Material -----------------------------------------------------
 
@@ -1191,6 +1109,20 @@ CK_DLL_MFUN(material_set_sampler)
     CQ_PushCommand_MaterialSetUniform(material, location);
 }
 
+CK_DLL_MFUN(material_get_sampler)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_SAMPLER) {
+        CK_THROW("MaterialGetSampler", "Material bind location is not a sampler",
+                 SHRED);
+    }
+
+    RETURN->v_object = ulib_texture_ckobj_from_sampler(
+      material->uniforms[location].as.sampler, false, SHRED);
+}
+
 CK_DLL_MFUN(material_set_texture)
 {
     SG_Material* material = GET_MATERIAL(SELF);
@@ -1201,6 +1133,21 @@ CK_DLL_MFUN(material_set_texture)
     SG_Material::setTexture(material, location, tex);
 
     CQ_PushCommand_MaterialSetUniform(material, location);
+}
+
+CK_DLL_MFUN(material_get_texture)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    t_CKINT location      = GET_NEXT_INT(ARGS);
+
+    if (material->uniforms[location].type != SG_MATERIAL_UNIFORM_TEXTURE
+        && material->uniforms[location].type != SG_MATERIAL_STORAGE_TEXTURE) {
+        CK_THROW("MaterialGetTexture", "Material bind location is not a texture",
+                 SHRED);
+    }
+
+    SG_Texture* tex  = SG_GetTexture(material->uniforms[location].as.texture_id);
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 CK_DLL_MFUN(material_set_storage_texture)
@@ -1220,6 +1167,9 @@ CK_DLL_MFUN(material_set_storage_texture)
 static void ulib_material_init_uniforms_and_pso(SG_Material* material)
 {
     switch (material->material_type) {
+        case SG_MATERIAL_CUSTOM: {
+            // do nothing
+        } break;
         case SG_MATERIAL_LINES2D: {
             SG_Material::uniformFloat(material, 0, 0.1f); // thickness
             CQ_PushCommand_MaterialSetUniform(material, 0);
@@ -1243,6 +1193,15 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
             // set pso
             material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
             CQ_PushCommand_MaterialUpdatePSO(material);
+        } break;
+        case SG_MATERIAL_FLAT: {
+            SG_Shader* flat_shader
+              = SG_GetShader(g_material_builtin_shaders.flat_shader_id);
+            chugl_materialSetShader(material, flat_shader);
+
+            // set uniform
+            SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // thickness
+            CQ_PushCommand_MaterialSetUniform(material, 0);
         } break;
         case SG_MATERIAL_UV: {
             // init shader
@@ -1272,40 +1231,6 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
 
             SG_Material::uniformInt(material, 0, 1); // use_worldspace_tangents
             CQ_PushCommand_MaterialSetUniform(material, 0);
-        } break;
-        case SG_MATERIAL_DIFFUSE: {
-            // init shader
-            SG_Shader* diffuse_shader
-              = SG_GetShader(g_material_builtin_shaders.diffuse_shader_id);
-            ASSERT(diffuse_shader);
-
-            chugl_materialSetShader(material, diffuse_shader);
-
-            // init uniforms
-            {
-                SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // albedo
-                SG_Material::uniformVec3f(material, 1, glm::vec3(0.0f)); // emissive
-                SG_Material::uniformFloat(material, 2, 1.0f); // normal factor
-                SG_Material::uniformFloat(material, 3, 1.0f); // ao factor
-
-                // textures
-                SG_Material::setSampler(material, 4,
-                                        SG_SAMPLER_DEFAULT); // texture sampler
-                SG_Material::setTexture(
-                  material, 5,
-                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // diffuse map
-                SG_Material::setTexture(
-                  material, 6,
-                  SG_GetTexture(g_builtin_textures.white_pixel_id)); // ao map
-                SG_Material::setTexture(
-                  material, 7,
-                  SG_GetTexture(g_builtin_textures.black_pixel_id)); // emissive map
-                SG_Material::setTexture(
-                  material, 8,
-                  SG_GetTexture(g_builtin_textures.normal_pixel_id)); // normal map
-
-                ulib_material_cq_update_all_uniforms(material);
-            }
         } break;
         case SG_MATERIAL_PHONG: {
             SG_Shader* shader
@@ -1467,23 +1392,7 @@ CK_DLL_CTOR(flat_material_ctor)
 {
     SG_Material* material   = GET_MATERIAL(SELF);
     material->material_type = SG_MATERIAL_FLAT;
-
-    // init shader
-    // Shader lines2d_shader(lines2d_shader_desc);
-    SG_Shader* lines2d_shader = SG_GetShader(g_material_builtin_shaders.flat_shader_id);
-    ASSERT(lines2d_shader);
-
-    chugl_materialSetShader(material, lines2d_shader);
-
-    // set pso
-    // material->pso.primitive_topology = WGPUPrimitiveTopology_TriangleStrip;
-    // CQ_PushCommand_MaterialUpdatePSO(material);
-
-    // set uniform
-    // TODO where to store default uniform values + locations?
-    SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // thickness
-
-    CQ_PushCommand_MaterialSetUniform(material, 0);
+    ulib_material_init_uniforms_and_pso(material);
 }
 
 CK_DLL_MFUN(flat_material_get_color)
@@ -1499,155 +1408,6 @@ CK_DLL_MFUN(flat_material_set_color)
 
     SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
     CQ_PushCommand_MaterialSetUniform(material, 0);
-}
-
-// DiffuseMaterial ===================================================================
-
-CK_DLL_CTOR(diffuse_material_ctor)
-{
-    SG_Material* material   = GET_MATERIAL(SELF);
-    material->material_type = SG_MATERIAL_DIFFUSE;
-    ulib_material_init_uniforms_and_pso(material);
-}
-
-CK_DLL_MFUN(diffuse_material_get_color)
-{
-    glm::vec4 color = GET_MATERIAL(SELF)->uniforms[0].as.vec4f;
-    RETURN->v_vec3  = { color.r, color.g, color.b };
-}
-
-CK_DLL_MFUN(diffuse_material_set_color)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
-
-    SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
-    CQ_PushCommand_MaterialSetUniform(material, 0);
-}
-
-CK_DLL_MFUN(diffuse_material_get_emissive_color)
-{
-    glm::vec3 u    = GET_MATERIAL(SELF)->uniforms[1].as.vec3f;
-    RETURN->v_vec3 = { u.r, u.g, u.b };
-}
-
-CK_DLL_MFUN(diffuse_material_set_emissive_color)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
-
-    SG_Material::uniformVec3f(material, 1, glm::vec3(color.x, color.y, color.z));
-    CQ_PushCommand_MaterialSetUniform(material, 1);
-}
-
-CK_DLL_MFUN(diffuse_material_get_normal_factor)
-{
-    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[2].as.f;
-}
-
-CK_DLL_MFUN(diffuse_material_set_normal_factor)
-{
-    GET_MATERIAL(SELF)->uniforms[2].as.f = GET_NEXT_FLOAT(ARGS);
-    CQ_PushCommand_MaterialSetUniform(GET_MATERIAL(SELF), 2);
-}
-
-CK_DLL_MFUN(diffuse_material_get_ao_factor)
-{
-    RETURN->v_float = GET_MATERIAL(SELF)->uniforms[3].as.f;
-}
-
-CK_DLL_MFUN(diffuse_material_set_ao_factor)
-{
-    GET_MATERIAL(SELF)->uniforms[3].as.f = GET_NEXT_FLOAT(ARGS);
-    CQ_PushCommand_MaterialSetUniform(GET_MATERIAL(SELF), 3);
-}
-
-CK_DLL_MFUN(diffuse_material_get_diffuse_map)
-{
-    SG_Texture* tex  = SG_GetTexture(GET_MATERIAL(SELF)->uniforms[5].as.texture_id);
-    RETURN->v_object = tex ? tex->ckobj : NULL;
-}
-
-CK_DLL_MFUN(diffuse_material_set_diffuse_map)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
-    }
-
-    SG_Material::setTexture(material, 5, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 5);
-}
-
-CK_DLL_MFUN(diffuse_material_get_ao_map)
-{
-    SG_Texture* tex  = SG_GetTexture(GET_MATERIAL(SELF)->uniforms[6].as.texture_id);
-    RETURN->v_object = tex ? tex->ckobj : NULL;
-}
-
-CK_DLL_MFUN(diffuse_material_set_ao_map)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
-    }
-
-    SG_Material::setTexture(material, 6, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 6);
-}
-
-CK_DLL_MFUN(diffuse_material_get_emissive_map)
-{
-    SG_Texture* tex  = SG_GetTexture(GET_MATERIAL(SELF)->uniforms[7].as.texture_id);
-    RETURN->v_object = tex ? tex->ckobj : NULL;
-}
-
-CK_DLL_MFUN(diffuse_material_set_emissive_map)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.black_pixel_id);
-    }
-
-    SG_Material::setTexture(material, 7, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 7);
-}
-
-CK_DLL_MFUN(diffuse_material_get_normal_map)
-{
-    SG_Texture* tex  = SG_GetTexture(GET_MATERIAL(SELF)->uniforms[8].as.texture_id);
-    RETURN->v_object = tex ? tex->ckobj : NULL;
-}
-
-CK_DLL_MFUN(diffuse_material_set_normal_map)
-{
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.normal_pixel_id);
-    }
-
-    SG_Material::setTexture(material, 8, tex);
-    CQ_PushCommand_MaterialSetUniform(material, 8);
 }
 
 // UVMaterial ===================================================================
@@ -2129,11 +1889,6 @@ void chugl_initDefaultMaterials()
       = chugl_createShader(g_chuglAPI, bloom_upsample_screen_shader,
                            bloom_upsample_screen_shader, NULL, NULL, NULL, 0);
 
-    // diffuse material
-    g_material_builtin_shaders.diffuse_shader_id = chugl_createShader(
-      g_chuglAPI, diffuse_shader_string, diffuse_shader_string, NULL, NULL,
-      standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
-
     // pbr material
     g_material_builtin_shaders.pbr_shader_id = chugl_createShader(
       g_chuglAPI, pbr_shader_string, pbr_shader_string, NULL, NULL,
@@ -2158,4 +1913,8 @@ void chugl_initDefaultMaterials()
     g_material_builtin_shaders.phong_shader_id = chugl_createShader(
       g_chuglAPI, phong_shader_string, phong_shader_string, NULL, NULL,
       standard_vertex_layout, ARRAY_LENGTH(standard_vertex_layout), NULL, NULL, true);
+
+    // points
+    g_material_builtin_shaders.points_shader_id = chugl_createShader(
+      g_chuglAPI, points_shader_string, points_shader_string, NULL, NULL, NULL, 0);
 }

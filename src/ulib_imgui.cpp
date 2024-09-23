@@ -20,7 +20,7 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
     if (!node) return;
 
     static char buffer[128] = {};
-    snprintf(buffer, ARRAY_LENGTH(buffer), "[%s %llu] %s", SG_CKNames[node->type],
+    snprintf(buffer, ARRAY_LENGTH(buffer), "[%s %d] %s", SG_CKNames[node->type],
              node->id, node->name);
 
     // note: TreeNode(...) needs a unique string label for each node to disambiguate
@@ -83,7 +83,7 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
                 // already) and give control come back to this after finalizing PBR
                 // Material
 
-                snprintf(buffer, ARRAY_LENGTH(buffer), "%s: [%s %llu] %s",
+                snprintf(buffer, ARRAY_LENGTH(buffer), "%s: [%s %d] %s",
                          SG_MaterialTypeNames[material->material_type],
                          SG_CKNames[material->type], material->id, material->name);
                 cimgui::ImGui_Text("%s", buffer);
@@ -136,7 +136,7 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
             // geometry info
             SG_Geometry* geometry = SG_GetGeometry(mesh->_geo_id);
             if (geometry) {
-                snprintf(buffer, ARRAY_LENGTH(buffer), "Geometry: [%s %llu] %s",
+                snprintf(buffer, ARRAY_LENGTH(buffer), "Geometry: [%s %d] %s",
                          SG_CKNames[geometry->type], geometry->id, geometry->name);
                 cimgui::ImGui_Text("%s", buffer);
             }

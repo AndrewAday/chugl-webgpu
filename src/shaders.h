@@ -367,99 +367,6 @@ fn fs_main(in : VertexOutput) -> @location(0) vec4f
 }
 )glsl";
 
-
-
-
-static const char* diffuse_shader_string  = R"glsl(
-    #include FRAME_UNIFORMS
-    #include LIGHTING_UNIFORMS
-    #include DRAW_UNIFORMS
-    #include STANDARD_VERTEX_INPUT
-    #include STANDARD_VERTEX_OUTPUT
-    #include STANDARD_VERTEX_SHADER
-
-    // our custom material uniforms
-    @group(1) @binding(0) var<uniform> u_diffuse_color: vec4f;
-    @group(1) @binding(1) var<uniform> u_emission_color : vec3f;
-    @group(1) @binding(2) var<uniform> u_normal_factor : f32;
-    @group(1) @binding(3) var<uniform> u_ao_factor : f32; // 0 disables ao
-
-    @group(1) @binding(4) var texture_sampler: sampler;
-    @group(1) @binding(5) var u_diffuse_map: texture_2d<f32>;   
-    @group(1) @binding(6) var u_ao_map: texture_2d<f32>;
-    @group(1) @binding(7) var u_emissive_map: texture_2d<f32>;
-    @group(1) @binding(8) var u_normal_map: texture_2d<f32>;
-    
-    fn srgbToLinear(srgb_in : vec3f) -> vec3f {
-        return pow(srgb_in.rgb,vec3f(2.2));
-    }
-
-    fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
-        var tangentNormal : vec3f = textureSample(u_normal_map, texture_sampler, inUV).rgb * 2.0 - 1.0;
-        tangentNormal.x *= scale;
-        tangentNormal.y *= scale;
-
-        let N : vec3f = normalize(inNormal);
-        let T : vec3f = normalize(inTangent.xyz);
-        let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
-        let TBN : mat3x3f = mat3x3(T, B, N);
-
-        var normal = normalize(TBN * tangentNormal);
-        if (!is_front) {
-            normal = -normal;
-        }
-        return normal;
-    }
-
-    // don't actually need normals/tangents
-    @fragment 
-    fn fs_main(
-        in : VertexOutput,
-        @builtin(front_facing) is_front: bool,
-    ) -> @location(0) vec4f
-    {
-        var normal = calculateNormal(in.v_normal, in.v_uv, in.v_tangent, u_normal_factor, is_front);
-        let viewDir = normalize(u_Frame.camera_pos - in.v_worldpos);  // direction from camera to this frag
-
-        // material color properties (ignore alpha channel for now)
-        let diffuseTex = textureSample(u_diffuse_map, texture_sampler, in.v_uv);
-        let aoTex = textureSample(u_ao_map, texture_sampler, in.v_uv);
-        let emissiveTex = textureSample(u_emissive_map, texture_sampler, in.v_uv);
-        // factor ao into diffuse
-        var diffuse_color = u_diffuse_color.rgb * srgbToLinear(diffuseTex.rgb);
-        diffuse_color = mix(diffuse_color, diffuse_color * aoTex.r, u_ao_factor);
-
-        var lighting = vec3f(0.0); // accumulate lighting
-        // add diffuse contributions
-        for (var i = 0; i < u_Frame.num_lights; i++) {
-            let light = u_lights[i];
-            switch (light.light_type) {
-            case 1: { // directional
-                lighting += max(dot(normal, -light.direction), 0.0) * light.color * diffuse_color;
-            }
-            case 2: { // point
-                let dist = distance(in.v_worldpos, light.position);
-                let attenuation = pow(
-                    clamp(1.0 - dist / light.point_radius, 0.0, 1.0), 
-                    light.point_falloff
-                );
-                let dir = normalize(light.position - in.v_worldpos);
-                lighting += max(dot(normal, dir), 0.0) * attenuation * light.color * diffuse_color;
-            }
-            default: {}
-            } // end switch
-        }
-
-        // add ambient lighting
-        lighting += diffuse_color * u_Frame.ambient_light;
-
-        // add emissive
-        lighting += srgbToLinear(emissiveTex.rgb) * u_emission_color;
-
-        return vec4f(lighting, diffuseTex.a);
-    }
-)glsl";
-
 static const char* phong_shader_string = R"glsl(
     // phong impl based off obj material model
     // actually, blinn* phong
@@ -632,8 +539,7 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) position : vec4f,
-    @location(0) v_worldpos : vec3f,
-    @location(1) v_color : vec3f,
+    @location(0) v_color : vec3f,
 };
 
 // for bevel joins
@@ -732,11 +638,100 @@ fn vs_main(
 }
 
 @fragment 
-fn fs_main(in : VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4f
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
     return vec4f(u_color * in.v_color, 1.0);
 }
 )glsl";
+
+static const char* points_shader_string  = R"glsl(
+
+#include FRAME_UNIFORMS
+
+// line material uniforms
+@group(1) @binding(0) var<uniform> u_point_global_color : vec4f;
+@group(1) @binding(1) var<uniform> u_point_global_size : f32;
+@group(1) @binding(2) var u_point_sampler : sampler;
+@group(1) @binding(3) var u_point_texture : texture_2d<f32>;
+
+#include DRAW_UNIFORMS
+
+// every 5 f32s is a vertex:  (x, y, z, uv.x, uv,y)
+@group(3) @binding(0) var<storage, read> u_point_vertices: array<f32>; // vertex attributes (currently just a plane)
+// (r,g,b)
+@group(3) @binding(1) var<storage, read> u_point_colors: array<f32>; // per-point color (for now rgb)
+@group(3) @binding(2) var<storage, read> u_point_sizes: array<f32>; // per-point size (single f32)
+@group(3) @binding(3) var<storage, read> u_point_positions: array<f32>; // per-point positoins (x, y, z)
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+    @location(0) v_color : vec3f,
+    @location(1) v_uv : vec2f,
+};
+
+@vertex 
+fn vs_main(
+    @builtin(instance_index) instance_id : u32,
+    @builtin(vertex_index) vertex_id : u32
+) -> VertexOutput
+{
+    var out : VertexOutput;
+    var u_Draw : DrawUniforms = drawInstances[instance_id];
+
+    let point_idx = i32(vertex_id / 6u); // 6 vertices per point plane
+    let vertex_idx = i32(vertex_id % 6u); // 6 vertices per point plane
+
+    let point_uv = vec2f(
+        u_point_vertices[5 * vertex_idx + 3],
+        u_point_vertices[5 * vertex_idx + 4]
+    );
+
+    let num_colors = i32(arrayLength(&u_point_colors));
+    var point_color = u_point_global_color.rgb;
+    if (num_colors > 0) {
+        point_color *= vec3f(
+            u_point_colors[(3 * point_idx + 0) % num_colors],
+            u_point_colors[(3 * point_idx + 1) % num_colors],
+            u_point_colors[(3 * point_idx + 2) % num_colors]
+        );
+    }
+
+    var point_size = u_point_global_size;
+    let num_sizes = i32(arrayLength(&u_point_sizes));
+    if (num_sizes > 0) {
+        point_size *= u_point_sizes[point_idx % num_sizes];
+    }
+
+    // first apply scale
+    var point_pos = point_size * vec3f(
+        u_point_vertices[5 * vertex_idx + 0],
+        u_point_vertices[5 * vertex_idx + 1],
+        u_point_vertices[5 * vertex_idx + 2],
+    );
+
+    // then translation
+    point_pos += vec3f(
+        u_point_positions[3 * point_idx + 0],
+        u_point_positions[3 * point_idx + 1],
+        u_point_positions[3 * point_idx + 2]
+    );
+
+    out.position = (u_Frame.projection * u_Frame.view * u_Draw.model) * vec4f(point_pos, 1.0);
+    out.v_color = point_color;
+    out.v_uv = point_uv;
+
+    return out;
+}
+
+@fragment 
+fn fs_main(in : VertexOutput) -> @location(0) vec4f
+{
+    let tex = textureSample(u_point_texture, u_point_sampler, in.v_uv);
+    return vec4f(in.v_color * tex.rgb, tex.a);
+}
+
+)glsl";
+
 
 // ----------------------------------------------------------------------------
 

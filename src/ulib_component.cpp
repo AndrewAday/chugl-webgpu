@@ -1049,6 +1049,7 @@ CK_DLL_MFUN(ggen_get_scene)
 
 #define GET_MESH(ckobj) SG_GetMesh(OBJ_MEMBER_UINT(ckobj, component_offset_id))
 #define GET_MESH_MATERIAL(ckobj) SG_GetMaterial(GET_MESH(ckobj)->_mat_id)
+#define GET_MESH_GEOMETRY(ckobj) SG_GetGeometry(GET_MESH(ckobj)->_geo_id)
 
 CK_DLL_CTOR(gmesh_ctor);
 CK_DLL_CTOR(gmesh_ctor_params);
@@ -1070,6 +1071,36 @@ CK_DLL_MFUN(glines2d_get_color);
 // CK_DLL_MFUN(glines2d_get_loop);
 // CK_DLL_MFUN(glines2d_set_extrusion);
 // CK_DLL_MFUN(glines2d_set_loop);
+
+/*
+basic:
+
+globals
+- color
+- size
+- texture
+
+per-point
+- color,
+- pointsize,
+
+*/
+CK_DLL_CTOR(gpoints_ctor);
+
+// points geo (per point attribs)
+CK_DLL_MFUN(gpoints_geo_set_positions);
+CK_DLL_MFUN(gpoints_geo_set_colors);
+CK_DLL_MFUN(gpoints_geo_set_sizes);
+
+// points mat
+CK_DLL_MFUN(gpoints_mat_set_color);
+CK_DLL_MFUN(gpoints_mat_set_size);
+CK_DLL_MFUN(gpoints_mat_set_sampler);
+CK_DLL_MFUN(gpoints_mat_set_texture);
+CK_DLL_MFUN(gpoints_mat_get_color);
+CK_DLL_MFUN(gpoints_mat_get_size);
+CK_DLL_MFUN(gpoints_mat_get_sampler);
+CK_DLL_MFUN(gpoints_mat_get_texture);
 
 CK_DLL_CTOR(gplane_ctor);
 CK_DLL_MFUN(gplane_get_geo);
@@ -1202,6 +1233,63 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 
         // MFUN(glines2d_get_loop, "int", "loop");
         // DOC_FUNC("Get whether the line segments form a closed loop.");
+
+        END_CLASS();
+    } // GLines
+
+    { // Gpoints -------------------------------------------------
+        BEGIN_CLASS("GPoints", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS("Class for creating instanced points in 3D space");
+
+        CTOR(gpoints_ctor);
+
+        MFUN(gpoints_geo_set_positions, "void", "positions");
+        ARG("vec3[]", "positions");
+        DOC_FUNC("Set positions of the points");
+
+        MFUN(gpoints_geo_set_colors, "void", "colors");
+        ARG("vec3[]", "colors");
+        DOC_FUNC(
+          "Set per-point colors. If there are more points than colors, extra points "
+          "cycle through the colors. The final color is multiplied by the global point "
+          "color, GPoints.color()");
+
+        MFUN(gpoints_geo_set_sizes, "void", "sizes");
+        ARG("float[]", "sizes");
+        DOC_FUNC(
+          "Set per-point sizes. If there are more points than sizes, extra points "
+          "cycle through the sizes. The final size is multiplied by the global point "
+          "size, GPoints.size()");
+
+        MFUN(gpoints_mat_set_color, "void", "color");
+        ARG("vec3", "color");
+        DOC_FUNC("Set the global color of the points");
+
+        MFUN(gpoints_mat_get_color, "vec3", "color");
+        DOC_FUNC("Get the global color of the points");
+
+        MFUN(gpoints_mat_set_size, "void", "size");
+        ARG("float", "size");
+        DOC_FUNC(
+          "Set the global size of the points (in world-space units, a size of 1 means "
+          "each point is 1 unit wide)");
+
+        MFUN(gpoints_mat_get_size, "float", "size");
+        DOC_FUNC("Get the global size of the points");
+
+        MFUN(gpoints_mat_set_sampler, "void", "sampler");
+        ARG("TextureSampler", "sampler");
+        DOC_FUNC("Set the sampler used for the point texture");
+
+        MFUN(gpoints_mat_get_sampler, "TextureSampler", "sampler");
+        DOC_FUNC("Get the sampler used for the point texture");
+
+        MFUN(gpoints_mat_set_texture, "void", "texture");
+        ARG("Texture", "texture");
+        DOC_FUNC("Set the texture applied to each point");
+
+        MFUN(gpoints_mat_get_texture, "Texture", "texture");
+        DOC_FUNC("Get the texture applied to each point ");
 
         END_CLASS();
     }
@@ -1508,6 +1596,144 @@ CK_DLL_MFUN(glines2d_get_color)
         glm::vec3 color = material->uniforms[1].as.vec3f;
         RETURN->v_vec3  = { color.x, color.y, color.z };
     }
+}
+
+// GPoints ===============================================================
+
+CK_DLL_CTOR(gpoints_ctor)
+{
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY, SG_MATERIAL_CUSTOM, SHRED);
+
+    // initialize geo and mat manually here (not exposing to chugl API for now)
+    SG_Mesh* mesh = GET_MESH(SELF);
+    ASSERT(mesh);
+    SG_Material* material = SG_GetMaterial(mesh->_mat_id);
+    SG_Geometry* geo      = SG_GetGeometry(mesh->_geo_id);
+
+    { // init geometry data
+        CQ_PushCommand_GeometrySetVertexCount(geo, 0);
+
+        static f32 plane_vertex_data[] = {
+            // x,   y,    z,     uvx, uvy
+            -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
+            0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, // bottom right
+            0.5f,  0.5f,  0.0f, 1.0f, 1.0f, // top right
+
+            0.5f,  0.5f,  0.0f, 1.0f, 1.0f, // top right
+            -0.5f, 0.5f,  0.0f, 0.0f, 1.0f, // top left
+            -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
+        };
+
+        ulib_geo_set_pulled_vertex_attribute_data(geo, 0, plane_vertex_data,
+                                                  ARRAY_LENGTH(plane_vertex_data));
+
+        f32 plane_init_color[] = { 1.0f, 1.0f, 1.0f };
+        ulib_geo_set_pulled_vertex_attribute_data(geo, 1, plane_init_color,
+                                                  ARRAY_LENGTH(plane_init_color));
+
+        f32 plane_init_sizes[] = { 1.0f };
+        ulib_geo_set_pulled_vertex_attribute_data(geo, 2, plane_init_sizes,
+                                                  ARRAY_LENGTH(plane_init_sizes));
+
+        f32 plane_init_pos[] = { 0.0f, 0.0f, 0.0f };
+        ulib_geo_set_pulled_vertex_attribute_data(geo, 3, plane_init_pos,
+                                                  ARRAY_LENGTH(plane_init_pos));
+    }
+
+    { // init material data
+
+        SG_Shader* shader = SG_GetShader(g_material_builtin_shaders.points_shader_id);
+        chugl_materialSetShader(material, shader);
+
+        SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // global point color
+        SG_Material::uniformFloat(material, 1, .05f);            // global point size
+        SG_Material::setSampler(material, 2,
+                                SG_SAMPLER_DEFAULT); // point sampler
+        SG_Material::setTexture(
+          material, 3,
+          SG_GetTexture(g_builtin_textures.white_pixel_id)); // point texture
+
+        ulib_material_cq_update_all_uniforms(material);
+    }
+}
+
+CK_DLL_MFUN(gpoints_geo_set_positions)
+{
+    Chuck_ArrayVec3* ckarr = GET_NEXT_VEC3_ARRAY(ARGS);
+    int len                = API->object->array_vec3_size(ckarr);
+    SG_Geometry* geo       = GET_MESH_GEOMETRY(SELF);
+
+    geoSetPulledVertexAttribute(geo, 3, (Chuck_Object*)ckarr, 3, false);
+
+    CQ_PushCommand_GeometrySetVertexCount(geo, len * 6);
+}
+
+CK_DLL_MFUN(gpoints_geo_set_colors)
+{
+    geoSetPulledVertexAttribute(GET_MESH_GEOMETRY(SELF), 1, GET_NEXT_OBJECT(ARGS), 3,
+                                false);
+}
+
+CK_DLL_MFUN(gpoints_geo_set_sizes)
+{
+    geoSetPulledVertexAttribute(GET_MESH_GEOMETRY(SELF), 2, GET_NEXT_OBJECT(ARGS), 1,
+                                false);
+}
+
+CK_DLL_MFUN(gpoints_mat_set_color)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
+    SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1.0f));
+    CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(gpoints_mat_set_size)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    SG_Material::uniformFloat(material, 1, GET_NEXT_FLOAT(ARGS));
+    CQ_PushCommand_MaterialSetUniform(material, 1);
+}
+
+CK_DLL_MFUN(gpoints_mat_set_sampler)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    SG_Material::setSampler(material, 2, SG_Sampler::fromCkObj(GET_NEXT_OBJECT(ARGS)));
+    CQ_PushCommand_MaterialSetUniform(material, 2);
+}
+
+CK_DLL_MFUN(gpoints_mat_set_texture)
+{
+    SG_Material* material = GET_MESH_MATERIAL(SELF);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex       = ckobj ?
+                              SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) :
+                              SG_GetTexture(g_builtin_textures.white_pixel_id);
+    SG_Material::setTexture(material, 3, tex);
+    CQ_PushCommand_MaterialSetUniform(material, 3);
+}
+
+CK_DLL_MFUN(gpoints_mat_get_color)
+{
+    glm::vec3 color = GET_MESH_MATERIAL(SELF)->uniforms[0].as.vec4f;
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(gpoints_mat_get_size)
+{
+    RETURN->v_float = GET_MESH_MATERIAL(SELF)->uniforms[1].as.f;
+}
+
+CK_DLL_MFUN(gpoints_mat_get_sampler)
+{
+    RETURN->v_object = ulib_texture_ckobj_from_sampler(
+      GET_MESH_MATERIAL(SELF)->uniforms[2].as.sampler, false, SHRED);
+}
+
+CK_DLL_MFUN(gpoints_mat_get_texture)
+{
+    SG_Texture* tex = SG_GetTexture(GET_MESH_MATERIAL(SELF)->uniforms[3].as.texture_id);
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }
 
 // GShapes ===============================================================

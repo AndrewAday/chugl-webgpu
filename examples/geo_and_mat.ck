@@ -38,12 +38,8 @@ UVMaterial uv_material;
 NormalMaterial normal_material;
 TangentMaterial tangent_material;
 FlatMaterial flat_material;
-DiffuseMaterial diffuse_material;
 PhongMaterial phong_material;
 PBRMaterial pbr_material;
-
-diffuse_material.normalMap(normal_tex);
-diffuse_material.colorMap(albedo_tex);
 
 phong_material.normalMap(normal_tex);
 phong_material.colorMap(albedo_tex);
@@ -57,7 +53,6 @@ pbr_material.colorMap(albedo_tex);
     normal_material,
     tangent_material,
     flat_material,
-    diffuse_material,
     phong_material,
     pbr_material,
 ] @=> Material materials[];
@@ -82,10 +77,6 @@ UI_Int material_topology_index(3); // default to triangle list
 // Normal material params
 UI_Bool normal_material_worldspace(normal_material.worldspaceNormals());
 
-// Diffuse material params
-UI_Float3 diffuse_color(diffuse_material.color());
-UI_Float diffuse_normal_factor(diffuse_material.normalFactor());
-
 // Phong material params
 UI_Float3 phong_specular(phong_material.specular());
 UI_Float3 phong_diffuse(phong_material.color());
@@ -100,8 +91,6 @@ UI_Float pbr_metallic(pbr_material.metallic());
 UI_Float pbr_roughness(pbr_material.roughness());
 UI_Float pbr_ao_factor(pbr_material.aoFactor());
 UI_Float pbr_normal_factor(pbr_material.normalFactor());
-
-
 
 // Plane geometry params
 geometries[1] $ PlaneGeometry @=> PlaneGeometry@ plane_geo;
@@ -273,17 +262,6 @@ fun void ui() {
 
                 if (UI.checkbox("worldspace normals", normal_material_worldspace)) {
                     normal_material.worldspaceNormals(normal_material_worldspace.val());
-                }
-            }
-
-            if (mesh.material() == diffuse_material) {
-                UI.separatorText("Diffuse Material Params");
-                if (UI.colorEdit("color", diffuse_color, 0)) {
-                    diffuse_color.val() => diffuse_material.color;
-                }
-
-                if (UI.slider("normal factor", diffuse_normal_factor, 0, 1)) {
-                    diffuse_normal_factor.val() => diffuse_material.normalFactor;
                 }
             }
 

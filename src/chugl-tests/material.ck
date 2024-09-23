@@ -82,3 +82,23 @@ material.uniformInt3(3, 1, 2, 3);
 T.assert(T.arrayEquals(material.uniformInt3(3), [1, 2, 3]), "material uniformInt3");
 material.uniformInt4(4, 1, 2, 3, 4);
 T.assert(T.arrayEquals(material.uniformInt4(4), [1, 2, 3, 4]), "material uniformInt4");
+
+// test setting/getting TextureSampler
+
+TextureSampler sampler;
+Texture texture;
+
+material.texture(0, texture);
+material.sampler(1, sampler);
+
+
+T.assert(material.texture(0) == texture, "material texture");
+T.assert(
+    material.sampler(1).wrapU  == sampler.wrapU &&
+    material.sampler(1).wrapV  == sampler.wrapV &&
+    material.sampler(1).wrapW  == sampler.wrapW &&
+    material.sampler(1).filterMin  == sampler.filterMin &&
+    material.sampler(1).filterMag  == sampler.filterMag &&
+    material.sampler(1).filterMip  == sampler.filterMip,
+    "material sampler"
+);

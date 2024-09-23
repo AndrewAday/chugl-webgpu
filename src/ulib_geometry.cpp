@@ -174,23 +174,23 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
     MFUN(geo_set_positions, "void", "positions");
     ARG("vec3[]", "positions");
     DOC_FUNC(
-      "Set the positions for a geometry. Equivalent to setVertexAttribute(0, 3, "
+      "Set the positions for a geometry. Equivalent to vertexAttribute(0, 3, "
       "positions)");
 
     MFUN(geo_set_normals, "void", "normals");
     ARG("vec3[]", "normals");
     DOC_FUNC(
-      "Set the normals for a geometry. Equivalent to setVertexAttribute(1, 3, "
+      "Set the normals for a geometry. Equivalent to vertexAttribute(1, 3, "
       "normals)");
 
     MFUN(geo_set_uvs, "void", "uvs");
     ARG("vec2[]", "uvs");
-    DOC_FUNC("Set the UVs for a geometry. Equivalent to setVertexAttribute(2, 2, uvs)");
+    DOC_FUNC("Set the UVs for a geometry. Equivalent to vertexAttribute(2, 2, uvs)");
 
     MFUN(geo_set_tangents, "void", "tangents");
     ARG("vec4[]", "tangents");
     DOC_FUNC(
-      "Set the tangents for a geometry. Equivalent to setVertexAttribute(3, 4, "
+      "Set the tangents for a geometry. Equivalent to vertexAttribute(3, 4, "
       "tangents)");
 
     MFUN(geo_get_positions, "vec3[]", "positions");
@@ -938,8 +938,8 @@ CK_DLL_MFUN(geo_get_indices)
     RETURN->v_object = (Chuck_Object*)ck_arr;
 }
 
-void geoSetPulledVertexAttributeData(SG_Geometry* geo, t_CKINT location, f32* data,
-                                     int data_len)
+void ulib_geo_set_pulled_vertex_attribute_data(SG_Geometry* geo, t_CKINT location,
+                                               f32* data, int data_len)
 {
     // store locally on SG_Geometry
     Arena* pull_buffer = &geo->vertex_pull_buffers[location];

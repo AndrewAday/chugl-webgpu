@@ -91,12 +91,12 @@ struct chugl_MaterialBuiltinShaders {
     SG_ID lines2d_shader_id;
     SG_ID flat_shader_id;
     SG_ID gtext_shader_id;
-    SG_ID diffuse_shader_id;
     SG_ID pbr_shader_id;
     SG_ID uv_shader_id;
     SG_ID normal_shader_id;
     SG_ID tangent_shader_id;
     SG_ID phong_shader_id;
+    SG_ID points_shader_id;
 
     // screen shaders
     SG_ID output_pass_shader_id;
@@ -312,6 +312,8 @@ bool chugin_typeEquals(Chuck_Object* ckobj, const char* type_name)
 // impl in ulib_texture.cpp
 SG_Texture* ulib_texture_load(const char* filepath, SG_TextureLoadDesc* load_desc,
                               Chuck_VM_Shred* shred);
+Chuck_Object* ulib_texture_ckobj_from_sampler(SG_Sampler sampler, bool add_ref,
+                                              Chuck_VM_Shred* shred);
 
 // impl in ulib_material.cpp
 void chugl_materialSetShader(SG_Material* material, SG_Shader* shader);
@@ -324,6 +326,10 @@ void ulib_geo_lines2d_set_lines_points(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, Chuck_Object* ck_arr);
 void ulib_geo_lines2d_set_line_colors(SG_Geometry* geo, f32* data, int data_len);
 void CQ_UpdateAllVertexAttributes(SG_Geometry* geo);
+void ulib_geo_set_pulled_vertex_attribute_data(SG_Geometry* geo, t_CKINT location,
+                                               f32* data, int data_len);
+void geoSetPulledVertexAttribute(SG_Geometry* geo, t_CKINT location,
+                                 Chuck_Object* ck_arr, int num_components, bool is_int);
 
 // impl in ulib_component.cpp
 struct SG_Mesh;

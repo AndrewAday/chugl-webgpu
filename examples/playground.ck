@@ -20,7 +20,7 @@ osc.gain(.3);
 KnotGeometry geometry;
 
 // builtin materials
-DiffuseMaterial material;
+PhongMaterial material;
 
 GMesh mesh(geometry, material) --> GG.scene();
 

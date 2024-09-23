@@ -29,7 +29,7 @@ struct SG_Camera;
 
 // chugl will only ever use positive SG_IDs
 // but making signed to allow renderer to use negative IDs for internal impl
-typedef i64 SG_ID; // TODO change to i32
+typedef i32 SG_ID;
 
 // (enum, ckname)
 #define SG_ComponentTable                                                              \
