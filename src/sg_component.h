@@ -771,8 +771,8 @@ enum SG_LightType : u8 {
 struct SG_LightDesc {
     SG_LightType type;
 
-    glm::vec3 color = glm::vec3(.7f);
-    float intensity = 1.0f;
+    glm::vec3 color = glm::vec3(1.0f);
+    float intensity = .7f;
 
     // point
     // formula: intensity = (1 - distance / radius)^falloff

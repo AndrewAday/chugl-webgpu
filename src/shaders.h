@@ -395,12 +395,6 @@ static const char* diffuse_shader_string  = R"glsl(
     }
 
     fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
-        var normal = inNormal;
-
-        if (!is_front) {
-            normal = -inNormal;
-        }
-
         var tangentNormal : vec3f = textureSample(u_normal_map, texture_sampler, inUV).rgb * 2.0 - 1.0;
         tangentNormal.x *= scale;
         tangentNormal.y *= scale;
@@ -410,7 +404,11 @@ static const char* diffuse_shader_string  = R"glsl(
         let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
         let TBN : mat3x3f = mat3x3(T, B, N);
 
-        return normalize(TBN * tangentNormal);
+        var normal = normalize(TBN * tangentNormal);
+        if (!is_front) {
+            normal = -normal;
+        }
+        return normal;
     }
 
     // don't actually need normals/tangents
@@ -507,12 +505,6 @@ static const char* phong_shader_string = R"glsl(
     }
 
     fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
-        var normal = inNormal;
-
-        if (!is_front) {
-            normal = -inNormal;
-        }
-
         var tangentNormal : vec3f = textureSample(u_normal_map, texture_sampler, inUV).rgb * 2.0 - 1.0;
         tangentNormal.x *= scale;
         tangentNormal.y *= scale;
@@ -522,7 +514,11 @@ static const char* phong_shader_string = R"glsl(
         let B : vec3f = inTangent.w * normalize(cross(N, T));  // mikkt method
         let TBN : mat3x3f = mat3x3(T, B, N);
 
-        return normalize(TBN * tangentNormal);
+        var normal = normalize(TBN * tangentNormal);
+        if (!is_front) {
+            normal = -normal;
+        }
+        return normal;
     }
 
     // main =====================================================================================
@@ -558,7 +554,7 @@ static const char* phong_shader_string = R"glsl(
                     // diffuse shading
                     let diffuse_factor : f32 = max(dot(normal, lightDir), 0.0);
                     // specular shading
-                    let specular_factor : f32 = pow(max(dot(normal, halfwayDir), 0.0), u_shininess);
+                    let specular_factor : f32 = max(0.0, pow(max(dot(normal, halfwayDir), 0.0), u_shininess));
                     let diffuse : vec3f = diffuse_factor * diffuse_color;
                     let specular : vec3f = specular_factor * specular_color.rgb;
                     // combine results
@@ -774,11 +770,6 @@ static const char* pbr_shader_string = R"glsl(
     }
 
     fn calculateNormal(inNormal: vec3f, inUV : vec2f, inTangent: vec4f, scale: f32, is_front : bool) -> vec3f {
-        var normal = inNormal;
-        if (!is_front) {
-            normal = -inNormal;
-        }
-
         var tangentNormal : vec3f = textureSample(normalMap, texture_sampler, inUV).rgb * 2.0 - 1.0;
         // scale normal
         // ref: https://github.com/mrdoob/three.js/blob/dev/src/renderers/shaders/ShaderChunk/normal_fragment_maps.glsl.js
@@ -799,7 +790,11 @@ static const char* pbr_shader_string = R"glsl(
         let TBN : mat3x3f = mat3x3(T, B, N);
 
         // return inTangent.xyz;
-        return normalize(TBN * tangentNormal);
+        var normal = normalize(TBN * tangentNormal);
+        if (!is_front) {
+            normal = -normal;
+        }
+        return normal;
     }
 
     const PI = 3.1415926535897932384626433832795;

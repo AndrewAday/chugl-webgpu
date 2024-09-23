@@ -48,7 +48,7 @@ GPointLight point_lights[1];
 GMesh point_light_meshes[0];
 point_light_meshes << new GMesh(geo, light_material);
 point_light_meshes[0].sca(0.1);
-point_lights[0].pos(@(1, 0, 0));
+point_lights[0].pos(@(.8, 0, 0));
 // connect mesh to light position
 point_light_meshes[0] --> point_lights[0] --> point_light_axis --> GG.scene();
 
@@ -141,7 +141,7 @@ fun void ui() {
                 }
                 // update light positions to form equally spaced circle 
                 for (int i; i < point_lights.size(); i++) {
-                    point_lights[i].pos(@(
+                    point_lights[i].pos(.8 * @(
                         Math.cos(i * Math.TWO_PI / point_lights.size()),
                         0,
                         Math.sin(i * Math.TWO_PI / point_lights.size())

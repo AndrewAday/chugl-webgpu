@@ -31,6 +31,8 @@ UI_Int geometry_index;
     "KnotGeometry",
 ] @=> string builtin_geometries[];
 
+Texture.load(me.dir() + "../assets/brickwall_albedo.png") @=> Texture albedo_tex;
+Texture.load(me.dir() + "../assets/brickwall_normal.png") @=> Texture normal_tex;
 
 UVMaterial uv_material;
 NormalMaterial normal_material;
@@ -39,6 +41,16 @@ FlatMaterial flat_material;
 DiffuseMaterial diffuse_material;
 PhongMaterial phong_material;
 PBRMaterial pbr_material;
+
+diffuse_material.normalMap(normal_tex);
+diffuse_material.colorMap(albedo_tex);
+
+phong_material.normalMap(normal_tex);
+phong_material.colorMap(albedo_tex);
+
+pbr_material.normalMap(normal_tex);
+pbr_material.colorMap(albedo_tex);
+
 [
     null,
     uv_material,
@@ -72,15 +84,26 @@ UI_Bool normal_material_worldspace(normal_material.worldspaceNormals());
 
 // Diffuse material params
 UI_Float3 diffuse_color(diffuse_material.color());
+UI_Float diffuse_normal_factor(diffuse_material.normalFactor());
+
 
 
 // Phong material params
 UI_Float3 phong_specular(phong_material.specular());
-UI_Float3 phong_diffuse(phong_material.diffuse());
+UI_Float3 phong_diffuse(phong_material.color());
 UI_Float phong_shininess(phong_material.shininess());
 UI_Float3 phong_emission(phong_material.emission());
 UI_Float phong_normal_factor(phong_material.normalFactor());
 UI_Float phong_ao_factor(phong_material.aoFactor());
+
+// PBR material params
+UI_Float3 pbr_albedo(pbr_material.color());
+UI_Float pbr_metallic(pbr_material.metallic());
+UI_Float pbr_roughness(pbr_material.roughness());
+UI_Float pbr_ao_factor(pbr_material.aoFactor());
+UI_Float pbr_normal_factor(pbr_material.normalFactor());
+
+
 
 // Plane geometry params
 geometries[1] $ PlaneGeometry @=> PlaneGeometry@ plane_geo;
@@ -260,6 +283,10 @@ fun void ui() {
                 if (UI.colorEdit("color", diffuse_color, 0)) {
                     diffuse_color.val() => diffuse_material.color;
                 }
+
+                if (UI.slider("normal factor", diffuse_normal_factor, 0, 1)) {
+                    diffuse_normal_factor.val() => diffuse_material.normalFactor;
+                }
             }
 
             if (mesh.material() == phong_material) {
@@ -269,7 +296,7 @@ fun void ui() {
                 }
 
                 if (UI.colorEdit("diffuse", phong_diffuse, 0)) {
-                    phong_diffuse.val() => phong_material.diffuse;
+                    phong_diffuse.val() => phong_material.color;
                 }
 
                 if (UI.slider("shininess", phong_shininess, 0, 10)) {
@@ -287,6 +314,31 @@ fun void ui() {
                 if (UI.slider("ao factor", phong_ao_factor, 0, 1)) {
                     phong_ao_factor.val() => phong_material.aoFactor;
                 }
+            }
+
+            if (mesh.material() == pbr_material)
+            {
+                UI.separatorText("PBR Material Params");
+                if (UI.colorEdit("albedo", pbr_albedo, 0)) {
+                    pbr_albedo.val() => pbr_material.color;
+                }
+
+                if (UI.slider("metallic", pbr_metallic, 0, 1)) {
+                    pbr_metallic.val() => pbr_material.metallic;
+                }
+
+                if (UI.slider("roughness", pbr_roughness, 0, 1)) {
+                    pbr_roughness.val() => pbr_material.roughness;
+                }
+
+                if (UI.slider("ao factor", pbr_ao_factor, 0, 1)) {
+                    pbr_ao_factor.val() => pbr_material.aoFactor;
+                }
+
+                if (UI.slider("normal factor", pbr_normal_factor, 0, 1)) {
+                    pbr_normal_factor.val() => pbr_material.normalFactor;
+                }
+
             }
 
 

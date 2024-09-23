@@ -563,16 +563,16 @@ void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params)
       = ARENA_PUSH_COUNT(builder->tangent_arena, gvec4f, vertex_count);
     gvec3i* indices_array
       = ARENA_PUSH_COUNT(builder->indices_arena, gvec3i, index_tri_count);
-    UNUSED_VAR(tangent_array);
 
     u32 index = 0;
     for (u32 iy = 0; iy < gridY1; iy++) {
         const f32 y = iy * segment_height - height_half;
         for (u32 ix = 0; ix < gridX1; ix++) {
-            const f32 x       = ix * segment_width - width_half;
-            pos_array[index]  = { x, -y, 0 };
-            norm_array[index] = { 0, 0, 1 };
-            uv_array[index]   = { (f32)ix / gridX, 1.0f - ((f32)iy / gridY) };
+            const f32 x          = ix * segment_width - width_half;
+            pos_array[index]     = { x, -y, 0 };
+            norm_array[index]    = { 0, 0, 1 };
+            uv_array[index]      = { (f32)ix / gridX, 1.0f - ((f32)iy / gridY) };
+            tangent_array[index] = { 1, 0, 0, 1 };
 
             ++index;
         }
@@ -592,9 +592,6 @@ void Geometry_buildPlane(GeometryArenaBuilder* builder, PlaneParams* params)
         }
     }
     ASSERT(index == index_tri_count);
-
-    // build tangents
-    Geometry_computeTangents(builder);
     ASSERT(ARENA_LENGTH(builder->tangent_arena, gvec4f) == vertex_count);
 }
 
@@ -820,6 +817,7 @@ void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params)
     gvec3f* positions     = ARENA_PUSH_COUNT(gab->pos_arena, gvec3f, num_vertices);
     gvec3f* normals       = ARENA_PUSH_COUNT(gab->norm_arena, gvec3f, num_vertices);
     gvec2f* uvs           = ARENA_PUSH_COUNT(gab->uv_arena, gvec2f, num_vertices);
+    gvec4f* tangents      = ARENA_PUSH_COUNT(gab->tangent_arena, gvec4f, num_vertices);
     gvec3i* indices_array = ARENA_PUSH_COUNT(gab->indices_arena, gvec3i, num_indices);
 
     // center vertex
@@ -844,6 +842,9 @@ void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params)
         uvs[index] = { (positions[index].x / params->radius + 1.0f) / 2.0f,
                        (positions[index].y / params->radius + 1.0f) / 2.0f };
 
+        // tangents
+        tangents[index] = { 1, 0, 0, 1 };
+
         index++;
     }
 
@@ -852,9 +853,6 @@ void Geometry_buildCircle(GeometryArenaBuilder* gab, CircleParams* params)
     for (u32 i = 1; i <= params->segments; i++) {
         indices_array[index++] = { i, i + 1, 0 };
     }
-
-    // build tangents
-    Geometry_computeTangents(gab);
 }
 
 void Geometry_buildTorus(GeometryArenaBuilder* gab, TorusParams* params)

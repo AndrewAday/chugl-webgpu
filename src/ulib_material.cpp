@@ -455,7 +455,7 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     ARG("Texture", "texture");
     DOC_FUNC(
       "Binds a storage texture at the given location. Defaults to the textures base "
-             "mip level 0.");
+      "mip level 0.");
 
     // abstract class, no destructor or constructor
     END_CLASS();
@@ -560,10 +560,10 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
           "AO. Set between 0 and 1.");
 
         MFUN(diffuse_material_get_diffuse_map, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "diffuseMap");
+             "colorMap");
         DOC_FUNC("Get the diffuse texture of the material.");
 
-        MFUN(diffuse_material_set_diffuse_map, "void", "diffuseMap");
+        MFUN(diffuse_material_set_diffuse_map, "void", "colorMap");
         ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "diffuseTexture");
         DOC_FUNC("Set the diffuse texture of the material.");
 
@@ -660,10 +660,10 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
         ARG("vec3", "specular");
         DOC_FUNC("Set the specular color of the material.");
 
-        MFUN(phong_material_get_diffuse_color, "vec3", "diffuse");
+        MFUN(phong_material_get_diffuse_color, "vec3", "color");
         DOC_FUNC("Get the diffuse color of the material.");
 
-        MFUN(phong_material_set_diffuse_color, "void", "diffuse");
+        MFUN(phong_material_set_diffuse_color, "void", "color");
         ARG("vec3", "diffuse");
         DOC_FUNC("Set the diffuse color of the material.");
 
@@ -701,12 +701,12 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
         // textures
         MFUN(phong_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "albedoMap");
-        DOC_FUNC("Get the albedo texture of the material.");
+             "colorMap");
+        DOC_FUNC("Get the diffuse texture of the material.");
 
-        MFUN(phong_material_set_albedo_tex, "void", "albedoMap");
+        MFUN(phong_material_set_albedo_tex, "void", "colorMap");
         ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "albedoTexture");
-        DOC_FUNC("Set the albedo texture of the material.");
+        DOC_FUNC("Set the diffuse texture of the material.");
 
         MFUN(phong_material_get_specular_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
              "specularMap");
@@ -749,10 +749,10 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
         CTOR(pbr_material_ctor);
 
-        MFUN(pbr_material_get_albedo, "vec3", "albedo");
+        MFUN(pbr_material_get_albedo, "vec3", "color");
         DOC_FUNC("Get the albedo color of the material.");
 
-        MFUN(pbr_material_set_albedo, "void", "albedo");
+        MFUN(pbr_material_set_albedo, "void", "color");
         ARG("vec3", "albedo");
         DOC_FUNC("Set the albedo color of the material.");
 
@@ -794,11 +794,10 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
         ARG("float", "aoFactor");
         DOC_FUNC("Set the ambient occlusion factor of the material. Default 1.0");
 
-        MFUN(pbr_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "albedoMap");
+        MFUN(pbr_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE], "colorMap");
         DOC_FUNC("Get the albedo texture of the material.");
 
-        MFUN(pbr_material_set_albedo_tex, "void", "albedoMap");
+        MFUN(pbr_material_set_albedo_tex, "void", "colorMap");
         ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "albedoTexture");
         DOC_FUNC("Set the albedo texture of the material.");
 
@@ -1399,9 +1398,9 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
 
             // init uniforms
             {
-                PhongParams::specular(material, glm::vec3(1.0f));
+                PhongParams::specular(material, glm::vec3(.2f));
                 PhongParams::diffuse(material, glm::vec3(1.0f));
-                PhongParams::shininess(material, 32.0f);
+                PhongParams::shininess(material, 64.0f);
                 PhongParams::emission(material, glm::vec3(0.0f));
                 PhongParams::normalFactor(material, 1.0f);
                 PhongParams::aoFactor(material, 1.0f);

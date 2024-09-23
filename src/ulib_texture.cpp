@@ -79,43 +79,6 @@ void wgpuQueueWriteTexture(
     WGPUTextureDataLayout* dataLayout,  // layout of cpu-side void* data
     WGPUExtent3D* writeSize             // size of destination region in texture
 );
-
-// ============ Impl Texture Writes =============
-/*
-Invariants
-- Texture.size() will always create max mips
-- TextureFormat and TextureDim are immutable
-*/
-
-TextureUsage_All = TextureUsage_CopySrc | TextureUsage_CopyDst | TextureUsage_TextureBinding | TextureUsage_StorageBinding | TextureUsage_RenderAttachment
-
-class TextureDesc {
-    TextureFormat format = RGBA8Unorm;
-    TextureDimension dimension = 2D;
-
-    int width = 1;
-    int height = 1;
-    int depth = 1;
-
-    TextureUsageFlags usage = TextureUsage_All;
-
-    int samples = 1;
-    int mips = 0; // <= 0 means auto generate based on size
-}
-
-class TextureLoadDesc {
-    bool flip_vertically = false;
-    bool gen_mips = true;
-}
-
-// Remember to call Queue.submit() after wgpuTextureWrite !
-
-// TODO: do we texture load on audio thread of graphics thread?
-
-// validation checks
-// - based on texture format, determine the # of chuck array entries per texel
-// - check that the length of the chuck array is >= the expected region size (width * height * depth)
-
 #endif
 
 #define GET_TEXTURE(ckobj) SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id))
