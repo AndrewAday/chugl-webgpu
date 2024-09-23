@@ -653,91 +653,7 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
         CTOR(phong_material_ctor);
 
-        MFUN(phong_material_get_specular_color, "vec3", "specular");
-        DOC_FUNC("Get the specular color of the material.");
-
-        MFUN(phong_material_set_specular_color, "void", "specular");
-        ARG("vec3", "specular");
-        DOC_FUNC("Set the specular color of the material.");
-
-        MFUN(phong_material_get_diffuse_color, "vec3", "color");
-        DOC_FUNC("Get the diffuse color of the material.");
-
-        MFUN(phong_material_set_diffuse_color, "void", "color");
-        ARG("vec3", "diffuse");
-        DOC_FUNC("Set the diffuse color of the material.");
-
-        MFUN(phong_material_get_log_shininess, "float", "shininess");
-        DOC_FUNC("Get the log shininess exponent");
-
-        MFUN(phong_material_set_log_shininess, "void", "shininess");
-        ARG("float", "shininess");
-        DOC_FUNC("Set the log shininess exponent. default 5.");
-
-        MFUN(phong_material_get_emission_color, "vec3", "emission");
-        DOC_FUNC("Get the emission color of the material.");
-
-        MFUN(phong_material_set_emission_color, "void", "emission");
-        ARG("vec3", "emission");
-        DOC_FUNC("Set the emission color of the material. Default black.");
-
-        MFUN(phong_material_get_normal_factor, "float", "normalFactor");
-        DOC_FUNC(
-          "Get the normal factor of the material. Scales effect of normal map. Default "
-          "1.0");
-
-        MFUN(phong_material_set_normal_factor, "void", "normalFactor");
-        ARG("float", "normalFactor");
-        DOC_FUNC("Set the normal factor of the material. Scales effect of normal map");
-
-        MFUN(phong_material_get_ao_factor, "float", "aoFactor");
-        DOC_FUNC("Get the ambient occlusion factor of the material. Default 1.0");
-
-        MFUN(phong_material_set_ao_factor, "void", "aoFactor");
-        ARG("float", "aoFactor");
-        DOC_FUNC(
-          "Set the ambient occlusion factor of the material. Default 1.0. 0 disables "
-          "AO. Set between 0 and 1.");
-
-        // textures
-        MFUN(phong_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "colorMap");
-        DOC_FUNC("Get the diffuse texture of the material.");
-
-        MFUN(phong_material_set_albedo_tex, "void", "colorMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "albedoTexture");
-        DOC_FUNC("Set the diffuse texture of the material.");
-
-        MFUN(phong_material_get_specular_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "specularMap");
-        DOC_FUNC("Get the specular texture of the material.");
-
-        MFUN(phong_material_set_specular_tex, "void", "specularMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "specularTexture");
-        DOC_FUNC("Set the specular texture of the material.");
-
-        MFUN(phong_material_get_ao_tex, SG_CKNames[SG_COMPONENT_TEXTURE], "aoMap");
-        DOC_FUNC("Get the ambient occlusion texture of the material.");
-
-        MFUN(phong_material_set_ao_tex, "void", "aoMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "aoTexture");
-        DOC_FUNC("Set the ambient occlusion texture of the material.");
-
-        MFUN(phong_material_get_emissive_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "emissiveMap");
-        DOC_FUNC("Get the emissive texture of the material.");
-
-        MFUN(phong_material_set_emissive_tex, "void", "emissiveMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "emissiveTexture");
-        DOC_FUNC("Set the emissive texture of the material.");
-
-        MFUN(phong_material_get_normal_tex, SG_CKNames[SG_COMPONENT_TEXTURE],
-             "normalMap");
-        DOC_FUNC("Get the normal texture of the material.");
-
-        MFUN(phong_material_set_normal_tex, "void", "normalMap");
-        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "normalTexture");
-        DOC_FUNC("Set the normal texture of the material.");
+        PHONG_MATERIAL_METHODS(phong);
 
         END_CLASS();
     }
@@ -1804,65 +1720,49 @@ CK_DLL_CTOR(phong_material_ctor)
 
 CK_DLL_MFUN(phong_material_get_specular_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec3 color       = *PhongParams::specular(material);
-
-    RETURN->v_vec3 = { color.r, color.g, color.b };
+    glm::vec3 color = *PhongParams::specular(GET_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
 }
 
 CK_DLL_MFUN(phong_material_set_specular_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
-
-    PhongParams::specular(material, glm::vec3(color.x, color.y, color.z));
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::specular(GET_MATERIAL(SELF), glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_diffuse_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec4 color       = *PhongParams::diffuse(material);
-
-    RETURN->v_vec3 = { color.r, color.g, color.b };
+    glm::vec4 color = *PhongParams::diffuse(GET_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
 }
 
 CK_DLL_MFUN(phong_material_set_diffuse_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
-
-    PhongParams::diffuse(material, glm::vec3(color.x, color.y, color.z));
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::diffuse(GET_MATERIAL(SELF), glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_log_shininess)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    RETURN->v_float       = glm::log2(*PhongParams::shininess(material));
+    RETURN->v_float = glm::log2(*PhongParams::shininess(GET_MATERIAL(SELF)));
 }
 
 CK_DLL_MFUN(phong_material_set_log_shininess)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKFLOAT shininess   = GET_NEXT_FLOAT(ARGS);
-
-    PhongParams::shininess(material, glm::pow(2.0f, (f32)shininess));
-    CQ_PushCommand_MaterialSetUniform(material, 2);
+    t_CKFLOAT shininess = GET_NEXT_FLOAT(ARGS);
+    PhongParams::shininess(GET_MATERIAL(SELF), glm::pow(2.0f, (f32)shininess));
 }
 
 CK_DLL_MFUN(phong_material_get_emission_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    glm::vec3 color       = *PhongParams::emission(material);
-
-    RETURN->v_vec3 = { color.r, color.g, color.b };
+    glm::vec3 color = *PhongParams::emission(GET_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
 }
 
 CK_DLL_MFUN(phong_material_set_emission_color)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    t_CKVEC3 color        = GET_NEXT_VEC3(ARGS);
-
-    PhongParams::emission(material, glm::vec3(color.x, color.y, color.z));
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::emission(GET_MATERIAL(SELF), glm::vec3(color.x, color.y, color.z));
 }
 
 CK_DLL_MFUN(phong_material_get_normal_factor)
@@ -1893,17 +1793,10 @@ CK_DLL_MFUN(phong_material_get_albedo_tex)
 
 CK_DLL_MFUN(phong_material_set_albedo_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
-    }
-
-    PhongParams::albedoTex(material, tex);
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::albedoTex(GET_MATERIAL(SELF), tex);
 }
 
 CK_DLL_MFUN(phong_material_get_specular_tex)
@@ -1914,17 +1807,10 @@ CK_DLL_MFUN(phong_material_get_specular_tex)
 
 CK_DLL_MFUN(phong_material_set_specular_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
-    }
-
-    PhongParams::specularTex(material, tex);
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::specularTex(GET_MATERIAL(SELF), tex);
 }
 
 CK_DLL_MFUN(phong_material_get_ao_tex)
@@ -1935,17 +1821,10 @@ CK_DLL_MFUN(phong_material_get_ao_tex)
 
 CK_DLL_MFUN(phong_material_set_ao_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.white_pixel_id);
-    }
-
-    PhongParams::aoTex(material, tex);
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::aoTex(GET_MATERIAL(SELF), tex);
 }
 
 CK_DLL_MFUN(phong_material_get_emissive_tex)
@@ -1956,17 +1835,10 @@ CK_DLL_MFUN(phong_material_get_emissive_tex)
 
 CK_DLL_MFUN(phong_material_set_emissive_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.black_pixel_id);
-    }
-
-    PhongParams::emissiveTex(material, tex);
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::emissiveTex(GET_MATERIAL(SELF), tex);
 }
 
 CK_DLL_MFUN(phong_material_get_normal_tex)
@@ -1977,17 +1849,10 @@ CK_DLL_MFUN(phong_material_get_normal_tex)
 
 CK_DLL_MFUN(phong_material_set_normal_tex)
 {
-    SG_Material* material = GET_MATERIAL(SELF);
-    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
-
-    SG_Texture* tex = NULL;
-    if (ckobj) {
-        tex = SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id));
-    } else {
-        tex = SG_GetTexture(g_builtin_textures.normal_pixel_id);
-    }
-
-    PhongParams::normalTex(material, tex);
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::normalTex(GET_MATERIAL(SELF), tex);
 }
 
 // PBRMaterial ===================================================================

@@ -413,7 +413,7 @@ static void ulib_geometry_query(Chuck_DL_Query* QUERY)
 
     // box -----------------------------------------------------
     {
-        BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_BOX],
+        BEGIN_CLASS(SG_GeometryTypeNames[SG_GEOMETRY_CUBE],
                     SG_CKNames[SG_COMPONENT_GEOMETRY]);
 
         CTOR(box_geo_ctor);
@@ -648,7 +648,7 @@ static void ulib_geometry_build(SG_Geometry* geo, SG_GeometryType geo_type,
             if (params) p = *(PlaneParams*)params;
             SG_Geometry::buildPlane(geo, &p);
         } break;
-        case SG_GEOMETRY_BOX: {
+        case SG_GEOMETRY_CUBE: {
             BoxParams p = {};
             if (params) p = *(BoxParams*)params;
             SG_Geometry::buildBox(geo, &p);
@@ -1405,7 +1405,7 @@ CK_DLL_CTOR(box_geo_ctor)
 {
     SG_Geometry* geo = GET_GEOMETRY(SELF);
 
-    ulib_geometry_build(geo, SG_GEOMETRY_BOX, NULL);
+    ulib_geometry_build(geo, SG_GEOMETRY_CUBE, NULL);
 }
 
 CK_DLL_CTOR(box_geo_ctor_params)
@@ -1420,7 +1420,7 @@ CK_DLL_CTOR(box_geo_ctor_params)
 
     SG_Geometry* geo = GET_GEOMETRY(SELF);
 
-    ulib_geometry_build(geo, SG_GEOMETRY_BOX, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CUBE, &params);
 }
 
 CK_DLL_MFUN(box_geo_build)
@@ -1434,7 +1434,7 @@ CK_DLL_MFUN(box_geo_build)
     params.heightSeg = GET_NEXT_INT(ARGS);
     params.depthSeg  = GET_NEXT_INT(ARGS);
 
-    ulib_geometry_build(geo, SG_GEOMETRY_BOX, &params);
+    ulib_geometry_build(geo, SG_GEOMETRY_CUBE, &params);
 }
 
 CK_DLL_MFUN(box_geo_get_width)

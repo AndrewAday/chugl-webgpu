@@ -108,8 +108,8 @@ static void ui_scenegraph_draw_impl(SG_Transform* node)
                               material, glm::vec3(*PhongParams::emission(material)));
                         }
 
-                        if (ImGui::DragFloat("Shininess",
-                                             PhongParams::shininess(material), 0.05f)) {
+                        if (ImGui::DragFloat("shine", PhongParams::shininess(material),
+                                             0.05f)) {
                             PhongParams::shininess(material,
                                                    *PhongParams::shininess(material));
                         }

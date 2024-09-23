@@ -41,7 +41,7 @@ struct BoxParams {
 };
 
 struct CircleParams {
-    float radius      = 1.0f;
+    float radius      = .5f;
     int segments      = 32;
     float thetaStart  = 0.0f;
     float thetaLength = PI * 2.0f;

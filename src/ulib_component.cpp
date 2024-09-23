@@ -1071,6 +1071,39 @@ CK_DLL_MFUN(glines2d_get_color);
 // CK_DLL_MFUN(glines2d_set_extrusion);
 // CK_DLL_MFUN(glines2d_set_loop);
 
+CK_DLL_CTOR(gplane_ctor);
+CK_DLL_MFUN(gplane_get_geo);
+CK_DLL_CTOR(gcircle_ctor);
+CK_DLL_CTOR(gcube_ctor);
+CK_DLL_CTOR(gsphere_ctor);
+CK_DLL_CTOR(gtorus_ctor);
+CK_DLL_CTOR(gcylinder_ctor);
+CK_DLL_CTOR(gknot_ctor);
+CK_DLL_CTOR(gsuzanne_ctor);
+// GShape phong material fns
+CK_DLL_MFUN(gshape_phong_material_get_specular_color);
+CK_DLL_MFUN(gshape_phong_material_set_specular_color);
+CK_DLL_MFUN(gshape_phong_material_get_diffuse_color);
+CK_DLL_MFUN(gshape_phong_material_set_diffuse_color);
+CK_DLL_MFUN(gshape_phong_material_get_log_shininess);
+CK_DLL_MFUN(gshape_phong_material_set_log_shininess);
+CK_DLL_MFUN(gshape_phong_material_get_emission_color);
+CK_DLL_MFUN(gshape_phong_material_set_emission_color);
+CK_DLL_MFUN(gshape_phong_material_get_normal_factor);
+CK_DLL_MFUN(gshape_phong_material_set_normal_factor);
+CK_DLL_MFUN(gshape_phong_material_get_ao_factor);
+CK_DLL_MFUN(gshape_phong_material_set_ao_factor);
+CK_DLL_MFUN(gshape_phong_material_get_albedo_tex);
+CK_DLL_MFUN(gshape_phong_material_set_albedo_tex);
+CK_DLL_MFUN(gshape_phong_material_get_specular_tex);
+CK_DLL_MFUN(gshape_phong_material_set_specular_tex);
+CK_DLL_MFUN(gshape_phong_material_get_ao_tex);
+CK_DLL_MFUN(gshape_phong_material_set_ao_tex);
+CK_DLL_MFUN(gshape_phong_material_get_emissive_tex);
+CK_DLL_MFUN(gshape_phong_material_set_emissive_tex);
+CK_DLL_MFUN(gshape_phong_material_get_normal_tex);
+CK_DLL_MFUN(gshape_phong_material_set_normal_tex);
+
 static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 {
     // GMesh -----------------------------------------------------
@@ -1089,12 +1122,26 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
     ARG(SG_CKNames[SG_COMPONENT_MATERIAL], "material");
     DOC_FUNC("Set the material of this GMesh");
 
+    MFUN(gmesh_get_mat, SG_CKNames[SG_COMPONENT_MATERIAL], "mat");
+    DOC_FUNC("Get the material of this GMesh (shorthand for backwards compatibility)");
+
+    MFUN(gmesh_set_mat, "GMesh", "mat");
+    ARG(SG_CKNames[SG_COMPONENT_MATERIAL], "material");
+    DOC_FUNC("Set the material of this GMesh (shorthand for backwards compatibility)");
+
     MFUN(gmesh_get_geo, SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
     DOC_FUNC("Get the geometry of this GMesh");
 
     MFUN(gmesh_set_geo, "GMesh", "geometry");
     ARG(SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
     DOC_FUNC("Set the geometry of this GMesh");
+
+    MFUN(gmesh_get_geo, SG_CKNames[SG_COMPONENT_GEOMETRY], "geo");
+    DOC_FUNC("Get the geometry of this GMesh (shorthand for backwards compatibility)");
+
+    MFUN(gmesh_set_geo, "GMesh", "geo");
+    ARG(SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
+    DOC_FUNC("Set the geometry of this GMesh (shorthand for backwards compatibility)");
 
     MFUN(gmesh_set_mat_and_geo, "void", "mesh");
     ARG(SG_CKNames[SG_COMPONENT_GEOMETRY], "geometry");
@@ -1155,6 +1202,102 @@ static void ulib_mesh_query(Chuck_DL_Query* QUERY)
 
         // MFUN(glines2d_get_loop, "int", "loop");
         // DOC_FUNC("Get whether the line segments form a closed loop.");
+
+        END_CLASS();
+    }
+
+    { // GPlane -----------------------------------------------------
+        BEGIN_CLASS("GPlane", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(PlaneGeometry, PhongMaterial)");
+
+        CTOR(gplane_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    { // GCircle -----------------------------------------------------
+        BEGIN_CLASS("GCircle", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(CircleGeometry, PhongMaterial)");
+
+        CTOR(gcircle_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    { // GSphere -----------------------------------------------------
+        BEGIN_CLASS("GSphere", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(SphereGeometry, PhongMaterial)");
+
+        CTOR(gsphere_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    {
+        BEGIN_CLASS("GTorus", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(TorusGeometry, PhongMaterial)");
+
+        CTOR(gtorus_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    {
+        BEGIN_CLASS("GCylinder", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(CylinderGeometry, PhongMaterial)");
+
+        CTOR(gcylinder_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    {
+        BEGIN_CLASS("GKnot", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(KnotGeometry, PhongMaterial)");
+
+        CTOR(gknot_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    {
+        BEGIN_CLASS("GSuzanne", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(SuzanneGeometry, PhongMaterial)");
+
+        CTOR(gsuzanne_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
+
+        END_CLASS();
+    }
+
+    {
+        BEGIN_CLASS("GCube", SG_CKNames[SG_COMPONENT_MESH]);
+        DOC_CLASS(
+          "Convenience class for creating a GMesh(CubeGeometry, PhongMaterial)");
+
+        CTOR(gcube_ctor);
+
+        PHONG_MATERIAL_METHODS(gshape_phong);
 
         END_CLASS();
     }
@@ -1265,20 +1408,21 @@ CK_DLL_MFUN(gmesh_set_mat_and_geo)
 
 // GLines2D ===============================================================
 
-CK_DLL_CTOR(glines2d_ctor)
+static void ulib_mesh_create_gshape(Chuck_Object* ckobj, SG_GeometryType geo_type,
+                                    SG_MaterialType mat_type, Chuck_VM_Shred* shred)
 {
-    SG_Mesh* mesh = GET_MESH(SELF);
-
-    // create material
-    SG_Material* mat = ulib_material_create(SG_MATERIAL_LINES2D, SHRED);
-
-    // create geometry
-    SG_Geometry* geo = ulib_geometry_create(SG_GEOMETRY_LINES2D, SHRED);
-
+    CK_DL_API API    = g_chuglAPI;
+    SG_Mesh* mesh    = GET_MESH(ckobj);
+    SG_Geometry* geo = ulib_geometry_create(geo_type, shred);
+    SG_Material* mat = ulib_material_create(mat_type, shred);
     SG_Mesh::setGeometry(mesh, geo);
     SG_Mesh::setMaterial(mesh, mat);
-
     CQ_PushCommand_MeshUpdate(mesh);
+}
+
+CK_DLL_CTOR(glines2d_ctor)
+{
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_LINES2D, SG_MATERIAL_LINES2D, SHRED);
 }
 
 CK_DLL_MFUN(glines2d_set_line_positions)
@@ -1364,4 +1508,193 @@ CK_DLL_MFUN(glines2d_get_color)
         glm::vec3 color = material->uniforms[1].as.vec3f;
         RETURN->v_vec3  = { color.x, color.y, color.z };
     }
+}
+
+// GShapes ===============================================================
+
+CK_DLL_CTOR(gplane_ctor)
+{
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_PLANE, SG_MATERIAL_PHONG, SHRED);
+}
+
+CK_DLL_MFUN(gplane_get_geo)
+{
+    SG_Mesh* mesh    = GET_MESH(SELF);
+    SG_Geometry* geo = SG_GetGeometry(mesh->_geo_id);
+    RETURN->v_object = geo ? geo->ckobj : NULL;
+}
+
+CK_DLL_CTOR(gcircle_ctor)
+{
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_CIRCLE, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gcube_ctor)
+{
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_CUBE, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gsphere_ctor)
+{
+
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_SPHERE, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gtorus_ctor)
+{
+
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_TORUS, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gcylinder_ctor)
+{
+
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_CYLINDER, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gknot_ctor)
+{
+
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_KNOT, SG_MATERIAL_PHONG, SHRED);
+}
+CK_DLL_CTOR(gsuzanne_ctor)
+{
+
+    ulib_mesh_create_gshape(SELF, SG_GEOMETRY_SUZANNE, SG_MATERIAL_PHONG, SHRED);
+}
+
+// GShape phong material fns ============================================
+
+CK_DLL_MFUN(gshape_phong_material_get_specular_color)
+{
+    glm::vec3 color = *PhongParams::specular(GET_MESH_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_specular_color)
+{
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::specular(GET_MESH_MATERIAL(SELF),
+                          glm::vec3(color.x, color.y, color.z));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_diffuse_color)
+{
+    glm::vec4 color = *PhongParams::diffuse(GET_MESH_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_diffuse_color)
+{
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::diffuse(GET_MESH_MATERIAL(SELF), glm::vec3(color.x, color.y, color.z));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_log_shininess)
+{
+    RETURN->v_float = glm::log2(*PhongParams::shininess(GET_MESH_MATERIAL(SELF)));
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_log_shininess)
+{
+    t_CKFLOAT shininess = GET_NEXT_FLOAT(ARGS);
+    PhongParams::shininess(GET_MESH_MATERIAL(SELF), glm::pow(2.0f, (f32)shininess));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_emission_color)
+{
+    glm::vec3 color = *PhongParams::emission(GET_MESH_MATERIAL(SELF));
+    RETURN->v_vec3  = { color.r, color.g, color.b };
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_emission_color)
+{
+    t_CKVEC3 color = GET_NEXT_VEC3(ARGS);
+    PhongParams::emission(GET_MESH_MATERIAL(SELF),
+                          glm::vec3(color.x, color.y, color.z));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_normal_factor)
+{
+    RETURN->v_float = *PhongParams::normalFactor(GET_MESH_MATERIAL(SELF));
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_normal_factor)
+{
+    PhongParams::normalFactor(GET_MESH_MATERIAL(SELF), GET_NEXT_FLOAT(ARGS));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_ao_factor)
+{
+    RETURN->v_float = *PhongParams::aoFactor(GET_MESH_MATERIAL(SELF));
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_ao_factor)
+{
+    PhongParams::aoFactor(GET_MESH_MATERIAL(SELF), GET_NEXT_FLOAT(ARGS));
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_albedo_tex)
+{
+    SG_Texture* tex  = PhongParams::albedoTex(GET_MESH_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_albedo_tex)
+{
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::albedoTex(GET_MESH_MATERIAL(SELF), tex);
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_specular_tex)
+{
+    SG_Texture* tex  = PhongParams::specularTex(GET_MESH_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_specular_tex)
+{
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::specularTex(GET_MESH_MATERIAL(SELF), tex);
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_ao_tex)
+{
+    SG_Texture* tex  = PhongParams::aoTex(GET_MESH_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_ao_tex)
+{
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::aoTex(GET_MESH_MATERIAL(SELF), tex);
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_emissive_tex)
+{
+    SG_Texture* tex  = PhongParams::emissiveTex(GET_MESH_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_emissive_tex)
+{
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::emissiveTex(GET_MESH_MATERIAL(SELF), tex);
+}
+
+CK_DLL_MFUN(gshape_phong_material_get_normal_tex)
+{
+    SG_Texture* tex  = PhongParams::normalTex(GET_MESH_MATERIAL(SELF));
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_MFUN(gshape_phong_material_set_normal_tex)
+{
+    Chuck_Object* ckobj = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex
+      = ckobj ? SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) : NULL;
+    PhongParams::normalTex(GET_MESH_MATERIAL(SELF), tex);
 }

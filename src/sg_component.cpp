@@ -498,7 +498,7 @@ void SG_Geometry::buildKnot(SG_Geometry* g, KnotParams* p)
 
 void SG_Geometry::buildBox(SG_Geometry* g, BoxParams* p)
 {
-    ASSERT(g->geo_type == SG_GEOMETRY_BOX);
+    ASSERT(g->geo_type == SG_GEOMETRY_CUBE);
     g->params.box = *p;
 
     GeometryArenaBuilder gab;

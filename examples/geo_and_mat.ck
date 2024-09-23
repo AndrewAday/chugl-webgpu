@@ -11,7 +11,7 @@ GMesh mesh --> GG.scene();
     new PlaneGeometry,
     new SuzanneGeometry,
     new SphereGeometry,
-    new BoxGeometry,
+    new CubeGeometry,
     new CircleGeometry,
     new TorusGeometry,
     new CylinderGeometry,
@@ -24,7 +24,7 @@ UI_Int geometry_index;
     "PlaneGeometry",
     "SuzanneGeometry",
     "SphereGeometry",
-    "BoxGeometry",
+    "CubeGeometry",
     "CircleGeometry",
     "TorusGeometry",
     "CylinderGeometry",
@@ -86,12 +86,10 @@ UI_Bool normal_material_worldspace(normal_material.worldspaceNormals());
 UI_Float3 diffuse_color(diffuse_material.color());
 UI_Float diffuse_normal_factor(diffuse_material.normalFactor());
 
-
-
 // Phong material params
 UI_Float3 phong_specular(phong_material.specular());
 UI_Float3 phong_diffuse(phong_material.color());
-UI_Float phong_shininess(phong_material.shininess());
+UI_Float phong_shine(phong_material.shine());
 UI_Float3 phong_emission(phong_material.emission());
 UI_Float phong_normal_factor(phong_material.normalFactor());
 UI_Float phong_ao_factor(phong_material.aoFactor());
@@ -142,15 +140,15 @@ fun void buildSphere() {
 }
 
 // box geometry params
-geometries[4] $ BoxGeometry @=> BoxGeometry@ box_geo;
-UI_Float box_width(box_geo.width());
-UI_Float box_height(box_geo.height());
-UI_Float box_depth(box_geo.depth());
-UI_Int box_width_segments(box_geo.widthSegments());
-UI_Int box_height_segments(box_geo.heightSegments());
-UI_Int box_depth_segments(box_geo.depthSegments());
+geometries[4] $ CubeGeometry @=> CubeGeometry@ cube_geo;
+UI_Float box_width(cube_geo.width());
+UI_Float box_height(cube_geo.height());
+UI_Float box_depth(cube_geo.depth());
+UI_Int box_width_segments(cube_geo.widthSegments());
+UI_Int box_height_segments(cube_geo.heightSegments());
+UI_Int box_depth_segments(cube_geo.depthSegments());
 fun void buildBox() {
-    box_geo.build(
+    cube_geo.build(
         box_width.val(),
         box_height.val(),
         box_depth.val(),
@@ -299,8 +297,8 @@ fun void ui() {
                     phong_diffuse.val() => phong_material.color;
                 }
 
-                if (UI.slider("shininess", phong_shininess, 0, 10)) {
-                    phong_shininess.val() => phong_material.shininess;
+                if (UI.slider("shine", phong_shine, 0, 10)) {
+                    phong_shine.val() => phong_material.shine;
                 }
 
                 if (UI.colorEdit("emission", phong_emission, 0)) {
@@ -364,7 +362,7 @@ fun void ui() {
             }
 
             // box geometry params
-            if (mesh.geometry() == box_geo) {
+            if (mesh.geometry() == cube_geo) {
                 if (UI.slider("width", box_width, 0.1, 10)) buildBox();
                 if (UI.slider("height", box_height, 0.1, 10)) buildBox();
                 if (UI.slider("depth", box_depth, 0.1, 10)) buildBox();

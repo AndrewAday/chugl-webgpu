@@ -346,6 +346,11 @@ CK_DLL_SFUN(chugl_set_auto_update_scenegraph)
     gg_config.auto_update_scenegraph = (GET_NEXT_INT(ARGS) != 0);
 }
 
+CK_DLL_SFUN(chugl_get_default_camera)
+{
+    RETURN->v_object = SG_GetCamera(gg_config.mainCamera)->ckobj;
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
@@ -491,8 +496,17 @@ CK_DLL_QUERY(ChuGL)
           "Set whether GGen update() functions are automatically called "
           "on all GGens in active scene graphs every frame. Default is true.");
 
-        QUERY->end_class(QUERY); // GG
-    }
+        SFUN(gwindow_fullscreen, "void", "fullscreen");
+        DOC_FUNC(
+          "Shorthand for GWindow.fullscreen(). Added for backwards compatibility");
+
+        SFUN(chugl_get_default_camera, "GOrbitCamera", "camera");
+        DOC_FUNC(
+          "Shorthand for getting the default GOrbitCamera that is created upon "
+          "startup");
+
+        END_CLASS();
+    } // GG
 
     { // Default components
         // scene
@@ -508,6 +522,9 @@ CK_DLL_QUERY(ChuGL)
         SG_Light* dir_light
           = ulib_light_create(dir_light_ckobj, SG_LightType_Directional);
         CQ_PushCommand_AddChild(scene, dir_light);
+        // angle light down slightly
+        SG_Transform::lookAt(dir_light, glm::vec3(0.0f, -1.0f, -1.0f));
+        CQ_PushCommand_SetRotation(dir_light);
 
         // default orbit camera
         SG_Camera* default_camera
@@ -515,6 +532,7 @@ CK_DLL_QUERY(ChuGL)
         CQ_PushCommand_AddChild(scene, default_camera);
         SG_Scene::setMainCamera(scene, default_camera);
         CQ_PushCommand_SceneUpdate(scene);
+        gg_config.mainCamera = default_camera->id;
 
         // passRoot()
         gg_config.root_pass_id = ulib_pass_createPass(SG_PassType_Root);

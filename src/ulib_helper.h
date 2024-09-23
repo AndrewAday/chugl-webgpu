@@ -484,3 +484,93 @@ struct PhongParams {
         return SG_GetTexture(mat->uniforms[11].as.texture_id);
     }
 };
+
+#define PHONG_MATERIAL_METHODS(prefix)                                                 \
+    {                                                                                  \
+        MFUN(prefix##_material_get_specular_color, "vec3", "specular");                \
+        DOC_FUNC("Get the specular color of the material.");                           \
+                                                                                       \
+        MFUN(prefix##_material_set_specular_color, "void", "specular");                \
+        ARG("vec3", "specular");                                                       \
+        DOC_FUNC("Set the specular color of the material.");                           \
+                                                                                       \
+        MFUN(prefix##_material_get_diffuse_color, "vec3", "color");                    \
+        DOC_FUNC("Get the diffuse color of the material.");                            \
+                                                                                       \
+        MFUN(prefix##_material_set_diffuse_color, "void", "color");                    \
+        ARG("vec3", "diffuse");                                                        \
+        DOC_FUNC("Set the diffuse color of the material.");                            \
+                                                                                       \
+        MFUN(prefix##_material_get_log_shininess, "float", "shine");                   \
+        DOC_FUNC("Get the log shininess exponent");                                    \
+                                                                                       \
+        MFUN(prefix##_material_set_log_shininess, "void", "shine");                    \
+        ARG("float", "shine");                                                         \
+        DOC_FUNC("Set the log shininess exponent. default 5.");                        \
+                                                                                       \
+        MFUN(prefix##_material_get_emission_color, "vec3", "emission");                \
+        DOC_FUNC("Get the emission color of the material.");                           \
+                                                                                       \
+        MFUN(prefix##_material_set_emission_color, "void", "emission");                \
+        ARG("vec3", "emission");                                                       \
+        DOC_FUNC("Set the emission color of the material. Default black.");            \
+                                                                                       \
+        MFUN(prefix##_material_get_normal_factor, "float", "normalFactor");            \
+        DOC_FUNC(                                                                      \
+          "Get the normal factor of the material. Scales effect of normal map. "       \
+          "Default "                                                                   \
+          "1.0");                                                                      \
+                                                                                       \
+        MFUN(prefix##_material_set_normal_factor, "void", "normalFactor");             \
+        ARG("float", "normalFactor");                                                  \
+        DOC_FUNC(                                                                      \
+          "Set the normal factor of the material. Scales effect of normal map");       \
+                                                                                       \
+        MFUN(prefix##_material_get_ao_factor, "float", "aoFactor");                    \
+        DOC_FUNC("Get the ambient occlusion factor of the material. Default 1.0");     \
+                                                                                       \
+        MFUN(prefix##_material_set_ao_factor, "void", "aoFactor");                     \
+        ARG("float", "aoFactor");                                                      \
+        DOC_FUNC(                                                                      \
+          "Set the ambient occlusion factor of the material. Default 1.0. 0 disables " \
+          "AO. Set between 0 and 1.");                                                 \
+                                                                                       \
+        MFUN(prefix##_material_get_albedo_tex, SG_CKNames[SG_COMPONENT_TEXTURE],       \
+             "colorMap");                                                              \
+        DOC_FUNC("Get the diffuse texture of the material.");                          \
+                                                                                       \
+        MFUN(prefix##_material_set_albedo_tex, "void", "colorMap");                    \
+        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "albedoTexture");                        \
+        DOC_FUNC("Set the diffuse texture of the material.");                          \
+                                                                                       \
+        MFUN(prefix##_material_get_specular_tex, SG_CKNames[SG_COMPONENT_TEXTURE],     \
+             "specularMap");                                                           \
+        DOC_FUNC("Get the specular texture of the material.");                         \
+                                                                                       \
+        MFUN(prefix##_material_set_specular_tex, "void", "specularMap");               \
+        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "specularTexture");                      \
+        DOC_FUNC("Set the specular texture of the material.");                         \
+                                                                                       \
+        MFUN(prefix##_material_get_ao_tex, SG_CKNames[SG_COMPONENT_TEXTURE], "aoMap"); \
+        DOC_FUNC("Get the ambient occlusion texture of the material.");                \
+                                                                                       \
+        MFUN(prefix##_material_set_ao_tex, "void", "aoMap");                           \
+        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "aoTexture");                            \
+        DOC_FUNC("Set the ambient occlusion texture of the material.");                \
+                                                                                       \
+        MFUN(prefix##_material_get_emissive_tex, SG_CKNames[SG_COMPONENT_TEXTURE],     \
+             "emissiveMap");                                                           \
+        DOC_FUNC("Get the emissive texture of the material.");                         \
+                                                                                       \
+        MFUN(prefix##_material_set_emissive_tex, "void", "emissiveMap");               \
+        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "emissiveTexture");                      \
+        DOC_FUNC("Set the emissive texture of the material.");                         \
+                                                                                       \
+        MFUN(prefix##_material_get_normal_tex, SG_CKNames[SG_COMPONENT_TEXTURE],       \
+             "normalMap");                                                             \
+        DOC_FUNC("Get the normal texture of the material.");                           \
+                                                                                       \
+        MFUN(prefix##_material_set_normal_tex, "void", "normalMap");                   \
+        ARG(SG_CKNames[SG_COMPONENT_TEXTURE], "normalTexture");                        \
+        DOC_FUNC("Set the normal texture of the material.");                           \
+    }

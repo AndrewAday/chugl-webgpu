@@ -252,7 +252,7 @@ struct SG_Scene : public SG_Transform {
 #define SG_GeometryTable                                                               \
     X(SG_GEOMETRY = 0, "Geometry")                                                     \
     X(SG_GEOMETRY_PLANE, "PlaneGeometry")                                              \
-    X(SG_GEOMETRY_BOX, "BoxGeometry")                                                  \
+    X(SG_GEOMETRY_CUBE, "CubeGeometry")                                                \
     X(SG_GEOMETRY_CIRCLE, "CircleGeometry")                                            \
     X(SG_GEOMETRY_SPHERE, "SphereGeometry")                                            \
     X(SG_GEOMETRY_CYLINDER, "CylinderGeometry")                                        \
