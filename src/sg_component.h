@@ -124,34 +124,43 @@ WGPUTextureUsageFlags WGPUTextureUsage_All
 
 struct SG_TextureDesc {
     // for now default to ALL usage flags to simplify
-    WGPUTextureUsageFlags usage_flags = WGPUTextureUsage_All;
-    WGPUTextureDimension dimension    = WGPUTextureDimension_2D;
-    WGPUTextureFormat format          = WGPUTextureFormat_RGBA8Unorm;
-    int width                         = 1;
-    int height                        = 1;
-    int depth                         = 1;
-    int mips                          = 0; // 0 means determine from dimensions
+    WGPUTextureUsageFlags usage    = WGPUTextureUsage_All;
+    WGPUTextureDimension dimension = WGPUTextureDimension_2D;
+    WGPUTextureFormat format       = WGPUTextureFormat_RGBA8Unorm;
+    int width                      = 1;
+    int height                     = 1;
+    int depth                      = 1;
+    int mips                       = 0; // 0 means determine from dimensions
 };
+
+struct SG_TextureWriteDesc {
+    // Image Location
+    int mip;
+    int offset_x;
+    int offset_y;
+    int offset_z;
+
+    // write region size (in texels)
+    int width  = 1;
+    int height = 1;
+    int depth  = 1;
+
+    // to add later
+    // int offset
+};
+
+struct SG_TextureLoadDesc {
+    bool flip_y   = false;
+    bool gen_mips = true;
+};
+
+int SG_Texture_numComponentsPerTexel(WGPUTextureFormat format);
+int SG_Texture_byteSizePerTexel(
+  WGPUTextureFormat format); // size of a single texel in bytes
 
 struct SG_Texture : SG_Component {
     SG_TextureDesc desc;
-
-    // TODO rework texture writing later....
-    int width, height;
-    // texture dimension 1d, 2d, 3d (can group together with enum type? e.g. 1d_storage,
-    // 2d_render etc)
-    Arena data; // u8 pixels
-
-    static void write(SG_Texture* tex, u8* pixels, int width, int height)
-    {
-        // reset texture pixel data (assume we're always re-writing entire thing)
-        Arena::clear(&tex->data);
-        tex->width  = width;
-        tex->height = height;
-
-        u8* tex_pixels = ARENA_PUSH_COUNT(&tex->data, u8, width * height * 4);
-        memcpy(tex_pixels, pixels, sizeof(*pixels) * width * height * 4);
-    }
+    // intentionally do not store pixel data here; only stored on GPU
 };
 
 // ============================================================================
@@ -693,6 +702,7 @@ struct SG_Pass : public SG_Component {
     SG_ID scene_id;
     SG_ID camera_id;
     SG_ID resolve_target_id;
+    bool color_target_clear_on_load = true;
 
     // ScreenPass params
     SG_ID screen_texture_id;  // color attachment output

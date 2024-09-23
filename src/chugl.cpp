@@ -388,13 +388,27 @@ CK_DLL_QUERY(ChuGL)
     }
 
     { // create default ckobjs
-        g_builting_ckobjs.empty_float_array = chugin_createCkFloatArray(NULL, 0);
-        float init_2d_pos[2]                = { 0.0f, 0.0f };
-        g_builting_ckobjs.init_2d_pos
-          = chugin_createCkFloatArray(init_2d_pos, ARRAY_LENGTH(init_2d_pos));
+        g_builtin_ckobjs.empty_float_array = chugin_createCkFloatArray(NULL, 0, true);
+
+        float init_2d_pos[2] = { 0.0f, 0.0f };
+        g_builtin_ckobjs.init_2d_pos
+          = chugin_createCkFloatArray(init_2d_pos, ARRAY_LENGTH(init_2d_pos), true);
+
         glm::vec3 white_color = glm::vec3(1.0f);
-        g_builting_ckobjs.init_white_color
-          = chugin_createCkFloat3Array(&white_color, 1);
+        g_builtin_ckobjs.init_white_color
+          = chugin_createCkFloat3Array(&white_color, 1, true);
+
+        float white_pixel_data[4]         = { 1.0f, 1.0f, 1.0f, 1.0f };
+        g_builtin_ckobjs.white_pixel_data = chugin_createCkFloatArray(
+          white_pixel_data, ARRAY_LENGTH(white_pixel_data), true);
+
+        float black_pixel_data[4]         = { 0.0f, 0.0f, 0.0f, 0.0f };
+        g_builtin_ckobjs.black_pixel_data = chugin_createCkFloatArray(
+          black_pixel_data, ARRAY_LENGTH(black_pixel_data), true);
+
+        float normal_pixel_data[4]         = { 0.5f, 0.5f, 1.0f, 1.0f };
+        g_builtin_ckobjs.normal_pixel_data = chugin_createCkFloatArray(
+          normal_pixel_data, ARRAY_LENGTH(normal_pixel_data), true);
     }
 
     ulib_color_query(QUERY);

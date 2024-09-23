@@ -496,26 +496,55 @@ void CQ_PushCommand_TextureCreate(SG_Texture* texture)
     END_COMMAND();
 }
 
-void CQ_PushCommand_TextureData(SG_Texture* texture)
+void CQ_PushCommand_TextureWrite(SG_Texture* texture, SG_TextureWriteDesc* desc,
+                                 Chuck_ArrayFloat* ck_array, CK_DL_API API)
 {
-    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_TextureData, SG_COMMAND_TEXTURE_DATA,
-                                    texture->data.curr);
+    // calculate the necessary size in bytes from data (assume data length has already
+    // been validated)
+    int write_region_num_texels = desc->width * desc->height * desc->depth;
+    int bytes_per_texel         = SG_Texture_byteSizePerTexel(texture->desc.format);
+    int write_region_num_components
+      = write_region_num_texels
+        * SG_Texture_numComponentsPerTexel(texture->desc.format);
+    int write_size_bytes = write_region_num_texels * bytes_per_texel;
 
-    command->sg_id = texture->id;
-    // change to bytes per row?
-    command->width  = texture->width;
-    command->height = texture->height;
+    BEGIN_COMMAND_ADDITIONAL_MEMORY(SG_Command_TextureWrite, SG_COMMAND_TEXTURE_WRITE,
+                                    write_size_bytes);
+
+    command->sg_id           = texture->id;
+    command->write_desc      = *desc;
+    command->data_size_bytes = write_size_bytes;
+    command->data_offset     = Arena::offsetOf(cq.write_q, memory);
 
     // copy texture data to write_q
-    memcpy(memory, texture->data.base, texture->data.curr);
-    ASSERT(texture->data.curr == texture->width * texture->height * 4);
+#define CQ_TEXTURE_WRITE(type, type_max)                                               \
+    ASSERT(write_region_num_components <= API->object->array_float_size(ck_array));    \
+    type* pixel_data = (type*)memory;                                                  \
+    for (int i = 0; i < write_region_num_components; i++) {                            \
+        pixel_data[i]                                                                  \
+          = (type)(type_max * API->object->array_float_get_idx(ck_array, i));          \
+    }
 
-    command->data_offset = Arena::offsetOf(cq.write_q, memory);
+    switch (texture->desc.format) {
+        case WGPUTextureFormat_RGBA8Unorm: {
+            CQ_TEXTURE_WRITE(u8, UINT8_MAX);
+        } break;
+        case WGPUTextureFormat_RGBA16Float: {
+            ASSERT(false); // not impl
+        } break;
+        case WGPUTextureFormat_R32Float:
+        case WGPUTextureFormat_RGBA32Float: {
+            CQ_TEXTURE_WRITE(f32, 1.0f);
+        } break;
+        default: ASSERT(false);
+    }
+
     END_COMMAND();
+#undef CQ_TEXTURE_WRITE
 }
 
 void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath,
-                                    bool flip_vertically = true)
+                                    SG_TextureLoadDesc* desc)
 {
     size_t filepath_len = strlen(filepath);
     BEGIN_COMMAND_ADDITIONAL_MEMORY_ZERO(
@@ -524,7 +553,8 @@ void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath,
     char* filepath_copy = (char*)memory;
     strncpy(filepath_copy, filepath, strlen(filepath));
     command->filepath_offset = Arena::offsetOf(cq.write_q, filepath_copy);
-    command->flip_vertically = flip_vertically;
+    command->flip_vertically = desc->flip_y;
+    command->gen_mips        = desc->gen_mips;
     END_COMMAND();
 }
 

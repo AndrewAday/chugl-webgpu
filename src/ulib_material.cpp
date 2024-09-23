@@ -453,6 +453,9 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(material_set_storage_texture, "void", "storageTexture");
     ARG("int", "location");
     ARG("Texture", "texture");
+    DOC_FUNC(
+      "Binds a storage texture at the given location. Defaults to the textures base "
+             "mip level 0.");
 
     // abstract class, no destructor or constructor
     END_CLASS();

@@ -179,44 +179,127 @@ struct R_Geometry : public R_Component {
 // =============================================================================
 
 struct R_Texture : public R_Component {
-    Texture gpu_texture;
-    // u32 width;
-    // u32 height;
-    // u32 depth;
-    // u32 mip_level_count;
-    // WGPUTexture texture;
-    // WGPUTextureView view;
+    WGPUTexture gpu_texture;
+
+    // TODO maybe remove texture view
+    // eventually migrate to flat_map cached system
+    // where each R_Texture has a hashmap : TextureViewDesc --> TextureView
+    // and all R_Material have references to TextureViews which are owned by R_Texture.
+    // Updating the generation walks the flatmap and recreates all TextureViews
+    // for now sticking with awkward situation where some texture bindings create their
+    // own TextureViews, and texture_id uses this default gpu_texture_view
+    WGPUTextureView gpu_texture_view; // default view of entire gpu_texture + mip chain
 
     u32 generation = 0;  // incremented every time texture is modified
     SG_TextureDesc desc; // TODO redundant with R_Texture.gpu_texture
 
-    // resizes texture and updates generation, clears any previous data
-    // does gen mipmaps. used for framebuffer attachments
-    static void rebuild(GraphicsContext* gctx, R_Texture* r_tex, u32 width, u32 height)
+    static void init(GraphicsContext* gctx, R_Texture* texture, SG_TextureDesc* desc)
     {
-        bool needs_rebuild = r_tex->gpu_texture.width != width
-                             || r_tex->gpu_texture.height != height
-                             || r_tex->gpu_texture.texture == NULL;
-        if (needs_rebuild) {
-            Texture::init(gctx, &r_tex->gpu_texture, width, height, 1, true,
-                          r_tex->name.c_str(), r_tex->desc.format,
-                          WGPUTextureUsage_RenderAttachment | r_tex->desc.usage_flags,
-                          r_tex->desc.dimension);
-            r_tex->generation++;
+        // free previous
+        WGPU_RELEASE_RESOURCE(Texture, texture->gpu_texture);
+
+        // bump generation
+        texture->generation++;
+
+        { // validation
+            ASSERT(desc->mips >= 1
+                   && desc->mips <= G_mipLevels(desc->width, desc->height));
+            ASSERT(desc->width > 0 && desc->height > 0 && desc->depth > 0);
+        }
+
+        // copy texture info (immutable)
+        texture->desc = *desc;
+
+        // init descriptor
+        WGPUTextureDescriptor wgpu_texture_desc = {};
+        wgpu_texture_desc.label                 = texture->name.c_str();
+        wgpu_texture_desc.usage                 = desc->usage;
+        wgpu_texture_desc.dimension             = desc->dimension;
+        wgpu_texture_desc.size
+          = { (u32)desc->width, (u32)desc->height, (u32)desc->depth };
+        wgpu_texture_desc.format        = desc->format;
+        wgpu_texture_desc.mipLevelCount = desc->mips;
+        wgpu_texture_desc.sampleCount   = 1;
+
+        texture->gpu_texture
+          = wgpuDeviceCreateTexture(gctx->device, &wgpu_texture_desc);
+        ASSERT(texture->gpu_texture);
+
+        // create default texture view for entire mip chain (And 1st array layer)
+        // cubemaps are handled differently
+        char texture_view_label[256] = {};
+        snprintf(texture_view_label, sizeof(texture_view_label), "%s default view",
+                 texture->name.c_str());
+        WGPUTextureViewDescriptor wgpu_texture_view_desc = {};
+        wgpu_texture_view_desc.label                     = texture_view_label;
+        wgpu_texture_view_desc.format                    = desc->format;
+        wgpu_texture_view_desc.dimension                 = WGPUTextureViewDimension_2D;
+        wgpu_texture_view_desc.baseMipLevel              = 0;
+        wgpu_texture_view_desc.mipLevelCount             = desc->mips;
+        wgpu_texture_view_desc.baseArrayLayer            = 0;
+        wgpu_texture_view_desc.arrayLayerCount           = desc->depth;
+
+        texture->gpu_texture_view
+          = wgpuTextureCreateView(texture->gpu_texture, &wgpu_texture_view_desc);
+        ASSERT(texture->gpu_texture_view);
+    }
+
+    // resizes texture and updates generation, clears any previous data
+    // used for auto-resizing framebuffer attachments
+    static void resize(GraphicsContext* gctx, R_Texture* r_tex, u32 width, u32 height)
+    {
+        bool needs_resize = r_tex->desc.width != width || r_tex->desc.height != height
+                            || r_tex->gpu_texture == NULL;
+
+        if (needs_resize) {
+            SG_TextureDesc desc = r_tex->desc;
+            desc.width          = width;
+            desc.height         = height;
+            desc.mips           = G_mipLevels(width, height);
+            R_Texture::init(gctx, r_tex, &desc);
         }
     }
 
-    static void write(GraphicsContext* gctx, R_Texture* texture, void* data, int width,
-                      int height)
+    static void write(GraphicsContext* gctx, R_Texture* texture,
+                      SG_TextureWriteDesc* write_desc, void* data,
+                      size_t data_size_bytes)
     {
-        Texture::initFromPixelData(gctx, &texture->gpu_texture, texture->name.c_str(),
-                                   data, width, height, true,
-                                   texture->desc.usage_flags);
-        texture->generation++;
+        // don't need to bump generation here, because we are not recreating the
+        // gpu_texture
+
+        ASSERT(texture->gpu_texture);
+        ASSERT(wgpuTextureGetUsage(texture->gpu_texture) & WGPUTextureUsage_CopyDst);
+
+        // write gpu_texture data
+        {
+            WGPUImageCopyTexture destination = {};
+            destination.texture              = texture->gpu_texture;
+            destination.mipLevel             = write_desc->mip;
+            destination.origin               = {
+                (u32)write_desc->offset_x,
+                (u32)write_desc->offset_y,
+                (u32)write_desc->offset_z,
+            }; // equivalent of the offset argument of Queue::writeBuffer
+            destination.aspect = WGPUTextureAspect_All; // only relevant for
+                                                        // depth/Stencil textures
+
+            WGPUTextureDataLayout source = {};
+            source.offset = 0; // where to start reading from the cpu buffer
+            source.bytesPerRow
+              = write_desc->width * G_bytesPerTexel(texture->desc.format);
+            source.rowsPerImage = write_desc->height * write_desc->depth;
+
+            WGPUExtent3D size = { (u32)write_desc->width, (u32)write_desc->height,
+                                  (u32)write_desc->depth };
+            wgpuQueueWriteTexture(gctx->queue, &destination, data, data_size_bytes,
+                                  &source, &size);
+
+            wgpuQueueSubmit(gctx->queue, 0, NULL); // schedule transfer immediately
+        }
     }
 
-    static void fromFile(GraphicsContext* gctx, R_Texture* texture,
-                         const char* filepath, bool flip_vertically);
+    static void load(GraphicsContext* gctx, R_Texture* texture, const char* filepath,
+                     bool flip_vertically, bool gen_mips);
 };
 
 void Material_batchUpdatePipelines(GraphicsContext* gctx, FT_Library ft_lib,
@@ -293,7 +376,7 @@ struct R_Material : public R_Component {
 
     b32 bind_group_stale; // set if modified by chuck user, need to rebuild bind groups
 
-    R_ID pipelineID; // renderpipeline this material belongs to
+    R_ID pipelineID = true; // renderpipeline this material belongs to
     bool pipeline_stale;
 
     // bindgroup state (uniforms, storage buffers, textures, samplers)
@@ -733,8 +816,9 @@ struct R_Pass : public R_Component {
 #ifdef __EMSCRIPTEN__
             ca->depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif
-            // TODO chugl API to set loadOp and clearcolor
-            ca->loadOp  = WGPULoadOp_Clear; // WGPULoadOp_Load does not clear
+            // TODO chugl API to set loadOp
+            ca->loadOp  = pass->sg_pass.color_target_clear_on_load ? WGPULoadOp_Clear :
+                                                                     WGPULoadOp_Load;
             ca->storeOp = WGPUStoreOp_Store;
             ca->clearValue
               = WGPUColor{ clear_color.r, clear_color.g, clear_color.b, clear_color.a };

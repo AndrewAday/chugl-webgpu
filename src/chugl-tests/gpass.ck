@@ -18,4 +18,8 @@ T.assert(rpass.target() == target, "target is target");
 rpass.target(null);
 T.assert(rpass.target() == null, "target is null again");
 
+T.assert(rpass.autoClearColor(), "default auto clear color is true");
+rpass.autoClearColor(false);
+T.assert(!rpass.autoClearColor(), "auto clear color is false");
+
 T.assert(GG.renderPass().next() == GG.outputPass(), "default render pass next is output pass");

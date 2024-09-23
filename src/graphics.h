@@ -381,6 +381,15 @@ SamplerConfig Graphics_SamplerConfigFromDesciptor(WGPUSamplerDescriptor* desc);
 // };
 
 // ============================================================================
+// MipMapGenerator
+// ============================================================================
+
+void MipMapGenerator_init(GraphicsContext* ctx);
+void MipMapGenerator_release();
+void MipMapGenerator_generate(GraphicsContext* ctx, WGPUTexture texture,
+                              const char* label);
+
+// ============================================================================
 // Pipeline State Helpers (blend, depth/stencil, multisample)
 // ============================================================================
 
@@ -415,3 +424,6 @@ G_MipSize G_mipLevelSize(int width, int height, u32 mip_level);
 // creates a texture view for a single mip level
 WGPUTextureView G_createTextureViewAtMipLevel(WGPUTexture texture, u32 base_mip_level,
                                               const char* label);
+
+int G_componentsPerTexel(WGPUTextureFormat format);
+int G_bytesPerTexel(WGPUTextureFormat format);

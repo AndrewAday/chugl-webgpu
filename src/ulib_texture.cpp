@@ -5,6 +5,10 @@
 
 #include "ulib_helper.h"
 
+#include "core/log.h"
+
+#include <stb/stb_image.h>
+
 #if 0
 enum WGPUTextureUsage {
     WGPUTextureUsage_CopySrc = 0x00000001,
@@ -99,23 +103,7 @@ class TextureDesc {
     int mips = 0; // <= 0 means auto generate based on size
 }
 
-class TextureWriteParams {
-    // Image Location
-    int mip;
-    int offset_x;
-    int offset_y;
-    int offset_z;
-
-    // write region size
-    int width;
-    int height;
-    int depth;
-
-    // to add later
-    // int offset
-};
-
-class TextureLoadParams {
+class TextureLoadDesc {
     bool flip_vertically = false;
     bool gen_mips = true;
 }
@@ -148,6 +136,24 @@ static t_CKUINT texture_desc_usage_offset     = 0;
 static t_CKUINT texture_desc_mips_offset = 0; // not exposing for now
 CK_DLL_CTOR(texture_desc_ctor);
 
+// TextureWriteDesc -----------------------------------------------------------------
+CK_DLL_CTOR(texture_write_desc_ctor);
+// dst image location
+static t_CKUINT texture_write_desc_mip_offset      = 0;
+static t_CKUINT texture_write_desc_offset_x_offset = 0;
+static t_CKUINT texture_write_desc_offset_y_offset = 0;
+static t_CKUINT texture_write_desc_offset_z_offset = 0;
+// dst region size
+static t_CKUINT texture_write_desc_width_offset  = 0;
+static t_CKUINT texture_write_desc_height_offset = 0;
+static t_CKUINT texture_write_desc_depth_offset  = 0;
+
+// TextureWriteDesc -----------------------------------------------------------------
+CK_DLL_CTOR(texture_load_desc_ctor);
+
+static t_CKUINT texture_load_desc_flip_y_offset   = 0;
+static t_CKUINT texture_load_desc_gen_mips_offset = 0;
+
 // Texture ---------------------------------------------------------------------
 CK_DLL_CTOR(texture_ctor);
 CK_DLL_CTOR(texture_ctor_with_desc);
@@ -161,7 +167,11 @@ CK_DLL_MFUN(texture_get_usage);
 CK_DLL_MFUN(texture_get_mips);
 
 CK_DLL_MFUN(texture_write);
-CK_DLL_MFUN(texture_set_file);
+CK_DLL_MFUN(texture_write_with_desc);
+
+CK_DLL_SFUN(texture_load_2d_file);
+CK_DLL_SFUN(texture_load_2d_file_with_params); // not exposed yet (figure out hdr
+// first)
 
 static void ulib_texture_query(Chuck_DL_Query* QUERY)
 {
@@ -196,6 +206,7 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
     { // TextureDesc
         BEGIN_CLASS("TextureDesc", "Object");
+        DOC_CLASS("Texture Descriptor -- options for creating a texture");
 
         CTOR(texture_desc_ctor);
 
@@ -211,6 +222,51 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
 
         END_CLASS();
     } // end TextureDesc
+
+    { // TextureWriteDesc
+        BEGIN_CLASS("TextureWriteDesc", "Object");
+        DOC_CLASS("Options for writing to a texture");
+
+        CTOR(texture_write_desc_ctor);
+
+        texture_write_desc_mip_offset = MVAR("int", "mip", false);
+        DOC_VAR("Which mip level to write to. Default is 0 (base level)");
+
+        texture_write_desc_offset_x_offset = MVAR("int", "x", false);
+        DOC_VAR("X offset of write region. Default 0");
+
+        texture_write_desc_offset_y_offset = MVAR("int", "y", false);
+        DOC_VAR("Y offset of write region. Default 0");
+
+        texture_write_desc_offset_z_offset = MVAR("int", "z", false);
+        DOC_VAR("Z offset of write region. Default 0");
+
+        texture_write_desc_width_offset = MVAR("int", "width", false);
+        DOC_VAR("Width of write region. Default 0");
+
+        texture_write_desc_height_offset = MVAR("int", "height", false);
+        DOC_VAR("Height of write region. Default 0");
+
+        texture_write_desc_depth_offset = MVAR("int", "depth", false);
+        DOC_VAR("Depth of write region. Default 0");
+
+        END_CLASS();
+    };
+
+    { // TextureLoadDesc
+        BEGIN_CLASS("TextureLoadDesc", "Object");
+        DOC_CLASS("Options for loading a texture from a file");
+
+        CTOR(texture_load_desc_ctor);
+
+        texture_load_desc_flip_y_offset = MVAR("int", "flip_y", false);
+        DOC_VAR("Flip the image vertically before loading. Default false");
+
+        texture_load_desc_gen_mips_offset = MVAR("int", "gen_mips", false);
+        DOC_VAR("Generate mipmaps for the texture. Default true");
+
+        END_CLASS();
+    }
 
     // Texture
     {
@@ -231,12 +287,14 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         SVAR("int", "Usage_RenderAttachment", &texture_usage_render_attachment);
         SVAR("int", "Usage_All", &texture_usage_all);
 
-        static t_CKINT texture_dimension_1d = WGPUTextureDimension_1D;
+        // 1D textures currently unsupported
+        // static t_CKINT texture_dimension_1d = WGPUTextureDimension_1D;
         static t_CKINT texture_dimension_2d = WGPUTextureDimension_2D;
-        static t_CKINT texture_dimension_3d = WGPUTextureDimension_3D;
-        SVAR("int", "Dimension_1D", &texture_dimension_1d);
+        // 3D textures currently unsupported
+        // static t_CKINT texture_dimension_3d = WGPUTextureDimension_3D;
+        // SVAR("int", "Dimension_1D", &texture_dimension_1d);
         SVAR("int", "Dimension_2D", &texture_dimension_2d);
-        SVAR("int", "Dimension_3D", &texture_dimension_3d);
+        // SVAR("int", "Dimension_3D", &texture_dimension_3d);
 
         static t_CKINT texture_format_rgba8unorm  = WGPUTextureFormat_RGBA8Unorm;
         static t_CKINT texture_format_rgba16float = WGPUTextureFormat_RGBA16Float;
@@ -245,13 +303,26 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         // static t_CKINT texture_format_depth24plusstencil8
         //   = WGPUTextureFormat_Depth24PlusStencil8;
         SVAR("int", "Format_RGBA8Unorm", &texture_format_rgba8unorm);
-        SVAR("int", "Format_RGBA16Float", &texture_format_rgba16float);
+        SVAR("int", "Format_RGBA16Float", &texture_format_rgba16float); // not
+        // supported currently
         SVAR("int", "Format_RGBA32Float", &texture_format_rgba32float);
         SVAR("int", "Format_R32Float", &texture_format_r32float);
         // SVAR("int", "Format_Depth24PlusStencil8",
         // &texture_format_depth24plusstencil8);
 
-        // mfun ---------------
+        // sfun ------------------------------------------------------------------
+
+        SFUN(texture_load_2d_file, SG_CKNames[SG_COMPONENT_TEXTURE], "load");
+        ARG("string", "filepath");
+        DOC_FUNC("Load a 2D texture from a file");
+
+        SFUN(texture_load_2d_file_with_params, SG_CKNames[SG_COMPONENT_TEXTURE],
+             "load");
+        ARG("string", "filepath");
+        ARG("TextureLoadDesc", "load_desc");
+        DOC_FUNC("Load a 2D texture from a file with additional parameters");
+
+        // mfun ------------------------------------------------------------------
 
         CTOR(texture_ctor);
 
@@ -259,9 +330,18 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         ARG("TextureDesc", "texture_desc");
 
         MFUN(texture_write, "void", "write");
-        ARG("int[]", "pixel_data"); // assumed rgba, so 4 ints per pixel
-        ARG("int", "width");        // in pixels
-        ARG("int", "height");       // in pixels
+        ARG("float[]", "pixel_data");
+        DOC_FUNC(
+          "Convenience function for writing into a texture. Assumes pixel_data is "
+          "being written into the texture origin (0,0,0) with a region equal to the "
+          "full texture dimensions (width, height, depth) at mip level 0");
+
+        MFUN(texture_write_with_desc, "void", "write");
+        ARG("float[]", "pixel_data");
+        ARG("TextureWriteDesc", "write_desc");
+        DOC_FUNC(
+          "Write pixel data to an arbitrary texture region. The input float data is "
+          "automatically converted based on the texture format");
 
         MFUN(texture_get_format, "int", "format");
         DOC_FUNC(
@@ -295,9 +375,6 @@ static void ulib_texture_query(Chuck_DL_Query* QUERY)
         DOC_FUNC(
           "Get the number of mip levels (immutable). Returns the number of mip levels "
           "in the texture.");
-
-        MFUN(texture_set_file, "void", "load");
-        ARG("string", "filepath");
 
         // TODO: specify in WGPUImageCopyTexture where in texture to write to ?
         // e.g. texture.subData()
@@ -343,14 +420,63 @@ static SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
     desc.format = (WGPUTextureFormat)OBJ_MEMBER_INT(ckobj, texture_desc_format_offset);
     desc.dimension
       = (WGPUTextureDimension)OBJ_MEMBER_INT(ckobj, texture_desc_dimension_offset);
-    desc.width       = OBJ_MEMBER_INT(ckobj, texture_desc_width_offset);
-    desc.height      = OBJ_MEMBER_INT(ckobj, texture_desc_height_offset);
-    desc.depth       = OBJ_MEMBER_INT(ckobj, texture_desc_depth_offset);
-    desc.usage_flags = OBJ_MEMBER_INT(ckobj, texture_desc_usage_offset);
+    desc.width  = OBJ_MEMBER_INT(ckobj, texture_desc_width_offset);
+    desc.height = OBJ_MEMBER_INT(ckobj, texture_desc_height_offset);
+    desc.depth  = OBJ_MEMBER_INT(ckobj, texture_desc_depth_offset);
+    desc.usage  = OBJ_MEMBER_INT(ckobj, texture_desc_usage_offset);
     // desc.samples        = OBJ_MEMBER_INT(ckobj, texture_desc_samples_offset);
     desc.mips = OBJ_MEMBER_INT(ckobj, texture_desc_mips_offset);
 
     // validation happens at final layer SG_CreateTexture
+    return desc;
+}
+
+// TextureWriteDesc -----------------------------------------------------------------
+
+CK_DLL_CTOR(texture_write_desc_ctor)
+{
+    OBJ_MEMBER_INT(SELF, texture_write_desc_mip_offset)      = 0;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_offset_x_offset) = 0;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_offset_y_offset) = 0;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_offset_z_offset) = 0;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_width_offset)    = 1;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_height_offset)   = 1;
+    OBJ_MEMBER_INT(SELF, texture_write_desc_depth_offset)    = 1;
+}
+
+static SG_TextureWriteDesc ulib_texture_textureWriteDescFromCkobj(Chuck_Object* ckobj)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    SG_TextureWriteDesc desc = {};
+    desc.mip                 = OBJ_MEMBER_INT(ckobj, texture_write_desc_mip_offset);
+    desc.offset_x = OBJ_MEMBER_INT(ckobj, texture_write_desc_offset_x_offset);
+    desc.offset_y = OBJ_MEMBER_INT(ckobj, texture_write_desc_offset_y_offset);
+    desc.offset_z = OBJ_MEMBER_INT(ckobj, texture_write_desc_offset_z_offset);
+    desc.width    = OBJ_MEMBER_INT(ckobj, texture_write_desc_width_offset);
+    desc.height   = OBJ_MEMBER_INT(ckobj, texture_write_desc_height_offset);
+    desc.depth    = OBJ_MEMBER_INT(ckobj, texture_write_desc_depth_offset);
+
+    // validation happens at final write
+
+    return desc;
+}
+
+// TextureLoadDesc -----------------------------------------------------------------
+
+CK_DLL_CTOR(texture_load_desc_ctor)
+{
+    OBJ_MEMBER_INT(SELF, texture_load_desc_flip_y_offset)   = false;
+    OBJ_MEMBER_INT(SELF, texture_load_desc_gen_mips_offset) = true;
+}
+
+static SG_TextureLoadDesc ulib_texture_textureLoadDescFromCkobj(Chuck_Object* ckobj)
+{
+    CK_DL_API API = g_chuglAPI;
+
+    SG_TextureLoadDesc desc = {};
+    desc.flip_y             = OBJ_MEMBER_INT(ckobj, texture_load_desc_flip_y_offset);
+    desc.gen_mips           = OBJ_MEMBER_INT(ckobj, texture_load_desc_gen_mips_offset);
 
     return desc;
 }
@@ -361,24 +487,26 @@ static SG_TextureDesc ulib_texture_textureDescFromCkobj(Chuck_Object* ckobj)
 void ulib_texture_createDefaults(CK_DL_API API)
 {
     SG_TextureDesc texture_binding_desc = {};
-    texture_binding_desc.usage_flags    = WGPUTextureUsage_TextureBinding;
+    texture_binding_desc.usage
+      = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+
+    SG_TextureWriteDesc texture_write_desc = {};
+
     // white pixel
     {
         SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
-        u8 white_pixel[] = { 255, 255, 255, 255 };
-        SG_Texture::write(tex, white_pixel, 1, 1);
-        CQ_PushCommand_TextureData(tex);
-
+        CQ_PushCommand_TextureWrite(tex, &texture_write_desc,
+                                    g_builtin_ckobjs.white_pixel_data, API);
         // set global
         g_builtin_textures.white_pixel_id = tex->id;
     }
     //  default render texture (hdr)
     {
         SG_TextureDesc render_texture_desc = {};
-        render_texture_desc.usage_flags    = WGPUTextureUsage_RenderAttachment
-                                          | WGPUTextureUsage_TextureBinding
-                                          | WGPUTextureUsage_StorageBinding;
+        render_texture_desc.usage          = WGPUTextureUsage_RenderAttachment
+                                    | WGPUTextureUsage_TextureBinding
+                                    | WGPUTextureUsage_StorageBinding;
         render_texture_desc.format = WGPUTextureFormat_RGBA16Float;
         // set global
         g_builtin_textures.default_render_texture_id
@@ -388,10 +516,8 @@ void ulib_texture_createDefaults(CK_DL_API API)
     { // black pixel
         SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
-        u8 black_pixel[] = { 0, 0, 0, 0 };
-        SG_Texture::write(tex, black_pixel, 1, 1);
-        CQ_PushCommand_TextureData(tex);
-
+        CQ_PushCommand_TextureWrite(tex, &texture_write_desc,
+                                    g_builtin_ckobjs.black_pixel_data, API);
         // set global
         g_builtin_textures.black_pixel_id = tex->id;
     }
@@ -399,10 +525,8 @@ void ulib_texture_createDefaults(CK_DL_API API)
     { // default normal map
         SG_Texture* tex = SG_CreateTexture(&texture_binding_desc, NULL, NULL, true);
         // upload pixel data
-        u8 normal_pixel[] = { 128, 128, 255, 255 };
-        SG_Texture::write(tex, normal_pixel, 1, 1);
-        CQ_PushCommand_TextureData(tex);
-
+        CQ_PushCommand_TextureWrite(tex, &texture_write_desc,
+                                    g_builtin_ckobjs.normal_pixel_data, API);
         // set global
         g_builtin_textures.normal_pixel_id = tex->id;
     }
@@ -447,7 +571,7 @@ CK_DLL_MFUN(texture_get_depth)
 
 CK_DLL_MFUN(texture_get_usage)
 {
-    RETURN->v_int = GET_TEXTURE(SELF)->desc.usage_flags;
+    RETURN->v_int = GET_TEXTURE(SELF)->desc.usage;
 }
 
 CK_DLL_MFUN(texture_get_mips)
@@ -455,47 +579,112 @@ CK_DLL_MFUN(texture_get_mips)
     RETURN->v_int = GET_TEXTURE(SELF)->desc.mips;
 }
 
-CK_DLL_MFUN(texture_write)
+static void ulib_texture_write(SG_Texture* tex, Chuck_ArrayFloat* ck_arr,
+                               SG_TextureWriteDesc* desc, Chuck_VM_Shred* SHRED)
 {
-    SG_Texture* tex = GET_TEXTURE(SELF);
+    CK_DL_API API = g_chuglAPI;
 
-    // TODO move into member fn?
-    {
-        Chuck_ArrayInt* ck_arr = GET_NEXT_INT_ARRAY(ARGS);
-        t_CKUINT width         = GET_NEXT_UINT(ARGS);
-        t_CKUINT height        = GET_NEXT_UINT(ARGS);
+    int num_texels   = tex->desc.width * tex->desc.height * tex->desc.depth;
+    int expected_len = num_texels * SG_Texture_numComponentsPerTexel(tex->desc.format);
 
-        int ck_arr_len = API->object->array_int_size(ck_arr);
-
-        // check if pixel data is correct size
-        ASSERT(ck_arr_len == width * height * 4); // RGBA
-
-        // reset texture pixel data (assume we're always re-writing entire thing)
-        Arena::clear(&tex->data);
-        tex->width  = width;
-        tex->height = height;
-
-        // copy pixel data from ck array
-        u8* pixels = ARENA_PUSH_COUNT(&tex->data, u8, ck_arr_len);
-        for (int i = 0; i < ck_arr_len; i++) {
-            pixels[i] = (u8)API->object->array_int_get_idx(ck_arr, i);
+    { // validation
+        char err_msg[256] = {};
+        // check offset within image bounds
+        if (desc->offset_x + desc->width > tex->desc.width
+            || desc->offset_y + desc->height > tex->desc.height
+            || desc->offset_z + desc->depth > tex->desc.depth) {
+            snprintf(err_msg, sizeof(err_msg),
+                     "Texture write region out of bounds. Texture dimensions [%d, %d, "
+                     "%d]. Write offsets [%d, %d, %d]. Write region size [%d, %d, %d]",
+                     tex->desc.width, tex->desc.height, tex->desc.depth, desc->offset_x,
+                     desc->offset_y, desc->offset_z, desc->width, desc->height,
+                     desc->depth);
+            CK_THROW("TextureWriteOutOfBounds", err_msg, SHRED);
         }
 
-        ASSERT(tex->data.curr == width * height * 4); // write correct # of bytes
+        // check mip level valid
+        if (desc->mip >= tex->desc.mips) {
+            snprintf(err_msg, sizeof(err_msg),
+                     "Invalid mip level. Texture has %d mips, but tried to "
+                     "write to mip level %d",
+                     tex->desc.mips, desc->mip);
+            CK_THROW("TextureWriteInvalidMip", err_msg, SHRED);
+        }
+
+        // check ck_array
+        int ck_arr_len = API->object->array_float_size(ck_arr);
+        if (ck_arr_len < expected_len) {
+            snprintf(
+              err_msg, sizeof(err_msg),
+              "Incorrect number of components in pixel data. Expected %d, got %d",
+              expected_len, ck_arr_len);
+            CK_THROW("TextureWriteInvalidPixelData", err_msg, SHRED);
+        }
     }
 
-    // TODO push cq
-    CQ_PushCommand_TextureData(tex);
+    // convert ck array into byte buffer based on texture format
+    CQ_PushCommand_TextureWrite(tex, desc, ck_arr, API);
 }
 
-CK_DLL_MFUN(texture_set_file)
+CK_DLL_MFUN(texture_write)
 {
-    SG_Texture* tex      = GET_TEXTURE(SELF);
-    Chuck_String* ck_str = GET_NEXT_STRING(ARGS);
+    SG_Texture* tex          = GET_TEXTURE(SELF);
+    SG_TextureWriteDesc desc = {};
+    desc.width               = tex->desc.width;
+    desc.height              = tex->desc.height;
+    desc.depth               = tex->desc.depth;
 
-    // For now NOT doing stb file IO on audio thread.
-    // 1) don't have to do file IO
-    // 2) don't have to pass texture data over command queue
+    ulib_texture_write(tex, GET_NEXT_FLOAT_ARRAY(ARGS), &desc, SHRED);
+}
 
-    CQ_PushCommand_TextureFromFile(tex, API->object->str(ck_str), true);
+CK_DLL_MFUN(texture_write_with_desc)
+{
+    SG_Texture* tex          = GET_TEXTURE(SELF);
+    Chuck_ArrayFloat* ck_arr = GET_NEXT_FLOAT_ARRAY(ARGS);
+    SG_TextureWriteDesc desc
+      = ulib_texture_textureWriteDescFromCkobj(GET_NEXT_OBJECT(ARGS));
+
+    ulib_texture_write(tex, ck_arr, &desc, SHRED);
+}
+
+SG_Texture* ulib_texture_load(const char* filepath, SG_TextureLoadDesc* load_desc,
+                              Chuck_VM_Shred* shred)
+{
+    int width, height, num_components;
+    if (!stbi_info(filepath, &width, &height, &num_components)) {
+        log_error("Couldn't load texture file '%s'. Reason: %s", filepath,
+                  stbi_failure_reason());
+    }
+
+    SG_TextureDesc desc = {};
+    desc.width          = width;
+    desc.height         = height;
+    desc.dimension      = WGPUTextureDimension_2D;
+    desc.format         = WGPUTextureFormat_RGBA8Unorm;
+    desc.usage          = WGPUTextureUsage_All;
+
+    SG_Texture* tex = SG_CreateTexture(&desc, NULL, shred, false);
+
+    CQ_PushCommand_TextureFromFile(tex, filepath, load_desc);
+
+    return tex;
+}
+
+CK_DLL_SFUN(texture_load_2d_file)
+{
+    SG_TextureLoadDesc load_desc = {};
+    SG_Texture* tex
+      = ulib_texture_load(API->object->str(GET_NEXT_STRING(ARGS)), &load_desc, SHRED);
+    RETURN->v_object = tex ? tex->ckobj : NULL;
+}
+
+CK_DLL_SFUN(texture_load_2d_file_with_params)
+{
+    const char* filepath = API->object->str(GET_NEXT_STRING(ARGS));
+    SG_TextureLoadDesc load_desc
+      = ulib_texture_textureLoadDescFromCkobj(GET_NEXT_OBJECT(ARGS));
+
+    SG_Texture* tex = ulib_texture_load(filepath, &load_desc, SHRED);
+
+    RETURN->v_object = tex ? tex->ckobj : NULL;
 }

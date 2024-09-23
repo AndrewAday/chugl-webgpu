@@ -159,40 +159,38 @@ static SG_Transform* ulib_assloader_load_obj(const char* filepath,
                               RAPID_FLOAT3_TO_GLM_VEC3(obj_material.emission));
 
         // TODO set textures
-        SG_TextureDesc texture_desc = {};
-        std::string directory       = File_dirname(filepath);
+        SG_TextureLoadDesc load_desc = {};
+        load_desc.flip_y             = flip_y;
+        load_desc.gen_mips           = true;
+        std::string directory        = File_dirname(filepath);
+
         if (obj_material.diffuse_texname.size()) {
-            SG_Texture* tex      = SG_CreateTexture(&texture_desc, NULL, SHRED, false);
             std::string tex_path = directory + obj_material.diffuse_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
+            SG_Texture* tex = ulib_texture_load(tex_path.c_str(), &load_desc, SHRED);
             PhongParams::albedoTex(phong_material, tex);
         }
 
         if (obj_material.specular_texname.size()) {
-            SG_Texture* tex      = SG_CreateTexture(&texture_desc, NULL, SHRED, false);
             std::string tex_path = directory + obj_material.specular_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
+            SG_Texture* tex = ulib_texture_load(tex_path.c_str(), &load_desc, SHRED);
             PhongParams::specularTex(phong_material, tex);
         }
 
         if (obj_material.bump_texname.size()) {
-            SG_Texture* tex      = SG_CreateTexture(&texture_desc, NULL, SHRED, false);
             std::string tex_path = directory + obj_material.bump_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
+            SG_Texture* tex = ulib_texture_load(tex_path.c_str(), &load_desc, SHRED);
             PhongParams::normalTex(phong_material, tex);
         }
 
         if (obj_material.ambient_texname.size()) {
-            SG_Texture* tex      = SG_CreateTexture(&texture_desc, NULL, SHRED, false);
             std::string tex_path = directory + obj_material.ambient_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
+            SG_Texture* tex = ulib_texture_load(tex_path.c_str(), &load_desc, SHRED);
             PhongParams::aoTex(phong_material, tex);
         }
 
         if (obj_material.emissive_texname.size()) {
-            SG_Texture* tex      = SG_CreateTexture(&texture_desc, NULL, SHRED, false);
-            std::string tex_path = directory + obj_material.emissive_texname;
-            CQ_PushCommand_TextureFromFile(tex, tex_path.c_str(), flip_y);
+            std::string tex_path = directory + obj_material.ambient_texname;
+            SG_Texture* tex = ulib_texture_load(tex_path.c_str(), &load_desc, SHRED);
             PhongParams::emissiveTex(phong_material, tex);
         }
     }

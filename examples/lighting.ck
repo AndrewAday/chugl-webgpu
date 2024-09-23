@@ -15,11 +15,8 @@ N point lights on rotating around central cube. able to inc/dec number of lights
 
 // scenegraph setup
 
-Texture albedo_tex;
-Texture normal_tex;
-
-albedo_tex.load(me.dir() + "../assets/brickwall_albedo.png");
-normal_tex.load(me.dir() + "../assets/brickwall_normal.png");
+Texture.load(me.dir() + "../assets/brickwall_albedo.png") @=> Texture albedo_tex;
+Texture.load(me.dir() + "../assets/brickwall_normal.png") @=> Texture normal_tex;
 
 7 => int NUM_ROWS;
 

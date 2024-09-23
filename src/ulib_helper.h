@@ -119,9 +119,12 @@ static chugl_builtin_textures g_builtin_textures;
 
 struct {
     Chuck_ArrayFloat* empty_float_array;
-    Chuck_ArrayFloat* init_2d_pos;     // {0.0, 0.0}
-    Chuck_ArrayVec3* init_white_color; // [@(1,1,1)]
-} g_builting_ckobjs;
+    Chuck_ArrayFloat* init_2d_pos;       // {0.0, 0.0}
+    Chuck_ArrayVec3* init_white_color;   // [@(1,1,1)]
+    Chuck_ArrayFloat* white_pixel_data;  // {1.0, 1.0, 1.0, 1.0}
+    Chuck_ArrayFloat* black_pixel_data;  // {0.0, 0.0, 0.0, 0.0}
+    Chuck_ArrayFloat* normal_pixel_data; // {0.5, 0.5, 1.0, 1.0}
+} g_builtin_ckobjs;
 
 // map from ckobj to shred
 std::unordered_map<Chuck_Object*, Chuck_VM_Shred*> ckobj_2_OriginShred;
@@ -238,9 +241,9 @@ void chugin_copyCkVec4Array(Chuck_ArrayVec4* ck_arr, f32* arr)
     }
 }
 
-Chuck_ArrayInt* chugin_createCkIntArray(int* arr, int count)
+Chuck_ArrayInt* chugin_createCkIntArray(int* arr, int count, bool add_ref = false)
 {
-    Chuck_ArrayInt* ck_arr = (Chuck_ArrayInt*)chugin_createCkObj("int[]", false);
+    Chuck_ArrayInt* ck_arr = (Chuck_ArrayInt*)chugin_createCkObj("int[]", add_ref);
     ASSERT(g_chuglAPI->object->array_int_size(ck_arr) == 0);
     for (int i = 0; i < count; i++) {
         g_chuglAPI->object->array_int_push_back(ck_arr, arr[i]);
@@ -248,9 +251,10 @@ Chuck_ArrayInt* chugin_createCkIntArray(int* arr, int count)
     return ck_arr;
 }
 
-Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count)
+Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count, bool add_ref = false)
 {
-    Chuck_ArrayFloat* ck_arr = (Chuck_ArrayFloat*)chugin_createCkObj("float[]", false);
+    Chuck_ArrayFloat* ck_arr
+      = (Chuck_ArrayFloat*)chugin_createCkObj("float[]", add_ref);
     ASSERT(g_chuglAPI->object->array_float_size(ck_arr) == 0);
     for (int i = 0; i < count; i++) {
         g_chuglAPI->object->array_float_push_back(ck_arr, arr[i]);
@@ -258,18 +262,20 @@ Chuck_ArrayFloat* chugin_createCkFloatArray(float* arr, int count)
     return ck_arr;
 }
 
-Chuck_ArrayVec2* chugin_createCkFloat2Array(glm::vec2* arr, int count)
+Chuck_ArrayVec2* chugin_createCkFloat2Array(glm::vec2* arr, int count,
+                                            bool add_ref = false)
 {
-    Chuck_ArrayVec2* ck_arr = (Chuck_ArrayVec2*)chugin_createCkObj("vec2[]", false);
+    Chuck_ArrayVec2* ck_arr = (Chuck_ArrayVec2*)chugin_createCkObj("vec2[]", add_ref);
     for (int i = 0; i < count; i++) {
         g_chuglAPI->object->array_vec2_push_back(ck_arr, { arr[i].x, arr[i].y });
     }
     return ck_arr;
 }
 
-Chuck_ArrayVec3* chugin_createCkFloat3Array(glm::vec3* arr, int count)
+Chuck_ArrayVec3* chugin_createCkFloat3Array(glm::vec3* arr, int count,
+                                            bool add_ref = false)
 {
-    Chuck_ArrayVec3* ck_arr = (Chuck_ArrayVec3*)chugin_createCkObj("vec3[]", false);
+    Chuck_ArrayVec3* ck_arr = (Chuck_ArrayVec3*)chugin_createCkObj("vec3[]", add_ref);
     for (int i = 0; i < count; i++) {
         g_chuglAPI->object->array_vec3_push_back(ck_arr,
                                                  { arr[i].x, arr[i].y, arr[i].z });
@@ -277,9 +283,10 @@ Chuck_ArrayVec3* chugin_createCkFloat3Array(glm::vec3* arr, int count)
     return ck_arr;
 }
 
-Chuck_ArrayVec4* chugin_createCkFloat4Array(glm::vec4* arr, int count)
+Chuck_ArrayVec4* chugin_createCkFloat4Array(glm::vec4* arr, int count,
+                                            bool add_ref = false)
 {
-    Chuck_ArrayVec4* ck_arr = (Chuck_ArrayVec4*)chugin_createCkObj("vec4[]", false);
+    Chuck_ArrayVec4* ck_arr = (Chuck_ArrayVec4*)chugin_createCkObj("vec4[]", add_ref);
     for (int i = 0; i < count; i++) {
         g_chuglAPI->object->array_vec4_push_back(
           ck_arr, { arr[i].x, arr[i].y, arr[i].z, arr[i].w });
@@ -301,6 +308,10 @@ bool chugin_typeEquals(Chuck_Object* ckobj, const char* type_name)
            == ckte_origin_IMPORT // .ck file included in search path
     );
 }
+
+// impl in ulib_texture.cpp
+SG_Texture* ulib_texture_load(const char* filepath, SG_TextureLoadDesc* load_desc,
+                              Chuck_VM_Shred* shred);
 
 // impl in ulib_material.cpp
 void chugl_materialSetShader(SG_Material* material, SG_Shader* shader);

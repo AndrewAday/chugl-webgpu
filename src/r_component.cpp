@@ -590,11 +590,11 @@ void R_Geometry::setPulledVertexAttribute(GraphicsContext* gctx, R_Geometry* geo
 // R_Texture
 // ============================================================================
 
-void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
-                         const char* filepath, bool flip_vertically = true)
+void R_Texture::load(GraphicsContext* gctx, R_Texture* texture, const char* filepath,
+                     bool flip_vertically, bool gen_mips)
 {
     i32 width = 0, height = 0;
-    // Force loading 4 channel images to 3 channel by stb becasue Dawn
+    // Force loading 3 channel images to 4 channel by stb becasue Dawn
     // doesn't support 3 channel formats currently. The group is discussing
     // on whether webgpu shoud support 3 channel format.
     // https://github.com/gpuweb/gpuweb/issues/66#issuecomment-410021505
@@ -605,6 +605,8 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
 
     // determine if we should load ldr or hdr
     void* pixelData = NULL;
+    // free pixel data
+    defer(if (pixelData) stbi_image_free(pixelData););
 
     if (texture->desc.format == WGPUTextureFormat_RGBA16Float) {
         log_error(
@@ -621,7 +623,7 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
                                desired_comps //
         );
         is_hdr    = true;
-    } else {
+    } else if (texture->desc.format == WGPUTextureFormat_RGBA8Unorm) {
         pixelData = stbi_load(filepath,     //
                               &width,       //
                               &height,      //
@@ -629,24 +631,28 @@ void R_Texture::fromFile(GraphicsContext* gctx, R_Texture* texture,
                               desired_comps //
         );
         is_hdr    = false;
+    } else {
+        log_error("Unsupported texture format %d\n", texture->desc.format);
+        return;
     }
 
     if (pixelData == NULL) {
-        log_error("Couldn't load '%s'\n", filepath);
-
-        log_error("Reason: %s\n", stbi_failure_reason());
+        log_error("Couldn't load '%s'\n. Reason: %s", filepath, stbi_failure_reason());
         return;
     } else {
-        log_debug("Loaded %s image %s (%d, %d, %d / %d)\n", is_hdr ? "HDR" : "LDR",
-                  filepath, width, height, read_comps, desired_comps);
+        log_info("Loaded %s image %s (%d, %d, %d / %d)\n", is_hdr ? "HDR" : "LDR",
+                 filepath, width, height, read_comps, desired_comps);
     }
 
-    Texture::initFromPixelData(gctx, &texture->gpu_texture, filepath, pixelData, width,
-                               height, true, texture->desc.usage_flags, is_hdr ? 4 : 1);
+    SG_TextureWriteDesc write_desc = {};
+    write_desc.width               = width;
+    write_desc.height              = height;
+    R_Texture::write(gctx, texture, &write_desc, pixelData,
+                     width * height * G_bytesPerTexel(texture->desc.format));
 
-    // free pixel data
-    stbi_image_free(pixelData);
-    texture->generation++;
+    if (gen_mips) {
+        MipMapGenerator_generate(gctx, texture->gpu_texture, texture->name.c_str());
+    }
 }
 
 // ============================================================================
@@ -735,7 +741,7 @@ void R_Material::rebuildBindGroup(R_Material* mat, GraphicsContext* gctx,
             } break;
             case R_BIND_TEXTURE_ID: {
                 R_Texture* rTexture = Component_GetTexture(binding->as.textureID);
-                bind_group_entry->textureView = rTexture->gpu_texture.view;
+                bind_group_entry->textureView = rTexture->gpu_texture_view;
                 ASSERT(bind_group_entry->textureView);
                 ASSERT(binding->size == sizeof(SG_ID));
                 binding->generation = rTexture->generation;
@@ -825,19 +831,26 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
 {
     R_Binding* binding = &mat->bindings[location];
 
-    mat->bind_group_stale = true;
-    // logic for when the bind group is *not* made stale by this new binding
-    bool same_bind_type = (binding->type == type);
-    // clang-format off
-    if (same_bind_type && 
-    (
-        (type == R_BIND_UNIFORM) // uniform buffer is never recreated
-        ||
-        (type == R_BIND_STORAGE && binding->size == bytes) // local storage binding same size
-        ||
-        (type == R_BIND_SAMPLER && memcmp(&binding->as.samplerConfig, data, bytes) == 0) // sampler config the same
-    )) {
-        mat->bind_group_stale = false;
+    { // logic for setting bind group stale (only check if it's not already set to
+      // stale)
+        if (!mat->bind_group_stale) {
+            bool same_bind_type = (binding->type == type);
+            // clang-format off
+            if (same_bind_type && 
+            (
+                (type == R_BIND_UNIFORM) // uniform buffer is never recreated
+                ||
+                (type == R_BIND_STORAGE && binding->size == bytes) // local storage binding same size
+                ||
+                (type == R_BIND_SAMPLER && memcmp(&binding->as.samplerConfig, data, bytes) == 0) // sampler config the same
+            )) {
+                // in this case do nothing
+                // DO NOT set bind_group_stale = false because that overwrites previous 
+                // times this frame when bind_group_stale was set to true correctly
+            } else {
+                mat->bind_group_stale = true;
+            }
+        }
     }
     // clang-format on
 
@@ -887,8 +900,7 @@ void R_Material::setBinding(GraphicsContext* gctx, R_Material* mat, u32 location
         case R_BIND_STORAGE_TEXTURE_ID: {
             // TODO: allow creating storage texture at other mip levels
             binding->as.textureView = G_createTextureViewAtMipLevel(
-              Component_GetTexture(*(SG_ID*)data)->gpu_texture.texture, 0,
-              "storage texture");
+              Component_GetTexture(*(SG_ID*)data)->gpu_texture, 0, "storage texture");
         } break;
         default:
             // if the new binding is also STORAGE reuse the memory, don't
@@ -1848,9 +1860,10 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
     // initialize
     {
-        *mat      = {};
-        mat->id   = cmd->sg_id;
-        mat->type = SG_COMPONENT_MATERIAL;
+        *mat                  = {};
+        mat->id               = cmd->sg_id;
+        mat->type             = SG_COMPONENT_MATERIAL;
+        mat->bind_group_stale = true;
 
         // init uniform buffer
         GPU_Buffer::init(gctx, &mat->uniform_buffer, WGPUBufferUsage_Uniform,
@@ -1860,40 +1873,6 @@ R_Material* Component_CreateMaterial(GraphicsContext* gctx,
 
         R_Material::updatePSO(gctx, mat, &cmd->pso);
     }
-
-    // set material params/uniforms
-    // TODO this only works for PBR for now
-    // {
-    //     // TODO maybe consolidate SG_MaterialParams and R_MaterialParams
-    //     // make the SG_MaterialParams struct alignment work for webgpu
-    //     // uniforms
-    //     MaterialUniforms pbr_uniforms  = {};
-    //     SG_Material_PBR_Params* params = &cmd->params.pbr;
-    //     pbr_uniforms.baseColor         = params->baseColor;
-    //     pbr_uniforms.emissiveFactor    = params->emissiveFactor;
-    //     pbr_uniforms.metallic          = params->metallic;
-    //     pbr_uniforms.roughness         = params->roughness;
-    //     pbr_uniforms.normalFactor      = params->normalFactor;
-    //     pbr_uniforms.aoFactor          = params->aoFactor;
-
-    //     R_Material::setBinding(mat, 0, R_BIND_UNIFORM, &pbr_uniforms,
-    //                            sizeof(pbr_uniforms));
-
-    //     R_Material::setTextureAndSamplerBinding(mat, 1, 0,
-    //     opaqueWhitePixel.view);
-
-    //     R_Material::setTextureAndSamplerBinding(mat, 3, 0,
-    //     defaultNormalPixel.view);
-
-    //     R_Material::setTextureAndSamplerBinding(mat, 5, 0,
-    //     opaqueWhitePixel.view);
-
-    //     R_Material::setTextureAndSamplerBinding(mat, 7, 0,
-    //     opaqueWhitePixel.view);
-
-    //     R_Material::setTextureAndSamplerBinding(mat, 9, 0,
-    //     transparentBlackPixel.view);
-    // }
 
     // store offset
     R_Location loc = { mat->id, Arena::offsetOf(&materialArena, mat), &materialArena };
@@ -1956,9 +1935,7 @@ R_Texture* Component_CreateTexture(GraphicsContext* gctx, SG_Command_TextureCrea
     tex->type = SG_COMPONENT_TEXTURE;
 
     // R_Texture init
-    tex->desc = cmd->desc;
-    // initialize an empty texture to prevent crashes
-    R_Texture::rebuild(gctx, tex, 1, 1);
+    R_Texture::init(gctx, tex, &cmd->desc);
 
     // store offset
     R_Location loc = { tex->id, Arena::offsetOf(&textureArena, tex), &textureArena };

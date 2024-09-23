@@ -736,6 +736,34 @@ static SG_ID SG_GetNewComponentID()
     return SG_NextComponentID++;
 }
 
+int SG_Texture_numComponentsPerTexel(WGPUTextureFormat format)
+{
+    switch (format) {
+        case WGPUTextureFormat_RGBA8Unorm:
+        case WGPUTextureFormat_RGBA16Float:
+        case WGPUTextureFormat_RGBA32Float: {
+            return 4;
+        } break;
+        case WGPUTextureFormat_R32Float: {
+            return 1;
+        } break;
+        default: ASSERT(false);
+    }
+    return 0;
+}
+
+int SG_Texture_byteSizePerTexel(WGPUTextureFormat format)
+{
+    switch (format) {
+        case WGPUTextureFormat_RGBA8Unorm: return 4;
+        case WGPUTextureFormat_RGBA16Float: return 8;
+        case WGPUTextureFormat_RGBA32Float: return 16;
+        case WGPUTextureFormat_R32Float: return 4;
+        default: ASSERT(false);
+    }
+    return 0;
+}
+
 void SG_Init(const Chuck_DL_Api* api)
 {
     _ck_api = api;
@@ -870,7 +898,7 @@ SG_Texture* SG_CreateTexture(SG_TextureDesc* desc, Chuck_Object* ckobj,
         tex->desc.depth  = MAX(tex->desc.depth, 1);
 
         // enforce usage_flags are a subset of ALL
-        tex->desc.usage_flags &= WGPUTextureUsage_All;
+        tex->desc.usage &= WGPUTextureUsage_All;
 
         // if mips <= 0, auto determine the max count
         int max_mips = ULIB_TEXTURE_NUM_MIP_LEVELS(tex->desc.width, tex->desc.height);

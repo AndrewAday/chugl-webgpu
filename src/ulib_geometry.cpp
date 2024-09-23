@@ -684,9 +684,9 @@ static void ulib_geometry_build(SG_Geometry* geo, SG_GeometryType geo_type,
         case SG_GEOMETRY_LINES2D: {
             // set default vertex positions and colors
             ulib_geo_lines2d_set_lines_points(
-              geo, (Chuck_Object*)g_builting_ckobjs.init_2d_pos);
+              geo, (Chuck_Object*)g_builtin_ckobjs.init_2d_pos);
             ulib_geo_lines2d_set_line_colors(
-              geo, (Chuck_Object*)g_builting_ckobjs.init_white_color);
+              geo, (Chuck_Object*)g_builtin_ckobjs.init_white_color);
         } break;
         default: ASSERT(false);
     }

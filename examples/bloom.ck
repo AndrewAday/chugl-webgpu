@@ -1,12 +1,11 @@
 PlaneGeometry plane_geo;
-// SuzanneGeometry plane_geo;
 SphereGeometry sphere_geo;
 FlatMaterial mat1, mat2, mat3;
 
 2 => float intensity;
 mat1.color( @(intensity, 0, 0));
 mat2.color( @(0, 0, intensity));
-mat3.color( 4 * @(0, intensity, 0));
+mat3.color( @(0, intensity, 0));
 
 GMesh plane_l(plane_geo, mat1) --> GG.scene();
 GMesh plane_r(plane_geo, mat2) --> GG.scene();
@@ -16,17 +15,13 @@ GMesh sphere(sphere_geo, mat3) --> GG.scene();
 @(0, 0, 0) => sphere.translate;
 @(1.5, 0, 0) => plane_r.translate;
 
-
 // render graph
-(GG.renderPass().next() $ OutputPass) @=> OutputPass @ output_pass;
-// BloomPass bloom_pass;
+GG.outputPass() @=> OutputPass output_pass;
 GG.renderPass() --> BloomPass bloom_pass --> output_pass;
 bloom_pass.input(GG.renderPass().target());
-
 output_pass.input(bloom_pass.output());
 
-// GG.renderPass() --> output_pass; // bypass bloom
-
+// GG.renderPass() --> output_pass; // uncomment to bypass bloom
 
 UI_Float bloom_intensity(bloom_pass.intensity());
 UI_Float radius(bloom_pass.radius());

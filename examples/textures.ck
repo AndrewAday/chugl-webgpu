@@ -128,13 +128,17 @@ custom_shader => material.shader; // connect shader to material
 
 GMesh mesh(plane_geo, material) --> GG.scene();
 
-Texture conway_tex_a(Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
-Texture conway_tex_b(Texture.Dimension_2D, Texture.Format_RGBA8Unorm);
+TextureDesc conway_tex_desc;
+WINDOW_SIZE => conway_tex_desc.width;
+WINDOW_SIZE => conway_tex_desc.height;
 
-int texture_data[4 * WINDOW_SIZE * WINDOW_SIZE];
+Texture conway_tex_a(conway_tex_desc);
+Texture conway_tex_b(conway_tex_desc);
+
+float texture_data[4 * WINDOW_SIZE * WINDOW_SIZE];
 // TODO need a better way to specify texture size
-conway_tex_b.write(texture_data, WINDOW_SIZE, WINDOW_SIZE); // initialize empty texture
-conway_tex_a.write(texture_data, WINDOW_SIZE, WINDOW_SIZE);
+conway_tex_b.write(texture_data); // initialize empty texture
+conway_tex_a.write(texture_data);
 
 // fun void changeColor()
 // {

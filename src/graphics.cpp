@@ -376,6 +376,9 @@ bool GraphicsContext::init(GraphicsContext* context, GLFWwindow* window)
     context->renderPassDesc.colorAttachments       = &context->colorAttachment;
     context->renderPassDesc.depthStencilAttachment = &context->depthStencilAttachment;
 
+    // init mip map generator
+    MipMapGenerator_init(context);
+
     return true;
 }
 
@@ -446,6 +449,9 @@ void GraphicsContext::resize(GraphicsContext* ctx, u32 width, u32 height)
 
 void GraphicsContext::release(GraphicsContext* ctx)
 {
+    // mip map gen
+    MipMapGenerator_release();
+
     // textures
     wgpuTextureViewRelease(ctx->depthTextureView);
     wgpuTextureDestroy(ctx->depthTexture);
@@ -921,34 +927,54 @@ WGPUTextureView G_createTextureViewAtMipLevel(WGPUTexture texture, u32 base_mip_
     return wgpuTextureCreateView(texture, &view_desc);
 }
 
+int G_componentsPerTexel(WGPUTextureFormat format)
+{
+    switch (format) {
+        case WGPUTextureFormat_RGBA8Unorm:
+        case WGPUTextureFormat_RGBA16Float:
+        case WGPUTextureFormat_RGBA32Float: {
+            return 4;
+        } break;
+        case WGPUTextureFormat_R32Float: {
+            return 1;
+        } break;
+        default: ASSERT(false);
+    }
+    return 0;
+}
+
+int G_bytesPerTexel(WGPUTextureFormat format)
+{
+    switch (format) {
+        case WGPUTextureFormat_RGBA8Unorm: return 4;
+        case WGPUTextureFormat_RGBA16Float: return 8;
+        case WGPUTextureFormat_RGBA32Float: return 16;
+        case WGPUTextureFormat_R32Float: return 4;
+        default: ASSERT(false);
+    }
+    return 0;
+}
+
 // TODO make part of GraphicsContext and cleanup
-struct MipMapGenerator {
-    GraphicsContext* ctx;
+struct {
     WGPUSampler sampler;
 
     // Pipeline for every texture format used.
     // TODO: can layout be shared?
     WGPUBindGroupLayout pipeline_layouts[(u32)NUMBER_OF_TEXTURE_FORMATS];
     WGPURenderPipeline pipelines[(u32)NUMBER_OF_TEXTURE_FORMATS];
-    bool active_pipelines[(u32)NUMBER_OF_TEXTURE_FORMATS];
 
     // Vertex state and Fragment state are shared between all pipelines
     WGPUVertexState vertexState;
     WGPUFragmentState fragmentState;
 
-    static void init(GraphicsContext* ctx, MipMapGenerator* generator);
-    static WGPURenderPipeline getPipeline(MipMapGenerator* generator,
-                                          WGPUTextureFormat format);
-    static WGPUTexture generate(MipMapGenerator* generator, WGPUTexture texture,
-                                WGPUTextureDescriptor* texture_desc);
-    static void release(MipMapGenerator* generator);
-};
+    bool initialized = false;
+} mip_map_generator = {};
 
-static MipMapGenerator mipMapGenerator = {};
-
-void MipMapGenerator::init(GraphicsContext* ctx, MipMapGenerator* generator)
+void MipMapGenerator_init(GraphicsContext* ctx)
 {
-    generator->ctx = ctx;
+    if (mip_map_generator.initialized) return;
+    mip_map_generator.initialized = true;
 
     // Create sampler
     WGPUSamplerDescriptor sampler_desc = {};
@@ -962,39 +988,57 @@ void MipMapGenerator::init(GraphicsContext* ctx, MipMapGenerator* generator)
     sampler_desc.lodMinClamp           = 0.0f;
     sampler_desc.lodMaxClamp           = 1.0f;
     sampler_desc.maxAnisotropy         = 1;
-    generator->sampler = wgpuDeviceCreateSampler(ctx->device, &sampler_desc);
+
+    mip_map_generator.sampler = wgpuDeviceCreateSampler(ctx->device, &sampler_desc);
+
+    // Vertex state and Fragment state are shared between all pipelines, so
+    // only create once.
+    if (!mip_map_generator.vertexState.module
+        || !mip_map_generator.fragmentState.module) {
+        // vertex state
+        mip_map_generator.vertexState             = {};
+        mip_map_generator.vertexState.bufferCount = 0;
+        mip_map_generator.vertexState.buffers     = NULL;
+        mip_map_generator.vertexState.module
+          = G_createShaderModule(ctx, mipMapShader, "mipmap vertex shader");
+        mip_map_generator.vertexState.entryPoint = VS_ENTRY_POINT;
+
+        // fragment state
+        mip_map_generator.fragmentState = {};
+        mip_map_generator.fragmentState.module
+          = G_createShaderModule(ctx, mipMapShader, "mipmap fragment shader");
+        mip_map_generator.fragmentState.entryPoint  = FS_ENTRY_POINT;
+        mip_map_generator.fragmentState.targetCount = 1;
+
+        // don't release shader modules here, they are released in
+        // MipMapGenerator_release shader modules need to be saved for creating
+        // other pipelines
+    }
 }
 
-void MipMapGenerator::release(MipMapGenerator* generator)
+void MipMapGenerator_release()
 {
     // release sampler
-    wgpuSamplerReference(generator->sampler);
+    WGPU_RELEASE_RESOURCE(Sampler, mip_map_generator.sampler);
 
     // release pipelines
-    for (uint32_t i = 0; i < (uint32_t)NUMBER_OF_TEXTURE_FORMATS; ++i) {
-        if (generator->active_pipelines[i]) {
-            wgpuRenderPipelineRelease(generator->pipelines[i]);
-            generator->active_pipelines[i] = false;
-        }
+    for (int i = 0; i < ARRAY_LENGTH(mip_map_generator.pipelines); ++i) {
+        WGPU_RELEASE_RESOURCE(RenderPipeline, mip_map_generator.pipelines[i]);
     }
 
-    // release shaders
-    // if (generator->vertexState.module != NULL)
-    wgpuShaderModuleRelease(generator->vertexState.module);
-    // if (generator->fragmentState.module != NULL)
-    wgpuShaderModuleRelease(generator->fragmentState.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, mip_map_generator.vertexState.module);
+    WGPU_RELEASE_RESOURCE(ShaderModule, mip_map_generator.fragmentState.module);
 }
 
-WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
-                                                WGPUTextureFormat format)
+static WGPURenderPipeline MipMapGenerator_getPipeline(GraphicsContext* ctx,
+                                                      WGPUTextureFormat format)
 {
     u32 pipeline_index = (u32)format;
     ASSERT(pipeline_index < (u32)NUMBER_OF_TEXTURE_FORMATS)
-    if (generator->active_pipelines[pipeline_index])
-        return generator->pipelines[pipeline_index];
+    if (mip_map_generator.pipelines[pipeline_index])
+        return mip_map_generator.pipelines[pipeline_index];
 
     // Create pipeline if it doesn't exist
-    GraphicsContext* ctx = generator->ctx;
 
     // Primitive state
     WGPUPrimitiveState primitiveStateDesc = {};
@@ -1010,33 +1054,7 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     color_target_state_desc.blend                = &blend_state;
     color_target_state_desc.writeMask            = WGPUColorWriteMask_All;
 
-    // Vertex state and Fragment state are shared between all pipelines, so
-    // only create once.
-    if (!generator->vertexState.module || !generator->fragmentState.module) {
-
-        ShaderModule vertexShaderModule = {}, fragmentShaderModule = {};
-        ShaderModule::init(ctx, &vertexShaderModule, mipMapShader,
-                           "mipmap vertex shader");
-        ShaderModule::init(ctx, &fragmentShaderModule, mipMapShader,
-                           "mipmap fragment shader");
-        // vertex state
-        generator->vertexState             = {};
-        generator->vertexState.bufferCount = 0;
-        generator->vertexState.buffers     = NULL;
-        generator->vertexState.module      = vertexShaderModule.module;
-        generator->vertexState.entryPoint  = VS_ENTRY_POINT;
-
-        // fragment state
-        generator->fragmentState             = {};
-        generator->fragmentState.module      = fragmentShaderModule.module;
-        generator->fragmentState.entryPoint  = FS_ENTRY_POINT;
-        generator->fragmentState.targetCount = 1;
-        generator->fragmentState.targets     = &color_target_state_desc;
-
-        // don't release shader modules here, they are released in
-        // MipMapGenerator_release shader modules need to be saved for creating
-        // other pipelines
-    }
+    mip_map_generator.fragmentState.targets = &color_target_state_desc;
 
     // Multisample state
     WGPUMultisampleState multisampleState   = {};
@@ -1048,72 +1066,70 @@ WGPURenderPipeline MipMapGenerator::getPipeline(MipMapGenerator* generator,
     // layout: defaults to `auto`
     pipelineDesc.label       = "mipmap blit render pipeline";
     pipelineDesc.primitive   = primitiveStateDesc;
-    pipelineDesc.vertex      = generator->vertexState;
-    pipelineDesc.fragment    = &generator->fragmentState;
+    pipelineDesc.vertex      = mip_map_generator.vertexState;
+    pipelineDesc.fragment    = &mip_map_generator.fragmentState;
     pipelineDesc.multisample = multisampleState;
 
     // Create rendering pipeline using the specified states
-    generator->pipelines[pipeline_index]
+    mip_map_generator.pipelines[pipeline_index]
       = wgpuDeviceCreateRenderPipeline(ctx->device, &pipelineDesc);
-    ASSERT(generator->pipelines[pipeline_index] != NULL);
+    ASSERT(mip_map_generator.pipelines[pipeline_index] != NULL);
 
     // Store the bind group layout of the created pipeline
-    generator->pipeline_layouts[pipeline_index]
-      = wgpuRenderPipelineGetBindGroupLayout(generator->pipelines[pipeline_index], 0);
-    ASSERT(generator->pipeline_layouts[pipeline_index] != NULL)
+    mip_map_generator.pipeline_layouts[pipeline_index]
+      = wgpuRenderPipelineGetBindGroupLayout(
+        mip_map_generator.pipelines[pipeline_index], 0);
+    ASSERT(mip_map_generator.pipeline_layouts[pipeline_index] != NULL)
 
-    // Update active pipeline state
-    generator->active_pipelines[pipeline_index] = true;
-
-    return generator->pipelines[pipeline_index];
+    return mip_map_generator.pipelines[pipeline_index];
 }
 
-WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture texture,
-                                      WGPUTextureDescriptor* texture_desc)
+void MipMapGenerator_generate(GraphicsContext* ctx, WGPUTexture texture,
+                              const char* label)
 {
-    if (texture_desc->mipLevelCount <= 1) return texture;
+    ASSERT(mip_map_generator.sampler && mip_map_generator.vertexState.module
+           && mip_map_generator.fragmentState.module);
 
-    WGPURenderPipeline pipeline
-      = MipMapGenerator::getPipeline(generator, texture_desc->format);
+    const u32 mip_level_count      = wgpuTextureGetMipLevelCount(texture);
+    WGPUTextureDimension dimension = wgpuTextureGetDimension(texture);
+    WGPUTextureFormat format       = wgpuTextureGetFormat(texture);
 
-    log_trace("Generating %d mip levels for texture %s", texture_desc->mipLevelCount,
-              texture_desc->label);
+    if (mip_level_count <= 1) return;
 
-    if (texture_desc->dimension == WGPUTextureDimension_3D
-        || texture_desc->dimension == WGPUTextureDimension_1D) {
-        log_error("Generating mipmaps for non-2d textures is currently unsupported!" //
-        );
-        return NULL;
+    WGPURenderPipeline pipeline = MipMapGenerator_getPipeline(ctx, format);
+
+    log_trace("Generating %d mip levels for texture %s", mip_level_count, label);
+
+    if (dimension == WGPUTextureDimension_3D || dimension == WGPUTextureDimension_1D) {
+        log_error("Generating mipmaps for non-2d textures is currently unsupported!");
+        return;
     }
 
-    GraphicsContext* ctx        = generator->ctx;
     WGPUTexture mip_texture     = texture;
-    const u32 array_layer_count = texture_desc->size.depthOrArrayLayers > 0 ?
-                                    texture_desc->size.depthOrArrayLayers :
-                                    1; // Only valid for 2D textures.
-    const u32 mip_level_count   = texture_desc->mipLevelCount;
+    const u32 array_layer_count = wgpuTextureGetDepthOrArrayLayers(texture);
 
     WGPUExtent3D mip_level_size = {
-        (u32)ceil(texture_desc->size.width / 2.0f),
-        (u32)ceil(texture_desc->size.height / 2.0f),
+        (u32)ceil(wgpuTextureGetWidth(texture) / 2.0f),
+        (u32)ceil(wgpuTextureGetHeight(texture) / 2.0f),
         array_layer_count,
     };
 
     // If the texture was created with RENDER_ATTACHMENT usage we can render
     // directly between mip levels.
-    bool render_to_source = texture_desc->usage & WGPUTextureUsage_RenderAttachment;
+    bool render_to_source
+      = wgpuTextureGetUsage(texture) & WGPUTextureUsage_RenderAttachment;
     if (!render_to_source) {
         // Otherwise we have to use a separate texture to render into. It can be
         // one mip level smaller than the source texture, since we already have
         // the top level.
         WGPUTextureDescriptor mip_texture_desc = {};
         mip_texture_desc.size                  = mip_level_size;
-        mip_texture_desc.format                = texture_desc->format;
+        mip_texture_desc.format                = format;
         mip_texture_desc.usage                 = WGPUTextureUsage_CopySrc
                                  | WGPUTextureUsage_TextureBinding
                                  | WGPUTextureUsage_RenderAttachment;
         mip_texture_desc.dimension     = WGPUTextureDimension_2D;
-        mip_texture_desc.mipLevelCount = texture_desc->mipLevelCount - 1;
+        mip_texture_desc.mipLevelCount = mip_level_count - 1;
         mip_texture_desc.sampleCount   = 1;
 
         mip_texture = wgpuDeviceCreateTexture(ctx->device, &mip_texture_desc);
@@ -1121,8 +1137,9 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
     }
 
     WGPUCommandEncoder cmd_encoder = wgpuDeviceCreateCommandEncoder(ctx->device, NULL);
-    u32 pipeline_index             = (u32)texture_desc->format;
-    WGPUBindGroupLayout bind_group_layout = generator->pipeline_layouts[pipeline_index];
+    u32 pipeline_index             = (u32)format;
+    WGPUBindGroupLayout bind_group_layout
+      = mip_map_generator.pipeline_layouts[pipeline_index];
 
     const u32 views_count  = array_layer_count * mip_level_count;
     WGPUTextureView* views = ALLOCATE_COUNT(WGPUTextureView, views_count);
@@ -1146,7 +1163,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
         views[view_index]       = wgpuTextureCreateView(texture, &viewDesc);
 
         u32 dst_mip_level = render_to_source ? 1 : 0;
-        for (u32 i = 1; i < texture_desc->mipLevelCount; ++i) {
+        for (u32 i = 1; i < mip_level_count; ++i) {
             const uint32_t target_mip = view_index + i;
 
             WGPUTextureViewDescriptor mipViewDesc = {};
@@ -1187,7 +1204,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
             // sampler bind group
             bg_entries[0]         = {};
             bg_entries[0].binding = 0;
-            bg_entries[0].sampler = generator->sampler;
+            bg_entries[0].sampler = mip_map_generator.sampler;
 
             // source texture bind group
             bg_entries[1]             = {};
@@ -1216,7 +1233,7 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
     // If we didn't render to the source texture, finish by copying the mip
     // results from the temporary mipmap texture to the source.
     if (!render_to_source) {
-        for (u32 i = 1; i < texture_desc->mipLevelCount; ++i) {
+        for (u32 i = 1; i < mip_level_count; ++i) {
 
             // log_debug("Copying to mip level %d with sizes %d, %d\n", i,
             //           mip_level_size.width, mip_level_size.height);
@@ -1265,8 +1282,6 @@ WGPUTexture MipMapGenerator::generate(MipMapGenerator* generator, WGPUTexture te
         }
         FREE_ARRAY(WGPUBindGroup, bind_groups, bind_group_count);
     }
-
-    return texture;
 }
 
 // ============================================================================
@@ -1320,20 +1335,7 @@ void Texture::initFromPixelData(GraphicsContext* ctx, Texture* gpu_texture,
 
     // generate mipmaps
     if (genMipMaps) {
-        if (mipMapGenerator.ctx == NULL) MipMapGenerator::init(ctx, &mipMapGenerator);
-
-        // recreate texture descriptor here, awkward
-        WGPUTextureDescriptor texture_desc = {};
-        texture_desc.usage                 = gpu_texture->usage;
-        texture_desc.dimension             = gpu_texture->dimension;
-        texture_desc.size          = { gpu_texture->width, gpu_texture->height, 1 };
-        texture_desc.format        = gpu_texture->format;
-        texture_desc.mipLevelCount = gpu_texture->mip_level_count;
-        texture_desc.sampleCount   = gpu_texture->sample_count;
-
-        // generate mipmaps
-        MipMapGenerator::generate(&mipMapGenerator, gpu_texture->texture,
-                                  &texture_desc);
+        MipMapGenerator_generate(ctx, gpu_texture->texture, label);
     }
 }
 

@@ -33,3 +33,21 @@ T.assert(tex.depth() == 1, "texture depth");
 T.assert(tex.format() == Texture.Format_RGBA32Float, "texture format");
 T.assert(tex.usage() == Texture.Usage_StorageBinding | Texture.Usage_RenderAttachment, "texture usage");
 T.assert(tex.mips() == 9, "texture mips");
+
+// TextureWriteDesc defaults ============================
+
+TextureWriteDesc write_desc;
+T.assert(write_desc.x == 0, "write desc x ");
+T.assert(write_desc.y == 0, "write desc y");
+T.assert(write_desc.z == 0, "write desc z");
+T.assert(write_desc.width == 1, "write desc width");
+T.assert(write_desc.height == 1, "write desc height");
+T.assert(write_desc.depth == 1, "write desc depth");
+T.assert(write_desc.mip == 0, "write desc mip");
+
+// TextureLoadDesc defaults ============================
+
+TextureLoadDesc load_desc;
+T.assert(!load_desc.flip_y, "load desc flip y");
+T.assert(load_desc.gen_mips, "load desc gen mips");
+

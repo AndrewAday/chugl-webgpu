@@ -34,6 +34,10 @@ CK_DLL_GFUN(pass_op_ungruck); // remove pass
 CK_DLL_CTOR(renderpass_ctor);
 CK_DLL_MFUN(renderpass_set_resolve_target);
 CK_DLL_MFUN(renderpass_get_resolve_target);
+
+CK_DLL_MFUN(renderpass_set_color_target_clear_on_load);
+CK_DLL_MFUN(renderpass_get_color_target_clear_on_load);
+
 // TODO get_resolve_target
 // TODO set/get camera and scene
 // - enforce camera is part of scene
@@ -152,6 +156,15 @@ void ulib_pass_query(Chuck_DL_Query* QUERY)
 
         MFUN(renderpass_get_resolve_target, SG_CKNames[SG_COMPONENT_TEXTURE], "target");
         DOC_FUNC("Get the target texture to draw the scene to.");
+
+        MFUN(renderpass_set_color_target_clear_on_load, "void", "autoClearColor");
+        ARG("int", "clear");
+        DOC_FUNC(
+          "Set whether the framebuffer's color target should be cleared each "
+          "frame. Default true.");
+
+        MFUN(renderpass_get_color_target_clear_on_load, "int", "autoClearColor");
+        DOC_FUNC("Get whether the framebuffer's color target is cleared each frame");
 
         END_CLASS();
     }
@@ -410,6 +423,16 @@ CK_DLL_MFUN(renderpass_get_resolve_target)
 
     SG_Texture* texture = SG_GetTexture(pass->resolve_target_id);
     RETURN->v_object    = texture ? texture->ckobj : NULL;
+}
+
+CK_DLL_MFUN(renderpass_set_color_target_clear_on_load)
+{
+    GET_PASS(SELF)->color_target_clear_on_load = GET_NEXT_INT(ARGS);
+}
+
+CK_DLL_MFUN(renderpass_get_color_target_clear_on_load)
+{
+    RETURN->v_int = GET_PASS(SELF)->color_target_clear_on_load;
 }
 
 // ============================================================================
@@ -730,7 +753,7 @@ CK_DLL_CTOR(bloompass_ctor)
 
     // create default output render texture
     SG_TextureDesc output_render_texture_desc = {};
-    output_render_texture_desc.usage_flags    = WGPUTextureUsage_RenderAttachment
+    output_render_texture_desc.usage = WGPUTextureUsage_RenderAttachment
                                              | WGPUTextureUsage_TextureBinding
                                              | WGPUTextureUsage_StorageBinding;
     output_render_texture_desc.format = WGPUTextureFormat_RGBA16Float;

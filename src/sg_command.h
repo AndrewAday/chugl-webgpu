@@ -118,7 +118,7 @@ enum SG_CommandType : u32 {
 
     // texture
     SG_COMMAND_TEXTURE_CREATE,
-    SG_COMMAND_TEXTURE_DATA,
+    SG_COMMAND_TEXTURE_WRITE,
     SG_COMMAND_TEXTURE_FROM_FILE,
 
     // buffer
@@ -311,10 +311,10 @@ struct SG_Command_TextureCreate : public SG_Command {
     SG_TextureDesc desc;
 };
 
-struct SG_Command_TextureData : public SG_Command {
+struct SG_Command_TextureWrite : public SG_Command {
     SG_ID sg_id;
-    int width; // for now bytes per row is always width * 4
-    int height;
+    SG_TextureWriteDesc write_desc;
+    int data_size_bytes;
     ptrdiff_t data_offset;
 };
 
@@ -322,6 +322,7 @@ struct SG_Command_TextureFromFile : public SG_Command {
     SG_ID sg_id;
     ptrdiff_t filepath_offset;
     bool flip_vertically;
+    bool gen_mips;
 };
 
 struct SG_Command_ShaderCreate : public SG_Command {
@@ -518,11 +519,11 @@ void CQ_PushCommand_GeometrySetIndicesCount(SG_Geometry* geo, int count);
 
 // texture
 void CQ_PushCommand_TextureCreate(SG_Texture* texture);
-void CQ_PushCommand_TextureData(
-  SG_Texture* texture); // TODO currently assumes texture data is already set
+void CQ_PushCommand_TextureWrite(SG_Texture* texture, SG_TextureWriteDesc* desc,
+                                 Chuck_ArrayFloat* ck_array, CK_DL_API API);
 
 void CQ_PushCommand_TextureFromFile(SG_Texture* texture, const char* filepath,
-                                    bool flip_vertically);
+                                    SG_TextureLoadDesc* desc);
 
 // shader
 void CQ_PushCommand_ShaderCreate(SG_Shader* shader);
