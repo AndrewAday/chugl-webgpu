@@ -735,22 +735,6 @@ DepthStencilTextureResult G_createDepthStencilTexture(GraphicsContext* gctx,
     return { depth_tex, depth_tex_view };
 }
 
-// static void _G_compilationInfoCallback(WGPUCompilationInfoRequestStatus
-// status,
-//                                        const WGPUCompilationInfo* info,
-//                                        void* userdata)
-// {
-//     UNUSED_VAR(userdata);
-//     if (status == WGPUCompilationInfoRequestStatus_Error) {
-//         log_error("Shader compilation failed");
-//         for (u32 m = 0; m < info->messageCount; ++m) {
-//             WGPUCompilationMessage message = info->messages[m];
-//             log_error("lineNum: %u, linePos: %u, Error: %s", message.lineNum,
-//                       message.linePos, message.message);
-//         }
-//     }
-// }
-
 WGPUShaderModule G_createShaderModule(GraphicsContext* gctx, const char* code,
                                       const char* label)
 {

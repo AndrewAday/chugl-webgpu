@@ -4,7 +4,7 @@ T.assert(T.veq(text.color(), @(1, 1, 1, 1)), "Default color is white");
 text.color(@(0, 0, 0, 1));
 T.assert(T.veq(text.color(), @(0, 0, 0, 1)), "Color set to black");
 
-T.assert(text.text() == "", "default text");
+T.assert(text.text() == "hello ChuGL", "default text");
 text.text("hello world");
 T.assert(text.text() == "hello world", "set text");
 

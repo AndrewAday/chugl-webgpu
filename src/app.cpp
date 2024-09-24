@@ -509,7 +509,6 @@ struct App {
         // (i.e., when all registered GG.nextFrame() are called on their
         // respective shreds)
         Sync_WaitOnUpdateDone();
-        // log_error("graphics thread: all shreds have waited");
 
         // question: why does putting this AFTER time calculation cause
         // everything to be so choppy at high FPS? hypothesis: puts time
@@ -543,7 +542,6 @@ struct App {
             // Rendering
             if (do_ui) {
                 ImGui::Render();
-                // log_error("graphics thread: imgui render");
 
                 // copy imgui draw data for rendering later
                 snapshot.SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
@@ -581,7 +579,6 @@ struct App {
         // done swapping the double buffer, let chuck know it's good to continue
         // pushing commands this wakes all shreds currently waiting on
         // GG.nextFrame()
-        // log_error("graphics thread: waking up shreds");
 
         // grabs waitingShredsLock
         Event_Broadcast(CHUGL_EventType::NEXT_FRAME, app->ckapi, app->ckvm);
@@ -1343,16 +1340,18 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
             if (geo_count == 0) continue;
 
             // debug group
-//            snprintf(debug_group_label, sizeof(debug_group_label),
-//                     "Material[%d] Shader[%d] %s ", r_material->id,
-//                     r_material->pso.sg_shader_id, r_material->name.c_str());
-//            wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
-//            defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+            //            snprintf(debug_group_label, sizeof(debug_group_label),
+            //                     "Material[%d] Shader[%d] %s ", r_material->id,
+            //                     r_material->pso.sg_shader_id,
+            //                     r_material->name.c_str());
+            //            wgpuRenderPassEncoderPushDebugGroup(render_pass,
+            //            debug_group_label);
+            //            defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
 
             // set per_material bind group
             // R_Shader* shader = Component_GetShader(r_material->pso.sg_shader_id);
             R_Material::rebuildBindGroup(r_material, &app->gctx, perMaterialLayout);
-              ASSERT(r_material->bind_group);
+            ASSERT(r_material->bind_group);
 
             wgpuRenderPassEncoderSetBindGroup(render_pass, PER_MATERIAL_GROUP,
                                               r_material->bind_group, 0, NULL);
@@ -1374,10 +1373,12 @@ static void _R_RenderScene(App* app, R_Scene* scene, R_Camera* camera,
                 if (num_instances == 0) continue;
 
                 // debug group
-//                snprintf(debug_group_label, sizeof(debug_group_label),
-//                         "Geometry[%d] %s ", geo->id, geo->name.c_str());
-//                wgpuRenderPassEncoderPushDebugGroup(render_pass, debug_group_label);
-//                defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
+                //                snprintf(debug_group_label, sizeof(debug_group_label),
+                //                         "Geometry[%d] %s ", geo->id,
+                //                         geo->name.c_str());
+                //                wgpuRenderPassEncoderPushDebugGroup(render_pass,
+                //                debug_group_label);
+                //                defer(wgpuRenderPassEncoderPopDebugGroup(render_pass));
 
                 // set model bind group
                 wgpuRenderPassEncoderSetBindGroup(render_pass, PER_DRAW_GROUP,
@@ -1579,7 +1580,7 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                 // default to normal cursor
                 glfwSetCursor(app->window, NULL);
             } else {
-                log_error("setting custom cursor");
+                log_trace("setting custom cursor");
                 // create cursor
                 GLFWimage image;
                 image.width  = cmd->width;
@@ -1606,13 +1607,12 @@ static void _R_HandleCommand(App* app, SG_Command* command)
                 // image.pixels = pixels;
 
                 // GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
-                // log_error("cursor: %p", cursor);
                 // glfwSetCursor(app->window, cursor);
             }
             break;
         }
         case SG_COMMAND_MOUSE_CURSOR_NORMAL: {
-            log_error("setting normal cursor");
+            log_trace("setting normal cursor");
             glfwSetCursor(app->window, NULL);
             break;
         }

@@ -381,6 +381,8 @@ SG_Transform* SG_Transform::child(SG_Transform* t, size_t index)
 
 SG_Sampler SG_Sampler::fromCkObj(Chuck_Object* ckobj)
 {
+    if (!ckobj) return SG_SAMPLER_DEFAULT;
+
     CK_DL_API API      = g_chuglAPI;
     SG_Sampler sampler = SG_SAMPLER_DEFAULT;
 

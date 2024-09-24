@@ -127,8 +127,7 @@ static void gltf_ProcessNode(R_Transform* parent, cgltf_node* node)
             // vertex attributes
             for (u8 attribIndex = 0; attribIndex < primitive->attributes_count;
                  ++attribIndex) {
-                cgltf_attribute* attribute
-                  = primitive->attributes + attribIndex;
+                cgltf_attribute* attribute = primitive->attributes + attribIndex;
                 log_trace("processing attribute %d [%d]: %s", attribIndex,
                           attribute->index, attribute->name);
 
@@ -171,8 +170,7 @@ static void gltf_ProcessNode(R_Transform* parent, cgltf_node* node)
                         break;
                     }
                     default: {
-                        log_error("unsupported attribute type %d",
-                                  attribute->type);
+                        log_error("unsupported attribute type %d", attribute->type);
                         break;
                     }
                 }
@@ -200,8 +198,7 @@ static void gltf_ProcessNode(R_Transform* parent, cgltf_node* node)
 
             { // primitive material
                 ASSERT(primitive->material != NULL);
-                ASSERT(rMaterialMap.find(primitive->material)
-                       != rMaterialMap.end());
+                ASSERT(rMaterialMap.find(primitive->material) != rMaterialMap.end());
                 // get our sg material
                 R_Material* sgMaterial
                   = Component_GetMaterial(rMaterialMap[primitive->material]);
@@ -338,9 +335,9 @@ static WGPUMipmapFilterMode _mipmapFilter_GL_to_WGPU(cgltf_int glFilter)
 #undef _GLTF_LINEAR_MIPMAP_LINEAR
 }
 
-static void _gltf_texture_view_to_MaterialTextureView(
-  cgltf_texture_view* gltf_texture_view,
-  MaterialTextureView* materialTextureView)
+static void
+_gltf_texture_view_to_MaterialTextureView(cgltf_texture_view* gltf_texture_view,
+                                          MaterialTextureView* materialTextureView)
 {
     MaterialTextureView::init(materialTextureView);
 
@@ -399,10 +396,9 @@ static void gltf_ProcessData(cgltf_data* data)
 
     { // gltf data stats
         log_trace("gltf data stats:");
-        log_trace("file: %s", data->file_type == cgltf_file_type_invalid ?
-                                "invalid" :
-                              data->file_type == cgltf_file_type_gltf ? "gltf" :
-                                                                        "glb");
+        log_trace("file: %s", data->file_type == cgltf_file_type_invalid ? "invalid" :
+                              data->file_type == cgltf_file_type_gltf    ? "gltf" :
+                                                                           "glb");
         log_trace("buffers: %d", data->buffers_count);
         log_trace("buffer views: %d", data->buffer_views_count);
         log_trace("accessors: %d", data->accessors_count);
@@ -438,14 +434,12 @@ static void gltf_ProcessData(cgltf_data* data)
     }
 
     { // material
-#define GET_TEXTURE(gltf_texture)                                              \
-    ((gltf_texture) ? rTextureMap[(gltf_texture)] : 0)
+#define GET_TEXTURE(gltf_texture) ((gltf_texture) ? rTextureMap[(gltf_texture)] : 0)
         for (u32 i = 0; i < data->materials_count; ++i) {
             cgltf_material* material = &data->materials[i];
             // only support pbr metallic roughness for now
             ASSERT(material->has_pbr_metallic_roughness);
-            cgltf_pbr_metallic_roughness* mr_config
-              = &material->pbr_metallic_roughness;
+            cgltf_pbr_metallic_roughness* mr_config = &material->pbr_metallic_roughness;
 
             R_MaterialConfig materialConfig = {};
             materialConfig.material_type    = SG_MATERIAL_PBR;
@@ -455,15 +449,13 @@ static void gltf_ProcessData(cgltf_data* data)
             // set mr properties
             {
                 struct MaterialUniforms matUniforms = {};
-                matUniforms.baseColor
-                  = glm::make_vec4(mr_config->base_color_factor);
-                matUniforms.emissiveFactor
-                  = glm::make_vec3(material->emissive_factor);
-                matUniforms.metallic     = mr_config->metallic_factor;
-                matUniforms.roughness    = mr_config->roughness_factor;
-                matUniforms.normalFactor = (material->normal_texture.texture ?
-                                              material->normal_texture.scale :
-                                              1.0f);
+                matUniforms.baseColor = glm::make_vec4(mr_config->base_color_factor);
+                matUniforms.emissiveFactor = glm::make_vec3(material->emissive_factor);
+                matUniforms.metallic       = mr_config->metallic_factor;
+                matUniforms.roughness      = mr_config->roughness_factor;
+                matUniforms.normalFactor
+                  = (material->normal_texture.texture ? material->normal_texture.scale :
+                                                        1.0f);
                 matUniforms.aoFactor = (material->occlusion_texture.texture ?
                                           material->occlusion_texture.scale :
                                           1.0f);
@@ -489,8 +481,7 @@ static void gltf_ProcessData(cgltf_data* data)
                   opaqueWhitePixel.view);
 
                 R_Material::setTextureAndSamplerBinding(
-                  sgMat, 7,
-                  GET_TEXTURE(mr_config->metallic_roughness_texture.texture),
+                  sgMat, 7, GET_TEXTURE(mr_config->metallic_roughness_texture.texture),
                   opaqueWhitePixel.view);
 
                 R_Material::setTextureAndSamplerBinding(
@@ -574,8 +565,7 @@ static void _Test_Gltf_OnInit(GraphicsContext* ctx, GLFWwindow* window)
     cgltf_result result  = cgltf_parse_file(&options, filename, &data);
     if (result == cgltf_result_success) {
         log_trace("gltf parsed successfully");
-        cgltf_result buffers_result
-          = cgltf_load_buffers(&options, data, filename);
+        cgltf_result buffers_result = cgltf_load_buffers(&options, data, filename);
         if (buffers_result != cgltf_result_success) {
             log_error("failed to load buffers");
             return;
@@ -602,8 +592,7 @@ static void OnUpdate(f32 dt)
     // rotate the test transform
     R_Transform::rotateOnWorldAxis(testXform, VEC_UP, dt * 0.4f);
     // rotate the root
-    R_Transform::rotateOnLocalAxis(Component_GetXform(sceneIDs[0]), VEC_UP,
-                                   -dt * 0.1f);
+    R_Transform::rotateOnLocalAxis(Component_GetXform(sceneIDs[0]), VEC_UP, -dt * 0.1f);
 }
 
 static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
@@ -615,19 +604,18 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
     R_Transform::print(Component_GetXform(sceneIDs[0]), 0);
 
     GraphicsContext::prepareFrame(gctx);
-    WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(
-      gctx->commandEncoder, &gctx->renderPassDesc);
+    WGPURenderPassEncoder renderPass
+      = wgpuCommandEncoderBeginRenderPass(gctx->commandEncoder, &gctx->renderPassDesc);
 
     // write per-frame uniforms
     f32 time                    = (f32)glfwGetTime();
     FrameUniforms frameUniforms = {};
     frameUniforms.projectionMat = proj;
     frameUniforms.viewMat       = view;
-    frameUniforms.projViewMat
-      = frameUniforms.projectionMat * frameUniforms.viewMat;
-    frameUniforms.camPos   = camPos;
-    frameUniforms.dirLight = VEC_FORWARD;
-    frameUniforms.time     = time;
+    frameUniforms.projViewMat   = frameUniforms.projectionMat * frameUniforms.viewMat;
+    frameUniforms.camPos        = camPos;
+    frameUniforms.dirLight      = VEC_FORWARD;
+    frameUniforms.time          = time;
 
     // log_debug("geo num instances: %d", R_Geometry::numInstances(geo));
     // Test render loop
@@ -644,8 +632,7 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
         // TODO: cache the bindGroupLayout in the pipeline after creation (it
         // will never change)
         WGPUBindGroupLayout perMaterialLayout
-          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline,
-                                                 PER_MATERIAL_GROUP);
+          = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_MATERIAL_GROUP);
         WGPUBindGroupLayout perDrawLayout
           = wgpuRenderPipelineGetBindGroupLayout(gpuPipeline, PER_DRAW_GROUP);
 
@@ -654,19 +641,17 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 
         // set frame bind group (needs to be set per renderpipeline as long as
         // we use implicit layout:auto)
-        wgpuQueueWriteBuffer(gctx->queue,
-                             renderPipeline->pipeline.frameUniformBuffer, 0,
-                             &frameUniforms, sizeof(frameUniforms));
+        wgpuQueueWriteBuffer(gctx->queue, renderPipeline->pipeline.frameUniformBuffer,
+                             0, &frameUniforms, sizeof(frameUniforms));
         wgpuRenderPassEncoderSetBindGroup(renderPass, PER_FRAME_GROUP,
-                                          renderPipeline->pipeline.frameGroup,
-                                          0, NULL);
+                                          renderPipeline->pipeline.frameGroup, 0, NULL);
 
         // per-material render loop
         size_t materialIdx    = 0;
         R_Material* rMaterial = NULL;
 
-        while (R_RenderPipeline::materialIter(renderPipeline, &materialIdx,
-                                              &rMaterial)) {
+        while (
+          R_RenderPipeline::materialIter(renderPipeline, &materialIdx, &rMaterial)) {
             // get material
             // log_trace("drawing material: %d", rMaterial->id);
 
@@ -682,16 +667,15 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
             // iterate over material primitives
             size_t primitiveIdx           = 0;
             Material_Primitive* primitive = NULL;
-            while (
-              R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
+            while (R_Material::primitiveIter(rMaterial, &primitiveIdx, &primitive)) {
                 u32 numInstances = Material_Primitive::numInstances(primitive);
                 if (numInstances == 0) continue;
-                Material_Primitive::rebuildBindGroup(
-                  gctx, primitive, perDrawLayout, &frameArena);
+                Material_Primitive::rebuildBindGroup(gctx, primitive, perDrawLayout,
+                                                     &frameArena);
 
                 // set model bind group
-                wgpuRenderPassEncoderSetBindGroup(
-                  renderPass, PER_DRAW_GROUP, primitive->bindGroup, 0, NULL);
+                wgpuRenderPassEncoderSetBindGroup(renderPass, PER_DRAW_GROUP,
+                                                  primitive->bindGroup, 0, NULL);
 
                 R_Geometry* geo = Component_GetGeometry(primitive->geoID);
                 ASSERT(geo);
@@ -726,14 +710,14 @@ static void OnRender(glm::mat4 proj, glm::mat4 view, glm::vec3 camPos)
 
                 // populate index buffer
                 if (geo->numIndices > 0)
-                    wgpuRenderPassEncoderSetIndexBuffer(
-                      renderPass, geo->gpuIndexBuffer, WGPUIndexFormat_Uint32,
-                      0, geo->indexBufferDesc.size);
+                    wgpuRenderPassEncoderSetIndexBuffer(renderPass, geo->gpuIndexBuffer,
+                                                        WGPUIndexFormat_Uint32, 0,
+                                                        geo->indexBufferDesc.size);
 
                 // draw call (indexed)
                 if (geo->numIndices > 0) {
-                    wgpuRenderPassEncoderDrawIndexed(
-                      renderPass, geo->numIndices, numInstances, 0, 0, 0);
+                    wgpuRenderPassEncoderDrawIndexed(renderPass, geo->numIndices,
+                                                     numInstances, 0, 0, 0);
                 } else {
                     // draw call (nonindexed)
                     wgpuRenderPassEncoderDraw(renderPass, geo->numVertices,

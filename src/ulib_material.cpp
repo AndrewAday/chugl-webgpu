@@ -93,6 +93,10 @@ CK_DLL_MFUN(lines2d_material_set_loop);
 CK_DLL_CTOR(flat_material_ctor);
 CK_DLL_MFUN(flat_material_get_color);
 CK_DLL_MFUN(flat_material_set_color);
+CK_DLL_MFUN(flat_material_get_sampler);
+CK_DLL_MFUN(flat_material_set_sampler);
+CK_DLL_MFUN(flat_material_get_color_map);
+CK_DLL_MFUN(flat_material_set_color_map);
 
 CK_DLL_CTOR(uv_material_ctor);
 
@@ -498,6 +502,7 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
 
     BEGIN_CLASS(SG_MaterialTypeNames[SG_MATERIAL_FLAT],
                 SG_CKNames[SG_COMPONENT_MATERIAL]);
+    DOC_CLASS("Simple flat-shaded material (not affected by lighting).");
 
     CTOR(flat_material_ctor);
 
@@ -508,6 +513,20 @@ void ulib_material_query(Chuck_DL_Query* QUERY)
     MFUN(flat_material_set_color, "void", "color");
     ARG("vec3", "color");
     DOC_FUNC("Set material color uniform as an rgb. Alpha set to 1.0.");
+
+    MFUN(flat_material_get_sampler, "TextureSampler", "sampler");
+    DOC_FUNC("Get the sampler of the material.");
+
+    MFUN(flat_material_set_sampler, "void", "sampler");
+    ARG("TextureSampler", "sampler");
+    DOC_FUNC("Set the sampler of the material.");
+
+    MFUN(flat_material_get_color_map, "Texture", "colorMap");
+    DOC_FUNC("Get the color map of the material.");
+
+    MFUN(flat_material_set_color_map, "void", "colorMap");
+    ARG("Texture", "colorMap");
+    DOC_FUNC("Set the color map of the material.");
 
     END_CLASS();
 
@@ -1200,8 +1219,13 @@ static void ulib_material_init_uniforms_and_pso(SG_Material* material)
             chugl_materialSetShader(material, flat_shader);
 
             // set uniform
-            SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f)); // thickness
-            CQ_PushCommand_MaterialSetUniform(material, 0);
+            SG_Material::uniformVec4f(material, 0, glm::vec4(1.0f));
+            SG_Material::setSampler(material, 1, SG_SAMPLER_DEFAULT);
+            SG_Material::setTexture(
+              material, 2,
+              SG_GetTexture(g_builtin_textures.white_pixel_id)); // color map
+
+            ulib_material_cq_update_all_uniforms(material);
         } break;
         case SG_MATERIAL_UV: {
             // init shader
@@ -1408,6 +1432,39 @@ CK_DLL_MFUN(flat_material_set_color)
 
     SG_Material::uniformVec4f(material, 0, glm::vec4(color.x, color.y, color.z, 1));
     CQ_PushCommand_MaterialSetUniform(material, 0);
+}
+
+CK_DLL_MFUN(flat_material_get_sampler)
+{
+    RETURN->v_object = ulib_texture_ckobj_from_sampler(
+      GET_MATERIAL(SELF)->uniforms[1].as.sampler, false, SHRED);
+}
+
+CK_DLL_MFUN(flat_material_set_sampler)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+
+    SG_Material::setSampler(material, 1, SG_Sampler::fromCkObj(ckobj));
+    CQ_PushCommand_MaterialSetUniform(material, 1);
+}
+
+CK_DLL_MFUN(flat_material_get_color_map)
+{
+    RETURN->v_object
+      = SG_GetTexture(GET_MATERIAL(SELF)->uniforms[2].as.texture_id)->ckobj;
+}
+
+CK_DLL_MFUN(flat_material_set_color_map)
+{
+    SG_Material* material = GET_MATERIAL(SELF);
+    Chuck_Object* ckobj   = GET_NEXT_OBJECT(ARGS);
+    SG_Texture* tex       = ckobj ?
+                              SG_GetTexture(OBJ_MEMBER_UINT(ckobj, component_offset_id)) :
+                              SG_GetTexture(g_builtin_textures.white_pixel_id);
+
+    SG_Material::setTexture(material, 2, tex);
+    CQ_PushCommand_MaterialSetUniform(material, 2);
 }
 
 // UVMaterial ===================================================================

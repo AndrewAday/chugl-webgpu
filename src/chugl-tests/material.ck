@@ -86,6 +86,7 @@ T.assert(T.arrayEquals(material.uniformInt4(4), [1, 2, 3, 4]), "material uniform
 // test setting/getting TextureSampler
 
 TextureSampler sampler;
+TextureSampler.WRAP_CLAMP => sampler.wrapU;
 Texture texture;
 
 material.texture(0, texture);
@@ -100,5 +101,21 @@ T.assert(
     material.sampler(1).filterMin  == sampler.filterMin &&
     material.sampler(1).filterMag  == sampler.filterMag &&
     material.sampler(1).filterMip  == sampler.filterMip,
+    "material sampler"
+);
+
+// FlatMaterial 
+
+FlatMaterial flat_material;
+
+flat_material.sampler(sampler);
+
+T.assert(
+    flat_material.sampler().wrapU  == sampler.wrapU &&
+    flat_material.sampler().wrapV  == sampler.wrapV &&
+    flat_material.sampler().wrapW  == sampler.wrapW &&
+    flat_material.sampler().filterMin  == sampler.filterMin &&
+    flat_material.sampler().filterMag  == sampler.filterMag &&
+    flat_material.sampler().filterMip  == sampler.filterMip,
     "material sampler"
 );

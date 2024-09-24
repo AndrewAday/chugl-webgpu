@@ -282,11 +282,13 @@ static SG_Transform* ulib_assloader_load_obj(const char* filepath,
         }
 
         if (missing_normals) {
-            log_error("Warning, OBJ mesh %s is missing normal data.",
-                      shape.name.c_str());
+            log_error(
+              "Warning, OBJ mesh %s is missing normal data. Defaulting to (0,0,0)",
+              shape.name.c_str());
         }
         if (missing_uvs) {
-            log_error("Warning, OBJ mesh %s is missing uv data.", shape.name.c_str());
+            log_error("Warning, OBJ mesh %s is missing uv data. Defaulting to (0,0)",
+                      shape.name.c_str());
         }
 
         // TODO eventually conslidate with `ulib_geometry_build()`

@@ -355,14 +355,23 @@ static const char* flat_shader_string  = R"glsl(
 #include STANDARD_VERTEX_SHADER
 
 // our custom material uniforms
-@group(1) @binding(0) var<uniform> flat_color: vec4f;
+@group(1) @binding(0) var<uniform> u_color : vec4f;
+@group(1) @binding(1) var u_sampler : sampler;
+@group(1) @binding(2) var u_color_map : texture_2d<f32>;
 
 // don't actually need normals/tangents
 @fragment 
 fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
-    var ret = flat_color;
+    let tex = textureSample(u_color_map, u_sampler, in.v_uv);
+    var ret = u_color * tex;
     ret.a = clamp(ret.a, 0.0, 1.0);
+
+    // alpha test
+    if (ret.a < .01) {
+        discard;
+    }
+
     return ret;
 }
 )glsl";
@@ -511,6 +520,11 @@ static const char* phong_shader_string = R"glsl(
         //         lighting = mix(lighting, envMapContrib, u_EnvMapParams.intensity);
         //     }
         // }
+
+        // alpha test
+        if (diffuseTex.a < .01) {
+            discard;
+        }
 
         return vec4f(
             lighting, 
@@ -727,6 +741,12 @@ fn vs_main(
 fn fs_main(in : VertexOutput) -> @location(0) vec4f
 {
     let tex = textureSample(u_point_texture, u_point_sampler, in.v_uv);
+
+    // alpha test
+    if (tex.a < .01) {
+        discard;
+    }
+
     return vec4f(in.v_color * tex.rgb, tex.a);
 }
 
@@ -950,10 +970,11 @@ const char* gtext_shader_string = R"glsl(
     //   0 - no anti-aliasing
     //   1 - normal anti-aliasing
     // >=2 - exaggerated effect 
-    @group(1) @binding(3) var<uniform> antiAliasingWindowSize: f32 = 1.0;
+    @group(1) @binding(3) var<uniform> antiAliasingWindowSize: f32;
 
     // Enable a second ray along the y-axis to achieve 2-dimensional anti-aliasing.
-    @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32 = 1;
+    // set to 1 to enable, 0 to disable
+    @group(1) @binding(4) var<uniform> enableSuperSamplingAntiAliasing: i32;
 
     @group(1) @binding(5) var<uniform> bb : vec4f; // x = minx, y = miny, z = maxx, w = maxy
     @group(1) @binding(6) var texture_map: texture_2d<f32>;

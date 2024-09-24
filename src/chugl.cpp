@@ -49,7 +49,6 @@ static f64 system_dt_sec = 0;
 t_CKBOOL chugl_main_loop_hook(void* bindle)
 {
     UNUSED_VAR(bindle);
-    log_trace("chugl_main_loop_hook");
 
     ASSERT(g_chuglAPI && g_chuglVM);
 
@@ -243,8 +242,6 @@ CK_DLL_MFUN(event_next_frame_waiting_on)
 
 #ifdef CHUGL_DEBUG
             spinlock::lock(&waitingShredsLock);
-            // log_trace("g_frame_count: %d, waiting_shreds_frame_count: %d",
-            //           g_frame_count, waiting_shreds_frame_count);
             ASSERT(g_frame_count - 1 == waiting_shreds_frame_count);
             spinlock::unlock(&waitingShredsLock);
 #endif
@@ -351,11 +348,20 @@ CK_DLL_SFUN(chugl_get_default_camera)
     RETURN->v_object = SG_GetCamera(gg_config.mainCamera)->ckobj;
 }
 
+CK_DLL_SFUN(chugl_set_log_level)
+{
+    log_set_level(GET_NEXT_INT(ARGS));
+}
+
 // ============================================================================
 // Chugin entry point
 // ============================================================================
 CK_DLL_QUERY(ChuGL)
 {
+    // set log level
+#ifdef CHUGL_RELEASE
+    log_set_level(LOG_ERROR); // only log errors and fatal in release mode
+#endif
 
     // remember
     g_chuglVM  = QUERY->ck_vm(QUERY);
@@ -435,11 +441,31 @@ CK_DLL_QUERY(ChuGL)
     ulib_text_query(QUERY);
     ulib_assloader_query(QUERY);
 
-    static u64 foo = 12345;
     { // GG static functions
         QUERY->begin_class(QUERY, "GG", "Object");
 
-        QUERY->add_svar(QUERY, "int", "foo", true, &foo);
+        // svars
+        static t_CKUINT gg_log_level_trace = LOG_TRACE;
+        static t_CKUINT gg_log_level_debug = LOG_DEBUG;
+        static t_CKUINT gg_log_level_info  = LOG_INFO;
+        static t_CKUINT gg_log_level_warn  = LOG_WARN;
+        static t_CKUINT gg_log_level_error = LOG_ERROR;
+        static t_CKUINT gg_log_level_fatal = LOG_FATAL;
+        SVAR("int", "LogLevel_Trace", &gg_log_level_trace);
+        SVAR("int", "LogLevel_Debug", &gg_log_level_debug);
+        SVAR("int", "LogLevel_Info", &gg_log_level_info);
+        SVAR("int", "LogLevel_Warn", &gg_log_level_warn);
+        SVAR("int", "LogLevel_Error", &gg_log_level_error);
+        SVAR("int", "LogLevel_Fatal", &gg_log_level_fatal);
+
+        SFUN(chugl_set_log_level, "void", "logLevel");
+        ARG("int", "level");
+        DOC_FUNC(
+          "Set the log level for ChuGL's renderer and graphics thread. "
+          "Levels are: GG.LogLevel_Trace, GG.LogLevel_Debug, GG.LogLevel_Info, "
+          "GG.LogLevel_Warn, GG.LogLevel_Error, GG.LogLevel_Fatal. "
+          "Setting a log level will allow all messages of that level and higher "
+          "to be printed to the console. Default is GG.LogLevel_Error.");
 
         QUERY->add_sfun(QUERY, chugl_next_frame, "NextFrameEvent", "nextFrame");
         QUERY->doc_func(
@@ -551,7 +577,6 @@ CK_DLL_QUERY(ChuGL)
         SG_Texture* render_texture
           = SG_GetTexture(g_builtin_textures.default_render_texture_id);
         SG_Pass::resolveTarget(render_pass, render_texture);
-        log_trace("setting resolve target to Render Texture ID %d", render_texture->id);
 
         // output pass
         Chuck_Object* output_pass_ckobj = chugin_createCkObj("OutputPass", true);

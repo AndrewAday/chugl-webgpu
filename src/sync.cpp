@@ -402,8 +402,8 @@ void CHUGL_Kb_action(int key, bool down)
 CHUGL_KbKeyState CHUGL_Kb_key(int key)
 {
     spinlock::lock(&CHUGL_Kb.lock);
-    CHUGL_KbKeyState k = { CHUGL_Kb.keys_down[key], (bool) CHUGL_Kb.keys[key].pressed,
-                           (bool) CHUGL_Kb.keys[key].released };
+    CHUGL_KbKeyState k = { CHUGL_Kb.keys_down[key], (bool)CHUGL_Kb.keys[key].pressed,
+                           (bool)CHUGL_Kb.keys[key].released };
     spinlock::unlock(&CHUGL_Kb.lock);
     return k;
 }
@@ -517,7 +517,6 @@ void Sync_WaitOnUpdateDone()
     std::unique_lock<std::mutex> lock(gameLoopLock);
     gameLoopConditionVar.wait(lock, []() { return shouldRender; });
     shouldRender = false;
-    // log_error("graphics thread: graphics thread woke up");
 }
 
 void Sync_SignalUpdateDone()

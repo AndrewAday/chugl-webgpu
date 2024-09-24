@@ -108,7 +108,7 @@ CK_DLL_CTOR(gtext_ctor)
 
     OBJ_MEMBER_UINT(SELF, component_offset_id) = text->id;
 
-    text->text = "hello world";
+    text->text = "hello ChuGL";
 
     // create gtext material
     Chuck_Object* material_ckobj
