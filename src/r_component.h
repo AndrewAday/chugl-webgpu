@@ -248,7 +248,7 @@ struct R_Texture : public R_Component {
     // used for auto-resizing framebuffer attachments
     static void resize(GraphicsContext* gctx, R_Texture* r_tex, u32 width, u32 height)
     {
-        bool needs_resize = r_tex->desc.width != width || r_tex->desc.height != height
+        bool needs_resize = r_tex->desc.width != (int) width || r_tex->desc.height != (int) height
                             || r_tex->gpu_texture == NULL;
 
         if (needs_resize) {
