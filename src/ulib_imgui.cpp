@@ -458,6 +458,7 @@ CK_DLL_SFUN(ui_DragFloat2Ex);
 CK_DLL_SFUN(ui_DragFloat2Speed);
 CK_DLL_SFUN(ui_DragFloat3);
 CK_DLL_SFUN(ui_DragFloat3Ex);
+CK_DLL_SFUN(ui_DragFloat3Speed);
 CK_DLL_SFUN(ui_DragFloat4);
 CK_DLL_SFUN(ui_DragFloat4Ex);
 CK_DLL_SFUN(ui_DragFloatRange2);
@@ -5386,6 +5387,12 @@ void ulib_imgui_query(Chuck_DL_Query* QUERY)
       "If v_min >= v_max we have no bound. Parameter `flags` is an enum of "
       "type UI_SliderFlags");
 
+    SFUN(ui_DragFloat3Speed, "int", "drag");
+    ARG("string", "label");
+    ARG("UI_Float3", "v");
+    ARG("float", "v_speed");
+    DOC_FUNC("Implied v_min = 0.0f, v_max = 0.0f, format = \"%.3f\", flags = 0");
+
     SFUN(ui_DragFloat4, "int", "drag");
     ARG("string", "label");
     ARG("UI_Float4", "v");
@@ -9585,6 +9592,16 @@ CK_DLL_SFUN(ui_DragFloat3)
 CK_DLL_SFUN(ui_DragFloat3Ex)
 {
     UI_DRAG_EX_IMPL_FLOAT(ImGui_DragFloat3Ex, float, ui_float3_ptr_offset);
+}
+
+CK_DLL_SFUN(ui_DragFloat3Speed)
+{
+    const char* label = API->object->str(GET_NEXT_STRING(ARGS));
+    Chuck_Object* obj = GET_NEXT_OBJECT(ARGS);
+    float* v          = (float*)OBJ_MEMBER_UINT(obj, ui_float3_ptr_offset);
+    float v_speed     = GET_NEXT_FLOAT(ARGS);
+    RETURN->v_int
+      = cimgui::ImGui_DragFloat3Ex(label, v, v_speed, 0.0f, 0.0f, "%.3f", 0);
 }
 
 CK_DLL_SFUN(ui_DragFloat4)

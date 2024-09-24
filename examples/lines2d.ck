@@ -20,9 +20,7 @@ line_colors => lines.colors;
 
 // UI variables for line material params
 UI_Float line_width(lines.width());
-// UI_Bool line_loop(lines.loop());
 UI_Float3 line_color(lines.color());
-// UI_Float line_extrusion(lines.extrusion());
 
 fun void ui() {
     while (true) {
@@ -54,7 +52,7 @@ fun void ui() {
                 }
 
                 UI.sameLine();
-                if (UI.button("Remove")) {
+                if (UI.button("Remove##point_pos")) {
                     line_positions.erase(i);
                     ui_line_positions.erase(i);
                     line_positions => lines.positions;
@@ -80,7 +78,7 @@ fun void ui() {
                 }
 
                 UI.sameLine();
-                if (UI.button("Remove")) {
+                if (UI.button("Remove##point_color")) {
                     line_colors.erase(i);
                     ui_line_colors.erase(i);
                     line_colors => lines.colors;
